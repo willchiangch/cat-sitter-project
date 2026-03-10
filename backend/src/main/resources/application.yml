@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cat_sitter_db
+    username: sitter_admin
+    password: dev_password123
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # 開發初期先用 update 讓 Hibernate 幫我們自動建表，之後再切換成 Flyway
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: 8080

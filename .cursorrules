@@ -1,24 +1,19 @@
-專案總覽與架構藍圖 (Architecture & Stack Overview)
-這份文件定義了整個系統的邊界與模組，讓 AI 知道它現在正在寫哪一個部分，以及資料是如何流動的。
+# 前端開發指引 (Frontend Guidelines)
 
-專案目標：貓咪到府保母 PWA (包含保母端與飼主端)。
+## 1. 核心技術棧
+* 框架：React 18+ (使用 Vite 建置)
+* 樣式：Tailwind CSS + Lucide Icons
+* 狀態管理：Zustand (用於跨元件狀態) 或 React Context (僅限全域設定如 Role/Theme)
+* 路由：React Router v6
+* API 請求：`axios` (需封裝攔截器處理 JWT Token)
 
-基礎設施 (Infrastructure)：
+## 2. 程式碼撰寫規範
+* 強制使用 Functional Components 與 React Hooks (`useState`, `useEffect`, `useCallback`)，絕對禁止寫 Class Components。
+* 元件必須依照功能拆分，保持單一職責原則 (SRP)。過大的元件請拆分為 UI Component 與 Container Component。
+* 所有的多行輸入框 (Textarea) 必須套用 `autoResize` 邏輯。
+* 過長的文字段落必須實作 `Text Clamp` (顯示更多/隱藏內容) 的切換邏輯。
 
-雲端環境：GCP (Google Cloud Platform)
-
-前端代管：Firebase Hosting (或 Cloud Storage + CDN)
-
-後端代管：Cloud Run (Serverless Container)
-
-資料庫：Cloud SQL (PostgreSQL 15+)
-
-檔案儲存：Google Cloud Storage (GCS)
-
-本地開發環境 (Local Dev)：
-
-資料庫：Docker Compose 運行的 PostgreSQL (配置於 localhost:5432)
-
-M2 MacBook 本地測試配置。
-
-通訊協定：前後端分離，透過 RESTful API 溝通，資料格式統一為 JSON，認證機制採用 JWT (JSON Web Token)。
+## 3. UI/UX 規範
+* 保母端 (Sitter) 視覺主色系為 Amber (`bg-amber-500` 等)。
+* 飼主端 (Client) 視覺主色系為 Blue (`bg-blue-500` 等)。
+* 必須確保 RWD (響應式網頁設計) 完美適配手機版型 (限制於 `max-w-md mx-auto` 容器內)。

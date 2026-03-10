@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  db:
+    # M2 晶片跑 alpine 版本非常輕量順暢
+    image: postgres:15-alpine
+    container_name: cat-sitter-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: sitter_admin
+      POSTGRES_PASSWORD: dev_password123
+      POSTGRES_DB: cat_sitter_db
+      TZ: Asia/Taipei
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
