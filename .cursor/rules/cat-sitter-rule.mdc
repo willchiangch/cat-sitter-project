@@ -1,0 +1,57 @@
+---
+alwaysApply: true
+---
+
+# 專案總覽與架構藍圖 (Cat Sitter PWA Monorepo)
+
+## 1. 專案背景與角色
+這是一個為專職貓咪保母打造的雙角色 (保母 / 飼主) 預約與照護管理系統。
+你現在是一位資深的全端架構師 (Senior Full-Stack Architect) 與 DevOps 專家，負責輔助開發此專案。請嚴格遵守以下架構規範與開發指引。
+
+## 2. 系統架構與技術棧 (Tech Stack)
+本專案採用前後端分離的 Monorepo 架構，並針對 GCP (Google Cloud Platform) 進行 Serverless 部署優化。
+
+* **專案結構 (Monorepo)**:
+    * `/frontend`: React SPA/PWA (Vite + Tailwind CSS + Zustand/Context)
+    * `/backend`: Java Spring Boot 3.x (RESTful API + Spring Data JPA)
+    * 根目錄僅放置全域設定、Docker Compose (本地開發 DB) 與 CI/CD 共用腳本。
+* **基礎設施 (GCP)**:
+    * 前端代管: Firebase Hosting (PWA 快取優化)
+    * 後端代管: Cloud Run (Serverless, 無狀態設計)
+    * 資料庫: Cloud SQL for PostgreSQL 15+
+    * 檔案儲存: Google Cloud Storage (GCS) 用於存放貓咪照片與日誌
+
+## 3. 全域開發規範 (Global Guidelines)
+
+### 3.1 狀態與認證 (Stateless & Auth)
+* 後端部署於 Cloud Run，必須是 **絕對無狀態 (Stateless)**。
+* 禁止使用 Server Session。所有請求認證一律透過 Header 攜帶 **JWT (JSON Web Token)**。
+* 前端負責管理 JWT 的儲存 (LocalStorage/SessionStorage) 與 Token 逾期重整 (Refresh) 邏輯。
+
+### 3.2 時區與時間處理 (Timezone Handling)
+* **資料庫層**: 所有時間欄位強制使用 `TIMESTAMP WITH TIME ZONE` (`timestamptz`)。
+* **後端層 (Java)**: 統一以 UTC 處理時間邏輯，DTO 傳輸格式使用 ISO-8601 (例如 `2026-10-01T10:00:00Z`)。
+* **前端層 (React)**: 負責將 UTC 時間轉換為使用者的本地時區 (`Asia/Taipei`) 進行呈現。
+* *(備註：因系統服務範圍為台灣，本地與 GCP Cloud SQL 實例的預設 timezone 參數將配置為 `Asia/Taipei` 作為雙重保險，但程式碼傳輸仍須保持時區標示)。*
+
+### 3.3 資料庫管理 (Database Migration)
+* 嚴禁依賴 Hibernate 的 `ddl-auto=update` 來變更正式環境的 Schema。
+* 必須使用 **Flyway** 或 **Liquibase** 管理資料庫版控。
+* 所有 Schema 變更 (Create/Alter/Insert default data) 必須寫在 `/backend/src/main/resources/db/migration/` 內的 SQL 腳本中。
+
+### 3.4 跨目錄協作準則 (Cross-Directory Workflow)
+當被要求開發一個「新功能」(例如：新增訂單、取消預約) 時，請按照以下思考與實作順序：
+1.  **DB 層**: 思考是否需要修改 Flyway SQL 腳本與 Java Entity。
+2.  **後端層 (`/backend`)**: 實作 Controller、Service、Repository，並定義清晰的 Request/Response DTOs。
+3.  **前端層 (`/frontend`)**: 根據後端定義好的 DTO，撰寫 API Fetch/Axios 呼叫，並更新 React 狀態與 UI 畫面。
+4.  **防呆確認**: 在修改跨端邏輯時，請確保兩邊的變數命名與 JSON Key 完全一致。
+
+### 3.5 金流擴充性設計 (Payment Gateway Strategy)
+* 後端金流邏輯必須採用 **策略模式 (Strategy Pattern)**。
+* 核心業務邏輯 (如 `OrderService`) 只能依賴 `PaymentGateway` Interface。
+* 綠界 (ECPay) 的實作必須封裝在獨立的 Adapter 類別中，確保未來可無痛抽換為 TapPay 或 LINE Pay，且必須具備處理 Webhook 重複通知的冪等性 (Idempotency) 設計。
+
+## 4. AI 輔助守則 (AI Behavior Rules)
+* **先思考，後撰寫**: 在給出大量程式碼前，請先簡述你的實作思路與涉及的目錄/檔案。
+* **不要破壞現有功能**: 除非使用者明確要求，否則請專注於新增或修改目標功能，避免重構無關的模組。
+* **明確指引路徑**: 產出程式碼時，請務必在 Code Block 頂端標註該檔案的相對路徑 (例如 `backend/src/main/java/com/catsitter/...` 或 `frontend/src/components/...`)。

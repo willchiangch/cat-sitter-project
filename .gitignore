@@ -1,0 +1,25 @@
+# === Mac 系統隱藏檔 ===
+.DS_Store
+
+# === IDE 與編輯器 ===
+.idea/
+.vscode/
+*.swp
+
+# === 前端 (React/Vite) ===
+frontend/node_modules/
+frontend/dist/
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/.env
+frontend/.env.local
+
+# === 後端 (Java/Spring Boot) ===
+backend/target/
+backend/!.mvn/wrapper/maven-wrapper.jar
+backend/log/
+backend/logs/
+backend/*.log
+# 忽略包含機密的本機設定檔
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/application-local.yml

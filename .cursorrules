@@ -1,0 +1,24 @@
+專案總覽與架構藍圖 (Architecture & Stack Overview)
+這份文件定義了整個系統的邊界與模組，讓 AI 知道它現在正在寫哪一個部分，以及資料是如何流動的。
+
+專案目標：貓咪到府保母 PWA (包含保母端與飼主端)。
+
+基礎設施 (Infrastructure)：
+
+雲端環境：GCP (Google Cloud Platform)
+
+前端代管：Firebase Hosting (或 Cloud Storage + CDN)
+
+後端代管：Cloud Run (Serverless Container)
+
+資料庫：Cloud SQL (PostgreSQL 15+)
+
+檔案儲存：Google Cloud Storage (GCS)
+
+本地開發環境 (Local Dev)：
+
+資料庫：Docker Compose 運行的 PostgreSQL (配置於 localhost:5432)
+
+M2 MacBook 本地測試配置。
+
+通訊協定：前後端分離，透過 RESTful API 溝通，資料格式統一為 JSON，認證機制採用 JWT (JSON Web Token)。

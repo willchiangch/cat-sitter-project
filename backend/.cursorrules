@@ -1,0 +1,18 @@
+# 後端開發指引 (Backend Guidelines)
+
+## 1. 核心技術棧
+* 語言：Java 17 (或以上 LTS 版本)
+* 框架：Spring Boot 3.x
+* 資料庫互動：Spring Data JPA + Hibernate
+* 專案建置：Maven
+
+## 2. 架構與程式碼規範
+* 嚴格遵守三層式架構 (Layered Architecture)：Controller -> Service -> Repository。
+* 絕對禁止在 Controller 裡面撰寫業務邏輯。
+* 統一 API 回傳格式 (Response Wrapper)，所有 API 必須回傳統一的 JSON 結構 (包含 `code`, `message`, `data`)。
+* 針對外部服務 (如綠界金流 ECPay)，必須使用**策略模式 (Strategy Pattern)** 封裝在 Adapter 中，核心業務只能依賴 Interface。
+
+## 3. 安全性與環境變數
+* 所有機密資訊 (如 DB 密碼、JWT Secret、ECPay HashKey) 必須從環境變數 (`System.getenv()`) 讀取，嚴禁 Hardcode 在程式碼中。
+* API 必須具備無狀態 (Stateless) 特性，認證機制統一使用 JWT，禁止使用 Session。
+* 若處理金流 Webhook 回呼，必須確保實作冪等性 (Idempotency)，防止重複扣款或發送通知。
