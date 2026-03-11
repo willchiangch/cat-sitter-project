@@ -24,8 +24,8 @@ cat-sitter-project/
 
 | 層級     | 技術 |
 |----------|------|
-| 前端     | React、Vite、Tailwind CSS、Zustand/Context |
-| 後端     | Java 21、Spring Boot 3.x、Spring Data JPA |
+| 前端     | React 19、Vite 7、Tailwind CSS 4、Zustand/Context |
+| 後端     | Java 21、Spring Boot 4.0.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 版控     | Flyway（Schema 在 `backend/src/main/resources/db/migration/`） |
 | 雲端     | GCP：Firebase Hosting、Cloud Run、Cloud SQL、GCS、Artifact Registry、Secret Manager |

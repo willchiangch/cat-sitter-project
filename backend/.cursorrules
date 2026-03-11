@@ -1,8 +1,8 @@
 # 後端開發指引 (Backend Guidelines)
 
 ## 1. 核心技術棧
-* 語言：Java 17 (或以上 LTS 版本)
-* 框架：Spring Boot 3.x
+* 語言：Java 21 (LTS)
+* 框架：Spring Boot 4.0.3
 * 資料庫互動：Spring Data JPA + Hibernate
 * 專案建置：Maven
 
