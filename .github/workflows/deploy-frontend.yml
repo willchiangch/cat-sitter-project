@@ -7,13 +7,14 @@
 name: Deploy Frontend to Firebase Hosting
 
 on:
-  push:
-    branches:
-      - main    # Production 正式環境
-      - develop # UAT 測試環境
-    paths:
-      - "frontend/**"
-      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch: # 目前開發階段，改為手動觸發
+  # push:
+  #   branches:
+  #     - main    # Production 正式環境
+  #     - develop # UAT 測試環境
+  #   paths:
+  #     - "frontend/**"
+  #     - ".github/workflows/deploy-frontend.yml"
 
 jobs:
   build-and-deploy:
