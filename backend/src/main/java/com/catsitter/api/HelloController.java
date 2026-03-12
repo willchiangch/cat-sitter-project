@@ -27,9 +27,13 @@ public class HelloController {
             // 去問 Docker 裡的 PostgreSQL 現在幾點
             String dbTime = jdbcTemplate.queryForObject("SELECT NOW()", String.class);
             
+            // 檢查 Flyway 建好的 tables 有哪些
+            java.util.List<String> tables = jdbcTemplate.queryForList("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'", String.class);
+            
             response.put("status", "success");
             response.put("message", "哈囉，Will！後端已經成功連上 Docker 資料庫了！");
             response.put("database_time", dbTime);
+            response.put("tables", tables);
         } catch (Exception e) {
             response.put("status", "error");
             response.put("message", "資料庫連線失敗：" + e.getMessage());

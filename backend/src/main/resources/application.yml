@@ -1,3 +1,4 @@
+debug: true
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/cat_sitter_db
@@ -6,13 +7,16 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      # 開發初期先用 update 讓 Hibernate 幫我們自動建表，之後再切換成 Flyway
-      ddl-auto: update
+      # 既然用了 Flyway，就關閉 Hibernate 的自動建表，全權交給 Flyway 處理
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
 server:
   port: 8081
