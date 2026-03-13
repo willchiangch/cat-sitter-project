@@ -6,10 +6,55 @@
       "sourceType": "github",
       "computedHash": "8d262f08f33825947ea20204ebf5101e36056c98090251bd973a552ec8ef0c0c"
     },
+    "e2e-testing": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "b66c5a5415f07b48472049d5301e8327fe39cb23b706f7969668a2d823f62d11"
+    },
     "frontend-testing": {
       "source": "langgenius/dify",
       "sourceType": "github",
       "computedHash": "535be03e51f107346e360c67cb381bbf74e804531273ac60fc9ebc32a2f1130b"
+    },
+    "openapi-spec-generation": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "8f7638e66dfc477e490ebd6e3199ee2bd2bbbce568e75124a2d578f75187906b"
+    },
+    "postgres-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "ce3084b8f555d1c560d849332483428301f30ec78f315e1d60ca1ddd8bc69a51"
+    },
+    "pwa-manifest-generator": {
+      "source": "jeremylongshore/claude-code-plugins-plus-skills",
+      "sourceType": "github",
+      "computedHash": "e9216268551297b9ae973909301cb0a8b0c9b1b779b39885a265ca26b148c6e5"
+    },
+    "react-patterns": {
+      "source": "srbhr/Resume-Matcher",
+      "sourceType": "github",
+      "computedHash": "ea7129238a9e2efeae880a391f0dc2f2bd8e01df8d7353606b15ea32dc614af4"
+    },
+    "springboot-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "bc422225a6b9f72cc69c45b2c4b8828d8a2c35c2fe2a893700932178f49e3900"
+    },
+    "springboot-security": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "85450647da9a2d1390da8c75c04cad6b56e48158af1de1862329ebcffec2e199"
+    },
+    "springboot-tdd": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "c759c47d0dcbc914ab4cd565b32c63f886b6599cddd7e4e8c8d3082dbff4da39"
+    },
+    "springboot-verification": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "88a2604dca610c7bf230affe5b2006d8c847ae29ca68cef3c0b9052ee736734d"
     }
   }
 }

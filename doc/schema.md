@@ -1,4 +1,4 @@
-# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V5+)
+# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V6)
 
 ## 全域稽核欄位 (Audit Columns) 約定
 為保持表格簡潔，以下 13 張資料表**皆預設包含**以下 4 個標準稽核欄位（實作時由 Spring Data JPA 框架自動生成與維護）：
@@ -18,11 +18,13 @@
 | 欄位名稱 | 型態 | 說明與狀態機 (State Machine) |
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 系統底層唯一識別碼 |
-| `email` | VARCHAR | 登入與主要聯絡信箱 |
+| `email` | VARCHAR (UNIQUE) | 登入與主要聯絡信箱 |
 | `password_hash` | VARCHAR | 密碼 (若走 OAuth 第三方登入則允許為空) |
 | `oauth_provider` | VARCHAR | **[狀態]** 登入來源：<br>`LOCAL` (本地密碼), `GOOGLE`, `LINE`, `APPLE` |
 | `oauth_id` | VARCHAR | 第三方平台回傳的唯一 ID (勾稽用) |
 | `status` | VARCHAR | **[狀態]** 帳號總狀態：<br>`ACTIVE` (正常啟用), `SUSPENDED` (停權/封鎖) |
+
+> **Constraints**：`UNIQUE (oauth_provider, oauth_id)` — 防止同一第三方帳號重複綁定
 
 ### 2. `profiles` (角色檔案表)
 同一個帳號可切換不同身分，資料互不干擾。訂單與寵物皆綁定此表。
@@ -39,6 +41,10 @@
 | `service_areas` | JSONB | **[SITTER 專用]** 服務區域 (如 `["新莊區", "板橋區"]`) |
 | `bio_summary` | TEXT | **[SITTER 專用]** 專業履歷與自介 |
 | `refusal_criteria`| TEXT | **[SITTER 專用]** 拒接條件聲明 |
+| `booking_open_start` | DATE | **[SITTER 專用]** 開放預約起始日 |
+| `booking_open_end` | DATE | **[SITTER 專用]** 開放預約結束日 |
+
+> **Constraints**：`UNIQUE (account_id, role_type)` — 同帳號同角色只能有一個 profile
 
 ---
 
@@ -58,6 +64,7 @@
 | `bookable_start_date`| DATE | 方案有效起日 (常態方案為空) |
 | `bookable_end_date`| DATE | 方案有效迄日 (常態方案為空) |
 | `advance_booking_days`| INT | 需提前預訂天數限制 (防堵急單) |
+| `sort_order` | INT | 保母端方案顯示排序 (預設 0) |
 | `is_active` | BOOLEAN | 是否上架開放預約 |
 
 ### 4. `sitter_questions` (保母自訂題庫表)
@@ -80,6 +87,10 @@
 | `client_profile_id` | UUID (FK) | 屬於哪位飼主 |
 | `name` | VARCHAR | 寵物名字 |
 | `species` | VARCHAR | **[狀態]** 物種：<br>`CAT`, `DOG`, `BIRD`, `REPTILE`, `OTHER` |
+| `gender` | VARCHAR | 性別：`MALE`, `FEMALE`, `UNKNOWN` |
+| `is_neutered` | BOOLEAN | 是否已結紮 |
+| `weight_kg` | NUMERIC(5,2) | 體重 (公斤) |
+| `avatar_url` | VARCHAR | 存放於 GCS 的大頭貼網址 |
 | `medical_notes` | TEXT | 醫療史與過敏藥物 |
 | `dietary_notes` | TEXT | 飲食偏好與餵食方式 |
 | `personality_notes`| TEXT | 個性雷達與行為特徵 |
@@ -98,6 +109,8 @@
 | `sitter_profile_id` | UUID (FK) | 被收藏者 (保母) |
 | `is_favorite` | BOOLEAN | `true` (顯示於最愛), `false` (隱藏/不再合作) |
 
+> **Constraints**：`UNIQUE (client_profile_id, sitter_profile_id)`
+
 ### 7. `sitter_trust_circles` (保母信任圈表)
 
 | 欄位名稱 | 型態 | 說明與狀態機 (State Machine) |
@@ -106,6 +119,8 @@
 | `owner_sitter_id` | UUID (FK) | 發起信任的保母 |
 | `trusted_sitter_id` | UUID (FK) | 被加入信任圈的同行 |
 | `status` | VARCHAR | **[狀態]** 合作關係：<br>`ACTIVE` (正常合作), `BLOCKED` (封鎖/終止合作) |
+
+> **Constraints**：`UNIQUE (owner_sitter_id, trusted_sitter_id)`
 
 ---
 
@@ -119,7 +134,9 @@
 | `id` | UUID (PK) | 訂單 ID |
 | `client_profile_id` | UUID (FK) | 買方 (飼主) |
 | `current_sitter_id` | UUID (FK) | 實際承接保母 (若轉單成功會更新為接手者) |
-| `service_id` | UUID (FK) | 購買的方案 |
+| `service_id` | UUID (FK) | 購買的方案 (歷史查詢用，勿作為方案資訊來源) |
+| `service_name` | VARCHAR | **[快照]** 訂單建立時的方案名稱 |
+| `service_unit_price`| NUMERIC(10,2) | **[快照]** 訂單建立時的方案單價 |
 | `base_amount` | DECIMAL | 方案原始總價 (次數 x 方案單價) |
 | `surcharge_amount`| DECIMAL | 加給總額 (如跨區車馬費) |
 | `discount_amount` | DECIMAL | 折扣總額 |
@@ -137,6 +154,8 @@
 | `order_id` | UUID (FK) | 綁定哪張訂單 |
 | `question_id` | UUID (FK) | 對應哪道題目 |
 | `answer_text` | TEXT | 飼主填寫的答案 |
+
+> **Constraints**：`UNIQUE (order_id, question_id)` — 同訂單同題目只能有一個答案
 
 ### 10. `order_transfers` (轉單歷程表)
 
@@ -170,6 +189,7 @@
 | `pet_id` | UUID (FK) | 針對哪隻寵物 (若為環境清潔可為空) |
 | `task_type` | VARCHAR | **[狀態]** 任務類型：<br>`FEEDING` (餵食), `LITTER` (貓砂), `MEDICAL` (醫療/餵藥), `PLAYING` (陪玩), `CUSTOM` (自訂) |
 | `description` | VARCHAR | 任務細節說明 |
+| `sort_order` | INT | 任務顯示排序，支援拖曳調整 (預設 0) |
 | `is_completed` | BOOLEAN | 是否已完成打勾 |
 | `photo_url` | VARCHAR | 任務完成證明照片 (GCS 連結) |
 | `completed_at` | TIMESTAMPTZ | 保母實際打勾完成的精準時間 |
@@ -185,4 +205,5 @@
 | `actor_profile_id`| UUID (FK) | 觸發動作的人 (若為系統自動觸發則留空) |
 | `action_type` | VARCHAR | **[狀態]** 軌跡類型：<br>`ORDER_CREATED` (訂單建立), `STATUS_CHANGED` (狀態變更), `QUESTIONNAIRE_SENT` (發送問卷), `VISIT_STARTED` (行程開始), `VISIT_COMPLETED` (行程完成), `TASK_COMPLETED` (任務打勾), `TRANSFER_REQUESTED` (發起轉單) 等 |
 | `previous_status` | VARCHAR | 變更前的狀態值 (可為空) |
-| `new_status` | VARCHAR | 變更後的狀態值 |
+| `new_status` | VARCHAR | 變更後的狀態值 **(nullable)**；非狀態轉移類型的 action 可為空 |
+| `metadata` | JSONB | 附加資訊，如護照欄位異動 `{"field": "medical_notes", "old": "...", "new": "..."}` |
