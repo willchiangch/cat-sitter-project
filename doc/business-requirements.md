@@ -1,6 +1,6 @@
 # 貓咪保母 PWA — 業務需求規格書 (Business Requirements)
 
-本文件依**前端需求規格** (`doc/frontend-spec.md`)與既有 **Schema**（`doc/schema.md`）對齊，定義系統的業務目標、角色、用例、狀態與規則，供前後端實作與 API 設計對照。
+本文件依**前端需求規格**與既有 **Schema**（`doc/schema.md`）對齊，定義系統的業務目標、角色、用例、狀態與規則，供前後端實作與 API 設計對照。
 
 ---
 
@@ -209,4 +209,4 @@
 
 ---
 
-本規格書與 `doc/schema.md`、`doc/frontend-spec.md`（底部導覽與視圖/動作）一致，可作為 API 設計與實作驗收的業務依據。
+本規格書與 `doc/schema.md`、`doc/frontend.md`（底部導覽與視圖/動作）一致，可作為 API 設計與實作驗收的業務依據。
