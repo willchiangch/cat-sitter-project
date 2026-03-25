@@ -46,7 +46,7 @@ public class OrderActionLog extends AuditableEntity {
 
   /** 附加資訊，如護照欄位異動 {"field": "medical_notes", "old": "...", "new": "..."} */
   @JdbcTypeCode(SqlTypes.JSON)
-  @Column(columnDefinition = "jsonb")
+  @Column
   private String metadata;
 
   public UUID getId() { return id; }

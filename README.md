@@ -83,4 +83,7 @@ cat-sitter-project/
 - **時區**：DB 使用 `timestamptz`；後端 UTC + ISO-8601；前端依需求轉本地時區。
 - **金流**：後端以 **策略模式** 依賴 `PaymentGateway` 介面，綠界等實作獨立 Adapter，Webhook 需具冪等性。
 
-更完整的架構與開發守則見專案根目錄 `.cursorrules` 與 `.cursor/rules/cat-sitter-rule.mdc`。
+更完整的架構與開發守則見：
+- [後端開發規範 (TDD & 測試策略)](backend/DEVELOPMENT_GUIDELINES.md)
+- [業務測試情境 (Scenarios)](scenario/)
+- 專案根目錄 `.cursorrules` 與 `.cursor/rules/cat-sitter-rule.mdc`

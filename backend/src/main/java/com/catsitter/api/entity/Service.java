@@ -42,7 +42,7 @@ public class Service extends AuditableEntity {
 
   @NotEmpty
   @JdbcTypeCode(SqlTypes.JSON)
-  @Column(name = "supported_pet_types", columnDefinition = "jsonb")
+  @Column(name = "supported_pet_types")
   private List<String> supportedPetTypes;
 
   @Column(name = "bookable_start_date")

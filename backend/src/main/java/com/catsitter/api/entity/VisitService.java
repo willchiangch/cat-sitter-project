@@ -1,7 +1,7 @@
 package com.catsitter.api.entity;
 
 import com.catsitter.api.entity.common.AuditableEntity;
-import com.catsitter.api.entity.enums.TaskType;
+import com.catsitter.api.entity.enums.ServiceType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
@@ -9,8 +9,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "visit_tasks")
-public class VisitTask extends AuditableEntity {
+@Table(name = "visit_services")
+public class VisitService extends AuditableEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
@@ -21,15 +21,15 @@ public class VisitTask extends AuditableEntity {
   @JoinColumn(name = "visit_id", nullable = false)
   private Visit visit;
 
-  /** nullable：環境清潔等任務不一定針對特定寵物 */
+  /** nullable：環境清潔等服務不一定針對特定寵物 */
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "pet_id")
   private Pet pet;
 
   @NotNull
   @Enumerated(EnumType.STRING)
-  @Column(name = "task_type", nullable = false, length = 50)
-  private TaskType taskType;
+  @Column(name = "service_type", nullable = false, length = 50)
+  private ServiceType serviceType;
 
   @Column(length = 255)
   private String description;
@@ -51,8 +51,8 @@ public class VisitTask extends AuditableEntity {
   public void setVisit(Visit visit) { this.visit = visit; }
   public Pet getPet() { return pet; }
   public void setPet(Pet pet) { this.pet = pet; }
-  public TaskType getTaskType() { return taskType; }
-  public void setTaskType(TaskType taskType) { this.taskType = taskType; }
+  public ServiceType getServiceType() { return serviceType; }
+  public void setServiceType(ServiceType serviceType) { this.serviceType = serviceType; }
   public String getDescription() { return description; }
   public void setDescription(String description) { this.description = description; }
   public Integer getSortOrder() { return sortOrder; }

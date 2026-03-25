@@ -8,8 +8,8 @@
 
 ### 1.1 業務目標
 
-- 為**專職貓咪保母**提供接單、排程、任務執行與轉單工具。
-- 為**飼主**提供預約保母、填寫問卷、追蹤訂單與管理毛孩護照的介面。
+- 為**專職貓咪保母**提供接單、排程、服務執行與轉單工具。
+- 為**飼主**提供預約保母、填寫問卷、追蹤訂單與管理服務注意事項的介面。
 - 雙角色共用同一 PWA，以**角色切換**區分功能，資料依 `profiles.role_type` 隔離。
 
 ### 1.2 業務角色 (Actor)
@@ -35,8 +35,8 @@
 
 | 導覽項                       | 業務用途                         | 主要實體 / 狀態                                                          |
 | ------------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| **行程 (Dashboard)**        | 今日任務與捷徑、事前問卷回收提示、跳轉護照 / 任務面板 | `visits`, `orders`, `order_answers`, `questionnaire_status`        |
-| **訂單 (Orders)**           | 評估中報價與拒絕、進行中編輯任務、歷史篩選與總收入    | `orders`, `order_answers`, `visits`, `visit_tasks`, `order_status` |
+| **行程 (Dashboard)**        | 今日服務與捷徑、事前問卷回收提示、跳轉注意事項 / 服務面板 | `visits`, `orders`, `order_answers`, `questionnaire_status`        |
+| **訂單 (Orders)**           | 評估中報價與拒絕、進行中編輯服務、歷史篩選與總收入    | `orders`, `order_answers`, `visits`, `visit_services`, `order_status` |
 | **收款 (Finances)**         | 帳務管理、線上待撥款佇列、線下確認與對帳         | `payments`, `payouts`, `payment_status`                            |
 | **通知 (Notifications)**    | 依飼主維度的訂單、付款與轉介狀態通知             | `order_action_logs`, `orders`, `notifications`                     |
 | **我的 (Profile Settings)** | 接單網址、服務方案、問卷設定、**信任圈管理**、金流 KYC | `profiles`, `services`, `sitter_questions`, `sitter_trust_circles` |
@@ -48,10 +48,10 @@
 | 導覽項                    | 業務用途                       | 主要實體 / 狀態                                         |
 | ---------------------- | -------------------------- | ------------------------------------------------- |
 | **行程 (Dashboard)**     | 今日保母到府排程、進入訂單執行狀況          | `visits`, `orders`                                |
-| **訂單 (Orders)**        | 評估中送單明細/取消、進行中執行狀況/結案、歷史篩選 | `orders`, `visits`, `visit_tasks`, `order_status` |
+| **訂單 (Orders)**        | 評估中送單明細/取消、進行中執行狀況/結案、歷史篩選 | `orders`, `visits`, `visit_services`, `order_status` |
 | **保母 (Sitters)**       | 以代碼綁定保母、前往保母預約網頁           | `client_favorite_sitters`, `profiles`             |
-| **通知 (Notifications)** | 依保母維度的報價與任務狀態              | `order_action_logs`, `orders`（依 sitter）           |
-| **我的 (Profile)**       | 飼主資料、毛孩護照新增/編輯、登出          | `profiles`, `pets`                                |
+| **通知 (Notifications)** | 依保母維度的報價與服務狀態              | `order_action_logs`, `orders`（依 sitter）           |
+| **我的 (Profile)**       | 飼主資料、服務注意事項新增/編輯、登出          | `profiles`, `pets`                                |
 
 
 ### 2.3 共用視圖（無底部導覽）
@@ -59,8 +59,8 @@
 
 | 視圖               | 業務用途                          | 主要實體                                                                |
 | ---------------- | ----------------------------- | ------------------------------------------------------------------- |
-| **毛孩數位護照**       | 檢視/編輯醫療與個性備註、環境備註；分享協作、檢視編輯紀錄 | `pets`, `order_action_logs`（或護照專用編輯紀錄）                              |
-| **任務執行面板** (僅保母) | 任務檢核表打勾、多媒體日誌上傳、產出並發送報告       | `visit_tasks`, `visits`                                             |
+| **服務注意事項**       | 檢視/編輯醫療與個性備註、環境備註；分享協作、檢視編輯紀錄 | `pets`, `order_action_logs`（或注意事項專用編輯紀錄）                              |
+| **服務執行面板** (僅保母) | 服務檢核表打勾、多媒體日誌上傳、產出並發送報告       | `visit_services`, `visits`                                             |
 | **保母對外預約網頁**     | 選日期與方案、填問卷、價格試算、送出預約申請        | `services`, `sitter_questions`, `orders`, `order_answers`, `visits` |
 
 
@@ -85,7 +85,7 @@
 
 - **第一階段 (MVP)**：僅實作「線下付款」。飼主上傳憑證 → 保母點擊確認收款 → 轉為 `PAID`。
 - **第二階段 (企業化)**：實作「線上付款」。由藍新金流 API 自動回寫狀態，支援實時分帳。
-- **逾期未付**：若報價後 `PENDING_PAYMENT_TIMEOUT` 小時內未付，訂單自動失效。
+- **逾期未付**：若報價確認後，行程開始前 `PENDING_PAYMENT_TIMEOUT` 小時前未付，訂單自動取消，並通知雙方。`PENDING_PAYMENT_NOTIFICATION_TIMEOUT` 小時前會發送提醒通知，內容版型需於資料庫設定。
 
 ### 3.3 訂單修改與撤回 (Client)
 
@@ -94,7 +94,7 @@
 - **撤回訂單**：飼主主動取消。若已付款則觸發退款流程。
 - **修改訂單日期**：
   - 僅限 `PENDING` 狀態（保母報價前）。
-  - 若已報價但未付，需聯繫保母重新評估並發送新報價。
+  - 若已報價但未付，由飼主修改訂單，系統通知保母重新評估並發送新報價/確認報價。
 
 ### 3.4 問卷狀態 (questionnaire_status)
 
@@ -104,25 +104,25 @@
 
 ### 3.5 行程狀態 (visits.status)
 
-- `SCHEDULED` → `IN_PROGRESS`（保母打卡）→ `DONE`（任務完成、發送報告）
-- 前端「排程完成狀態列表」打勾/時鐘 icon 可依 `visit_tasks.is_completed` 與 `visits.status` 計算。
+- `SCHEDULED` → `IN_PROGRESS`（保母上傳服務紀錄）→ `DONE`（服務完成、發送報告）
+- 前端「排程完成狀態列表」打勾/時鐘 icon 可依 `visit_services.is_completed` 與 `visits.status` 計算。
 
 ### 3.6 業務流程摘要
 
 1. **飼主送出預約**：建立 `orders`（PENDING），此時不填問卷。
-2. **保母要求問卷 (選用)**：保母決定是否需要問卷。若需要，`questionnaire_status = PENDING_CLIENT`。
+2. **保母要求問卷 (選用)**：保母收到訂單通知後，決定飼主是否需要問卷或是設定免填。若需要，`questionnaire_status = PENDING_CLIENT`。
 3. **飼主回填問卷**：飼主填寫完畢後 `questionnaire_status = COMPLETED`，系統通知保母審核。
 4. **保母審核與決定接單**：
    - 保母查看問卷答案與預約行程。
    - **決定接單**：此時保母才輸入加減價（報價），訂單進入 `PENDING_PAYMENT`。
-   - **拒絕接單**：`order_status = CANCELLED`。
+   - **取消接單**：`order_status = CANCELLED`，可能由保母或飼主發動，需信件通知雙方。
 5. **飼主付款**：
    - **實作階段**：第一階段採「線下付款（憑證上傳）」，第二階段才啟用「線上金流」。
 6. **確認成立**：
    - 保母確認線下收款（或第二階段線上付款成功）後，`payment_status = PAID` 且 `order_status = CONFIRMED`。
    - 系統發送 **「訂單啟動成功」** 通知給雙方。
-5. **進行中**：保母執行任務並上傳日誌。
-6. **結案**：任務完成，飼主確認結案，系統列入保母可對帳收入。
+5. **進行中**：保母執行服務並上傳日誌。
+6. **結案**：服務完成，飼主確認結案（或`CONFIRMED_SERVICE_DAYS`後系統自動結案），系統列入保母可對帳收入。
 
 ---
 
@@ -140,9 +140,9 @@
 
 ### 4.2 協作編輯紀錄 (EditHistoryModal)
 
-- **使用情境**：毛孩護照頁面，檢視誰在何時改了哪些欄位。
+- **使用情境**：服務注意事項頁面，檢視誰在何時改了哪些欄位。
 - **業務規則**：
-  - 資料來源可為 `order_action_logs`（若護照異動有寫入）或未來擴充的「護照編輯紀錄」表。
+  - 資料來源可為 `order_action_logs`（若注意事項異動有寫入）或未來擴充的「注意事項編輯紀錄」表。
   - 時間軸需包含：時間、編輯者（保母/飼主）、修改欄位說明（如：更新了環境備註）。
 
 ### 4.3 編輯毛孩資料 (PetFormModal)
@@ -153,12 +153,12 @@
   - 大頭貼為選用，存於 GCS，對應 `pets` 頭像欄位（若 schema 有）。
   - 表單驗證與送出後由後端寫入/更新 `pets`，`client_profile_id` = 當前飼主。
 
-### 4.4 毛孩數位護照 (Pet Profile 視圖)
+### 4.4 服務注意事項 (Pet Profile 視圖)
 
 - **業務規則**：
   - 保母與飼主皆可進入；區分「純檢視」與「編輯」權限（依角色或協作權限）。
   - 內容含醫療/個性/環境備註（對應 `pets` 或訂單/家訪相關備註欄位）。
-  - 「分享協作」：複製連結，供對方開啟護照（權限與連結設計由產品決定）。
+  - 「分享協作」：複製連結，供對方開啟注意事項（權限與連結設計由產品決定）。
   - 「檢視紀錄」：開啟 EditHistoryModal。
 
 ### 4.5 保母對外預約網頁 (Public Booking Page)
@@ -180,13 +180,14 @@
 
 - 保母端「訂單評估與報價」：必須能檢視該訂單的**事前問卷答案**（`order_answers`）。
 - 報價試算：`total_amount = base_amount + surcharge_amount - discount_amount`；`pricing_notes` 可記錄加價/減價原因。
-- 拒絕接單：將訂單設為 `CANCELLED`（或專用狀態），並記錄於 `order_action_logs`。
+- 取消接單：將訂單設為 `CANCELLED`（或專用狀態），並記錄於 `order_action_logs`。
 
-### 5.2 任務與行程
+### 5.2 服務與行程
 
-- 訂單「進行中」時，保母可編輯**單日專屬 SOP**：對應 `visit_tasks` 的增刪與 `sort_order` 拖曳排序。
-- 任務執行面板：`visit_tasks` 逐項打勾、上傳 `photo_url`、填寫 `sitter_notes`；全部完成後「任務完成，產出並發送報告」→ `visit.status = DONE`。
-- 飼主端「確認任務全部完成 (結案)」：檢查該訂單所有 `visits.status = 'DONE'` 後，將 `order_status` 更新為 `COMPLETED`。
+- 訂單「進行中」時，保母可編輯**單日專屬 SOP**：對應 `visit_services` 的增刪與 `sort_order` 拖曳排序。
+- 服務執行面板：`visit_services` 逐項打勾（不強制）、上傳 `photo_url`、填寫 `sitter_notes`；全部完成後「服務完成，產出並發送報告」→ `visit.status = DONE`，有沒有打勾並不影響報告。
+- 若一天當中同一飼主有複數個服務，保母可以編輯日誌名稱，例如第一個就命名為早上服務，第二個命名為晚上服務，可自行取名
+- 飼主端「確認服務完成 (結案)」：檢查該訂單所有 `visits.status = 'DONE'` 後，將 `order_status` 更新為 `COMPLETED`。
 
 ### 5.3 轉介通知系統 (Referral System)
 
@@ -197,11 +198,11 @@
 - 功能：搜尋並加入保母、設定移除、檢視對方的預約網頁。
 
 #### 轉介流程
-1. **發起通知**：保母在訂單評估頁面可選擇「轉介給信任圈夥伴」。
+1. **發起通知**：保母在訂單評估頁面可選擇「轉介信任圈夥伴」。
 2. **選擇對象**：可選擇單一或「全部」信任圈保母。
 3. **系統派送**：
-   - 系統自動發送 **APP Push** 與 **Email** 給受訪保母，內含原始訂單的日期、需求摘要。
-4. **回報**：原保母可追蹤轉介通知的「讀取狀況」。
+   - 系統自動發送 **APP Push** 與 **Email** 給客人，內含想轉介的保母專屬連結。
+4. 信件內容版型為共用，設定在資料庫中
 
 ### 5.4 保母設定
 
@@ -226,7 +227,7 @@
 
 #### 5.4.2 工作日誌媒體保留政策 (Media Retention)
 
-- **存放位置**：GCS（Google Cloud Storage），由任務執行面板上傳的照片與影片。
+- **存放位置**：GCS（Google Cloud Storage），由服務執行面板上傳的照片與影片。
 - **保留期限**：上傳後保留 **`MEDIA_RETENTION_DAYS`**（參數化，預設 60 天）後自動刪除。
 - **上傳限制**（均需參數化）：
   - 照片：單次上傳總容量上限 `PHOTO_UPLOAD_MAX_BYTES`，單次最大檔案數 `PHOTO_UPLOAD_MAX_COUNT`。
@@ -264,6 +265,7 @@
 - **收款紀錄 (History)**：顯示所有已確認收訖（線下）或已入帳（線上）的收入。
 - **篩選**：按月份、支付方式（線上/線下）篩選。
 
+
 ---
 
 ### 5.7 系統與保母間金流：平台訂閱與方案 (System-Sitter Subscription)
@@ -276,6 +278,7 @@
 - **可承接訂單數量**：每個方案設有「月/年承單上限」（參數化），達到上限後，該保母的預約網頁將不再開放預約。
 - **計費週期**：可選「月繳」或「年繳」。
 - **年繳折扣**：選擇年繳模式，金額自動折抵 `ANNUAL_DISCOUNT_PERCENT`（參數化）。
+- **折扣碼**:繳費時可輸入折扣碼，折扣碼可由後台設定可被使用次數，有效期限以及折抵金額。
 
 #### 5.7.2 續訂與逾期停權
 - **付款提醒**：系統於訂閱到期前 `RENEWAL_REMINDER_DAYS` 天（參數化），依付款方式自動發送：
@@ -300,8 +303,8 @@
 - **帳號與身分**：`accounts` + `profiles`（role_type）；JWT 需帶 profile_id 或 account_id，後端依此判斷 Sitter/Client。
 - **方案與問卷**：`services`, `sitter_questions`；預約網頁需 API：取得保母方案列表、問卷題目、送出訂單（含 visits、order_answers）。
 - **訂單與報價**：`orders`（含 order_status, questionnaire_status, payment_status）, `order_answers`；保母報價 API 需支援更新金額欄位與狀態。
-- **行程與任務**：`visits`, `visit_tasks`；任務面板需 API：取得/更新 visit_tasks（is_completed, photo_url, completed_at）、更新 visit.status 與 sitter_notes。
-- **護照**：`pets`；編輯紀錄若用 `order_action_logs` 需約定 action_type 或專用表。
+- **行程與服務**：`visits`, `visit_services`；服務面板需 API：取得/更新 visit_services（is_completed, photo_url, completed_at）、更新 visit.status 與 sitter_notes。
+- **注意事項**：`pets`；編輯紀錄若用 `order_action_logs` 需約定 action_type 或專用表。
 - **信任圈**：`sitter_trust_circles`；需 API：查詢清單、加入、移除。
 - **訂閱與方案**：`subscription_plans`, `sitter_subscriptions`；需 API：取得方案列表、建立訂閱、查詢目前狀態。
 - **歷史訂單篩選與總收入**：依月份、order_status 篩選 orders，總收入為篩選區間內 `total_amount` 加總（可限定 COMPLETED + PAID）。

@@ -20,8 +20,8 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full text-center border-t-8 border-amber-500">
+    <div className="max-w-md mx-auto h-screen relative overflow-hidden bg-gray-100 flex flex-col items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-lg w-full text-center border-t-8 border-amber-500">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">喵保母系統開發中 🐈</h1>
         <p className="text-gray-500 mb-6 text-sm">全端連線測試儀表板</p>
         

@@ -45,7 +45,7 @@ public class Profile extends AuditableEntity {
 
   /** SITTER 專用：服務區域，如 ["新莊區", "板橋區"] */
   @JdbcTypeCode(SqlTypes.JSON)
-  @Column(name = "service_areas", columnDefinition = "jsonb")
+  @Column(name = "service_areas")
   private List<String> serviceAreas;
 
   @Column(name = "bio_summary", columnDefinition = "TEXT")

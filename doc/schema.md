@@ -79,7 +79,7 @@
 | `sort_order` | INT | 表單顯示排序 |
 | `is_active` | BOOLEAN | 是否啟用此問題 |
 
-### 5. `pets` (毛孩護照表)
+### 5. `pets` (服務注意事項表)
 
 | 欄位名稱 | 型態 | 說明與狀態機 (State Machine) |
 | :--- | :--- | :--- |
@@ -179,19 +179,19 @@
 | `status` | VARCHAR | **[狀態]** 行程進度：<br>`SCHEDULED` (待出發), `IN_PROGRESS` (抵達/服務中), `DONE` (已完成), `CANCELLED` (取消) |
 | `sitter_notes` | TEXT | 服務總結日誌 |
 
-### 12. `visit_tasks` (任務清單與回報表)
+### 12. `visit_services` (服務清單與回報表)
 保母 APP 用來逐項打勾、拍照的實體清單。
 
 | 欄位名稱 | 型態 | 說明與狀態機 (State Machine) |
 | :--- | :--- | :--- |
-| `id` | UUID (PK) | 任務 ID |
+| `id` | UUID (PK) | 服務 ID |
 | `visit_id` | UUID (FK) | 屬於哪次到府行程 |
 | `pet_id` | UUID (FK) | 針對哪隻寵物 (若為環境清潔可為空) |
-| `task_type` | VARCHAR | **[狀態]** 任務類型：<br>`FEEDING` (餵食), `LITTER` (貓砂), `MEDICAL` (醫療/餵藥), `PLAYING` (陪玩), `CUSTOM` (自訂) |
-| `description` | VARCHAR | 任務細節說明 |
-| `sort_order` | INT | 任務顯示排序，支援拖曳調整 (預設 0) |
+| `service_type` | VARCHAR | **[狀態]** 服務類型：<br>`FEEDING` (餵食), `LITTER` (貓砂), `MEDICAL` (醫療/餵藥), `PLAYING` (陪玩), `CUSTOM` (自訂) |
+| `description` | VARCHAR | 服務細節說明 |
+| `sort_order` | INT | 服務顯示排序，支援拖曳調整 (預設 0) |
 | `is_completed` | BOOLEAN | 是否已完成打勾 |
-| `photo_url` | VARCHAR | 任務完成證明照片 (GCS 連結) |
+| `photo_url` | VARCHAR | 服務完成證明照片 (GCS 連結) |
 | `completed_at` | TIMESTAMPTZ | 保母實際打勾完成的精準時間 |
 
 ### 13. `order_action_logs` (業務軌跡日誌表)
@@ -203,7 +203,7 @@
 | `order_id` | UUID (FK) | 關聯訂單 |
 | `visit_id` | UUID (FK) | 若為出勤打卡動作則填入，若為訂單異動則留空 |
 | `actor_profile_id`| UUID (FK) | 觸發動作的人 (若為系統自動觸發則留空) |
-| `action_type` | VARCHAR | **[狀態]** 軌跡類型：<br>`ORDER_CREATED` (訂單建立), `STATUS_CHANGED` (狀態變更), `QUESTIONNAIRE_SENT` (發送問卷), `VISIT_STARTED` (行程開始), `VISIT_COMPLETED` (行程完成), `TASK_COMPLETED` (任務打勾), `TRANSFER_REQUESTED` (發起轉單) 等 |
+| `action_type` | VARCHAR | **[狀態]** 軌跡類型：<br>`ORDER_CREATED` (訂單建立), `STATUS_CHANGED` (狀態變更), `QUESTIONNAIRE_SENT` (發送問卷), `VISIT_STARTED` (行程開始), `VISIT_COMPLETED` (行程完成), `SERVICE_COMPLETED` (服務打勾), `TRANSFER_REQUESTED` (發起轉單) 等 |
 | `previous_status` | VARCHAR | 變更前的狀態值 (可為空) |
 | `new_status` | VARCHAR | 變更後的狀態值 **(nullable)**；非狀態轉移類型的 action 可為空 |
-| `metadata` | JSONB | 附加資訊，如護照欄位異動 `{"field": "medical_notes", "old": "...", "new": "..."}` |
+| `metadata` | JSONB | 附加資訊，如注意事項欄位異動 `{"field": "medical_notes", "old": "...", "new": "..."}` |
