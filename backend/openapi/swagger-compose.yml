@@ -1,0 +1,11 @@
+services:
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    container_name: cat-sitter-swagger-ui
+    ports:
+      - "8081:8080"
+    environment:
+      SWAGGER_JSON: /openapi/openapi.yaml
+      BASE_URL: /
+    volumes:
+      - ./openapi.yaml:/openapi/openapi.yaml:ro

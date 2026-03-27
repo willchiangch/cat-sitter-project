@@ -13,7 +13,7 @@ alwaysApply: true
 
 * **專案結構 (Monorepo)**:
     * `/frontend`: React SPA/PWA (Vite + Tailwind CSS + Zustand/Context)
-    * `/backend`: Java Spring Boot 3.x (RESTful API + Spring Data JPA)
+* `/backend`: Java Spring Boot 4.0.3 (RESTful API + Spring Data JPA)
     * 根目錄僅放置全域設定、Docker Compose (本地開發 DB) 與 CI/CD 共用腳本。
 * **基礎設施 (GCP)**:
     * 前端代管: Firebase Hosting (PWA 快取優化)
