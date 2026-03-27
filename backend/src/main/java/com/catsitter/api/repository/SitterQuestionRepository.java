@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface SitterQuestionRepository extends JpaRepository<SitterQuestion, UUID> {
   List<SitterQuestion> findBySitterProfileIdAndIsActiveTrueAndTargetPetTypeInOrderBySortOrderAsc(
       UUID sitterProfileId, List<TargetPetType> targetPetTypes);
+  List<SitterQuestion> findBySitterProfileIdOrderBySortOrderAsc(UUID sitterProfileId);
 }

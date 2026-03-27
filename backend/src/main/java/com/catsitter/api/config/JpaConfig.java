@@ -5,18 +5,21 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import java.util.Optional;
 
 @Configuration
 @EnableJpaAuditing(auditorAwareRef = "auditorAware")
 public class JpaConfig {
 
-  /**
-   * 初版：固定回傳 "SYSTEM"。
-   * 待引入 Spring Security 後，改從 SecurityContextHolder 取 authentication.getName()。
-   */
   @Bean
   public AuditorAware<String> auditorAware() {
-    return () -> Optional.of("SYSTEM");
+    return () -> Optional.ofNullable(SecurityContextHolder.getContext())
+            .map(SecurityContext::getAuthentication)
+            .filter(Authentication::isAuthenticated)
+            .map(Authentication::getName);
   }
 }

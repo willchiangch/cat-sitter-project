@@ -1,0 +1,33 @@
+# Project Evaluation Checklist
+
+- [x] Analyze current business requirements
+- [x] Review backend implementation status
+- [x] Implement Core Security & Auth
+    - [x] Add Security & JWT dependencies to `pom.xml`
+    - [x] Create `SecurityConfig` and JWT filter
+    - [x] Implement `UserDetailsService` (linking to `Account` entity)
+    - [x] Implement Auth Controller (`/register`, `/login`, `/me`)
+    - [x] Verify with tests (TDD)
+- [x] 帳戶身分與角色切換 (Identity & Role Switching)
+    - [x] 更新 `openapi.yaml` 與 `API_SPEC.md`
+    - [x] 實作 `AuthMeResponse` DTO
+    - [x] 實作 `AuthService.getMe` 邏輯
+    - [x] 實作 `AuthController` 接口
+    - [x] 編寫 `AuthControllerTest` 進行驗證
+- [ ] 評價與結案 (Review & Closing)
+    - [ ] 實作 `ReviewService` 與 `ReviewController`
+    - [ ] 建立評分與評論功能
+    - [ ] 實作訂單結案邏輯 (飼主端)
+- [x] Implement Profile Management (Sitter Onboarding)
+    - [x] 實作 `SitterProfileController` (取回/更新個人資料)
+    - [x] 實作 `SitterServiceController` (服務方案 CRUD)
+    - [x] 實作 `SitterQuestionnaireController` (問卷題目管理)
+    - [x] 驗證與 TDD 測試
+- [x] Implement Client & Pet Management
+    - [x] 實作 `ClientProfileController`
+    - [x] 實作 `PetController` (毛孩檔案 CRUD)
+    - [x] 驗證與 TDD 測試
+- [x] Implement Booking & Visits
+    - [x] 實作 `BookingController` (建立預約、報價、支付狀態)
+    - [x] 實作 `VisitController` (行程記錄、回報、完成)
+    - [x] 驗證與 TDD 測試

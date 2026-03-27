@@ -24,6 +24,13 @@
     - Entity 應繼承 `AuditableEntity` 以自動紀錄 `created_at` / `updated_at`。
     - 進行 Repository 測試時，需在測試類別中 `@Import` 自訂的 `AuditConfig` 以模擬日期連。
 
-## 4. 常用的 Maven 指令
-- 跑測試並產出報告：`./mvnw verify`
-- 報告路徑：`backend/target/site/jacoco/index.html`
+## 5. 安全與認證 (Security & Authentication)
+- **認證方式**：採用 JWT 無狀態認證，嚴禁使用 Session。
+- **Token 處理**：
+    - Access Token 應保持短效期。
+    - 必須實作 Refresh Token 機制以兼顧安全性與使用者體驗。
+- **例外處理**：未通過驗證的請求應回傳 `401 Unauthorized`，禁止導向登入頁面。
+- **密碼儲存**：必須使用 `BCryptPasswordEncoder`。
+- **開發規範**：
+    - 保護 API：除 `/auth/register`、`/auth/login` 外，其餘 API 預設應受保護。
+    - 獲取目前使用者：在 Controller 中使用 `@AuthenticationPrincipal Account account`。

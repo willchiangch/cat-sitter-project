@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface ServiceRepository extends JpaRepository<Service, UUID> {
   List<Service> findBySitterProfileIdAndIsActiveTrueOrderBySortOrderAsc(UUID sitterProfileId);
+  List<Service> findBySitterProfileIdOrderBySortOrderAsc(UUID sitterProfileId);
 }

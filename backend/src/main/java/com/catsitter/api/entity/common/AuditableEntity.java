@@ -9,7 +9,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
@@ -21,7 +21,7 @@ public abstract class AuditableEntity {
 
   @CreatedDate
   @Column(name = "created_at", nullable = false, updatable = false)
-  private OffsetDateTime createdAt;
+  private Instant createdAt;
 
   @LastModifiedBy
   @Column(name = "updated_by")
@@ -29,10 +29,10 @@ public abstract class AuditableEntity {
 
   @LastModifiedDate
   @Column(name = "updated_at", nullable = false)
-  private OffsetDateTime updatedAt;
+  private Instant updatedAt;
 
   public String getCreatedBy() { return createdBy; }
-  public OffsetDateTime getCreatedAt() { return createdAt; }
+  public Instant getCreatedAt() { return createdAt; }
   public String getUpdatedBy() { return updatedBy; }
-  public OffsetDateTime getUpdatedAt() { return updatedAt; }
+  public Instant getUpdatedAt() { return updatedAt; }
 }

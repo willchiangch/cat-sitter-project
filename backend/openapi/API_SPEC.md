@@ -41,7 +41,7 @@ docker compose -f swagger-compose.yml up
 - `POST /api/v1/auth/logout`
   - refresh token 作廢
 - `GET /api/v1/auth/me`
-  - 取目前登入者 account + roles
+  - 取目前登入者 account + 關聯的所有 profiles (含 role, name, avatar 等)
 
 ### 2) 保母 Onboarding
 

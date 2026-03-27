@@ -8,11 +8,17 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Table(name = "accounts")
-public class Account extends AuditableEntity {
+public class Account extends AuditableEntity implements UserDetails {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
@@ -50,4 +56,39 @@ public class Account extends AuditableEntity {
   public void setOauthId(String oauthId) { this.oauthId = oauthId; }
   public AccountStatus getStatus() { return status; }
   public void setStatus(AccountStatus status) { this.status = status; }
+
+  @Override
+  public Collection<? extends GrantedAuthority> getAuthorities() {
+    return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+  }
+
+  @Override
+  public String getPassword() {
+    return passwordHash;
+  }
+
+  @Override
+  public String getUsername() {
+    return email;
+  }
+
+  @Override
+  public boolean isAccountNonExpired() {
+    return status != AccountStatus.SUSPENDED;
+  }
+
+  @Override
+  public boolean isAccountNonLocked() {
+    return status != AccountStatus.SUSPENDED;
+  }
+
+  @Override
+  public boolean isCredentialsNonExpired() {
+    return true;
+  }
+
+  @Override
+  public boolean isEnabled() {
+    return status == AccountStatus.ACTIVE;
+  }
 }

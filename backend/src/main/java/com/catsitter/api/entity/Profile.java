@@ -19,6 +19,9 @@ public class Profile extends AuditableEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
+  
+  @Column(unique = true)
+  private String slug;
 
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -60,7 +63,19 @@ public class Profile extends AuditableEntity {
   @Column(name = "booking_open_end")
   private LocalDate bookingOpenEnd;
 
+  /** SITTER 專用：每週固定可用時段 {"MONDAY": ["09:00-12:00"], ...} */
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "weekly_availability")
+  private java.util.Map<java.time.DayOfWeek, List<String>> weeklyAvailability;
+
+  /** SITTER 專用：特定排除日期 ["2024-04-04", ...] */
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "specific_exclusions")
+  private List<LocalDate> specificExclusions;
+
   public UUID getId() { return id; }
+  public String getSlug() { return slug; }
+  public void setSlug(String slug) { this.slug = slug; }
   public Account getAccount() { return account; }
   public void setAccount(Account account) { this.account = account; }
   public RoleType getRoleType() { return roleType; }
@@ -83,4 +98,8 @@ public class Profile extends AuditableEntity {
   public void setBookingOpenStart(LocalDate bookingOpenStart) { this.bookingOpenStart = bookingOpenStart; }
   public LocalDate getBookingOpenEnd() { return bookingOpenEnd; }
   public void setBookingOpenEnd(LocalDate bookingOpenEnd) { this.bookingOpenEnd = bookingOpenEnd; }
+  public java.util.Map<java.time.DayOfWeek, List<String>> getWeeklyAvailability() { return weeklyAvailability; }
+  public void setWeeklyAvailability(java.util.Map<java.time.DayOfWeek, List<String>> weeklyAvailability) { this.weeklyAvailability = weeklyAvailability; }
+  public List<LocalDate> getSpecificExclusions() { return specificExclusions; }
+  public void setSpecificExclusions(List<LocalDate> specificExclusions) { this.specificExclusions = specificExclusions; }
 }

@@ -25,10 +25,16 @@ cat-sitter-project/
 | 層級     | 技術 |
 |----------|------|
 | 前端     | React 19、Vite 7、Tailwind CSS 4、Zustand/Context |
-| 後端     | Java 21、Spring Boot 4.0.3、Spring Data JPA |
+| 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
+| 安全認證 | Spring Security + JWT (Stateless, JJWT) |
 | 版控     | Flyway（Schema 在 `backend/src/main/resources/db/migration/`） |
-| 雲端     | GCP：Firebase Hosting、Cloud Run、Cloud SQL、GCS、Artifact Registry、Secret Manager |
+
+## 安全架構
+本系統採用 **無狀態 (Stateless) JWT 認證**：
+- **認證流程**：登入後取得 Access Token 與 Refresh Token。
+- **請求驗證**：在 Header 中使用 `Authorization: Bearer <Token>`。
+- **身分稽核**：透過 `AuditableEntity` 自動紀錄 `created_by` 等稽核資訊。
 
 ---
 
