@@ -1,56 +1,49 @@
-import { useState } from 'react'
+import React from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import MainLayout from './layouts/MainLayout'
+import { useAuthStore } from './store/authStore'
+import Login from './pages/Auth/Login'
+import Register from './pages/Auth/Register'
+
+// Placeholder Dashboards (to be implemented with high-fidelity)
+const Dashboard = () => (
+  <section className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-1">
+      <h2 className="text-3xl font-bold font-headline tracking-tight text-on-surface">Hello, User</h2>
+      <p className="text-on-surface-variant font-body">Welcome back to WhiskerWatch.</p>
+    </div>
+    <div className="bg-primary text-on-primary p-4 rounded-xl shadow-lg ambient-shadow">
+      <p className="font-headline font-semibold">Get Started</p>
+      <p className="font-body text-xs opacity-90">Please complete your profile to start using the concierge service.</p>
+    </div>
+  </section>
+)
 
 function App() {
-  const [dbData, setDbData] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  const fetchHello = async () => {
-    setLoading(true)
-    try {
-      // 去敲我們剛剛寫好的 Java API
-      const response = await fetch('http://localhost:8080/api/hello')
-      const data = await response.json()
-      setDbData(data)
-    } catch (error) {
-      console.error("連線失敗:", error)
-      setDbData({ status: "error", message: "無法連線到後端，請確認 Java 有啟動且 CORS 有加喔！" })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { isAuthenticated } = useAuthStore()
 
   return (
-    <div className="max-w-md mx-auto h-screen relative overflow-hidden bg-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full text-center border-t-8 border-amber-500">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">喵保母系統開發中 🐈</h1>
-        <p className="text-gray-500 mb-6 text-sm">全端連線測試儀表板</p>
-        
-        <button 
-          onClick={fetchHello}
-          disabled={loading}
-          className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-lg transition-colors mb-6 disabled:opacity-50 cursor-pointer"
-        >
-          {loading ? '連線中...' : '呼叫 Java 後端 API'}
-        </button>
+    <BrowserRouter>
+      <Routes>
+        {/* Main Application Flow */}
+        <Route path="/" element={<MainLayout />}>
+          <Route index element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />} />
+          <Route path="sitter" element={<Dashboard />} />
+          <Route path="client" element={<Dashboard />} />
+          <Route path="orders" element={<Dashboard />} />
+          <Route path="finance" element={<Dashboard />} />
+          <Route path="notifications" element={<Dashboard />} />
+          <Route path="profile" element={<Dashboard />} />
+        </Route>
 
-        {dbData && (
-          <div className="text-left bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-auto">
-            <span className="text-xs font-bold text-gray-400 mb-1 block">後端回傳結果：</span>
-            {dbData.status === 'success' ? (
-              <>
-                <p className="text-sm text-green-600 font-bold mb-2">✅ {dbData.message}</p>
-                <p className="text-xs text-gray-600">
-                  <span className="font-bold">資料庫時間：</span><br/>
-                  {dbData.database_time}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-red-500 font-bold">❌ {dbData.message}</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+        {/* Auth Flow */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

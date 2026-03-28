@@ -1,0 +1,33 @@
+{
+  "common": {
+    "app_name": "WhiskerWatch",
+    "tagline": "The Cat Concierge",
+    "switch_to_sitter": "Switch to Sitter",
+    "switch_to_client": "Switch to Parent",
+    "loading": "Loading...",
+    "request_access": "Request Access",
+    "profile": "Personal Profile",
+    "orders": "Service Orders",
+    "finance": "Financial Ledger",
+    "alerts": "System Alerts",
+    "inbox": "Concierge Inbox",
+    "sitters": "Explore Sitters"
+  },
+  "auth": {
+    "login_title": "Enter the Concierge",
+    "register_title": "Join the Circle",
+    "register_subtitle": "Begin your journey with the world's most intuitive pet concierge.",
+    "email_label": "Signature Email",
+    "password_label": "Secure Password",
+    "name_label": "Your Full Name",
+    "login_btn": "Enter the Concierge",
+    "register_btn": "Claim Invitation",
+    "role_parent": "I'm a Parent",
+    "role_sitter": "I'm a Sitter",
+    "has_account": "Already have an account?",
+    "no_account": "New to the Circle?",
+    "sign_in": "Sign In",
+    "error_login": "Login failed. Please check your credentials.",
+    "error_register": "Registration failed. Please try again."
+  }
+}

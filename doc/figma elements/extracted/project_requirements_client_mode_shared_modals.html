@@ -1,0 +1,28 @@
+# 專案概述：貓咪保母 PWA (React)
+這是一個雙角色 (保母 / 飼主) 的貓咪到府照護 PWA 雛形。
+
+## 🌐 全域共用規範與架構限制
+1. **身份切換機制**：必須實作 `RoleContext`，透過點擊 Header 右側的「切換/切換角色」按鈕，全域切換 `currentRole` ('sitter' 或 'client')。
+2. **顏色主題**：保母端主色系為 Amber (琥珀色)；飼主端主色系為 Blue (藍色)。
+3. **佈局限制**：最外層為 `max-w-md mx-auto h-screen relative overflow-hidden` (模擬手機版型)，底部導覽列必須固定於畫面最下方。
+
+## 🪟 共用彈出層 (Modals) 規格限制
+1. **服務方案選擇 Modal (PlanSelectionModal)**
+2. **協作編輯紀錄 Modal (EditHistoryModal)**
+3. **編輯毛孩資料 Modal (PetFormModal)**
+
+## 👤 模式 B：飼主端 (Client Mode)
+### 1. 行程 (Client Dashboard)
+* **用途**：查看今日保母到府排程。
+### 2. 訂單 (Client Orders)
+* **用途**：追蹤發出的預約狀態 (評估中 / 進行中 / 歷史紀錄)。
+### 3. 保母 (Client Sitters)
+* **用途**：管理口袋名單與發起預約。
+### 4. 通知 (Client Notifications)
+* **用途**：接收保母報價與服務狀態通知。
+### 5. 我的 (Client Profile)
+* **用途**：管理飼主與毛孩資料。
+
+## 🔗 共用與跨區塊視圖
+1. **服務注意事項 (Pet Profile)**
+2. **保母對外預約網頁 (Public Booking Page)**

@@ -1,0 +1,50 @@
+import React from 'react'
+import { NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { useThemeStore } from '../../store/themeStore'
+
+const BottomNavBar = () => {
+  const { t } = useTranslation()
+  const { mode } = useThemeStore()
+  
+  const navItems = mode === 'SITTER' ? [
+    { icon: 'dashboard', label: t('auth.role_sitter'), path: '/sitter' },
+    { icon: 'receipt_long', label: t('common.orders'), path: '/sitter/orders' },
+    { icon: 'payments', label: t('common.finance'), path: '/sitter/finance' },
+    { icon: 'notifications', label: t('common.alerts'), path: '/notifications', badge: true },
+    { icon: 'person', label: t('common.profile'), path: '/profile' },
+  ] : [
+    { icon: 'dashboard', label: t('auth.role_parent'), path: '/client' },
+    { icon: 'pets', label: t('common.orders'), path: '/client/orders' },
+    { icon: 'search', label: t('common.sitters'), path: '/explore' },
+    { icon: 'notifications', label: t('common.inbox'), path: '/notifications' },
+    { icon: 'person', label: t('common.profile'), path: '/profile' },
+  ]
+
+  return (
+    <nav className="fixed bottom-0 w-full z-50 rounded-t-[3rem] glass-effect shadow-top border-t border-outline-variant/10 h-24 pb-6 flex justify-around items-center max-w-md mx-auto left-0 right-0">
+      {navItems.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          className={({ isActive }) => `
+            flex flex-col items-center justify-center px-3 py-1.5 transition-all duration-200 active:scale-95 relative
+            ${isActive ? 'text-primary' : 'text-outline'}
+          `}
+        >
+          <span className={`material-symbols-outlined text-2xl`}>
+            {item.icon}
+          </span>
+          <span className="font-body text-[10px] font-bold uppercase tracking-widest mt-1">
+            {item.label}
+          </span>
+          {item.badge && (
+            <div className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+          )}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
+export default BottomNavBar

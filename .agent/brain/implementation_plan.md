@@ -1,54 +1,59 @@
-# Implementation Plan - Testing, Documentation & Workflow Review
+# WhiskerWatch: 高階編輯感 PWA 前端轉型計畫 (V10)
 
-此計畫旨在將現有的技術實作與業務情境對齊，建立可靠的測試體系，並同步核心設計文件。
+根據提供的 Figma 設計組件與 `DESIGN.md` 規範，我們將把前端從基礎測試腳本升級為 **"The Intuitive Concierge" (直覺系管家)** 風格的高階 PWA。
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **資料庫規格書更新**：我將把 `doc/schema.md` 從 V6 直接升級至 V8，補齊訂閱、支付、行事曆與媒體儲存等新表格。
-> **壓力測試工具**：建議使用 **k6 (JavaScript)**，因為它與現有前端技術棧相容性高，且效能優異。需確保本機已安裝 Docker。
-> **工作流同步**：我將執行 `.agents/workflows/persist-progress.md` 的要求，將「大腦」資料夾同步至專案根目錄。
+> **視覺設計核心**：採用「無框線 (No-Line)」哲學，透過背景色深淺 (Tonal Layering) 區分層次，而非傳統的 1px 邊框。
+> **雙色系切換**：保母模式 (Amber 琥珀色) 與 飼主模式 (Blue 藍色) 的動態切換。
+> **字體需求**：需引入 Google Fonts (`Plus Jakarta Sans` 與 `Manrope`)。
 
 ## Proposed Changes
 
-### [Component] Documentation (Schema V8)
+### 1. 全域樣式與設計標籤 (Design Tokens) [NEW]
+在 `index.css` 中透過 Tailwind 4 的 CSS 變數定義設計規範。
+- **色彩組合**：導入 `surface-container-lowest` (#ffffff), `surface` (#f6f7f5) 等層次色。
+- **字體體系**：標題使用 `font-headline`, 內文使用 `font-body`。
+- **特效**：實作 `glass-effect` (backdrop-blur) 與 `ambient-shadow`。
 
-#### [MODIFY] [schema.md](file:///doc/schema.md)
-- 更新版本號至 **V8**。
-- **新增領域：財務與訂閱 (Finance & Subscriptions)**
-  - `subscription_plans`, `sitter_subscriptions`, `promo_codes`, `payment_transactions`。
-- **更新領域：行事曆與多媒體 (Calendar & Media)**
-  - `sitter_calendar_configs`, `visit_media`。
-  - `visits` 表新增 `calendar_event_id`, `ical_token` 等欄位。
+### 2. 響應式佈局架構 [MODIFY]
+修改 `App.jsx` 提供標準的移動優先容器。
+- **MainLayout**：設定 `max-w-md mx-auto` 置中佈局。
+- **Shared Components**：
+    - `TopAppBar`: 包含角色切換 (Switch Role) 功能與 Glassmorphism 特效。
+    - `BottomNavBar`: 提供導航功能，並具備圓角大半徑 (`rounded-t-[3rem]`)。
 
-### [Component] Backend Testing (Smoke & Performance)
+### 3. 主題切換狀態管理 [NEW]
+使用 **Zustand** 管理目前的 UI Mode (`SITTER` | `CLIENT`)。
+- 根據 Role 自動切換全域主題色（從 Amber 漸層切換至 Blue 漸層）。
+- 此狀態將同步影響 API 請求的認證與權限。
 
-#### [NEW] [BookingFlowSmokeTest.java](file:///backend/src/test/java/com/catsitter/api/smoke/BookingFlowSmokeTest.java)
-- 模擬 `booking-lifecycle.md` 情境。
-- 測試路徑：下單 -> 報價 -> 模擬支付 Webhook -> 確認訂單 -> 自動產生行事曆事件。
+### 4. 首頁與儀表板實作 (Mockup to React) [NEW]
+將提供的 `code.html` 結構轉化為 React 組件。
+- `SitterDashboard`: 包含今日服務卡片 (Today's Service)、財務簡報 (Dashboard Insights) 與時間軸。
+- `ClientDashboard`: 包含貓咪護照 (Cat Passport) 與服務日誌導航。
 
-#### [NEW] [SitterOnboardingSmokeTest.java](file:///backend/src/test/java/com/catsitter/api/smoke/SitterOnboardingSmokeTest.java)
-- 模擬 `onboarding.md` 情境。
-- 測試路徑：註冊 -> 填寫資料 -> 訂閱方案 -> 解鎖接單狀態。
+### 5. 核心依賴安裝 [COMMAND]
+安裝必要的開發套件：
+- `react-router-dom` (導航)
+- `zustand` (狀態管理)
+- `framer-motion` (微交互動畫)
+- `lucide-react` & `material-symbols` (圖示)
 
-#### [NEW] [Performance Tests (k6)](file:///backend/src/test/resources/performance/webhook_smoke.js)
-- 撰寫 k6 腳本測試 `PayUni Webhook` 的並行處理能力。
-- 撰寫 k6 腳本測試 `iCal Feed` 的讀取效能。
-
-### [Component] Workflow & Dev-Ops
-
-#### [SYNC] [Brain Data Sync](file:///.agent/brain/)
-- 依照 `persist-progress.md` 規範，將 `.agent/brain/` 下的文件（`task.md`, `implementation_plan.md` 等）同步至專案庫，確保開發連續性。
+---
 
 ## Open Questions
-- [x] **壓力測試目標**：針對 MVP 階段，預計模擬的最高並發數 (VUs) 為多少？ -> **不超過 50 VUs**。
+
+1. **圖示方案**：設計稿使用了 `Material Symbols Outlined`，是否確認以此作為主要圖示庫？
+2. **多語系支持**：目前設計稿為英文，是否需要在開發初期就導入 i18next 支持繁體中文切換？
 
 ## Verification Plan
 
 ### Automated Tests
-- 執行 `mvn test -Dtest=BusinessScenarioSmokeTest`。
-- 執行 `k6 run backend/src/test/resources/performance/webhook_smoke.js`。
+- Playwright 執行響應式截圖比對，確保與設計稿一致。
+- 驗證「角色切換」時，UI 色系與內容是否正確連動。
 
 ### Manual Verification
-- 檢查 `doc/schema.md` 是否與資料庫實際表格一致。
-- 檢查 `.agent/brain/` 是否包含最新進度文件。
+- 在測試手機上驗證「Bottom Navigation」的 Thumb-zone 人體工學。
+- 確認「玻璃擬態」特效在低階設備上的效能表現。

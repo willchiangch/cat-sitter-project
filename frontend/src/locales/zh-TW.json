@@ -1,0 +1,33 @@
+{
+  "common": {
+    "app_name": "WhiskerWatch",
+    "tagline": "The Cat Concierge",
+    "switch_to_sitter": "切換為保母",
+    "switch_to_client": "切換為家長",
+    "loading": "載入中...",
+    "request_access": "申請加入圈子",
+    "profile": "個人基本資料",
+    "orders": "預約訂單紀錄",
+    "finance": "財務金流對帳",
+    "alerts": "重要系統通知",
+    "inbox": "管家互動收件匣",
+    "sitters": "探索專業保母"
+  },
+  "auth": {
+    "login_title": "進入管家服務",
+    "register_title": "加入我們的圈子",
+    "register_subtitle": "開啟您與全球最直覺的貓咪管家之旅。",
+    "email_label": "專屬電子信箱",
+    "password_label": "安全登入密碼",
+    "name_label": "您的真實姓名",
+    "login_btn": "進入管家介面",
+    "register_btn": "領取邀請並註冊",
+    "role_parent": "我是家長",
+    "role_sitter": "我是保母",
+    "has_account": "已經有帳號了？",
+    "no_account": "還不是圈子的一員？",
+    "sign_in": "立即登入",
+    "error_login": "登入失敗，請檢查您的憑證。",
+    "error_register": "註冊失敗，請重試。"
+  }
+}

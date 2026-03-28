@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Cat Concierge - Client Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary-container": "#563e00",
+              "surface-tint": "#765600",
+              "outline": "#757776",
+              "on-tertiary-container": "#005e17",
+              "outline-variant": "#acadac",
+              "inverse-on-surface": "#9c9d9c",
+              "on-secondary-fixed-variant": "#00538d",
+              "on-primary": "#fff1db",
+              "on-primary-fixed": "#3d2b00",
+              "error-dim": "#b92902",
+              "secondary-fixed": "#b3d4ff",
+              "tertiary-container": "#91f78e",
+              "on-error": "#ffefec",
+              "on-error-container": "#520c00",
+              "tertiary-fixed": "#91f78e",
+              "surface-container-low": "#f0f1ef",
+              "secondary": "#005e9f",
+              "surface-dim": "#d2d5d3",
+              "on-tertiary-fixed-variant": "#00691a",
+              "primary": "#765600",
+              "surface-container-highest": "#dbdddb",
+              "surface-container-high": "#e1e3e1",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2d2f2e",
+              "on-secondary-container": "#004a7e",
+              "primary-dim": "#674b00",
+              "surface-bright": "#f6f7f5",
+              "primary-fixed": "#ffbf00",
+              "inverse-primary": "#ffbf00",
+              "tertiary": "#006b1b",
+              "secondary-fixed-dim": "#99c7ff",
+              "surface": "#f6f7f5",
+              "inverse-surface": "#0c0f0e",
+              "error-container": "#f95630",
+              "tertiary-fixed-dim": "#83e881",
+              "primary-fixed-dim": "#eeb200",
+              "on-surface-variant": "#5a5c5b",
+              "on-secondary-fixed": "#00365e",
+              "on-primary-fixed-variant": "#614700",
+              "error": "#b02500",
+              "secondary-dim": "#00528b",
+              "background": "#f6f7f5",
+              "on-tertiary": "#d1ffc8",
+              "on-secondary": "#edf3ff",
+              "primary-container": "#ffbf00",
+              "surface-variant": "#dbdddb",
+              "surface-container": "#e7e8e6",
+              "on-background": "#2d2f2e",
+              "tertiary-dim": "#005d16",
+              "secondary-container": "#b3d4ff",
+              "on-tertiary-fixed": "#00480f"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .tonal-transition {
+        background: linear-gradient(to bottom, #f6f7f5, #f0f1ef);
+      }
+      .glass-effect {
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
+<div class="flex justify-between items-center px-6 py-4 max-w-md mx-auto">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden ring-2 ring-secondary-container">
+<img class="w-full h-full object-cover" data-alt="professional headshot of a friendly male pet owner with a soft natural background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCC3y44eUe0otpmj7FyX-dnDn4T3xGvleQCphSfE6dKCFpJH36E3xgpNH4r-vSpstgqFWmfy9LtOLwCNgVMd7zj1ogHa5wqC5AMQetzVrq04XqpQde-VU-TWGIDqG4CNXr0jDB7FhJCwCZtLGwsiihHqXA1aZHavIl0XjyFLCkah_MwWyr8RiG3M14bOnFzi_TO_omAJXqQzO3NQ-SM4YygNlQD3iPGcxZ1YF2c_f1lOayMtJkU8yq4VkA9at60z_9QZLUQ5YFHHpg"/>
+</div>
+<h1 class="text-blue-600 dark:text-blue-400 font-headline font-extrabold tracking-tighter text-2xl">The Cat Concierge</h1>
+</div>
+<button class="text-blue-700 dark:text-blue-300 font-semibold text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors px-3 py-1 rounded-full active:scale-95 duration-200 ease-out">
+                Switch to Sitter
+            </button>
+</div>
+</header>
+<main class="max-w-md mx-auto px-6 pt-24 space-y-8">
+<!-- Welcome Section -->
+<section class="mt-4">
+<h2 class="font-headline font-bold text-3xl tracking-tight text-on-surface">Hello, James</h2>
+<p class="text-on-surface-variant font-medium mt-1">Today is Tuesday, Oct 24</p>
+</section>
+<!-- Bento Shortcuts -->
+<div class="grid grid-cols-2 gap-4">
+<!-- CAT PASSPORT -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.04)] flex flex-col justify-between aspect-square group active:scale-95 transition-transform duration-200">
+<div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined text-3xl">book_5</span>
+</div>
+<div>
+<span class="block text-xs font-label font-bold tracking-widest text-on-surface-variant uppercase mb-1">Vault</span>
+<h3 class="font-headline font-bold text-lg text-on-surface leading-tight">CAT PASSPORT</h3>
+</div>
+</div>
+<!-- SERVICE LOG -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.04)] flex flex-col justify-between aspect-square group active:scale-95 transition-transform duration-200">
+<div class="w-12 h-12 bg-tertiary-container/30 rounded-2xl flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-3xl">event_note</span>
+</div>
+<div>
+<span class="block text-xs font-label font-bold tracking-widest text-on-surface-variant uppercase mb-1">Activity</span>
+<h3 class="font-headline font-bold text-lg text-on-surface leading-tight">SERVICE LOG</h3>
+</div>
+</div>
+</div>
+<!-- Today's Sitting Card -->
+<section>
+<div class="flex justify-between items-end mb-4 px-1">
+<h3 class="font-headline font-bold text-xl">Today's Visit</h3>
+<span class="text-blue-600 font-semibold text-sm">View Map</span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.04)] relative">
+<!-- Status Chip -->
+<div class="absolute top-4 right-4 z-10">
+<span class="bg-secondary-container text-on-secondary-container px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">Upcoming</span>
+</div>
+<div class="p-0">
+<div class="h-48 relative">
+<img class="w-full h-full object-cover" data-alt="close-up portrait of a ginger tabby cat named Miso looking curiously at the camera in a sunlit living room" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPXZOaWFh8nCNP8XPXsloDmGXsjUd2FUGa_geCbqtSe39pdCq3wteCG1uzlzb1FtmrHHnMFD8hksH249WwU7nmrgXKXZml0oh-To245Wy0UGtFzeZgWHzScSKJQ7ayn1utCNLSO8WOuzkrXmyzlnI95YeuHHDIce8bBphdDVoewJSPUTWNuhKb2tqGYAtaFMHxNrDAb2MqkjYAB0XmheAAnFrQXqoRTJPv_8Mlub-YLPNBXZ-t9iPf-SOwHKvJVmi2SuosOPJqliM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+<div class="absolute bottom-4 left-6">
+<h4 class="text-white font-headline font-bold text-3xl">Miso</h4>
+<p class="text-white/80 font-medium text-sm">British Shorthair</p>
+</div>
+</div>
+<div class="p-6 space-y-6">
+<div class="flex items-center justify-between">
+<div class="space-y-1">
+<p class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-widest">Time Window</p>
+<p class="text-lg font-bold text-on-surface">10:00 - 11:00 AM</p>
+</div>
+<div class="w-px h-8 bg-outline-variant/20"></div>
+<div class="space-y-1 text-right">
+<p class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-widest">Service</p>
+<p class="text-lg font-bold text-on-surface">Standard Visit</p>
+</div>
+</div>
+<div class="flex items-center gap-4 bg-surface-container-low p-4 rounded-lg">
+<img class="w-12 h-12 rounded-full object-cover ring-2 ring-white" data-alt="portrait of Will Wife, a professional cat sitter with a calm and trustworthy expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBB_S24zPqXIvziXEfJ7VzGi45X9hK-lfCDknkXRHJdod98cpDcUngN4Fgggj1nxInrzJWY5HZwA_41S_RBxiplaOOubp_ItlY3v2I3ETzVxj68xntla3BqPcjZOA-ntPtI2Z_1eMhBDmvHV-BRxjQxnqyL_cLhLNkQmZaaTvCq8pxmxxdpggYmXcKGslBLo3mululK9w-cUTcdAHtecb4MxehJaEoV6qPGxkA9zpQOzxeu-2eoL7CTxvfUQ1BTTvUElF3bf25zvI"/>
+<div>
+<p class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-widest">Your Sitter</p>
+<p class="font-bold text-on-surface text-md">Will Wife</p>
+</div>
+<div class="ml-auto flex gap-2">
+<button class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 shadow-sm">
+<span class="material-symbols-outlined text-xl">chat</span>
+</button>
+<button class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 shadow-sm">
+<span class="material-symbols-outlined text-xl">call</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Past Activity Teaser -->
+<section class="pb-12">
+<h3 class="font-headline font-bold text-xl mb-4 px-1">Recent Updates</h3>
+<div class="bg-surface-container-low rounded-lg p-5 flex items-start gap-4">
+<div class="mt-1">
+<span class="material-symbols-outlined text-tertiary">check_circle</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-bold text-on-surface">Visit Completed</h4>
+<span class="text-[10px] font-label font-bold text-on-surface-variant uppercase">Yesterday</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-1 leading-relaxed">Miso enjoyed his treats and we had a good play session with the feather wand.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[3rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_-8px_24px_rgba(0,0,0,0.04)]">
+<div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md flex justify-around items-center px-4 pb-6 pt-3">
+<!-- Dashboard Active -->
+<a class="flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-2xl px-3 py-1.5 active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-['Manrope'] text-[10px] font-medium uppercase tracking-wider mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">pets</span>
+<span class="font-['Manrope'] text-[10px] font-medium uppercase tracking-wider mt-1">Orders</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">search</span>
+<span class="font-['Manrope'] text-[10px] font-medium uppercase tracking-wider mt-1">Sitters</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="font-['Manrope'] text-[10px] font-medium uppercase tracking-wider mt-1">Inbox</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-['Manrope'] text-[10px] font-medium uppercase tracking-wider mt-1">Profile</span>
+</a>
+</div>
+</nav>
+<!-- Contextual FAB - Only for main dashboards -->
+<div class="fixed bottom-28 right-6 z-40">
+<button class="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+</div>
+</body></html>

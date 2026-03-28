@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Cat Concierge - Sitter Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary-container": "#563e00",
+              "surface-tint": "#765600",
+              "outline": "#757776",
+              "on-tertiary-container": "#005e17",
+              "outline-variant": "#acadac",
+              "inverse-on-surface": "#9c9d9c",
+              "on-secondary-fixed-variant": "#00538d",
+              "on-primary": "#fff1db",
+              "on-primary-fixed": "#3d2b00",
+              "error-dim": "#b92902",
+              "secondary-fixed": "#b3d4ff",
+              "tertiary-container": "#91f78e",
+              "on-error": "#ffefec",
+              "on-error-container": "#520c00",
+              "tertiary-fixed": "#91f78e",
+              "surface-container-low": "#f0f1ef",
+              "secondary": "#005e9f",
+              "surface-dim": "#d2d5d3",
+              "on-tertiary-fixed-variant": "#00691a",
+              "primary": "#005e9f", /* Overridden for Client Blue Theme as per DS instruction */
+              "surface-container-highest": "#dbdddb",
+              "surface-container-high": "#e1e3e1",
+              "surface-container-lowest": "#ffffff",
+              "on-surface": "#2d2f2e",
+              "on-secondary-container": "#004a7e",
+              "primary-dim": "#00528b",
+              "surface-bright": "#f6f7f5",
+              "primary-fixed": "#b3d4ff",
+              "inverse-primary": "#b3d4ff",
+              "tertiary": "#006b1b",
+              "secondary-fixed-dim": "#99c7ff",
+              "surface": "#f6f7f5",
+              "inverse-surface": "#0c0f0e",
+              "error-container": "#f95630",
+              "tertiary-fixed-dim": "#83e881",
+              "primary-fixed-dim": "#99c7ff",
+              "on-surface-variant": "#5a5c5b",
+              "on-secondary-fixed": "#00365e",
+              "on-primary-fixed-variant": "#00538d",
+              "error": "#b02500",
+              "secondary-dim": "#00528b",
+              "background": "#f6f7f5",
+              "on-tertiary": "#d1ffc8",
+              "on-secondary": "#edf3ff",
+              "primary-container": "#b3d4ff",
+              "surface-variant": "#dbdddb",
+              "surface-container": "#e7e8e6",
+              "on-background": "#2d2f2e",
+              "tertiary-dim": "#005d16",
+              "secondary-container": "#b3d4ff",
+              "on-tertiary-fixed": "#00480f"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tonal-transition {
+            background: linear-gradient(180deg, rgba(246,247,245,0) 0%, rgba(240,241,239,1) 100%);
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
+<div class="flex justify-between items-center px-6 py-4 max-w-md mx-auto">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container">
+<img class="w-full h-full object-cover" data-alt="portrait of a smiling woman with glasses in a professional studio setting, warm lighting, high-end editorial style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJISd2Ose-lniGaKCI5fSlBANVFpLTC13z2wgU3ThhfNteNOmd5YfrmEN-aeZyavzaZHf5ayXEnskKwi1g0tEngPwtkHS1wH4PhQwkriPJcBRcOUmSkzKNjoZ1xEKRo1fsWq-D4OUZCiCOptLjbjUDtUSvtPrv2XJp4Bc40RjtUqZCl79WCMdRtqyFzC0lb9C4qNmfsdC7xjebyJl-1szXRQ3i-C7zA-nei8ah6oyLnGNjHYY9h1yDTuk3Q4wJcB7Ek6sL4tTArPQ"/>
+</div>
+<h1 class="font-headline font-bold text-2xl tracking-tight text-secondary">The Cat Concierge</h1>
+</div>
+<button class="text-secondary font-semibold text-sm hover:bg-secondary-container/30 px-3 py-1.5 rounded-full transition-colors active:scale-95 duration-200 ease-out">
+                Switch to Sitter
+            </button>
+</div>
+</header>
+<main class="max-w-md mx-auto px-6 pt-24 space-y-8">
+<!-- Add Sitter Section -->
+<section class="space-y-4">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline font-bold text-3xl tracking-tight text-on-surface">Your Inner Circle</h2>
+<p class="text-on-surface-variant text-sm font-medium">Add a sitter by their unique concierge code</p>
+</div>
+<div class="relative group">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline">key</span>
+</div>
+<input class="w-full bg-surface-container-low border-none rounded-xl py-4 pl-12 pr-28 text-sm focus:ring-2 focus:ring-secondary/20 placeholder:text-outline-variant transition-all font-medium" placeholder="Enter Sitter Code (e.g. CAT-992)" type="text"/>
+<button class="absolute right-2 top-2 bottom-2 px-4 bg-secondary text-on-secondary rounded-lg font-bold text-xs uppercase tracking-widest shadow-sm hover:brightness-110 active:scale-95 transition-all">
+                    Add
+                </button>
+</div>
+</section>
+<!-- Favorites List -->
+<section class="space-y-6">
+<div class="flex justify-between items-end">
+<h3 class="font-headline font-bold text-xl text-on-surface">Favorite Sitters</h3>
+<span class="text-xs font-label font-bold text-secondary uppercase tracking-tighter">3 Active</span>
+</div>
+<div class="space-y-4">
+<!-- Sitter Card 1 -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.04)] flex flex-col gap-4 relative overflow-hidden">
+<div class="flex gap-4">
+<div class="w-16 h-16 rounded-2xl overflow-hidden shadow-sm">
+<img class="w-full h-full object-cover" data-alt="friendly male pet sitter with a modern haircut, smiling at the camera, soft natural daylight, bokeh background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBk7LALkE2Dl51fiZ89SUy6r-OuXTuTkA2-sD2tBQdotgr8reW0Mqv2dBnRUdD2oH0lTRB9J4LDSke7__KllzHv8c8R2pY4oe94tG66ixukcumCLBg2dq54rWy0NTj4BF8IY3lvCqZeJzAEVoBzzuZdYwUTK59gQGJNXYuyIWhWRqnnHvJUuRXYzkL9eZ4pR8bosOJrXhxbDuzN-dsU6Cw36f0GVg8xkBdud4ziHmHTvR6Jf832_ZwbsHOzHEWSWA04xjEP27xyh-M"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="font-bold text-on-surface text-lg">Julian Vance</h4>
+<p class="text-xs text-on-surface-variant font-medium">Specialist: Senior Cats</p>
+</div>
+<div class="flex items-center gap-1 bg-tertiary-container/30 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined text-[14px] text-tertiary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-[12px] font-bold text-on-tertiary-container">4.9</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-3 bg-secondary text-on-secondary rounded-full font-bold text-sm tracking-tight active:scale-95 transition-transform">
+                            Go to Booking Page
+                        </button>
+<button class="w-12 h-12 flex items-center justify-center rounded-full bg-surface-container-low text-secondary active:scale-90 transition-transform">
+<span class="material-symbols-outlined">chat_bubble</span>
+</button>
+</div>
+</div>
+<!-- Sitter Card 2 -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.04)] flex flex-col gap-4">
+<div class="flex gap-4">
+<div class="w-16 h-16 rounded-2xl overflow-hidden shadow-sm">
+<img class="w-full h-full object-cover" data-alt="professional female cat sitter, friendly expression, natural sunlight in a bright apartment interior, editorial photography style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdRI77GI5iJToYkcYT-CD-vrZFyiQZRjpROtymKHHeyCelStHfMPYXMrc5NeDdFeHQsWnc6leQxYGLSQKJScx7YrXDYDQTZehv5ZmUzFGNgRLu9r5KO4WGY5BESc4QZqGsx45dyNj7lwZLUZBVRC5C6r0dseyCrAg0V3ofLWig_gUCAtAk7e5ijawD7o2UbHs2gN_sxbAjsH5h20c0vXhgKDYSpjl0CAM7BHqrF9YieJPwiXpATJ5DTj4vx8fO8pAB4B5PdqDKUng"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h4 class="font-bold text-on-surface text-lg">Elena Rossi</h4>
+<p class="text-xs text-on-surface-variant font-medium">Certified Veterinary Assistant</p>
+</div>
+<div class="flex items-center gap-1 bg-tertiary-container/30 px-2 py-1 rounded-md">
+<span class="material-symbols-outlined text-[14px] text-tertiary" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-[12px] font-bold text-on-tertiary-container">5.0</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-3 bg-secondary text-on-secondary rounded-full font-bold text-sm tracking-tight active:scale-95 transition-transform">
+                            Go to Booking Page
+                        </button>
+<button class="w-12 h-12 flex items-center justify-center rounded-full bg-surface-container-low text-secondary active:scale-90 transition-transform">
+<span class="material-symbols-outlined">chat_bubble</span>
+</button>
+</div>
+</div>
+<!-- Sitter Card 3 (Bento Style Variation) -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.04)] flex items-center gap-4">
+<div class="w-20 h-20 rounded-2xl overflow-hidden shadow-sm flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="portrait of a young man with a warm smile, wearing a casual sweater, warm sunset lighting, soft focus background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1W3nfKWVTRaT6msKp6qygsEEOCSMktM5fuRKVEhcb9A-NYyIQsn5iJZBtJ5HxNDRjFv7x6dQna6XKGQ8hOLJnMzsj_5tSzxjSJ0Mk9erUICa__cNwlGGQMrMX3FrEUg3df-0pHQ9gvUPQlFbRXHTbEnq3UC0n1SKzSZ2UeyUCQFfNV6P_5Xl0eLgSN-iM24941knNItmW4YdrgBpncLIym5-WXTI7cTCLPLKFp5xUIEch71MzI6x8dEB_mEbZ3XaXczD5vVmD7iM"/>
+</div>
+<div class="flex-1 flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<h4 class="font-bold text-on-surface text-base">Marcus Thorne</h4>
+<div class="flex items-center gap-1 text-tertiary">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-[12px] font-bold">4.8</span>
+</div>
+</div>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest">Available This Weekend</p>
+<button class="w-full py-2 bg-secondary/10 text-secondary rounded-lg font-bold text-xs hover:bg-secondary hover:text-on-secondary transition-all">
+                            Go to Booking Page
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Recommendation Banner -->
+<section class="bg-secondary-container/20 p-6 rounded-xl border-2 border-dashed border-secondary/20">
+<div class="flex items-start gap-4">
+<div class="p-3 bg-white rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-secondary text-2xl">auto_awesome</span>
+</div>
+<div>
+<h5 class="font-bold text-on-secondary-container">Find a New Match?</h5>
+<p class="text-xs text-on-secondary-container/70 leading-relaxed mt-1">Based on your cat's personality, we've found 3 new expert sitters in your area.</p>
+<button class="mt-3 text-secondary text-xs font-bold flex items-center gap-1 hover:gap-2 transition-all">
+                        Explore Explore <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-[3rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_-8px_24px_rgba(0,0,0,0.04)]">
+<div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md flex justify-around items-center px-4 pb-6 pt-3">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label text-[10px] font-medium uppercase tracking-wider mt-1">Dashboard</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="pets">pets</span>
+<span class="font-label text-[10px] font-medium uppercase tracking-wider mt-1">Orders</span>
+</div>
+<!-- ACTIVE: Sitters -->
+<div class="flex flex-col items-center justify-center bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 rounded-2xl px-3 py-1.5 active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="search" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="font-label text-[10px] font-medium uppercase tracking-wider mt-1">Sitters</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="font-label text-[10px] font-medium uppercase tracking-wider mt-1">Inbox</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 hover:text-blue-500 transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label text-[10px] font-medium uppercase tracking-wider mt-1">Profile</span>
+</div>
+</div>
+</nav>
+</body></html>

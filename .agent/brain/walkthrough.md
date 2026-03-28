@@ -1,74 +1,44 @@
-# Walkthrough - Calendar Sync & Media Retention
+# WhiskerWatch 前端架構轉型驗證 (V10 Walkthrough)
 
-這份文件總結了近期完成的兩大核心功能：**行事曆自動同步 (Google & Apple)** 以及 **多媒體儲存與 60 天保留政策 (Media Retention)**。
+本階段已成功將前端從基礎測試腳本轉型為 **"The Intuitive Concierge" (直覺系管家)** 風格的高階 PWA 架構。我們建立了穩定的基礎，並根據 Figma 設計資產實作了核心 UI、多語系支持與認證流程。
 
-## 1. 行事曆自動同步 (Calendar Sync)
+## 已完成的架構升級
 
-為了滿足不同保母的排程需求，我們實作了「雙軌制」同步機制。
+### 1. 設計系統與全域樣式 (Design Tokens)
+- **字體匯入**：整合 Google Fonts `Plus Jakarta Sans` (標題) 與 `Manrope` (內文)。
+- **Tailwind 4 配置**：在 `index.css` 中實作了完整的色階體系，包含：
+    - `Sitter Mode`: 琥珀橘梯度 (Amber)。
+    - `Client Mode`: 清爽藍梯度 (Blue)。
+    - **No-Line 哲學**：全面使用背景層次 (Tonal Layering) 取代 1px 硬邊框。
+    - **視覺特效**：實作了 `glass-effect` (毛玻璃) 與 `ambient-shadow` (環境陰影)。
+- **Material Symbols 精細化**：將所有圖示的 `wght` (粗細) 設定為 **300**，營造出優雅、輕盈的編輯感 (Editorial) 質感。
 
-### Google 原生同步 (Native API)
-- **OAuth2 整合**：保母可連結 Google 帳號。同步時由後端伺服器直接對接 Google Calendar API。
-- **自動化實作**：
-  - **狀態：CONFIRMED**：自動於日曆建立事件。
-  - **狀態：CANCELLED**：自動於日曆刪除事件。
-- **異步執行**：使用 `@Async` 確保 API 反應速度不受同步過程影響。
+### 2. 多語系架構 (i18next Integration)
+- **i18n 框架**：導入 `i18next` 與 `react-i18next`。
+- **本地語言支援**：提供完整的 **繁體中文 (`zh-TW`)** 與 **英文 (`en`)** 對照：
+    - 使用了更具溫度的專業詞彙，例如將 Login 譯為「進入管家服務」。
+    - 支援自動檢索瀏覽器語言偏好。
+- **全站覆蓋**：從登入頁面、註冊頁面到 `TopAppBar` 與 `BottomNavBar` 的所有標籤，皆已改用翻譯鍵值 (`t()`)。
 
-### 通用型 iCal (ICS) 訂閱 — 支援 Apple / iOS
-- **訂閱網址**：為每位保母產生唯一加密 Token 的 `webcal://` 連結。
-- **安全性**：支援重置 Token 功能，防止連結外流。
-- **標準協定**：採用 `ical4j` 生成符合 RFC 5545 標準的內容，支援 iPhone、Mac 內建日曆。
+### 3. 狀態管理與佈局
+- **Zustand Store**：
+    - `themeStore`: 管理 `SITTER` / `CLIENT` 模式切換。
+    - `authStore`: 管理 JWT Token 與使用者狀態，支援持久化存儲。
+- **Layout Engine**：
+    - `MainLayout`: 置中的 `max-w-md` 佈局容器。
+    - `Shared Components**: `TopAppBar` (動態角色切換) 與 `BottomNavBar` (對應多語系標籤)。
 
-## 2. 多媒體儲存與保留政策 (Media Retention)
+### 4. 高保真認證頁面 (Auth Flow)
+- **Login/Register**：
+    - 串接後端 Auth API，支援角色選擇 (`SITTER` / `CLIENT`)。
+    - 加入了流暢的過場動畫與高級質感按鈕。
 
-考量到 GCP 尚未開通與開發便利性，目前採用 **「儲存抽象化 + 本地模擬」** 方案。
+## 驗證結果
 
-### 儲存架構
-- **StorageService 介面**：解耦業務邏輯與儲存底層。
-- **LocalStorageService**：將檔案存放在本地路徑（預設：`./storage/media`），支援開發階段的檔案預覽。
-- **未來擴充性**：只需切換配置即可無痛對接 GCS (Google Cloud Storage)。
+- **佈局驗證**：在各語系下，佈局皆能在大留白與高品質字體下維持平衡。
+- **多語系切換**：透過 `i18n.changeLanguage()` 測試，UI 文字可即時無感切換。
+- **圖示質感**：300 粗細的圖示在視覺上與 `Plus Jakarta Sans` 的現代感完美契合。
 
-### 媒體管理與清理
-- **上傳限制**：每筆行程限 20 張照片/影片，單檔上限 10MB。
-- **自動化清理 (Job)**：每日凌晨 3:00 執行 `MediaRetentionJob`，自動刪除 **60 天前** 的媒體檔案。
-- **資料庫設計**：新增 `visit_media` 表，記錄檔案 metadata 並在刪除後保留 `is_deleted` 紀錄以供備查。
-
-## 驗證與測試 (Verification)
-
-### API 測試路徑
-- **行事曆**：
-  - `GET /api/v1/sitters/me/calendar/auth-url`：取得 Google 授權網址。
-  - `GET /api/v1/sitters/me/calendar/status`：檢視同步狀態與 iCal 網址。
-- **媒體**：
-  - `POST /api/v1/visits/{visitId}/media`：上傳媒體檔案。
-  - `GET /api/v1/media/{path}`：預覽已上傳之本地檔案。
-
-### 自動化檢查
-- 檢查 `OrderLifecycleService` 與 `BookingService` 是否正確呼叫同步邏輯。
-- 確認 `CatSitterApiApplication` 已啟用 `@EnableScheduling` 與 `@EnableAsync`。
-
-## 3. 測試體系與文件同步 (Testing & Documentation)
-
-為了確保業務邏輯的穩定性，我們建立了多層層次的測試管理與規格文件同步機制。
-
-### 資料庫規格書 (Schema V8)
-- 已經將 `doc/schema.md` 從 V6 直接更新至 **V8** 版本。
-- 補齊了：財務模組 (Finance)、訂閱系統 (Subscriptions)、促銷碼 (PromoCodes)、行事曆同步配置 (CalendarSync) 以及多媒體附件 (Media) 等新表格。
-- 更新了 `visits` 與 `profiles` 等核心表格的最新欄位規格。
-
-### 業務情境冒煙測試 (Smoke Tests)
-- **前端 (Playwright)**：實作了 `tests/smoke/booking-smoke.spec.ts`，模擬透過 API 觸發的預訂流程健康檢查。
-- **後端 (JUnit 5)**：
-  - `BookingFlowSmokeTest`：模擬「訂單建立 -> 模擬支付 Webhook -> 自動確認 -> 日曆同步」的完整業務閉環，確保各組件整合正常。
-  - `SitterOnboardingSmokeTest`：模擬「保母註冊 -> 選擇方案 -> 支付成功 -> 接單權限啟用」的流程。
-
-### 壓力測試預備 (Performance)
-- 提供 `backend/src/test/resources/performance/webhook-smoke.js` (k6 腳本)。
-- 專門用於測試當大量支付回傳同時發生時，系統對併發交易的承載力。
-
-## 4. 進度同步規範 (Workflow Sync)
-- 已依照 `.agents/workflows/persist-progress.md` 規範，將「大腦」資料夾同步至專案根目錄 `.agent/brain/`。
-- 包含最新版的 `task.md` 與 `walkthrough.md`，方便團隊跨環境追蹤開發狀態。
-
-## 後續建議
-- **GCP 環境建立**：當 GCP 專案就緒時，只需更新 `application.yml` 的 `storage.type` 為 `GCS` 並填寫相關憑證即可對接。
-- **前端串接**：保母 App 的行程紀錄頁面現在可以開始串接 `POST /media` 接口來上載服務日誌圖檔。
+## 下一步開發
+- **Dashboard 實作**：開始將 `sitter_dashboard` 與 `client_dashboard` 從 HTML 轉換為功能性的 React 組件。
+- **業務資料對接**：串接後端各項服務 (Appointments, Earnings, Profile Settings)。

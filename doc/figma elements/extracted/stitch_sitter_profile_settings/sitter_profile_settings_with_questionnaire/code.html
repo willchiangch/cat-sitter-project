@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PetCare Pro - Sitter Profile Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-secondary": "#edf3ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-container": "#005e17",
+                        "surface-container-highest": "#dbdddb",
+                        "primary-container": "#ffbf00",
+                        "on-surface-variant": "#5a5c5b",
+                        "tertiary-container": "#91f78e",
+                        "on-primary-container": "#563e00",
+                        "primary-dim": "#674b00",
+                        "inverse-primary": "#ffbf00",
+                        "on-primary-fixed": "#3d2b00",
+                        "secondary-fixed-dim": "#99c7ff",
+                        "on-error-container": "#520c00",
+                        "inverse-surface": "#0c0f0e",
+                        "outline-variant": "#acadac",
+                        "surface-variant": "#dbdddb",
+                        "tertiary-fixed": "#91f78e",
+                        "secondary": "#005e9f",
+                        "on-tertiary": "#d1ffc8",
+                        "secondary-dim": "#00528b",
+                        "primary": "#765600",
+                        "surface-bright": "#f6f7f5",
+                        "on-secondary-fixed-variant": "#00538d",
+                        "background": "#f6f7f5",
+                        "tertiary-dim": "#005d16",
+                        "secondary-container": "#b3d4ff",
+                        "surface-container-high": "#e1e3e1",
+                        "surface-tint": "#765600",
+                        "on-tertiary-fixed-variant": "#00691a",
+                        "tertiary-fixed-dim": "#83e881",
+                        "outline": "#757776",
+                        "error-dim": "#b92902",
+                        "surface": "#f6f7f5",
+                        "primary-fixed": "#ffbf00",
+                        "on-background": "#2d2f2e",
+                        "error": "#b02500",
+                        "surface-container": "#e7e8e6",
+                        "surface-container-low": "#f0f1ef",
+                        "on-primary": "#fff1db",
+                        "inverse-on-surface": "#9c9d9c",
+                        "on-secondary-fixed": "#00365e",
+                        "secondary-fixed": "#b3d4ff",
+                        "surface-dim": "#d2d5d3",
+                        "error-container": "#f95630",
+                        "on-tertiary-fixed": "#00480f",
+                        "on-surface": "#2d2f2e",
+                        "on-error": "#ffefec",
+                        "primary-fixed-dim": "#eeb200",
+                        "on-primary-fixed-variant": "#614700",
+                        "tertiary": "#006b1b",
+                        "on-secondary-container": "#004a7e"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Manrope', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .headline-font { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16 max-w-md mx-auto left-0 right-0 bg-white dark:bg-gray-900 shadow-sm dark:shadow-none border-b border-gray-100 dark:border-gray-800">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-2xl">pets</span>
+<h1 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 headline-font">PetCare Pro</h1>
+</div>
+<button class="text-indigo-600 dark:text-indigo-400 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors px-3 py-1.5 rounded-full active:opacity-80">
+            Switch Role
+        </button>
+</header>
+<main class="pt-20 px-4 max-w-md mx-auto space-y-8">
+<!-- Profile Overview Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="relative">
+<img class="w-20 h-20 rounded-full object-cover border-4 border-surface-container-lowest shadow-sm" data-alt="Professional headshot of a friendly female pet sitter in a sunlit outdoor garden setting with warm natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBz1Rz_PmCnyD_7MvXgP9QOsdzj93qgxONLU6Fe4Sk1mW_Vzf7ddYuZebJp_O0IO7ghaZvsbZ8YWg9cXoSHdhLmrJPOU9TdeZSSA3ZB4QUynR9NsKaiA4Gyg4wXfbh-pWw0q4YjtviYCUpWGZxRaMHz3woRfBXduMjbgwxZW914xyeZ3NH8YFcUt-Ut_ABzEQwDeMf00M_izMaADgoJe0PNoyARVvl_Qg96k2S2Es7NQD6takrJgASAZkl6IASFQuOGsKMz52XSxrs"/>
+<div class="absolute bottom-0 right-0 bg-primary rounded-full p-1 border-2 border-white">
+<span class="material-symbols-outlined text-white text-xs" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<div>
+<h2 class="headline-font text-xl font-bold">Sarah Jenkins</h2>
+<p class="text-on-surface-variant text-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">location_on</span>
+                            Brooklyn, New York
+                        </p>
+</div>
+</div>
+<button class="bg-surface-container-lowest p-3 rounded-full shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-on-surface-variant">edit</span>
+</button>
+</div>
+<!-- Booking URL Bento Card -->
+<div class="bg-surface-container-low p-5 rounded-lg space-y-3">
+<label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant headline-font">Your Booking URL</label>
+<div class="flex gap-2">
+<div class="flex-1 bg-surface-container-lowest px-4 py-3 rounded-md text-sm text-on-surface font-medium overflow-hidden whitespace-nowrap overflow-ellipsis border border-outline-variant/10">
+                        petcarepro.com/sitter/sarah-j
+                    </div>
+<button class="bg-primary text-on-primary-container px-4 py-2 rounded-md font-bold text-sm flex items-center gap-2 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-sm">content_copy</span>
+                        Copy
+                    </button>
+</div>
+</div>
+</section>
+<!-- Action Grid -->
+<section class="grid grid-cols-2 gap-3">
+<button class="bg-surface-container-lowest p-4 rounded-lg shadow-sm border border-outline-variant/5 flex flex-col gap-3 active:scale-[0.98] transition-all text-left">
+<span class="material-symbols-outlined text-secondary text-3xl">visibility</span>
+<span class="font-bold text-sm headline-font leading-tight">Preview Booking Page</span>
+</button>
+<button class="bg-surface-container-lowest p-4 rounded-lg shadow-sm border border-outline-variant/5 flex flex-col gap-3 active:scale-[0.98] transition-all text-left">
+<span class="material-symbols-outlined text-primary text-3xl">calendar_today</span>
+<span class="font-bold text-sm headline-font leading-tight">Set Availability Period</span>
+</button>
+</section>
+<!-- Service Plan Management -->
+<section class="space-y-4">
+<div class="flex justify-between items-end">
+<h3 class="headline-font text-lg font-extrabold">Service Plans</h3>
+<button class="text-primary text-sm font-bold">Add New</button>
+</div>
+<div class="space-y-3">
+<!-- Plan Card 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-lg flex items-center gap-4 shadow-sm border-l-4 border-primary">
+<span class="material-symbols-outlined text-outline-variant cursor-grab">drag_indicator</span>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-bold text-sm">Dog Walking (Standard)</h4>
+<span class="text-primary font-extrabold">$25</span>
+</div>
+<div class="flex items-center gap-3 mt-1">
+<div class="flex items-center gap-1 text-[10px] text-on-surface-variant font-medium">
+<span class="material-symbols-outlined text-xs">schedule</span>
+                                30 min
+                            </div>
+<label class="flex items-center gap-1 text-[10px] text-on-surface-variant font-medium">
+<input checked="" class="w-3 h-3 rounded text-primary focus:ring-primary-container" type="checkbox"/>
+                                Recurring
+                            </label>
+</div>
+</div>
+</div>
+<!-- Plan Card 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-lg flex items-center gap-4 shadow-sm border-l-4 border-secondary">
+<span class="material-symbols-outlined text-outline-variant cursor-grab">drag_indicator</span>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-bold text-sm">Cat Sitting (Full Day)</h4>
+<span class="text-primary font-extrabold">$45</span>
+</div>
+<div class="flex items-center gap-3 mt-1">
+<div class="flex items-center gap-1 text-[10px] text-on-surface-variant font-medium">
+<span class="material-symbols-outlined text-xs">history</span>
+                                8 hours
+                            </div>
+<label class="flex items-center gap-1 text-[10px] text-on-surface-variant font-medium">
+<input class="w-3 h-3 rounded text-primary focus:ring-primary-container" type="checkbox"/>
+                                Recurring
+                            </label>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Pre-service Questionnaire Section -->
+<section class="space-y-4">
+<div class="flex justify-between items-end">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">quiz</span>
+<h3 class="headline-font text-lg font-extrabold">Pre-service Questionnaire</h3>
+</div>
+</div>
+<p class="text-[12px] text-on-surface-variant leading-relaxed">
+                Clients will be required to answer these questions when booking. If no questions are set, this step will be hidden.
+            </p>
+<div class="space-y-3">
+<!-- Question 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-lg flex items-start gap-4 shadow-sm border border-outline-variant/10">
+<span class="material-symbols-outlined text-outline-variant cursor-move mt-0.5">drag_indicator</span>
+<div class="flex-1 text-sm font-medium leading-snug">
+                        Does your cat have any chronic illnesses or require special medical care?
+                    </div>
+<button class="text-error mt-0.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">remove_circle</span>
+</button>
+</div>
+<!-- Question 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-lg flex items-start gap-4 shadow-sm border border-outline-variant/10">
+<span class="material-symbols-outlined text-outline-variant cursor-move mt-0.5">drag_indicator</span>
+<div class="flex-1 text-sm font-medium leading-snug">
+                        How does your cat react to strangers? Any signs of aggression?
+                    </div>
+<button class="text-error mt-0.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">remove_circle</span>
+</button>
+</div>
+<!-- Question 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-lg flex items-start gap-4 shadow-sm border border-outline-variant/10">
+<span class="material-symbols-outlined text-outline-variant cursor-move mt-0.5">drag_indicator</span>
+<div class="flex-1 text-sm font-medium leading-snug">
+                        Are there safety nets installed on doors and windows?
+                    </div>
+<button class="text-error mt-0.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">remove_circle</span>
+</button>
+</div>
+<!-- Question 4 -->
+<div class="bg-surface-container-lowest p-4 rounded-lg flex items-start gap-4 shadow-sm border border-outline-variant/10">
+<span class="material-symbols-outlined text-outline-variant cursor-move mt-0.5">drag_indicator</span>
+<div class="flex-1 text-sm font-medium leading-snug">
+                        How should the sitter handle trash and litter?
+                    </div>
+<button class="text-error mt-0.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">remove_circle</span>
+</button>
+</div>
+<!-- Add Question Button -->
+<button class="w-full border-2 border-dashed border-outline-variant/30 p-4 rounded-lg flex items-center justify-center gap-2 text-on-surface-variant font-bold text-sm active:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">add</span>
+                    Add Question
+                </button>
+</div>
+</section>
+<!-- Sub-pages Navigation -->
+<section class="bg-surface-container-low rounded-xl overflow-hidden">
+<button class="w-full flex justify-between items-center p-5 border-b border-outline-variant/10 active:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-tertiary-container/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary">group</span>
+</div>
+<div class="text-left">
+<p class="font-bold headline-font text-sm">Trust Circle</p>
+<p class="text-[11px] text-on-surface-variant">Manage 12 trusted clients</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+<button class="w-full flex justify-between items-center p-5 border-b border-outline-variant/10 active:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary-container/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">sync</span>
+</div>
+<div class="text-left">
+<p class="font-bold headline-font text-sm">Calendar Sync</p>
+<p class="text-[11px] text-on-surface-variant">Google &amp; iCloud connected</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+<button class="w-full flex justify-between items-center p-5 active:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-container/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">account_balance_wallet</span>
+</div>
+<div class="text-left">
+<p class="font-bold headline-font text-sm">KYC &amp; Finances</p>
+<p class="text-[11px] text-on-surface-variant">Payout status: Verified</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</button>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center pt-2 pb-6 px-2 max-w-md mx-auto left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-[0_-4px_12px_rgba(0,0,0,0.05)] border-t border-gray-100 dark:border-gray-800 rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-medium tracking-tight">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-[10px] font-medium tracking-tight">Orders</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-[10px] font-medium tracking-tight">Finance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="text-[10px] font-medium tracking-tight">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="text-[10px] font-medium tracking-tight">Profile</span>
+</a>
+</nav>
+</body></html>

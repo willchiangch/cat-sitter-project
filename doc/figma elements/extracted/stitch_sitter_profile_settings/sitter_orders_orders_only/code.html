@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary": "#edf3ff",
+              "surface-container-lowest": "#ffffff",
+              "on-tertiary-container": "#005e17",
+              "surface-container-highest": "#dbdddb",
+              "primary-container": "#ffbf00",
+              "on-surface-variant": "#5a5c5b",
+              "tertiary-container": "#91f78e",
+              "on-primary-container": "#563e00",
+              "primary-dim": "#674b00",
+              "inverse-primary": "#ffbf00",
+              "on-primary-fixed": "#3d2b00",
+              "secondary-fixed-dim": "#99c7ff",
+              "on-error-container": "#520c00",
+              "inverse-surface": "#0c0f0e",
+              "outline-variant": "#acadac",
+              "surface-variant": "#dbdddb",
+              "tertiary-fixed": "#91f78e",
+              "secondary": "#005e9f",
+              "on-tertiary": "#d1ffc8",
+              "secondary-dim": "#00528b",
+              "primary": "#765600",
+              "surface-bright": "#f6f7f5",
+              "on-secondary-fixed-variant": "#00538d",
+              "background": "#f6f7f5",
+              "tertiary-dim": "#005d16",
+              "secondary-container": "#b3d4ff",
+              "surface-container-high": "#e1e3e1",
+              "surface-tint": "#765600",
+              "on-tertiary-fixed-variant": "#00691a",
+              "tertiary-fixed-dim": "#83e881",
+              "outline": "#757776",
+              "error-dim": "#b92902",
+              "surface": "#f6f7f5",
+              "primary-fixed": "#ffbf00",
+              "on-background": "#2d2f2e",
+              "error": "#b02500",
+              "surface-container": "#e7e8e6",
+              "surface-container-low": "#f0f1ef",
+              "on-primary": "#fff1db",
+              "inverse-on-surface": "#9c9d9c",
+              "on-secondary-fixed": "#00365e",
+              "secondary-fixed": "#b3d4ff",
+              "surface-dim": "#d2d5d3",
+              "error-container": "#f95630",
+              "on-tertiary-fixed": "#00480f",
+              "on-surface": "#2d2f2e",
+              "on-error": "#ffefec",
+              "primary-fixed-dim": "#eeb200",
+              "on-primary-fixed-variant": "#614700",
+              "tertiary": "#006b1b",
+              "on-secondary-container": "#004a7e"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass-nav { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+        .ambient-glow { shadow: 0 8px 24px rgba(45, 47, 46, 0.04); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16 max-w-md mx-auto left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shadow-sm dark:shadow-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400">pets</span>
+<h1 class="text-xl font-bold text-indigo-600 dark:text-indigo-400 font-headline">PetCare Pro</h1>
+</div>
+<button class="text-indigo-600 dark:text-indigo-400 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-800 px-3 py-1.5 rounded-full transition-colors active:opacity-80">
+            Switch Role
+        </button>
+</header>
+<main class="pt-20 pb-24 max-w-md mx-auto px-4 min-h-screen">
+<!-- Tab Navigation (Editorial Style) -->
+<nav class="flex gap-6 mb-8 overflow-x-auto no-scrollbar py-2">
+<button class="relative flex-shrink-0 group">
+<span class="text-lg font-bold text-on-surface font-headline">Evaluating</span>
+<span class="absolute -bottom-1 left-0 w-8 h-1 bg-primary rounded-full"></span>
+</button>
+<button class="flex-shrink-0">
+<span class="text-lg font-bold text-outline-variant font-headline hover:text-on-surface transition-colors">In-progress</span>
+</button>
+<button class="flex-shrink-0">
+<span class="text-lg font-bold text-outline-variant font-headline hover:text-on-surface transition-colors">History</span>
+</button>
+</nav>
+<!-- View: Evaluating (Order Quote Section) -->
+<section class="space-y-6">
+<div class="flex justify-between items-end">
+<div>
+<span class="text-label-sm uppercase tracking-wider text-outline font-label text-[10px] font-bold">New Inquiry</span>
+<h2 class="text-2xl font-bold font-headline leading-tight mt-1">Order Quote</h2>
+</div>
+<div class="bg-primary-container px-3 py-1 rounded-full">
+<span class="text-xs font-bold text-on-primary-container">ID #8829</span>
+</div>
+</div>
+<!-- Client Bento Card -->
+<div class="bg-surface-container-lowest rounded-lg p-5 shadow-[0_8px_24px_rgba(45,47,46,0.04)] space-y-4">
+<div class="flex items-center gap-4">
+<img class="w-14 h-14 rounded-full object-cover" data-alt="portrait of a woman with warm sunlight glowing on her face smiling gently against a blurred greenery background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBl0ZSdZe_HhQPJI-5pIR1gtQQpesHMQw4p_M6qNWMOCOeE4lf7VTgr7RWfU_i18AfcLxIeKUL8bV4IYJuONAeBahCnfTQc-4yDXnMnTKrgSdqqBZ-GhaYg6PwTWwOTC-SYvqysASRe2O5SPvTkLgWmCoU_HQFXyjGaCoXfN2SxPrHEO1Xbu9LPN-jmRSTg4upFLbL1N5z9SxLBi8EZOu63B0V3E-1QTZv2_M3OMS1GTftWO1DNJ9-CXzXh43oxbFOxehslg7_bfo4"/>
+<div class="flex-1">
+<h3 class="font-bold text-on-surface text-lg leading-tight">Miso &amp; Mochi</h3>
+<p class="text-sm text-outline font-medium">2 Cats • 3 Visits • Shibuya</p>
+</div>
+<button class="w-10 h-10 flex items-center justify-center bg-surface-container-low rounded-full text-primary">
+<span class="material-symbols-outlined">chat_bubble</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-lg p-4 flex justify-between items-center group cursor-pointer hover:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">assignment</span>
+<span class="font-bold text-sm">View Questionnaire</span>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform">chevron_right</span>
+</div>
+<!-- Price Calculator -->
+<div class="pt-2">
+<label class="text-xs font-bold text-outline uppercase tracking-widest mb-3 block">Estimated Quote</label>
+<div class="flex items-center justify-between bg-surface-container-low rounded-xl p-2">
+<button class="w-12 h-12 flex items-center justify-center bg-surface-container-lowest rounded-lg shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<div class="text-center">
+<span class="text-2xl font-extrabold font-headline text-on-surface">¥12,500</span>
+</div>
+<button class="w-12 h-12 flex items-center justify-center bg-surface-container-lowest rounded-lg shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+</button>
+</div>
+</div>
+<!-- Toggles & Actions -->
+<div class="space-y-3 pt-2">
+<div class="flex items-center justify-between py-2">
+<span class="text-sm font-bold">Require Pet Medical Record</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 py-4 px-6 rounded-lg font-bold text-sm bg-surface-container-high text-on-surface-variant hover:bg-surface-variant transition-colors">
+                            Decline
+                        </button>
+<button class="flex-[2] py-4 px-6 rounded-lg font-bold text-sm bg-gradient-to-br from-primary to-primary-container text-on-primary-container shadow-lg shadow-primary/10 hover:shadow-primary/20 transition-all">
+                            Send Quote
+                        </button>
+</div>
+</div>
+</div>
+<!-- Dashboard Snapshot (Asymmetric Layout) -->
+</section>
+<!-- Section: In-progress SOP (Visual Demo) -->
+<section class="space-y-6 mt-8">
+<h2 class="text-2xl font-bold font-headline">Visit SOP</h2>
+<div class="space-y-3">
+<div class="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-lg shadow-sm border-l-4 border-tertiary cursor-move">
+<span class="material-symbols-outlined text-outline-variant">drag_indicator</span>
+<div class="flex-1">
+<p class="font-bold text-sm">Refill Water Fountain</p>
+<p class="text-xs text-outline">Sanitize bowl before refilling</p>
+</div>
+<span class="material-symbols-outlined text-tertiary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-lg shadow-sm border-l-4 border-outline-variant cursor-move">
+<span class="material-symbols-outlined text-outline-variant">drag_indicator</span>
+<div class="flex-1">
+<p class="font-bold text-sm">Scoop Litter Box</p>
+<p class="text-xs text-outline">Check for consistency/health signs</p>
+</div>
+<div class="w-6 h-6 rounded-full border-2 border-outline-variant"></div>
+</div>
+</div>
+<button class="w-full py-4 rounded-lg bg-surface-container-highest font-bold text-on-surface flex items-center justify-center gap-2 border border-outline-variant/20 active:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined">payments</span>
+                Confirm Payment (Offline)
+            </button>
+</section>
+<!-- Section: History Visual Summary -->
+<section class="mb-12 space-y-6">
+<div class="flex gap-2">
+<div class="flex-1 bg-surface-container-low rounded-full px-4 flex items-center gap-2 h-12">
+<span class="material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-transparent border-none text-sm focus:ring-0 w-full placeholder:text-outline/50" placeholder="Search orders..." type="text"/>
+</div>
+<button class="w-12 h-12 bg-surface-container-low rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface">tune</span>
+</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center pt-2 pb-safe px-2 max-w-md mx-auto left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-100 dark:border-gray-800 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-medium tracking-tight">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+<span class="text-[10px] font-medium tracking-tight font-semibold">Orders</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-[10px] font-medium tracking-tight">Finance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150 relative" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="text-[10px] font-medium tracking-tight">Alerts</span>
+<span class="absolute top-0 right-1 w-2 h-2 bg-error rounded-full border-2 border-white"></span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-medium tracking-tight">Profile</span>
+</a>
+</nav>
+</body></html>

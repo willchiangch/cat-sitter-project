@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary": "#edf3ff",
+              "surface-container-lowest": "#ffffff",
+              "on-tertiary-container": "#005e17",
+              "surface-container-highest": "#dbdddb",
+              "primary-container": "#ffbf00",
+              "on-surface-variant": "#5a5c5b",
+              "tertiary-container": "#91f78e",
+              "on-primary-container": "#563e00",
+              "primary-dim": "#674b00",
+              "inverse-primary": "#ffbf00",
+              "on-primary-fixed": "#3d2b00",
+              "secondary-fixed-dim": "#99c7ff",
+              "on-error-container": "#520c00",
+              "inverse-surface": "#0c0f0e",
+              "outline-variant": "#acadac",
+              "surface-variant": "#dbdddb",
+              "tertiary-fixed": "#91f78e",
+              "secondary": "#005e9f",
+              "on-tertiary": "#d1ffc8",
+              "secondary-dim": "#00528b",
+              "primary": "#765600",
+              "surface-bright": "#f6f7f5",
+              "on-secondary-fixed-variant": "#00538d",
+              "background": "#f6f7f5",
+              "tertiary-dim": "#005d16",
+              "secondary-container": "#b3d4ff",
+              "surface-container-high": "#e1e3e1",
+              "surface-tint": "#765600",
+              "on-tertiary-fixed-variant": "#00691a",
+              "tertiary-fixed-dim": "#83e881",
+              "outline": "#757776",
+              "error-dim": "#b92902",
+              "surface": "#f6f7f5",
+              "primary-fixed": "#ffbf00",
+              "on-background": "#2d2f2e",
+              "error": "#b02500",
+              "surface-container": "#e7e8e6",
+              "surface-container-low": "#f0f1ef",
+              "on-primary": "#fff1db",
+              "inverse-on-surface": "#9c9d9c",
+              "on-secondary-fixed": "#00365e",
+              "secondary-fixed": "#b3d4ff",
+              "surface-dim": "#d2d5d3",
+              "error-container": "#f95630",
+              "on-tertiary-fixed": "#00480f",
+              "on-surface": "#2d2f2e",
+              "on-error": "#ffefec",
+              "primary-fixed-dim": "#eeb200",
+              "on-primary-fixed-variant": "#614700",
+              "tertiary": "#006b1b",
+              "on-secondary-container": "#004a7e"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Manrope', sans-serif; }
+        h1, h2, h3 { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16 max-w-md mx-auto left-0 right-0 bg-white dark:bg-gray-900 shadow-sm dark:shadow-none border-b border-gray-100 dark:border-gray-800">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400" data-icon="pets">pets</span>
+<span class="text-xl font-bold text-indigo-600 dark:text-indigo-400">PetCare Pro</span>
+</div>
+<button class="font-sans text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors px-3 py-1 rounded-full active:opacity-80 transition-opacity">
+            Switch Role
+        </button>
+</header>
+<main class="max-w-md mx-auto pt-20 px-4">
+<!-- Editorial Header Section -->
+<section class="mb-8 mt-4">
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface mb-1">Notifications</h1>
+<p class="text-on-surface-variant text-sm font-medium">Updates from pet owners and active logs.</p>
+</section>
+<!-- Level 1: List of Owners (Bento-style layout) -->
+<div class="grid grid-cols-1 gap-4">
+<!-- Active Notification Card 1 -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(45,47,46,0.04)] group cursor-pointer transition-all active:scale-[0.98]">
+<div class="flex items-center gap-4">
+<div class="relative">
+<img alt="Pet Owner" class="w-14 h-14 rounded-full object-cover ring-2 ring-primary-container" data-alt="Close-up portrait of a woman with curly hair smiling warmly, soft morning sunlight, professional high-end photography style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCJqoyRc6NfKpUGUx6pP7_I0U8OfvWR4GHa-FlMoh42HkLxGjv1YQ-ZZLZcbfC52m4U0Dj81wXyWjez03S84Cg8SdB_WUmuqhjdqmH8hfPQtGSrQMeWchmv8ckG02jkDztyiQw0YjCdrh51-GmJc1uU8MA-DRdj1mxGXij9ERaZ2e0tCdLXUd86iKhZXMxoiTedituGW9_j4XQS80EMsrYPi144nme1Z9ELMvU_FvUKz55qZ6iZ54XyDeEIk6pVJaoqzY4-mI_pDs"/>
+<div class="absolute bottom-0 right-0 w-4 h-4 bg-tertiary rounded-full border-2 border-surface-container-lowest"></div>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h3 class="font-bold text-lg text-on-surface">Elena Rodriguez</h3>
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">2m ago</span>
+</div>
+<p class="text-sm text-on-surface-variant line-clamp-1 italic">"Please check if Max finished his water bowl..."</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- Mini Log Preview -->
+<div class="mt-4 pt-4 border-t border-outline-variant/10 flex gap-2">
+<span class="px-2 py-1 bg-primary-container/10 text-primary-dim text-[10px] font-bold rounded-md">1 NEW UPDATE</span>
+<span class="px-2 py-1 bg-surface-container-low text-on-surface-variant text-[10px] font-bold rounded-md uppercase">Order #8821</span>
+</div>
+</div>
+<!-- Notification Card 2 -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(45,47,46,0.04)] group cursor-pointer active:scale-[0.98]">
+<div class="flex items-center gap-4">
+<img alt="Pet Owner" class="w-14 h-14 rounded-full object-cover" data-alt="Stylish middle-aged man with beard in a clean modern setting, soft focused background, high-end lifestyle portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCFih8KC16j-716C7y6I502I_EFffJAhQipUYTTKp6NUbXnhBptKUQRtOsdZ7RE0ZHAv3QKuw52O0VgvmdRaXG7tskmoPBY5QrM7h63UL3KVx1owiRA0HVuw8ZJtjk832EvTi6pzHcPMMJR7CjNpN-C9nzPkIy2h1FJlSrkrDueuOw3gq-r7NjCSRcoh9CaWe07ODxFWjFXCK6R5S3BgAjrNF_PSgaqj2FmvL18az_ya8gfmFRa7QI4yx4K0Yk10MEbPJmmB8kF6Tc"/>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h3 class="font-bold text-lg text-on-surface">Marcus Chen</h3>
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">45m ago</span>
+</div>
+<p class="text-sm text-on-surface-variant line-clamp-1">"The spare key is under the blue ceramic pot."</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+<!-- Notification Card 3 -->
+<div class="bg-surface-container-lowest p-5 rounded-lg shadow-[0_8px_24px_rgba(45,47,46,0.04)] group cursor-pointer active:scale-[0.98]">
+<div class="flex items-center gap-4">
+<img alt="Pet Owner" class="w-14 h-14 rounded-full object-cover" data-alt="Young woman with bright smile and casual attire, outdoors in a park with golden hour lighting, cinematic bokeh" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9uQSMzXj1qcm2RiWSObobnwZjAtaEY4t0y3x0w8IZgSjHd9ustaZjncjHaOT8dPbv2aDWrZYnZYt1II80OK9uxV3vUn8nSIuZdr9NiX-qo06ec3ttY-US_-a15UcldUj-WhpZlgyUWeXeAlfIfU22FavxtvKEzFLM-O2SDSCrpoMnNB9aoH8W37AC812g-_mM4jyFoGZ1-1B7axo_rjR75CqRj4b0o5wt-L3a5ds2PmdygiEKkiLeF0jYyi6Lq3EdnVBlcbBjfgE"/>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h3 class="font-bold text-lg text-on-surface">Sarah Jenkins</h3>
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">3h ago</span>
+</div>
+<p class="text-sm text-on-surface-variant line-clamp-1 text-tertiary font-medium">✓ Logged: Mid-day walk completed</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Level 2: Notification Details Overlay (Represented as a focused section) -->
+<section class="mt-12 bg-surface-container-low rounded-xl p-6 border border-outline-variant/10">
+<div class="flex items-center gap-3 mb-6">
+<button class="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-on-surface" data-icon="arrow_back">arrow_back</span>
+</button>
+<div>
+<h2 class="font-bold text-lg leading-tight">Elena Rodriguez</h2>
+<p class="text-xs text-on-surface-variant font-medium">Order #8821 • Active Now</p>
+</div>
+</div>
+<!-- Order Action Logs (Timeline) -->
+<div class="space-y-0 relative">
+<!-- Timeline Stem -->
+<div class="absolute left-[19px] top-2 bottom-2 w-[1.5px] bg-outline-variant/20"></div>
+<!-- Log Entry 1 -->
+<div class="relative pl-12 pb-8">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-on-tertiary-container text-sm" data-icon="check" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-lg shadow-sm">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-tertiary uppercase tracking-widest">Entry Completed</span>
+<span class="text-[10px] text-on-surface-variant font-medium">10:02 AM</span>
+</div>
+<p class="text-sm text-on-surface">Arrived at the residence. Max was waiting by the door. Entry was smooth with the smart lock.</p>
+</div>
+</div>
+<!-- Log Entry 2 -->
+<div class="relative pl-12 pb-8">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-primary-container flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-on-primary-container text-sm" data-icon="chat_bubble" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-lg shadow-sm">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-primary-dim uppercase tracking-widest">Owner Instruction</span>
+<span class="text-[10px] text-on-surface-variant font-medium">10:05 AM</span>
+</div>
+<p class="text-sm text-on-surface italic font-medium">"Please check if Max finished his water bowl, he seemed a bit dehydrated this morning."</p>
+</div>
+</div>
+<!-- Log Entry 3 -->
+<div class="relative pl-12">
+<div class="absolute left-0 top-1 w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-outline text-sm" data-icon="pending">pending</span>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-lg shadow-sm opacity-60">
+<div class="flex justify-between items-center mb-1">
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Upcoming: Walking</span>
+<span class="text-[10px] text-on-surface-variant font-medium">Scheduled 10:30 AM</span>
+</div>
+<p class="text-sm text-on-surface">Planned 20-minute route around Central Park North.</p>
+</div>
+</div>
+</div>
+<!-- Quick Action for Log -->
+<div class="mt-8">
+<button class="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-on-primary font-bold rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-xl" data-icon="add_circle">add_circle</span>
+                    Update Log for Max
+                </button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center pt-2 pb-safe px-2 max-w-md mx-auto left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-[0_-4px_12px_rgba(0,0,0,0.05)] border-t border-gray-100 dark:border-gray-800 rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[10px] font-medium tracking-tight">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="text-[10px] font-medium tracking-tight">Orders</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="text-[10px] font-medium tracking-tight">Finance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="notifications" style="font-variation-settings: 'FILL' 1;">notifications</span>
+<span class="text-[10px] font-medium tracking-tight">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-300 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="text-[10px] font-medium tracking-tight">Profile</span>
+</a>
+</nav>
+</body></html>
