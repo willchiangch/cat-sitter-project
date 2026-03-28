@@ -3,31 +3,81 @@
 - [x] Analyze current business requirements
 - [x] Review backend implementation status
 - [x] Implement Core Security & Auth
-    - [x] Add Security & JWT dependencies to `pom.xml`
-    - [x] Create `SecurityConfig` and JWT filter
-    - [x] Implement `UserDetailsService` (linking to `Account` entity)
-    - [x] Implement Auth Controller (`/register`, `/login`, `/me`)
-    - [x] Verify with tests (TDD)
+- [x] Add Security & JWT dependencies to `pom.xml`
+- [x] Create `SecurityConfig` and JWT filter
+- [x] Implement `UserDetailsService` (linking to `Account` entity)
+- [x] Implement Auth Controller (`/register`, `/login`, `/me`)
+- [x] Verify with tests (TDD)
 - [x] 帳戶身分與角色切換 (Identity & Role Switching)
-    - [x] 更新 `openapi.yaml` 與 `API_SPEC.md`
-    - [x] 實作 `AuthMeResponse` DTO
-    - [x] 實作 `AuthService.getMe` 邏輯
-    - [x] 實作 `AuthController` 接口
-    - [x] 編寫 `AuthControllerTest` 進行驗證
-- [ ] 評價與結案 (Review & Closing)
-    - [ ] 實作 `ReviewService` 與 `ReviewController`
-    - [ ] 建立評分與評論功能
-    - [ ] 實作訂單結案邏輯 (飼主端)
+- [x] 更新 `openapi.yaml` 與 `API_SPEC.md`
+- [x] 實作 `AuthMeResponse` DTO
+- [x] 實作 `AuthService.getMe` 邏輯
+- [x] 實作 `AuthController` 接口
+- [x] 編寫 `AuthControllerTest` 進行驗證
+- [x] 訂單結案 (Order Closing)
+- [x] 實作結案邏輯 (BookingService)
+- [x] 建立結案接口 (OrderController)
+- [x] TDD 整合測試與驗證 (OrderControllerTest)
 - [x] Implement Profile Management (Sitter Onboarding)
-    - [x] 實作 `SitterProfileController` (取回/更新個人資料)
-    - [x] 實作 `SitterServiceController` (服務方案 CRUD)
-    - [x] 實作 `SitterQuestionnaireController` (問卷題目管理)
-    - [x] 驗證與 TDD 測試
+- [x] 實作 `SitterProfileController` (取回/更新個人資料)
+- [x] 實作 `SitterServiceController` (服務方案 CRUD)
+- [x] 實作 `SitterQuestionnaireController` (問卷題目管理)
+- [x] 驗證與 TDD 測試
 - [x] Implement Client & Pet Management
-    - [x] 實作 `ClientProfileController`
-    - [x] 實作 `PetController` (毛孩檔案 CRUD)
-    - [x] 驗證與 TDD 測試
+- [x] 實作 `ClientProfileController`
+- [x] 實作 `PetController` (毛孩檔案 CRUD)
+- [x] 驗證與 TDD 測試
 - [x] Implement Booking & Visits
-    - [x] 實作 `BookingController` (建立預約、報價、支付狀態)
-    - [x] 實作 `VisitController` (行程記錄、回報、完成)
-    - [x] 驗證與 TDD 測試
+- [x] 實作 `BookingController` (建立預約、報價、支付狀態)
+- [x] 實作 `VisitController` (行程記錄、回報、完成)
+- [x] 驗證與 TDD 測試
+- [x] 金流模組 (Financial Module)
+- [x] 實作 PAYUNi (統一金流) 整合 (支付簽章與 Webhook)
+- [x] 實作 Webhook (NotifyURL) 接收與 Token 驗證
+- [x] 實作 Mock Callback API (供測試開發用模擬金流回傳)
+- [x] 實作 `PromoCode` (折扣碼) 邏輯 (金額/次數/有效期)
+- [x] 實作 `SubscriptionRenewalJob` (定時發送續訂連結信件)
+- [x] 實作 Profile 設定 (提醒天數設定)
+- [x] 實作保母訂閱方案 (Subscription Models)
+- [x] 驗證與 TDD 測試
+- [x] 訂單生命週期自動化 (Order Lifecycle Automation)
+- [x] 配置逾期與結案參數 (application.yml)
+- [x] 擴充 `OrderRepository` 查詢介面
+- [x] 實作 `OrderLifecycleService` 核心邏輯
+- [x] 實作 `OrderLifecycleJob` 定時排程
+- [x] 實作系統自動化之 `OrderActionLog` 紀錄
+- [x] 驗證功能與測試
+- [/] 行事曆自動同步 (Calendar Sync)
+- [x] 新增 Google API 相關依賴 (pom.xml)
+- [x] 執行資料庫遷移 (V6__calendar_sync_tables.sql)
+- [x] 實作 OAuth2 授權流程與 Token 存儲
+- [x] 實作 Google Calendar 事件操作 (Create/Update/Delete)
+- [x] 整合訂單流程 (付款成功自動同步)
+- [ ] 實作 Universal iCal (ICS) Feed 支援 (Apple/Universal)
+- [ ] 實作背景 Token 刷新機制
+- [ ] 驗證功能與測試
+- [x] Universal iCal Feed (Apple/Universal)
+- [x] 新增 `ical4j` 依賴
+- [x] 執行分頁遷移 (V7__add_ical_token.sql)
+- [x] 修正 `SecurityConfig` 放行 Feed 網址
+- [x] 實作 `IcalService` 產出標準 ICS 標準字串
+- [x] 整合 `CalendarSyncController` 提供 Feed 與重置接口
+- [x] 驗證與跨裝置測試
+- [x] 多媒體儲存與保留政策 (Media Storage & Retention)
+- [x] 實作 `StorageService` 介面與 `LocalStorageService`
+- [x] 執行資料庫遷移 (V8__add_visit_media.sql)
+- [x] 實作 `MediaService` 上傳與檢核邏輯
+- [x] 實作 `MediaRetentionJob` 自動清理任務 (60天)
+- [x] 提供本地媒體預覽接口 (MediaController)
+- [x] 驗證上傳與自動清理功能
+- [x] 日誌與監控設計 (Logging & Observability)
+- [x] 實作 `MdcLogFilter` 注入 Trace ID
+- [x] 實作 `GlobalExceptionHandler` 統一回傳與日誌捕捉
+- [x] 標準化各排程任務 (Job) 的執行與耗時日誌
+- [x] 驗證異常追蹤與日誌格式
+- [/] 文件與測試體系 (Documentation & Testing)
+- [x] 更新 `doc/schema.md` 至 V8 版本
+- [ ] 基於業務情境 (Scenarios) 實作 Playwright Smoke Tests
+- [ ] 實作 k6 壓力測試腳本 (Webhook/iCal)
+- [x] 執行工作流同步 (.agent/brain 同步至專案庫)
+- [ ] 驗證測試覆蓋率與文件一致性

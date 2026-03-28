@@ -25,10 +25,14 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
   private final JwtAuthenticationFilter jwtAuthFilter;
+  private final MdcLogFilter mdcLogFilter;
   private final UserDetailsService userDetailsService;
 
-  public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, UserDetailsService userDetailsService) {
+  public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, 
+                        MdcLogFilter mdcLogFilter,
+                        UserDetailsService userDetailsService) {
     this.jwtAuthFilter = jwtAuthFilter;
+    this.mdcLogFilter = mdcLogFilter;
     this.userDetailsService = userDetailsService;
   }
 
@@ -40,8 +44,10 @@ public class SecurityConfig {
               req.requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                        .requestMatchers("/api/v1/sitters/{slug}/availability/public").permitAll()
                        .requestMatchers("/api/v1/sitters/{slug}/booking-preview").permitAll()
-                      .requestMatchers("/api/v1/auth/me").authenticated()
-                      .anyRequest().authenticated()
+                       .requestMatchers("/api/v1/calendar/feed/**").permitAll()
+                       .requestMatchers("/api/v1/payments/payuni/webhook").permitAll()
+                       .requestMatchers("/api/v1/auth/me").authenticated()
+                       .anyRequest().authenticated()
       )
             .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
           response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -50,6 +56,7 @@ public class SecurityConfig {
       }))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
+            .addFilterBefore(mdcLogFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();

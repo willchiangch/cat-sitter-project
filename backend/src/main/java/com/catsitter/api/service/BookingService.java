@@ -27,6 +27,7 @@ public class BookingService {
     private final OrderAnswerRepository orderAnswerRepository;
     private final SitterQuestionRepository questionRepository;
     private final OrderActionLogRepository actionLogRepository;
+    private final CalendarSyncService calendarSyncService;
     private final ObjectMapper objectMapper;
 
     public BookingService(OrderRepository orderRepository,
@@ -36,6 +37,7 @@ public class BookingService {
                           OrderAnswerRepository orderAnswerRepository,
                           SitterQuestionRepository questionRepository,
                           OrderActionLogRepository actionLogRepository,
+                          CalendarSyncService calendarSyncService,
                           ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.profileRepository = profileRepository;
@@ -44,6 +46,7 @@ public class BookingService {
         this.orderAnswerRepository = orderAnswerRepository;
         this.questionRepository = questionRepository;
         this.actionLogRepository = actionLogRepository;
+        this.calendarSyncService = calendarSyncService;
         this.objectMapper = objectMapper;
     }
 
@@ -251,6 +254,9 @@ public class BookingService {
         order.setOrderStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
 
+        // Sync to Sitter's Calendar
+        calendarSyncService.syncOrderEvents(order);
+
         // Log action
         OrderActionLog log = new OrderActionLog();
         log.setOrder(order);
@@ -265,5 +271,41 @@ public class BookingService {
         actionLogRepository.save(log);
 
         return getBookingDetail(sitterAccount, bookingId);
+    }
+
+    @Transactional
+    public BookingDetailResponse completeOrder(Account clientAccount, UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getClientProfile().getAccount().getId().equals(clientAccount.getId())) {
+            throw new RuntimeException("Unauthorized: You are not the client for this booking");
+        }
+
+        List<Visit> visits = visitRepository.findByOrderId(orderId);
+        boolean allDone = !visits.isEmpty() && visits.stream().allMatch(v -> v.getStatus() == VisitStatus.DONE);
+
+        if (!allDone) {
+            throw new RuntimeException("Cannot complete order: Some visits are not yet finished or no visits found");
+        }
+
+        order.setOrderStatus(OrderStatus.COMPLETED);
+        orderRepository.save(order);
+
+        // Log action
+        OrderActionLog log = new OrderActionLog();
+        log.setOrder(order);
+        log.setActorProfile(order.getClientProfile());
+        log.setActionType(ActionType.STATUS_CHANGED);
+        log.setPreviousStatus(OrderStatus.CONFIRMED.name());
+        log.setNewStatus(OrderStatus.COMPLETED.name());
+        try {
+            log.setMetadata(objectMapper.writeValueAsString(Map.of("action", "COMPLETE_ORDER")));
+        } catch (Exception e) {
+            log.setMetadata("{}");
+        }
+        actionLogRepository.save(log);
+
+        return getBookingDetail(clientAccount, orderId);
     }
 }

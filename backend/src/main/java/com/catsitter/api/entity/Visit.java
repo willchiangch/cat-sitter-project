@@ -37,6 +37,9 @@ public class Visit extends AuditableEntity {
   @Column(name = "sitter_notes", columnDefinition = "TEXT")
   private String sitterNotes;
 
+  @Column(name = "calendar_event_id")
+  private String calendarEventId;
+
   public UUID getId() { return id; }
   public Order getOrder() { return order; }
   public void setOrder(Order order) { this.order = order; }
@@ -48,4 +51,6 @@ public class Visit extends AuditableEntity {
   public void setStatus(VisitStatus status) { this.status = status; }
   public String getSitterNotes() { return sitterNotes; }
   public void setSitterNotes(String sitterNotes) { this.sitterNotes = sitterNotes; }
+  public String getCalendarEventId() { return calendarEventId; }
+  public void setCalendarEventId(String calendarEventId) { this.calendarEventId = calendarEventId; }
 }

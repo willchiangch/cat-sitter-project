@@ -95,10 +95,6 @@ public class ApiV1StubController {
         return notImplemented("GET /api/v1/clients/me/visits/{visitId}/live-status");
     }
 
-    @PostMapping("/orders/{orderId}/complete")
-    public ResponseEntity<Map<String, Object>> completeOrder(@PathVariable UUID orderId) {
-        return notImplemented("POST /api/v1/orders/{orderId}/complete");
-    }
 
     // Billing/Notification
     @GetMapping("/sitters/me/payouts")

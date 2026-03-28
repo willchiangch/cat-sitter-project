@@ -23,7 +23,7 @@ docker compose -f swagger-compose.yml up
 - `payment_status`: `UNPAID | PROOF_UPLOADED | PAID | REFUNDED`
 - `visit_status`: `SCHEDULED | IN_PROGRESS | DONE | CANCELLED`
 - `trust_circle_status`: `ACTIVE | BLOCKED`
-- `subscription_status`: `TRIAL | ACTIVE | PAST_DUE | EXPIRED | SUSPENDED`
+- `subscription_status`: `ACTIVE | EXPIRED | CANCELLED`
 
 ---
 
@@ -138,9 +138,11 @@ docker compose -f swagger-compose.yml up
 - `GET /api/v1/sitters/me/subscription`
   - 訂閱方案狀態
 - `POST /api/v1/sitters/me/subscription/checkout`
-  - 建立續費/升級結帳會話
-- `POST /api/v1/payments/webhooks/ecpay` (公開)
-  - 金流回調入口；依 `provider + eventId` 冪等處理
+  - 建立續約/升級結帳會話 (導向 PayUni)
+- `POST /api/v1/payments/payuni/webhook` (公開)
+  - PayUni 金流回調入口；驗證 Token 並更新訂閱狀態
+- `POST /api/v1/payments/payuni/mock-callback` (Internal/Testing)
+  - 模擬 PayUni 回傳流程，方便開發測試
 - `GET /api/v1/notifications`
   - 拉通知清單
 - `PATCH /api/v1/notifications/{notificationId}/read`

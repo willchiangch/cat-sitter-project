@@ -9,5 +9,6 @@ public record SitterProfileResponse(
     String avatarUrl,
     String phone,
     List<String> serviceAreas,
-    String bioSummary
+    String bioSummary,
+    Integer notificationDaysBefore
 ) {}

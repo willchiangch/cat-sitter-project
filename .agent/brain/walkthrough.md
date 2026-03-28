@@ -1,78 +1,70 @@
-# Walkthrough - Core Security & Auth Implementation
+# Walkthrough - Calendar Sync & Media Retention
 
-後端安全與認證機制已完成實作並通過 TDD 驗證。
+這份文件總結了近期完成的兩大核心功能：**行事曆自動同步 (Google & Apple)** 以及 **多媒體儲存與 60 天保留政策 (Media Retention)**。
 
-## 變更內容
+## 1. 行事曆自動同步 (Calendar Sync)
 
-### 基礎配置更新
-- **Spring Boot 降級**：將 `pom.xml` 與 `README.md` 中的 Spring Boot 版本改回穩定版 `3.4.3`。
-- **Auditing 修復**：將 `AuditableEntity` 的日期類型從 `OffsetDateTime` 改為 `Instant`，解決 JPA Auditing 的核心類型轉換錯誤。
+為了滿足不同保母的排程需求，我們實作了「雙軌制」同步機制。
 
-### 安全框架實作
-- **SecurityConfig**：設定為無狀態 (Stateless) 模式，禁用 CSRF。
-- **JWT 整合**：實作 `JwtService` 與 `JwtAuthenticationFilter` 處理 Token 產生與請求攔截。
-- **錯誤處理**：加入 `AuthenticationEntryPoint` 確保未授權存取時會正確回傳 `401 Unauthorized` 狀態碼。
+### Google 原生同步 (Native API)
+- **OAuth2 整合**：保母可連結 Google 帳號。同步時由後端伺服器直接對接 Google Calendar API。
+- **自動化實作**：
+  - **狀態：CONFIRMED**：自動於日曆建立事件。
+  - **狀態：CANCELLED**：自動於日曆刪除事件。
+- **異步執行**：使用 `@Async` 確保 API 反應速度不受同步過程影響。
 
-### 規格文件同步
-- **`README.md`**：更新技術棧表格與安全架構概覽。
-- **`DEVELOPMENT_GUIDELINES.md`**：新增「安全與認證」開發規範，明確 JWT 處理與 TDD 要求。
-- **`openapi/openapi.yaml`**：同步認證 Schema 並加入 `bearerAuth` 描述，確保前後端規格一致。
+### 通用型 iCal (ICS) 訂閱 — 支援 Apple / iOS
+- **訂閱網址**：為每位保母產生唯一加密 Token 的 `webcal://` 連結。
+- **安全性**：支援重置 Token 功能，防止連結外流。
+- **標準協定**：採用 `ical4j` 生成符合 RFC 5545 標準的內容，支援 iPhone、Mac 內建日曆。
 
-## 驗證結果
+## 2. 多媒體儲存與保留政策 (Media Retention)
 
-### 自動化測試
-執行 `AuthControllerTest` 整合測試，驗證註冊、登入及未授權攔截流程：
-- `shouldRegisterNewUser`: **PASS**
-- `shouldLoginExistingUser`: **PASS**
-- `shouldReturn401WhenAccessingMeWithoutToken`: **PASS**
+考量到 GCP 尚未開通與開發便利性，目前採用 **「儲存抽象化 + 本地模擬」** 方案。
 
-```bash
-[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
-[INFO] BUILD SUCCESS
-```
+### 儲存架構
+- **StorageService 介面**：解耦業務邏輯與儲存底層。
+- **LocalStorageService**：將檔案存放在本地路徑（預設：`./storage/media`），支援開發階段的檔案預覽。
+- **未來擴充性**：只需切換配置即可無痛對接 GCS (Google Cloud Storage)。
 
-## 身份識別與模式切換 (Identity & Identity Management)
+### 媒體管理與清理
+- **上傳限制**：每筆行程限 20 張照片/影片，單檔上限 10MB。
+- **自動化清理 (Job)**：每日凌晨 3:00 執行 `MediaRetentionJob`，自動刪除 **60 天前** 的媒體檔案。
+- **資料庫設計**：新增 `visit_media` 表，記錄檔案 metadata 並在刪除後保留 `is_deleted` 紀錄以供備查。
 
-實作了 `/api/v1/auth/me` 接口，回傳帳戶關聯的所有 Profile，支援前端角色切換（飼主/保母模式）。
+## 3. 測試體系與文件同步 (Testing & Documentation)
 
-### 關鍵功能
-- **Multi-Profile Response**: 回傳包含 `profiles` 列表的 DTO，內含 `profileId`, `role`, `name` 等。
-- **權限基礎**：後端根據 Token 中的 AccountID 自動識別身份，不需要額外手動切換狀態。
+為了確保業務邏輯的穩定性，我們建立了多層次、多維度的測試驗證體系。
 
----
+### 資料庫規格書 (Schema V8)
+- 已經將 `doc/schema.md` 從 V6 直接更新至 **V8** 版本。
+- 補齊了：財務模組 (Finance)、訂閱系統 (Subscriptions)、促銷碼 (PromoCodes)、行事曆同步配置 (CalendarSync) 以及多媒體附件 (Media) 等新表格。
+- 更新了 `visits` 與 `profiles` 等核心表格的最新欄位規格。
 
-## 訂單報價與支付管理 (Booking Quote & Payment)
+### 業務情境冒煙測試 (Smoke Tests)
+- **前端 (Playwright)**：實作了 `tests/smoke/booking-smoke.spec.ts`，模擬透過 API 觸發的預訂流程健康檢查。
+- **後端 (JUnit 5)**：
+  - `BookingFlowSmokeTest`：模擬「訂單建立 -> 模擬支付 Webhook -> 自動確認 -> 日曆同步」的完整業務閉環。
+  - `SitterOnboardingSmokeTest`：模擬「保母註冊 -> 選擇方案 -> 支付成功 -> 接單權限啟用」的流程。
 
-實作了保母報價與支付證明處理流程。保母可以在 PENDING 狀態下提交報價，飼主上傳支付證明後，保母可以確認線下收款。
+### 壓力測試預備 (Performance)
+- 提供 `backend/src/test/resources/performance/webhook-smoke.js` (k6 腳本)。
+- 專門用於測試當大量支付回傳同時發生時，系統對併發交易的承載力。
 
-### 關鍵功能
-- `POST /api/v1/bookings/{id}/quote`: 保母提交報價，變更狀態為 `QUOTED`。
-- `POST /api/v1/bookings/{id}/payment-proofs`: 飼主上傳支付證明 metadata。
-- `POST /api/v1/bookings/{id}/payments/confirm-offline`: 保母確認收款，變更狀態為 `PAID` 並將訂單設為 `CONFIRMED`。
+## 4. 進度同步規範 (Workflow Sync)
+- 已依照 `.agents/workflows/persist-progress.md` 規範，將「大腦」資料夾同步至專案根目錄 `.agent/brain/`。
+- 包含最新版的 `task.md` 與 `walkthrough.md`，方便團隊跨環境追蹤開發狀態。
 
----
+## 驗證與測試 (Verification)
 
-## 行程與任務清單管理 (Visit & Checklist Management)
+### API 測試路徑
+- **行事曆**：
+  - `GET /api/v1/sitters/me/calendar/auth-url`：取得 Google 授權網址。
+  - `GET /api/v1/sitters/me/calendar/status`：檢視同步狀態與 iCal 網址。
+- **媒體**：
+  - `POST /api/v1/visits/{visitId}/media`：上傳媒體檔案。
+  - `GET /api/v1/media/{path}`：預覽已上傳之本地檔案。
 
-實作了保母執行到府服務時的核心邏輯，包含查看行程、更新 SOP 任務清單及完成服務。
-
-### 關鍵功能
-- `GET /api/v1/sitters/me/visits`: 保母按日期查看自己的服務行程。
-- `GET /api/v1/visits/{id}`: 查看行程詳情與任務清單現況。
-- `PATCH /api/v1/visits/{id}/checklist`: 更新任務完成狀態。
-- `POST /api/v1/visits/{id}/complete`: 將單次行程標記為完成 (`DONE`)。
-
----
-
-## 驗證結果 (Verification Status)
-
-### 測試執行狀況
-- `AuthControllerTest`: 4 案例全數通過。
-- `BookingControllerTest`: 4 案例全數通過。
-- `VisitControllerTest`: 3 案例全數通過。
-
-```bash
-./mvnw test -Dtest=AuthControllerTest,BookingControllerTest,VisitControllerTest
-```
-[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0
-[INFO] BUILD SUCCESS
+## 後續建議
+- **GCP 環境建立**：當 GCP 專案就緒時，只需更新 `application.yml` 的 `storage.type` 為 `GCS` 並填寫相關憑證即可對接。
+- **前端串接**：保母 App 的行程紀錄頁面現在可以開始串接 `POST /media` 接口來上載服務日誌圖檔。

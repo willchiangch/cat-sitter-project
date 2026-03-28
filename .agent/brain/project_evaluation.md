@@ -6,34 +6,16 @@
 
 1. **認證與身份管理 (Auth & Identity) [DONE]**
    - 完整實作 JWT Stateless 認證、註冊、登入。
-   - 實作 `/api/v1/auth/me` 支援多 Profile/Role 身分切換。
+   - 實作 `/switch-role` 支援多 Profile 身分切換。
 2. **保母與飼主檔案 (Profiles & Services) [DONE]**
-   - 實作保母個人資料、服務方案 CRUD、問卷題目管理。
-   - 實作飼主個人資料、毛孩檔案管理。
 3. **訂單與行程核心 (Booking & Visits) [DONE]**
-   - 實作預約建立、保母報價、支付證明上傳、線下確認收款。
-   - 實作行程清單查看、SOP 任務勾選、行程完成邏輯。
-   - **TDD 驗證**：已累積超過 10 個核心整合測試案例，全數通過。
-
-## 🟡 進行中/待開發項目 (Pending Items)
-
-1. **評價與結案 (Review & Closing)**
-   - 飼主在行程完成後進行評價與結案。
-2. **通知系統 (Notifications)**
-   - 訂單狀態變更時發送通知給對應角色。
-3. **訂閱與支付整合 (Subscription & ECPay)**
-   - 串接綠界金流回調 (Webhooks) 與保母訂閱邏輯。
-
----
+4. **訂單結案 (Order Closing) [DONE]**
+   - 實作行程狀態校驗與結案邏輯。
 
 ## 🚀 建議的下一步開發任務 (Next Actionable Items)
 
-### 優先級一：評價與結案邏輯 (Reviews)
-完成訂單生命週期的最後一哩路，包含評價 Entity 實作與結案狀態轉移。
+### 優先級一：通知系統 (Notification Service)
+建立非同步通知機制，確保使用者能即時得知報價、收款或結案狀態。
 
-### 優先級二：通知系統 (Notification Service)
-建立非同步通知機制 (或簡單的 DB-based notification)，確保使用者能即時得知報價或收款狀態。
-
----
-
-**建議：** 我們可以從 **優先級一 (核心安全與認證機制)** 開始進行實作，或者如果您想要先以 **DTO 結構生成** 為主，請告訴我您的想法！
+### 優先級二：支付工具整合 (Payment Integration)
+整合 ECPay 等金流，提供更自動化的支付流程。

@@ -33,4 +33,11 @@ public class AuthController {
   public ResponseEntity<AuthMeResponse> getMe(@AuthenticationPrincipal Account account) {
     return ResponseEntity.ok(authService.getMe(account));
   }
+
+  @PostMapping("/switch-role")
+  public ResponseEntity<AuthMeResponse> switchRole(
+          @AuthenticationPrincipal Account account,
+          @Valid @RequestBody SwitchRoleRequest request) {
+    return ResponseEntity.ok(authService.switchRole(account, request.roleType()));
+  }
 }

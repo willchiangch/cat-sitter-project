@@ -62,6 +62,9 @@ public class AuthService {
     profile.setRoleType(request.roleType());
     profileRepository.save(profile);
 
+    account.setLastActiveRole(request.roleType());
+    accountRepository.save(account);
+
     String jwtToken = jwtService.generateToken(account);
     String refreshToken = jwtService.generateRefreshToken(account);
 
@@ -98,7 +101,15 @@ public class AuthService {
     return new com.catsitter.api.dto.auth.AuthMeResponse(
             account.getId(),
             account.getEmail(),
+            account.getLastActiveRole(),
             summaries
     );
+  }
+
+  @Transactional
+  public com.catsitter.api.dto.auth.AuthMeResponse switchRole(Account account, com.catsitter.api.entity.enums.RoleType roleType) {
+    account.setLastActiveRole(roleType);
+    accountRepository.save(account);
+    return getMe(account);
   }
 }

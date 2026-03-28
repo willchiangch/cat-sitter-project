@@ -14,6 +14,9 @@ public class SitterProfileService {
 
     private final ProfileRepository profileRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${application.subscription.notification-days}")
+    private Integer globalNotificationDays;
+
     public SitterProfileService(ProfileRepository profileRepository) {
         this.profileRepository = profileRepository;
     }
@@ -47,7 +50,8 @@ public class SitterProfileService {
                 profile.getAvatarUrl(),
                 profile.getPhone(),
                 profile.getServiceAreas(),
-                profile.getBioSummary()
+                profile.getBioSummary(),
+                globalNotificationDays
         );
     }
 }

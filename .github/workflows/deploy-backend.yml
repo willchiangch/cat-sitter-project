@@ -1,9 +1,10 @@
 # 後端部署管線：僅在 backend/** 或本檔變更且推送到 develop/main 時觸發
 # 需在 GitHub repo Settings -> Secrets and variables -> Actions 設定：
-#   - GCP_SERVICE_ACCOUNT_KEY：GCP 服務帳號 JSON 整份內容（或改用 Workload Identity Federation）
-#   - GCP_PROJECT_ID：填入你的 GCP 專案代號
-#   - GCP_REGION：填入你的 Cloud Run 區域，例如 asia-east1
-#   - GAR_REPOSITORY（選用）：Artifact Registry 倉庫名稱，例如 cat-sitter-repo
+#   - GCP_SERVICE_ACCOUNT_KEY：GCP 服務帳號 JSON 整份內容 (Service Account Key)
+#   - GCP_PROJECT_ID：GCP 專案代號
+#   - GCP_REGION：Cloud Run 區域 (如 asia-east1)
+#   - GAR_REPOSITORY：Artifact Registry 倉庫名稱
+#   - RESEND_API_KEY：Resend 郵件服務 API Key
 # 部署後 Cloud Run 啟動時會跑 Flyway；DB 密碼、JWT Secret 等請由 GCP Secret Manager 注入。
 
 name: Deploy Backend to Cloud Run

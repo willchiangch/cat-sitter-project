@@ -855,19 +855,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CheckoutSession"
-  /api/v1/payments/webhooks/ecpay:
+  /api/v1/payments/payuni/webhook:
     post:
       tags: [Billing]
-      operationId: handleEcpayWebhook
-      summary: ECPay webhook endpoint (idempotent)
+      operationId: payuniWebhook
+      summary: PayUni Webhook (NotifyURL)
       security: []
+      description: Callback for PayUni to notify payment status. Requires Token validation.
       requestBody:
-        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                MerID: { type: string }
+                MerTradeNo: { type: string }
+                TradeNo: { type: string }
+                TradeAmt: { type: string }
+                Status: { type: string }
+                Token: { type: string }
+      responses:
+        "200":
+          description: OK (1|OK)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "1|OK"
+
+  /api/v1/payments/payuni/mock-callback:
+    post:
+      tags: [Billing]
+      operationId: mockPayUniCallback
+      summary: Mock PayUni Callback (Testing)
+      description: Internal tool to simulate PayUni response for development.
+      requestBody:
         content:
           application/json:
             schema:
               type: object
-              additionalProperties: true
+              required: [merTradeNo]
+              properties:
+                merTradeNo: { type: string }
+                status: { type: string, enum: ["1", "0"], default: "1" }
       responses:
         "200":
           description: OK
@@ -999,7 +1029,7 @@ components:
       enum: [ACTIVE, BLOCKED]
     SubscriptionStatus:
       type: string
-      enum: [TRIAL, ACTIVE, PAST_DUE, EXPIRED, SUSPENDED]
+      enum: [ACTIVE, EXPIRED, CANCELLED]
     MediaType:
       type: string
       enum: [PHOTO, VIDEO]

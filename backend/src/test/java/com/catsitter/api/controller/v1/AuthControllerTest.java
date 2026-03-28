@@ -110,6 +110,39 @@ public class AuthControllerTest {
   }
 
   @Test
+  void shouldSwitchRole() throws Exception {
+    // 1. Register
+    RegisterRequest regRequest = new RegisterRequest(
+            "switch@example.com",
+            "password123",
+            RoleType.SITTER,
+            "Switch User"
+    );
+    String regResp = mockMvc.perform(post("/api/v1/auth/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(regRequest)))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+
+    com.catsitter.api.dto.auth.AuthTokenResponse token = objectMapper.readValue(regResp, com.catsitter.api.dto.auth.AuthTokenResponse.class);
+
+    // 2. Switch role to CLIENT
+    com.catsitter.api.dto.auth.SwitchRoleRequest switchReq = new com.catsitter.api.dto.auth.SwitchRoleRequest(RoleType.CLIENT);
+    mockMvc.perform(post("/api/v1/auth/switch-role")
+                    .header("Authorization", "Bearer " + token.accessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(switchReq)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.currentRole").value("CLIENT"));
+
+    // 3. Verify in /me
+    mockMvc.perform(get("/api/v1/auth/me")
+                    .header("Authorization", "Bearer " + token.accessToken()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.currentRole").value("CLIENT"));
+  }
+
+  @Test
   void shouldReturn401WhenAccessingMeWithoutToken() throws Exception {
     mockMvc.perform(get("/api/v1/auth/me"))
             .andExpect(status().isUnauthorized());
