@@ -1,5 +1,8 @@
+import com.catsitter.api.entity.Account;
+import com.catsitter.api.entity.Profile;
 import com.catsitter.api.entity.SitterCalendarConfig;
 import com.catsitter.api.entity.enums.RoleType;
+import com.catsitter.api.client.GoogleCalendarClient;
 import com.catsitter.api.repository.ProfileRepository;
 import com.catsitter.api.repository.SitterCalendarConfigRepository;
 import com.catsitter.api.service.IcalService;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController

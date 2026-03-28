@@ -41,7 +41,7 @@
 - 依照 `persist-progress.md` 規範，將 `.agent/brain/` 下的文件（`task.md`, `implementation_plan.md` 等）同步至專案庫，確保開發連續性。
 
 ## Open Questions
-- [ ] **壓力測試目標**：針對 MVP 階段，預計模擬的最高並發數 (VUs) 為多少？（建議先以 20-50 VUs 作為 Smoke Performance Test）。
+- [x] **壓力測試目標**：針對 MVP 階段，預計模擬的最高並發數 (VUs) 為多少？ -> **不超過 50 VUs**。
 
 ## Verification Plan
 

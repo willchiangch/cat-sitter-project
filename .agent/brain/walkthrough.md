@@ -32,29 +32,6 @@
 - **自動化清理 (Job)**：每日凌晨 3:00 執行 `MediaRetentionJob`，自動刪除 **60 天前** 的媒體檔案。
 - **資料庫設計**：新增 `visit_media` 表，記錄檔案 metadata 並在刪除後保留 `is_deleted` 紀錄以供備查。
 
-## 3. 測試體系與文件同步 (Testing & Documentation)
-
-為了確保業務邏輯的穩定性，我們建立了多層次、多維度的測試驗證體系。
-
-### 資料庫規格書 (Schema V8)
-- 已經將 `doc/schema.md` 從 V6 直接更新至 **V8** 版本。
-- 補齊了：財務模組 (Finance)、訂閱系統 (Subscriptions)、促銷碼 (PromoCodes)、行事曆同步配置 (CalendarSync) 以及多媒體附件 (Media) 等新表格。
-- 更新了 `visits` 與 `profiles` 等核心表格的最新欄位規格。
-
-### 業務情境冒煙測試 (Smoke Tests)
-- **前端 (Playwright)**：實作了 `tests/smoke/booking-smoke.spec.ts`，模擬透過 API 觸發的預訂流程健康檢查。
-- **後端 (JUnit 5)**：
-  - `BookingFlowSmokeTest`：模擬「訂單建立 -> 模擬支付 Webhook -> 自動確認 -> 日曆同步」的完整業務閉環。
-  - `SitterOnboardingSmokeTest`：模擬「保母註冊 -> 選擇方案 -> 支付成功 -> 接單權限啟用」的流程。
-
-### 壓力測試預備 (Performance)
-- 提供 `backend/src/test/resources/performance/webhook-smoke.js` (k6 腳本)。
-- 專門用於測試當大量支付回傳同時發生時，系統對併發交易的承載力。
-
-## 4. 進度同步規範 (Workflow Sync)
-- 已依照 `.agents/workflows/persist-progress.md` 規範，將「大腦」資料夾同步至專案根目錄 `.agent/brain/`。
-- 包含最新版的 `task.md` 與 `walkthrough.md`，方便團隊跨環境追蹤開發狀態。
-
 ## 驗證與測試 (Verification)
 
 ### API 測試路徑
@@ -64,6 +41,33 @@
 - **媒體**：
   - `POST /api/v1/visits/{visitId}/media`：上傳媒體檔案。
   - `GET /api/v1/media/{path}`：預覽已上傳之本地檔案。
+
+### 自動化檢查
+- 檢查 `OrderLifecycleService` 與 `BookingService` 是否正確呼叫同步邏輯。
+- 確認 `CatSitterApiApplication` 已啟用 `@EnableScheduling` 與 `@EnableAsync`。
+
+## 3. 測試體系與文件同步 (Testing & Documentation)
+
+為了確保業務邏輯的穩定性，我們建立了多層層次的測試管理與規格文件同步機制。
+
+### 資料庫規格書 (Schema V8)
+- 已經將 `doc/schema.md` 從 V6 直接更新至 **V8** 版本。
+- 補齊了：財務模組 (Finance)、訂閱系統 (Subscriptions)、促銷碼 (PromoCodes)、行事曆同步配置 (CalendarSync) 以及多媒體附件 (Media) 等新表格。
+- 更新了 `visits` 與 `profiles` 等核心表格的最新欄位規格。
+
+### 業務情境冒煙測試 (Smoke Tests)
+- **前端 (Playwright)**：實作了 `tests/smoke/booking-smoke.spec.ts`，模擬透過 API 觸發的預訂流程健康檢查。
+- **後端 (JUnit 5)**：
+  - `BookingFlowSmokeTest`：模擬「訂單建立 -> 模擬支付 Webhook -> 自動確認 -> 日曆同步」的完整業務閉環，確保各組件整合正常。
+  - `SitterOnboardingSmokeTest`：模擬「保母註冊 -> 選擇方案 -> 支付成功 -> 接單權限啟用」的流程。
+
+### 壓力測試預備 (Performance)
+- 提供 `backend/src/test/resources/performance/webhook-smoke.js` (k6 腳本)。
+- 專門用於測試當大量支付回傳同時發生時，系統對併發交易的承載力。
+
+## 4. 進度同步規範 (Workflow Sync)
+- 已依照 `.agents/workflows/persist-progress.md` 規範，將「大腦」資料夾同步至專案根目錄 `.agent/brain/`。
+- 包含最新版的 `task.md` 與 `walkthrough.md`，方便團隊跨環境追蹤開發狀態。
 
 ## 後續建議
 - **GCP 環境建立**：當 GCP 專案就緒時，只需更新 `application.yml` 的 `storage.type` 為 `GCS` 並填寫相關憑證即可對接。

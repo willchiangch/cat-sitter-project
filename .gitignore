@@ -13,6 +13,8 @@ frontend/npm-debug.log*
 frontend/yarn-error.log*
 frontend/.env
 frontend/.env.local
+frontend/playwright-report/
+frontend/test-results/
 
 # === 後端 (Java/Spring Boot) ===
 backend/target/
@@ -23,3 +25,5 @@ backend/*.log
 # 忽略包含機密的本機設定檔
 backend/src/main/resources/application-local.properties
 backend/src/main/resources/application-local.yml
+# 忽略本地媒體儲存
+backend/storage/

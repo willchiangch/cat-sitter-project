@@ -1,4 +1,4 @@
-# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V8)
+# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V9)
 
 ## 全域稽核欄位 (Audit Columns) 約定
 所有資料表皆包含以下標準稽核欄位：
@@ -17,6 +17,7 @@
 | `id` | UUID (PK) | 系統底層唯一識別碼 |
 | `email` | VARCHAR (UNIQUE) | 登入與主要聯絡信箱 |
 | `oauth_provider` | VARCHAR | `LOCAL`, `GOOGLE`, `LINE`, `APPLE` |
+| `last_active_role` | VARCHAR | **[V9]** `SITTER`, `CLIENT` (Role Switching) |
 | `status` | VARCHAR | `ACTIVE`, `SUSPENDED` |
 
 ### 2. `profiles` (角色檔案表)

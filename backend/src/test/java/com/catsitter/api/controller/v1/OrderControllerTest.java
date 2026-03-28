@@ -62,8 +62,10 @@ class OrderControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        accountRepository.deleteAll();
+        visitRepository.deleteAll();
+        serviceRepository.deleteAll();
         profileRepository.deleteAll();
+        accountRepository.deleteAll();
 
         // 1. Register Sitter (to get an account and profile)
         var sitterReq = new com.catsitter.api.dto.auth.RegisterRequest(

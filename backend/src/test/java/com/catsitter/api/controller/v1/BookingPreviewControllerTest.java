@@ -91,7 +91,7 @@ class BookingPreviewControllerTest {
     void shouldGetBookingPreview() throws Exception {
         mockMvc.perform(get("/api/v1/sitters/sitter-one/booking-preview"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.sitter.name").value("Sitter One"))
+                .andExpect(jsonPath("$.sitterProfile.name").value("Sitter One"))
                 .andExpect(jsonPath("$.services.length()").value(1))
                 .andExpect(jsonPath("$.questionnaire.length()").value(1));
     }

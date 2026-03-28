@@ -24,10 +24,10 @@ public class IcalService {
     public String generateSitterIcal(UUID sitterProfileId) {
         List<Visit> visits = visitRepository.findByOrderCurrentSitterIdAndOrderOrderStatus(sitterProfileId, OrderStatus.CONFIRMED);
 
-        Calendar calendar = new Calendar();
-        calendar.add(new ProdId("-//Cat Sitter PWA//NONSGML v1.0//EN"));
-        calendar.add(Version.VERSION_2_0);
-        calendar.add(CalScale.GREGORIAN);
+        Calendar calendar = new Calendar()
+                .withProdId("-//Cat Sitter PWA//NONSGML v1.0//EN")
+                .withDefaults()
+                .getFluentTarget();
 
         for (Visit visit : visits) {
             Order order = visit.getOrder();

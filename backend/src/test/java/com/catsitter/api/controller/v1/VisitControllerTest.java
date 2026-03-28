@@ -131,8 +131,8 @@ class VisitControllerTest {
 
         Visit v = new Visit();
         v.setOrder(order);
-        v.setVisitStartTime(OffsetDateTime.now().plusHours(1));
-        v.setVisitEndTime(OffsetDateTime.now().plusHours(2));
+        v.setVisitStartTime(OffsetDateTime.now(java.time.ZoneOffset.UTC).plusHours(1));
+        v.setVisitEndTime(OffsetDateTime.now(java.time.ZoneOffset.UTC).plusHours(2));
         v.setStatus(VisitStatus.SCHEDULED);
         visitRepository.save(v);
         visitId = v.getId();
@@ -166,7 +166,7 @@ class VisitControllerTest {
 
     @Test
     void shouldListSitterVisits() throws Exception {
-        String today = OffsetDateTime.now().toLocalDate().toString();
+        String today = OffsetDateTime.now(java.time.ZoneOffset.UTC).toLocalDate().toString();
         mockMvc.perform(get("/api/v1/sitters/me/visits")
                         .header("Authorization", sitterToken)
                         .param("date", today))

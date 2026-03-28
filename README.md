@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V8 (Production-Ready Observability & Sync)**
+**目前版本：V9 (Testing Suite Stabilized & Account Role Switching)**
 
 ---
 
@@ -31,7 +31,7 @@ cat-sitter-project/
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 安全認證 | Spring Security + JWT (Stateless, JJWT) |
-| 資料庫版控| Flyway（Schema V8: 支付、訂閱、行事曆、媒體附件） |
+| 資料庫版控| Flyway（Schema V9: 帳號角色切換持久化、支付、訂閱、行事曆、媒體） |
 
 ---
 
@@ -85,13 +85,23 @@ cat-sitter-project/
 
 ### 測試執行 (Verification)
 
-- **業務情境冒煙測試 (Frontend/Smoke)**:
+- **後端單元/整合測試**:
   ```bash
+  cd backend && ./mvnw test
+  ```
+- **核心業務冒煙測試 (Backend Smoke)**:
+  ```bash
+  cd backend && ./mvnw test -Dtest=com.catsitter.api.smoke.*
+  ```
+- **前端 API 冒煙測試 (Frontend/Smoke)**:
+  ```bash
+  # 需先啟動後端伺服器 (port 8081)
   cd frontend && npx playwright test tests/smoke/
   ```
 - **壓力測試 (Performance/k6)**:
   ```bash
-  k6 run backend/src/test/resources/performance/webhook-smoke.js
+  # 建議使用 Docker 執行以免去本地安裝 k6
+  docker run --rm -i -e BASE_URL=http://host.docker.internal:8081 grafana/k6 run - < backend/src/test/resources/performance/webhook-smoke.js
   ```
 
 前端會依 `VITE_*` 環境變數接後端 API；後端時間以 UTC、ISO-8601 傳輸，前端可轉為 `Asia/Taipei` 顯示。
@@ -121,4 +131,4 @@ cat-sitter-project/
 - [後端開發規範 (TDD & 測試策略)](backend/DEVELOPMENT_GUIDELINES.md)
 - [業務測試情境 (Scenarios)](scenario/)
 - 專案根目錄 `.cursorrules` 與 `.cursor/rules/cat-sitter-rule.mdc`
-- [核心資料庫規格書 (Schema V8)](doc/schema.md)
+- [核心資料庫規格書 (Schema V9)](doc/schema.md)
