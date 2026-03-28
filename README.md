@@ -2,12 +2,15 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
+**目前版本：V8 (Production-Ready Observability & Sync)**
+
 ---
 
 ## 專案結構 (Monorepo)
 
 ```
 cat-sitter-project/
+├── .agent/            # AI 開發大腦同步目錄 (進度備份)
 ├── frontend/          # React PWA（Vite + Tailwind CSS + Zustand/Context）
 ├── backend/           # Java Spring Boot 3.x（RESTful API + Spring Data JPA）
 ├── .github/workflows/  # CI/CD（前端 Firebase Hosting、後端 Cloud Run）
@@ -28,7 +31,20 @@ cat-sitter-project/
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 安全認證 | Spring Security + JWT (Stateless, JJWT) |
-| 版控     | Flyway（Schema 在 `backend/src/main/resources/db/migration/`） |
+| 資料庫版控| Flyway（Schema V8: 支付、訂閱、行事曆、媒體附件） |
+
+---
+
+## 核心功能模組
+
+- **雙軌行事曆同步**：支援 Google Calendar OAuth2 同步與 Universal iCal Feed (Apple/iOS)。
+- **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼。
+- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統。
+- **可觀測性 (Observability)**：
+  - **MDC Trace ID**：每個請求皆有唯一追蹤碼。
+  - **全域異常處理**：異常發生時自動捕捉並於日誌中標註 Trace ID。
+
+---
 
 ## 安全架構
 本系統採用 **無狀態 (Stateless) JWT 認證**：
@@ -67,6 +83,17 @@ cat-sitter-project/
    npm run dev
    ```
 
+### 測試執行 (Verification)
+
+- **業務情境冒煙測試 (Frontend/Smoke)**:
+  ```bash
+  cd frontend && npx playwright test tests/smoke/
+  ```
+- **壓力測試 (Performance/k6)**:
+  ```bash
+  k6 run backend/src/test/resources/performance/webhook-smoke.js
+  ```
+
 前端會依 `VITE_*` 環境變數接後端 API；後端時間以 UTC、ISO-8601 傳輸，前端可轉為 `Asia/Taipei` 顯示。
 
 ---
@@ -88,8 +115,10 @@ cat-sitter-project/
 
 - **時區**：DB 使用 `timestamptz`；後端 UTC + ISO-8601；前端依需求轉本地時區。
 - **金流**：後端以 **策略模式** 依賴 `PaymentGateway` 介面，綠界等實作獨立 Adapter，Webhook 需具冪等性。
+- **進度同步**：開發者需定期同步 `.agent/brain/` 下的 `task.md` 與 `walkthrough.md` 至專案庫。
 
 更完整的架構與開發守則見：
 - [後端開發規範 (TDD & 測試策略)](backend/DEVELOPMENT_GUIDELINES.md)
 - [業務測試情境 (Scenarios)](scenario/)
 - 專案根目錄 `.cursorrules` 與 `.cursor/rules/cat-sitter-rule.mdc`
+- [核心資料庫規格書 (Schema V8)](doc/schema.md)

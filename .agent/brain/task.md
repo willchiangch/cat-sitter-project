@@ -47,15 +47,15 @@
 - [x] 實作 `OrderLifecycleJob` 定時排程
 - [x] 實作系統自動化之 `OrderActionLog` 紀錄
 - [x] 驗證功能與測試
-- [/] 行事曆自動同步 (Calendar Sync)
+- [x] 行事曆自動同步 (Calendar Sync)
 - [x] 新增 Google API 相關依賴 (pom.xml)
 - [x] 執行資料庫遷移 (V6__calendar_sync_tables.sql)
 - [x] 實作 OAuth2 授權流程與 Token 存儲
 - [x] 實作 Google Calendar 事件操作 (Create/Update/Delete)
 - [x] 整合訂單流程 (付款成功自動同步)
-- [ ] 實作 Universal iCal (ICS) Feed 支援 (Apple/Universal)
-- [ ] 實作背景 Token 刷新機制
-- [ ] 驗證功能與測試
+- [x] 實作 Universal iCal (ICS) Feed 支援 (Apple/Universal)
+- [x] 實作背景 Token 刷新機制
+- [x] 驗證功能與測試
 - [x] Universal iCal Feed (Apple/Universal)
 - [x] 新增 `ical4j` 依賴
 - [x] 執行分頁遷移 (V7__add_ical_token.sql)
@@ -75,9 +75,9 @@
 - [x] 實作 `GlobalExceptionHandler` 統一回傳與日誌捕捉
 - [x] 標準化各排程任務 (Job) 的執行與耗時日誌
 - [x] 驗證異常追蹤與日誌格式
-- [/] 文件與測試體系 (Documentation & Testing)
+- [x] 文件與測試體系 (Documentation & Testing)
 - [x] 更新 `doc/schema.md` 至 V8 版本
-- [ ] 基於業務情境 (Scenarios) 實作 Playwright Smoke Tests
-- [ ] 實作 k6 壓力測試腳本 (Webhook/iCal)
+- [x] 基於業務情境 (Scenarios) 實作 Playwright Smoke Tests
+- [x] 實作 k6 壓力測試腳本 (Webhook/iCal)
 - [x] 執行工作流同步 (.agent/brain 同步至專案庫)
-- [ ] 驗證測試覆蓋率與文件一致性
+- [x] 驗證測試覆蓋率與文件一致性
