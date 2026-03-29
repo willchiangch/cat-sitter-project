@@ -29,5 +29,52 @@
     "sign_in": "Sign In",
     "error_login": "Login failed. Please check your credentials.",
     "error_register": "Registration failed. Please try again."
+  },
+  "dashboard": {
+    "greeting": "Hello, {{name}}",
+    "sitter_summary": "You have {{count}} visits scheduled for today.",
+    "action_required": "Action Required",
+    "action_subtitle": "Pre-service questionnaire collected for the upcoming visit.",
+    "tab_today": "Today's Service",
+    "tab_orders": "Go to Orders",
+    "tab_trust": "Trust Circle",
+    "up_next": "Up Next",
+    "stats_earnings": "Daily Earnings",
+    "stats_visits": "Total Visits",
+    "upcoming_schedule": "Upcoming Schedule",
+    "view_sop": "View SOP/Notes",
+    "service_panel": "Service Panel",
+    "status_active_soon": "Active Soon"
+  },
+  "client": {
+    "greeting": "Hello, {{name}}",
+    "today_is": "Today is {{date}}",
+    "cat_passport": "CAT PASSPORT",
+    "service_log": "SERVICE LOG",
+    "vault": "Vault",
+    "activity": "Activity",
+    "today_visit": "Today's Visit",
+    "view_map": "View Map",
+    "time_window": "Time Window",
+    "service_type": "Service",
+    "your_sitter": "Your Sitter",
+    "recent_updates": "Recent Updates",
+    "visit_completed": "Visit Completed",
+    "yesterday": "Yesterday"
+  },
+  "service_panel": {
+    "active_session": "Active Service Session",
+    "timer_label": "Duration",
+    "tasks_header": "Service Checklist",
+    "report_header": "Service Report",
+    "report_placeholder": "Share your observations and highlights of the visit...",
+    "photo_upload": "Upload Photos",
+    "photo_subtitle": "JPG/PNG supported. Photos are synced instantly to the owner.",
+    "finish_service": "Finish Service",
+    "service_finished": "Service successfully completed.",
+    "task_feeding": "Feeding & Water",
+    "task_litter": "Litter Cleaning",
+    "task_play": "Interactions & Play",
+    "task_medical": "Medication & Special Care"
   }
 }

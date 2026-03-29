@@ -12,7 +12,8 @@ public record VisitDetailResponse(
     OffsetDateTime visitEndTime,
     VisitStatus status,
     String sitterNotes,
-    List<ChecklistItemResponse> items
+    List<ChecklistItemResponse> items,
+    List<VisitMediaResponse> moments
 ) {
     public record ChecklistItemResponse(
         UUID id,
@@ -21,5 +22,13 @@ public record VisitDetailResponse(
         Boolean isCompleted,
         String photoUrl,
         OffsetDateTime completedAt
+    ) {}
+
+    public record VisitMediaResponse(
+        UUID id,
+        String mediaUrl,
+        String caption,
+        String mediaType,
+        OffsetDateTime createdAt
     ) {}
 }

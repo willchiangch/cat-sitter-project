@@ -23,19 +23,26 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.catsitter.api.dto.visit.AddVisitMediaRequest;
+import com.catsitter.api.entity.VisitMedia;
+import com.catsitter.api.repository.VisitMediaRepository;
+
 @Service
 public class VisitManagementService {
 
     private final VisitRepository visitRepository;
     private final VisitServiceRepository visitServiceRepository;
     private final ProfileRepository profileRepository;
+    private final VisitMediaRepository visitMediaRepository;
 
     public VisitManagementService(VisitRepository visitRepository,
                                   VisitServiceRepository visitServiceRepository,
-                                  ProfileRepository profileRepository) {
+                                  ProfileRepository profileRepository,
+                                  VisitMediaRepository visitMediaRepository) {
         this.visitRepository = visitRepository;
         this.visitServiceRepository = visitServiceRepository;
         this.profileRepository = profileRepository;
+        this.visitMediaRepository = visitMediaRepository;
     }
 
     @Transactional(readOnly = true)
@@ -83,6 +90,16 @@ public class VisitManagementService {
                 ))
                 .collect(Collectors.toList());
 
+        List<VisitDetailResponse.VisitMediaResponse> moments = visitMediaRepository.findByVisitIdOrderByCreatedAtAsc(visitId).stream()
+                .map(media -> new VisitDetailResponse.VisitMediaResponse(
+                        media.getId(),
+                        media.getMediaUrl(),
+                        media.getCaption(),
+                        media.getMediaType() != null ? media.getMediaType().name() : "IMAGE",
+                        media.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
+
         return new VisitDetailResponse(
                 visit.getId(),
                 visit.getOrder().getId(),
@@ -90,8 +107,30 @@ public class VisitManagementService {
                 visit.getVisitEndTime(),
                 visit.getStatus(),
                 visit.getSitterNotes(),
-                items
+                items,
+                moments
         );
+    }
+
+    @Transactional
+    public VisitDetailResponse addVisitMedia(Account sitterAccount, UUID visitId, AddVisitMediaRequest request) {
+        Visit visit = visitRepository.findById(visitId)
+                .orElseThrow(() -> new RuntimeException("Visit not found"));
+
+        if (!visit.getOrder().getCurrentSitter().getAccount().getId().equals(sitterAccount.getId())) {
+            throw new RuntimeException("Unauthorized: You are not the sitter for this visit");
+        }
+
+        VisitMedia media = new VisitMedia();
+        media.setVisit(visit);
+        media.setMediaUrl(request.mediaUrl());
+        media.setCaption(request.caption());
+        media.setMediaType(com.catsitter.api.entity.enums.MediaType.valueOf(request.mediaType() != null ? request.mediaType() : "IMAGE"));
+        media.setCreatedAt(OffsetDateTime.now());
+        
+        visitMediaRepository.save(media);
+
+        return getVisitDetail(sitterAccount, visitId);
     }
 
     @Transactional

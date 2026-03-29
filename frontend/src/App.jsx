@@ -4,20 +4,21 @@ import MainLayout from './layouts/MainLayout'
 import { useAuthStore } from './store/authStore'
 import Login from './pages/Auth/Login'
 import Register from './pages/Auth/Register'
-
-// Placeholder Dashboards (to be implemented with high-fidelity)
-const Dashboard = () => (
-  <section className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-    <div className="space-y-1">
-      <h2 className="text-3xl font-bold font-headline tracking-tight text-on-surface">Hello, User</h2>
-      <p className="text-on-surface-variant font-body">Welcome back to WhiskerWatch.</p>
-    </div>
-    <div className="bg-primary text-on-primary p-4 rounded-xl shadow-lg ambient-shadow">
-      <p className="font-headline font-semibold">Get Started</p>
-      <p className="font-body text-xs opacity-90">Please complete your profile to start using the concierge service.</p>
-    </div>
-  </section>
-)
+import SitterDashboard from './pages/Sitter/Dashboard'
+import ClientDashboard from './pages/Client/Dashboard'
+import ServicePanel from './pages/Sitter/ServicePanel'
+import ServiceLogDetails from './pages/Client/ServiceLogDetails'
+import CatPassport from './pages/Client/CatPassport'
+import Profile from './pages/Auth/Profile'
+import Finance from './pages/Sitter/Finance'
+import SitterOrders from './pages/Sitter/Orders'
+import SitterOrderDetail from './pages/Sitter/OrderDetail'
+import TrustCircle from './pages/Sitter/TrustCircle'
+import Notifications from './pages/Shared/Notifications'
+import BookingFlow from './pages/Client/BookingFlow'
+import ClientOrders from './pages/Client/Orders'
+import Pets from './pages/Client/Pets'
+import ServicePackages from './pages/Sitter/ServicePackages'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -27,13 +28,25 @@ function App() {
       <Routes>
         {/* Main Application Flow */}
         <Route path="/" element={<MainLayout />}>
-          <Route index element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />} />
-          <Route path="sitter" element={<Dashboard />} />
-          <Route path="client" element={<Dashboard />} />
-          <Route path="orders" element={<Dashboard />} />
-          <Route path="finance" element={<Dashboard />} />
-          <Route path="notifications" element={<Dashboard />} />
-          <Route path="profile" element={<Dashboard />} />
+          <Route index element={isAuthenticated ? <Navigate to="/sitter" replace /> : <Navigate to="/login" replace />} />
+          <Route path="sitter" element={<SitterDashboard />} />
+          <Route path="sitter/service/:id" element={<ServicePanel />} />
+          <Route path="sitter/orders" element={<SitterOrders />} />
+          <Route path="sitter/orders/:orderId" element={<SitterOrderDetail />} />
+          <Route path="client" element={<ClientDashboard />} />
+          <Route path="client/service-log/:id" element={<ServiceLogDetails />} />
+          <Route path="client/cat-passport/:id" element={<CatPassport />} />
+          <Route path="client/cat-passport/:id" element={<CatPassport />} />
+          <Route path="client/pets" element={<Pets />} />
+          <Route path="booking/sitter/:sitterId" element={<BookingFlow />} />
+          <Route path="client/orders" element={<ClientOrders />} />
+          <Route path="orders" element={<ClientOrders />} />
+          <Route path="sitter/finance" element={<Finance />} />
+          <Route path="sitter/trust-circle" element={<TrustCircle />} />
+          <Route path="sitter/service-packages" element={<ServicePackages />} />
+          <Route path="finance" element={<Finance />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="profile" element={<Profile />} />
         </Route>
 
         {/* Auth Flow */}

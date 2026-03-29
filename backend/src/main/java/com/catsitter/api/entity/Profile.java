@@ -73,6 +73,34 @@ public class Profile extends AuditableEntity {
   @Column(name = "specific_exclusions")
   private List<LocalDate> specificExclusions;
 
+  /** V30 新增：身分驗證相關 */
+  @Column(name = "is_verified", nullable = false)
+  private Boolean isVerified = false;
+
+  @Column(name = "verified_at")
+  private java.time.OffsetDateTime verifiedAt;
+
+  @Column(name = "id_card_front_url", length = 1024)
+  private String idCardFrontUrl;
+
+  @Column(name = "id_card_back_url", length = 1024)
+  private String idCardBackUrl;
+
+  /** V30 新增：專業標籤 (純文字列表) */
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "professional_labels")
+  private List<String> professionalLabels;
+
+  /** V30 新增：撥款資訊 (選填) */
+  @Column(name = "bank_code", length = 10)
+  private String bankCode;
+
+  @Column(name = "bank_account", length = 50)
+  private String bankAccount;
+
+  @Column(name = "bank_account_holder", length = 100)
+  private String bankAccountHolder;
+
   public UUID getId() { return id; }
   public String getSlug() { return slug; }
   public void setSlug(String slug) { this.slug = slug; }
@@ -102,4 +130,21 @@ public class Profile extends AuditableEntity {
   public void setWeeklyAvailability(java.util.Map<java.time.DayOfWeek, List<String>> weeklyAvailability) { this.weeklyAvailability = weeklyAvailability; }
   public List<LocalDate> getSpecificExclusions() { return specificExclusions; }
   public void setSpecificExclusions(List<LocalDate> specificExclusions) { this.specificExclusions = specificExclusions; }
+
+  public Boolean getIsVerified() { return isVerified; }
+  public void setIsVerified(Boolean verified) { isVerified = verified; }
+  public java.time.OffsetDateTime getVerifiedAt() { return verifiedAt; }
+  public void setVerifiedAt(java.time.OffsetDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
+  public String getIdCardFrontUrl() { return idCardFrontUrl; }
+  public void setIdCardFrontUrl(String idCardFrontUrl) { this.idCardFrontUrl = idCardFrontUrl; }
+  public String getIdCardBackUrl() { return idCardBackUrl; }
+  public void setIdCardBackUrl(String idCardBackUrl) { this.idCardBackUrl = idCardBackUrl; }
+  public List<String> getProfessionalLabels() { return professionalLabels; }
+  public void setProfessionalLabels(List<String> professionalLabels) { this.professionalLabels = professionalLabels; }
+  public String getBankCode() { return bankCode; }
+  public void setBankCode(String bankCode) { this.bankCode = bankCode; }
+  public String getBankAccount() { return bankAccount; }
+  public void setBankAccount(String bankAccount) { this.bankAccount = bankAccount; }
+  public String getBankAccountHolder() { return bankAccountHolder; }
+  public void setBankAccountHolder(String bankAccountHolder) { this.bankAccountHolder = bankAccountHolder; }
 }

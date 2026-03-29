@@ -1,13 +1,9 @@
-package com.catsitter.api.controller.v1;
-
-import com.catsitter.api.dto.payment.PayUniWebhookRequest;
-import com.catsitter.api.dto.payment.MockPayUniRequest;
-import com.catsitter.api.entity.PaymentTransaction;
-import com.catsitter.api.repository.PaymentTransactionRepository;
-import com.catsitter.api.service.FinanceService;
-import com.catsitter.api.service.PayUniService;
+import com.catsitter.api.dto.payment.SitterFinanceResponse;
+import com.catsitter.api.entity.Account;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -31,6 +27,11 @@ public class FinanceController {
         this.financeService = financeService;
         this.payUniService = payUniService;
         this.transactionRepository = transactionRepository;
+    }
+
+    @GetMapping("/sitter-summary")
+    public ResponseEntity<SitterFinanceResponse> getSitterFinanceSummary(@AuthenticationPrincipal Account account) {
+        return ResponseEntity.ok(financeService.getSitterFinanceSummary(account));
     }
 
     /**

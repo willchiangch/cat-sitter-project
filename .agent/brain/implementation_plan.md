@@ -1,59 +1,53 @@
-# WhiskerWatch: 高階編輯感 PWA 前端轉型計畫 (V10)
+# WhiskerWatch: 服務方案、信任圈與流程優化計畫 (V31)
 
-根據提供的 Figma 設計組件與 `DESIGN.md` 規範，我們將把前端從基礎測試腳本升級為 **"The Intuitive Concierge" (直覺系管家)** 風格的高階 PWA。
+本計畫旨在全面實體化保母的服務定價、建立保母與家長間的信任關係，並根據信任狀態優化預約流程（常客免問卷）。
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **視覺設計核心**：採用「無框線 (No-Line)」哲學，透過背景色深淺 (Tonal Layering) 區分層次，而非傳統的 1px 邊框。
-> **雙色系切換**：保母模式 (Amber 琥珀色) 與 飼主模式 (Blue 藍色) 的動態切換。
-> **字體需求**：需引入 Google Fonts (`Plus Jakarta Sans` 與 `Manrope`)。
+> **業務邏輯澄清 (Logic Separation)**：
+> 1. **信任圈 (Sitter-to-Sitter)**：用於保母間轉介。保母 A 可將保母 B 加入信任圈，並向家長分享 B 的預約連結。
+> 2. **常客白名單 (Sitter-to-Client)**：用於流程優化（免問卷）。保母單向將家長標記為常客，對家長隱形，影響預約流程中的問卷判定。
 
 ## Proposed Changes
 
-### 1. 全域樣式與設計標籤 (Design Tokens) [NEW]
-在 `index.css` 中透過 Tailwind 4 的 CSS 變數定義設計規範。
-- **色彩組合**：導入 `surface-container-lowest` (#ffffff), `surface` (#f6f7f5) 等層次色。
-- **字體體系**：標題使用 `font-headline`, 內文使用 `font-body`。
-- **特效**：實作 `glass-effect` (backdrop-blur) 與 `ambient-shadow`。
+### 1. 服務方案實體化 (Service Packages Realization)
+#### [MODIFY] `SitterServiceService.java` & `SitterServiceController.java`
+- 確保所有 CRUD 功能已完全開發並對齊前端。
+#### [MODIFY] `ServicePanel.jsx` (Sitter Side)
+- 將 Mock 的服務選擇器替換為從後端拉取的實體方案。
 
-### 2. 響應式佈局架構 [MODIFY]
-修改 `App.jsx` 提供標準的移動優先容器。
-- **MainLayout**：設定 `max-w-md mx-auto` 置中佈局。
-- **Shared Components**：
-    - `TopAppBar`: 包含角色切換 (Switch Role) 功能與 Glassmorphism 特效。
-    - `BottomNavBar`: 提供導航功能，並具備圓角大半徑 (`rounded-t-[3rem]`)。
+### 2. 信任與常客機制實體化 (Trust & Whitelist)
+#### [MODIFY] `SitterTrustCircle.java` (Sitter-to-Sitter)
+- 維持現有結構，用於管理保母間的推薦關係。
+#### [NEW] `SitterClientWhitelist.java` (Sitter-to-Client)
+- 專門用於「熟客優化」。欄位：`sitterProfileId`, `clientProfileId`, `skipQuestionnaire` (Boolean)。
+#### [NEW] `WhitelistService.java` & `WhitelistController.java`
+- 提供保母標記常客、設定免問卷的 API。
+#### [MODIFY] `BookingService.java`
+- 在 `createBooking` 邏輯中檢核 `Whitelist` 表，決定是否跳過問卷。
 
-### 3. 主題切換狀態管理 [NEW]
-使用 **Zustand** 管理目前的 UI Mode (`SITTER` | `CLIENT`)。
-- 根據 Role 自動切換全域主題色（從 Amber 漸層切換至 Blue 漸層）。
-- 此狀態將同步影響 API 請求的認證與權限。
-
-### 4. 首頁與儀表板實作 (Mockup to React) [NEW]
-將提供的 `code.html` 結構轉化為 React 組件。
-- `SitterDashboard`: 包含今日服務卡片 (Today's Service)、財務簡報 (Dashboard Insights) 與時間軸。
-- `ClientDashboard`: 包含貓咪護照 (Cat Passport) 與服務日誌導航。
-
-### 5. 核心依賴安裝 [COMMAND]
-安裝必要的開發套件：
-- `react-router-dom` (導航)
-- `zustand` (狀態管理)
-- `framer-motion` (微交互動畫)
-- `lucide-react` & `material-symbols` (圖示)
+### 3. 前端 UI 實體化
+#### [MODIFY] `TrustCircle.jsx` (Sitter Side)
+- 從 Mock 資料切換至 `trustCircleService.listClients()`。
+- 實作「切換常客狀態」與「免問卷設定」的開關。
+#### [MODIFY] `BookingFlow.jsx` (Client Side)
+- 呼叫新的檢核 API：若保母已將此家長設為常客，則在送出預約前隱藏問卷區塊。
 
 ---
 
 ## Open Questions
 
-1. **圖示方案**：設計稿使用了 `Material Symbols Outlined`，是否確認以此作為主要圖示庫？
-2. **多語系支持**：目前設計稿為英文，是否需要在開發初期就導入 i18next 支持繁體中文切換？
+1. **反向信任**：目前規劃是「保母單向將家長設為常客」。是否需要家長端也能看到自己被哪些保母標記為「信任好友」？（建議：初期維持保母端管理即可，以簡化邏輯）。
 
 ## Verification Plan
 
 ### Automated Tests
-- Playwright 執行響應式截圖比對，確保與設計稿一致。
-- 驗證「角色切換」時，UI 色系與內容是否正確連動。
+- `TrustServiceTest`：驗證標記常客與免問卷標誌的正確性。
+- `BookingServiceIntegrationTest`：驗證常客下單時，問卷狀態確實變更為 `NOT_REQUIRED`。
 
 ### Manual Verification
-- 在測試手機上驗證「Bottom Navigation」的 Thumb-zone 人體工學。
-- 確認「玻璃擬態」特效在低階設備上的效能表現。
+1. 以保母身分進入「信任圈管理」，將一位家長標記為常客並開啟「免問卷」。
+2. 切換至該家長身分嘗試向該保母預約。
+3. 確認預約流程中不再出現問卷網頁。
+4. 送出訂單後，檢查資料庫中的 `questionnaire_status` 為 `NOT_REQUIRED`。

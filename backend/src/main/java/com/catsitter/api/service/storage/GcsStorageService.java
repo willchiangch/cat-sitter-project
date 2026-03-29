@@ -1,0 +1,77 @@
+package com.catsitter.api.service.storage;
+
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.HttpMethod;
+import com.google.cloud.storage.Storage;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "application.storage.type", havingValue = "GCS")
+public class GcsStorageService implements StorageService {
+
+    private final Storage storage;
+
+    @Value("${application.storage.gcp.bucket-name}")
+    private String bucketName;
+
+    @Override
+    public String store(MultipartFile file, String subFolder) throws IOException {
+        String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
+        String fullPath = subFolder + "/" + fileName;
+        
+        BlobId blobId = BlobId.of(bucketName, fullPath);
+        BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
+                .setContentType(file.getContentType())
+                .build();
+        
+        storage.create(blobInfo, file.getBytes());
+        log.info("Stored file in GCS: {}", fullPath);
+        return fullPath;
+    }
+
+    @Override
+    public void delete(String filePath) throws IOException {
+        BlobId blobId = BlobId.of(bucketName, filePath);
+        boolean deleted = storage.delete(blobId);
+        if (!deleted) {
+            log.warn("Failed to delete file from GCS: {}", filePath);
+        }
+    }
+
+    @Override
+    public Resource load(String filePath) {
+        // Typically in GCS we provide signed GET URLs or public URLs, 
+        // but this could return a GoogleCloudStorageResource if needed.
+        throw new UnsupportedOperationException("Direct resource loading not implemented for GCS. Use Signed URLs instead.");
+    }
+
+    @Override
+    public String generateUploadUrl(String fileName, String subFolder) {
+        String uniqueName = UUID.randomUUID().toString() + "_" + fileName;
+        String fullPath = subFolder + "/" + uniqueName;
+
+        BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, fullPath)).build();
+
+        // Generate a 15-minute signed URL for PUT (Forced V4)
+        URL signedUrl = storage.signUrl(blobInfo, 15, TimeUnit.MINUTES, 
+                Storage.SignUrlOption.httpMethod(HttpMethod.PUT),
+                Storage.SignUrlOption.withV4Signature());
+
+        log.info("Generated signed URL for GCS upload: {}", fullPath);
+        return signedUrl.toString();
+    }
+}

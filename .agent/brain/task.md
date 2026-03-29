@@ -1,21 +1,13 @@
-- [x] 前端開發環境初始化 (V10 Foundation)
-    - [x] 安裝核心依賴 (react-router-dom, zustand, axios, framer-motion, i18next)
-    - [x] 建立專案目錄結構 (api, store, hooks, pages, components, locales)
-- [x] WhiskerWatch 設計系統導入 (Design Tokens)
-    - [x] 引入 Plus Jakarta Sans 與 Manrope 字體
-    - [x] 設定 Tailwind 4 全域變數 (層次背景、琥珀橘/清爽藍色階)
-    - [x] 實作 Glassmorphism 與 Ambient Shadow 特效
-    - [x] 導入 i18next 多語系架構 (繁體中文/英文對照)
-    - [x] 精細化 Material Symbols 視覺重度 (調整為 wght: 300)
-- [x] 核心佈局與狀態管理
-    - [x] 實作 ThemeStore (管理 Sitter/Client 主題切換)
-    - [x] 實作 AuthStore (管理 JWT 與使用者狀態)
-    - [x] 建立 MainLayout (max-w-md, TopAppBar, BottomNavBar)
-    - [x] 配置 React Router 基礎路由
-- [x] 第一階段功能開發 (Auth & Landing)
-    - [x] 實作 Premium 登入與註冊頁面 (依據設計稿風格)
-    - [x] 串接後端 Auth API 並整合 JWT 持久化
-    - [x] 頁面全面支援 i18n 多語系語音
-- [x] 驗證與同步
-    - [x] 使用 Playwright 進行 UI 冒煙測試環境準備
-    - [x] 執行 `/persist-progress` 同步開發進度至專案庫
+- [ ] 服務方案實體化 (Service Packages Realization)
+    - [ ] 確保 `SitterServiceService` CRUD 邏輯對齊前端需求
+    - [ ] 更新 `ServicePanel.jsx` 對接實體服務數據
+- [ ] 熟客白名單與免問卷邏輯 (Whitelist & Questionnaire Logic)
+    - [ ] 新增 `SitterClientWhitelist.java` 實體與 Repository
+    - [ ] 實作 `WhitelistService` 管理常客狀態與免問卷標記
+    - [ ] 修改 `BookingService.java`：在下單時根據白名單狀態自動設定問卷為 `NOT_REQUIRED`
+- [ ] 信任圈管理與轉介功能 (Trust Circle & Referrals)
+    - [ ] 實作信任圈名單拉取 API
+    - [ ] 在 `TrustCircle.jsx` 實作「複製信任保母預約連結」功能
+- [ ] 驗證與同步 (Verification)
+    - [ ] `/persist-progress` 同步進度
+    - [ ] 交付 V31 業務優化 Walkthrough

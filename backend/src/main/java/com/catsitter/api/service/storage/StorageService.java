@@ -20,4 +20,11 @@ public interface StorageService {
      * Load a file as a Resource.
      */
     Resource load(String filePath);
+
+    /**
+     * Generate a pre-signed URL for direct client-side upload.
+     */
+    default String generateUploadUrl(String fileName, String subFolder) {
+        throw new UnsupportedOperationException("Signed URLs are not supported by this storage provider.");
+    }
 }

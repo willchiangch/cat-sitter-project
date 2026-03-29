@@ -8,10 +8,21 @@
     "request_access": "申請加入圈子",
     "profile": "個人基本資料",
     "orders": "預約訂單紀錄",
-    "finance": "財務金流對帳",
+    "finance": "財務收益對帳",
     "alerts": "重要系統通知",
     "inbox": "管家互動收件匣",
-    "sitters": "探索專業保母"
+    "sitters": "探索專業保母",
+    "revenue": "本次收益",
+    "adjustment": "手動調價",
+    "payout": "提領收益",
+    "ledger": "對帳明細錄"
+  },
+  "sitter": {
+    "trust_circle": "夥伴信任圈 (轉介網路)",
+    "quote": "專業報價",
+    "surcharge": "服務加成",
+    "discount": "優惠折抵",
+    "referral_success": "已成功轉介給夥伴"
   },
   "auth": {
     "login_title": "進入管家服務",
@@ -29,5 +40,78 @@
     "sign_in": "立即登入",
     "error_login": "登入失敗，請檢查您的憑證。",
     "error_register": "註冊失敗，請重試。"
+  },
+  "dashboard": {
+    "greeting": "您好，{{name}}",
+    "sitter_summary": "您今天共有 {{count}} 個行程預約。",
+    "action_required": "待辦事項",
+    "action_subtitle": "即將到來的行程已收集預審問卷。",
+    "tab_today": "今日服務",
+    "tab_orders": "訂單管理",
+    "tab_trust": "信任圈",
+    "up_next": "即將開始",
+    "stats_earnings": "今日收益",
+    "stats_visits": "服務次數",
+    "upcoming_schedule": "後續行程預覽",
+    "view_sop": "查看 SOP/註記",
+    "service_panel": "進入服務面板",
+    "status_active_soon": "準備開始"
+  },
+  "client": {
+    "greeting": "您好，{{name}}",
+    "today_is": "今天是 {{date}}",
+    "cat_passport": "貓咪護照",
+    "service_log": "服務日誌",
+    "vault": "保險箱",
+    "activity": "動態",
+    "today_visit": "今日預約行程",
+    "view_map": "查看地圖",
+    "time_window": "服務時段",
+    "service_type": "服務項目",
+    "your_sitter": "您的專屬保母",
+    "recent_updates": "最近更新",
+    "visit_completed": "服務已完成",
+    "yesterday": "昨天"
+  },
+  "service_panel": {
+    "active_session": "執勤中的行程",
+    "timer_label": "本次服務已進行",
+    "tasks_header": "服務項目清單",
+    "report_header": "服務回報編輯",
+    "report_placeholder": "在此輸入本次服務的詳細觀察與記錄...",
+    "photo_upload": "上傳服務照片",
+    "photo_subtitle": "支持上傳 JPG/PNG 格式，照片將即時同步給飼主。",
+    "uploading": "上傳中...",
+    "optimizing": "正在優化影像...",
+    "finish_service": "完成本次服務",
+    "service_finished": "今日服務已圓滿完成",
+    "task_feeding": "更換飼料與飲水",
+    "task_litter": "清理貓砂盆",
+    "task_play": "陪玩與互動",
+    "task_medical": "給藥或特殊護理"
+  },
+  "order_status": {
+    "all": "全部",
+    "pending": "待確認",
+    "confirmed": "已確認",
+    "completed": "已結案",
+    "cancelled": "已取消"
+  },
+  "profile": {
+    "saas_description": "您目前處於「專業接案版 ($899)」方案。享有完整的定價主權與 AI 報告助手。",
+    "account_group": "身分與安全性",
+    "preferences_group": "偏好設定",
+    "danger_group": "危險區域"
+  },
+  "booking": {
+    "regular_guest_skip": "尊榮常客狀態：考量到您與保母的長期信任，已為您免除本次照護問卷填寫。",
+    "step1_title": "誰要被照顧？",
+    "step1_subtitle": "請從您的保險箱中選擇貓咪。",
+    "step2_title": "方案與時段",
+    "step2_subtitle": "選擇照護深度與預約時間。",
+    "step3_title": "特殊注意事項",
+    "step3_subtitle": "有什麼是保母 Sophia 需要特別留意的嗎？",
+    "step4_title": "預約確認",
+    "step4_subtitle": "請再次檢核您的管家預約項目。"
   }
 }

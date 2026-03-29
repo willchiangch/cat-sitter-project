@@ -10,5 +10,12 @@ public record SitterProfileResponse(
     String phone,
     List<String> serviceAreas,
     String bioSummary,
+    Boolean isVerified,
+    String idCardFrontUrl,
+    String idCardBackUrl,
+    List<String> professionalLabels,
+    String bankCode,
+    String bankAccount,
+    String bankAccountHolder,
     Integer notificationDaysBefore
 ) {}

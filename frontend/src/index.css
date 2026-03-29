@@ -61,12 +61,16 @@
   --font-headline: var(--font-headline);
   --font-body: var(--font-body);
 
+  --color-background: var(--background);
+  --color-on-background: var(--on-background);
   --color-surface: var(--surface);
   --color-on-surface: var(--on-surface);
   --color-surface-container-low: var(--surface-container-low);
   --color-surface-container-lowest: var(--surface-container-lowest);
   --color-surface-container-high: var(--surface-container-high);
 
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
   --color-primary-fixed: var(--primary);
   --color-primary-container: var(--primary-container);
   --color-on-primary-container: var(--on-primary-container);

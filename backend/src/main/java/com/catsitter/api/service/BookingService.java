@@ -27,6 +27,7 @@ public class BookingService {
     private final OrderAnswerRepository orderAnswerRepository;
     private final SitterQuestionRepository questionRepository;
     private final OrderActionLogRepository actionLogRepository;
+    private final SitterClientWhitelistRepository whitelistRepository;
     private final CalendarSyncService calendarSyncService;
     private final ObjectMapper objectMapper;
 
@@ -37,6 +38,7 @@ public class BookingService {
                           OrderAnswerRepository orderAnswerRepository,
                           SitterQuestionRepository questionRepository,
                           OrderActionLogRepository actionLogRepository,
+                          SitterClientWhitelistRepository whitelistRepository,
                           CalendarSyncService calendarSyncService,
                           ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
@@ -46,6 +48,7 @@ public class BookingService {
         this.orderAnswerRepository = orderAnswerRepository;
         this.questionRepository = questionRepository;
         this.actionLogRepository = actionLogRepository;
+        this.whitelistRepository = whitelistRepository;
         this.calendarSyncService = calendarSyncService;
         this.objectMapper = objectMapper;
     }
@@ -77,9 +80,19 @@ public class BookingService {
         order.setOrderStatus(OrderStatus.PENDING);
         order.setPaymentStatus(PaymentStatus.UNPAID);
         
-        QuestionnaireStatus qStatus = (request.answers() == null || request.answers().isEmpty()) 
+        // V31: Check Regular Whitelist Logic
+        boolean skipSurvey = whitelistRepository.findBySitterProfileIdAndClientProfileId(sitterProfile.getId(), clientProfile.getId())
+                .map(SitterClientWhitelist::getSkipQuestionnaire)
+                .orElse(false);
+
+        QuestionnaireStatus qStatus;
+        if (skipSurvey) {
+            qStatus = QuestionnaireStatus.NOT_REQUIRED;
+        } else {
+            qStatus = (request.answers() == null || request.answers().isEmpty()) 
                 ? QuestionnaireStatus.NOT_REQUIRED 
                 : QuestionnaireStatus.COMPLETED;
+        }
         order.setQuestionnaireStatus(qStatus);
 
         Order savedOrder = orderRepository.save(order);

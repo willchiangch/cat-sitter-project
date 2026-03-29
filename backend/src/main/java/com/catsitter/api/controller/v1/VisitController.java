@@ -44,6 +44,14 @@ public class VisitController {
         return ResponseEntity.ok(visitManagementService.updateChecklistItem(account, visitId, request));
     }
 
+    @PostMapping("/visits/{visitId}/media")
+    public ResponseEntity<VisitDetailResponse> addMedia(
+            @AuthenticationPrincipal Account account,
+            @PathVariable UUID visitId,
+            @RequestBody com.catsitter.api.dto.visit.AddVisitMediaRequest request) {
+        return ResponseEntity.ok(visitManagementService.addVisitMedia(account, visitId, request));
+    }
+
     @PostMapping("/visits/{visitId}/complete")
     public ResponseEntity<VisitDetailResponse> completeVisit(
             @AuthenticationPrincipal Account account,

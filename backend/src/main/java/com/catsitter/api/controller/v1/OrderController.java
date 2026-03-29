@@ -19,6 +19,35 @@ public class OrderController {
         this.bookingService = bookingService;
     }
 
+    @PostMapping("/booking")
+    public ResponseEntity<com.catsitter.api.dto.booking.BookingResponse> createBooking(
+            @AuthenticationPrincipal Account account,
+            @Valid @RequestBody com.catsitter.api.dto.booking.CreateBookingRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bookingService.createBooking(account, request));
+    }
+
+    @GetMapping("/{orderId}")
+    public ResponseEntity<com.catsitter.api.dto.booking.BookingDetailResponse> getOrderDetail(
+            @AuthenticationPrincipal Account account,
+            @PathVariable UUID orderId) {
+        return ResponseEntity.ok(bookingService.getBookingDetail(account, orderId));
+    }
+
+    @PostMapping("/{orderId}/quote")
+    public ResponseEntity<com.catsitter.api.dto.booking.BookingDetailResponse> submitQuote(
+            @AuthenticationPrincipal Account account,
+            @PathVariable UUID orderId,
+            @Valid @RequestBody com.catsitter.api.dto.booking.SubmitQuoteRequest request) {
+        return ResponseEntity.ok(bookingService.submitQuote(account, orderId, request));
+    }
+
+    @PostMapping("/{orderId}/confirm-payment")
+    public ResponseEntity<com.catsitter.api.dto.booking.BookingDetailResponse> confirmPayment(
+            @AuthenticationPrincipal Account account,
+            @PathVariable UUID orderId) {
+        return ResponseEntity.ok(bookingService.confirmOfflinePayment(account, orderId));
+    }
+
     @PostMapping("/{orderId}/complete")
     public ResponseEntity<?> completeOrder(
             @AuthenticationPrincipal Account account,

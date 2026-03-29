@@ -1,6 +1,11 @@
 # === Mac 系統隱藏檔 ===
 .DS_Store
 
+# === 敏感金鑰與雲端設定 ===
+*-key.json
+cors.json
+cors-uat.json
+
 # === IDE 與編輯器 ===
 .idea/
 .vscode/

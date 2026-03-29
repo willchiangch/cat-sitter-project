@@ -2,10 +2,13 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useThemeStore } from '../../store/themeStore'
+import { useNotificationStore } from '../../store/notificationStore'
 
 const BottomNavBar = () => {
   const { t } = useTranslation()
   const { mode } = useThemeStore()
+  const { getUnreadCount } = useNotificationStore()
+  const unreadCount = getUnreadCount()
   
   const navItems = mode === 'SITTER' ? [
     { icon: 'dashboard', label: t('auth.role_sitter'), path: '/sitter' },
@@ -38,8 +41,10 @@ const BottomNavBar = () => {
           <span className="font-body text-[10px] font-bold uppercase tracking-widest mt-1">
             {item.label}
           </span>
-          {item.badge && (
-            <div className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+          {item.icon === 'notifications' && unreadCount > 0 && (
+            <div className="absolute top-1 right-2 w-4 h-4 bg-primary text-on-primary text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-surface animate-bounce shadow-lg">
+              {unreadCount}
+            </div>
           )}
         </NavLink>
       ))}

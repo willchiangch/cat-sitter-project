@@ -39,6 +39,10 @@ public class SitterProfileService {
         profile.setPhone(request.phone());
         profile.setServiceAreas(request.serviceAreas());
         profile.setBioSummary(request.bioSummary());
+        profile.setProfessionalLabels(request.professionalLabels());
+        profile.setBankCode(request.bankCode());
+        profile.setBankAccount(request.bankAccount());
+        profile.setBankAccountHolder(request.bankAccountHolder());
 
         return mapToResponse(profileRepository.save(profile));
     }
@@ -51,6 +55,13 @@ public class SitterProfileService {
                 profile.getPhone(),
                 profile.getServiceAreas(),
                 profile.getBioSummary(),
+                profile.getIsVerified(),
+                profile.getIdCardFrontUrl(),
+                profile.getIdCardBackUrl(),
+                profile.getProfessionalLabels(),
+                profile.getBankCode(),
+                profile.getBankAccount(),
+                profile.getBankAccountHolder(),
                 globalNotificationDays
         );
     }

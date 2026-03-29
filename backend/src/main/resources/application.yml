@@ -42,9 +42,12 @@ application:
     client-secret: ${GOOGLE_CLIENT_SECRET:your_client_secret}
     redirect-uri: ${GOOGLE_REDIRECT_URL:http://localhost:8081/api/v1/sitters/me/calendar/callback}
   storage:
-    type: LOCAL
+    type: GCS
     local-path: ./storage/media
     retention-days: 60
+    gcp:
+      bucket-name: whiskerwatch-media-uat
+      credentials-path: ${GCP_KEY_PATH:../whiskerwatch-key.json}
 
 server:
   port: 8081
