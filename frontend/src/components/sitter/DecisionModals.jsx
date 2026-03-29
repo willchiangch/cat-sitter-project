@@ -69,7 +69,7 @@ const QuoteModal = ({ isOpen, onClose, baseAmount, onConfirm }) => {
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-4 bg-surface-container-high text-on-surface rounded-full text-sm font-extrabold uppercase transition-all">Cancel</button>
           <button 
-            onClick={() => onConfirm({ total, notes })}
+            onClick={() => onConfirm({ baseAmount, surcharge, discount, notes })}
             className="flex-1 py-4 bg-primary text-on-primary rounded-full text-sm font-extrabold uppercase shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
           >
             Confirm & Send

@@ -3,14 +3,16 @@ import { test, expect } from '@playwright/test'
 test.describe('Cat Parent: Ultimate Booking Flow', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to local dev server
+    // Set smoke auth context for James Wilson (Client)
+    await page.setExtraHTTPHeaders({ 'X-Smoke-Auth': 'JAMES' })
     await page.goto('/')
     // Ensure we are in Client mode (Switching logic depends on current Auth state)
     // For Mock, we assume the page starts in a common or sitter state, we might need a switch link
   })
 
   test('should complete a multi-step booking for a regular guest (skipping questionnaire)', async ({ page }) => {
-    // 1. Enter a sitter booking page (using mock ID)
-    await page.goto('/booking/sitter/s1')
+    // 1. Enter a sitter booking page (using seeded UUID)
+    await page.goto('/booking/sitter/efefefef-0000-0000-0000-000000000011')
 
     // 2. Step 1: Select Pets
     await expect(page.getByText('誰要被照顧？')).toBeVisible()
@@ -36,8 +38,8 @@ test.describe('Cat Parent: Ultimate Booking Flow', () => {
 
 test.describe('Cat Sitter: Strategic Decisions', () => {
   test('should perform a professional quote with price adjustment', async ({ page }) => {
-    // 1. Go to Sitter Order Detail
-    await page.goto('/sitter/orders/o123')
+    // 1. Go to Sitter Order Detail (using seeded UUID)
+    await page.goto('/sitter/orders/efefefef-0000-0000-0000-000000000123')
 
     // 2. Review Questionnaire
     await expect(page.getByText('事前問護問卷評估')).toBeVisible()

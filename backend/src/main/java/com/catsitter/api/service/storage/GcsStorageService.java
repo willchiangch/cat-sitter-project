@@ -4,8 +4,8 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.HttpMethod;
 import com.google.cloud.storage.Storage;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
@@ -17,13 +17,17 @@ import java.net.URL;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "application.storage.type", havingValue = "GCS")
 public class GcsStorageService implements StorageService {
+    private static final Logger log = LoggerFactory.getLogger(GcsStorageService.class);
+
 
     private final Storage storage;
+
+    public GcsStorageService(Storage storage) {
+        this.storage = storage;
+    }
 
     @Value("${application.storage.gcp.bucket-name}")
     private String bucketName;

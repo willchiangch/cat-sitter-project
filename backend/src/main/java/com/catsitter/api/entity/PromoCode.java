@@ -2,16 +2,12 @@ package com.catsitter.api.entity;
 
 import com.catsitter.api.entity.common.AuditableEntity;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "promo_codes")
-@Getter
-@Setter
 public class PromoCode extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -31,4 +27,17 @@ public class PromoCode extends AuditableEntity {
 
     @Column(name = "expiry_date")
     private Instant expiryDate;
+
+    public UUID getId() { return this.id; }
+    public void setId(UUID id) { this.id = id; }
+    public String getCode() { return this.code; }
+    public void setCode(String code) { this.code = code; }
+    public BigDecimal getDiscountAmount() { return this.discountAmount; }
+    public void setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; }
+    public Integer getMaxUses() { return this.maxUses; }
+    public void setMaxUses(Integer maxUses) { this.maxUses = maxUses; }
+    public Integer getUsedCount() { return this.usedCount; }
+    public void setUsedCount(Integer usedCount) { this.usedCount = usedCount; }
+    public Instant getExpiryDate() { return this.expiryDate; }
+    public void setExpiryDate(Instant expiryDate) { this.expiryDate = expiryDate; }
 }

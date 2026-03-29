@@ -103,7 +103,11 @@ class SitterProfileControllerTest {
                 "http://example.com/avatar.jpg",
                 "0912345678",
                 List.of("Area 1", "Area 2"),
-                "New Bio Summary"
+                "New Bio Summary",
+                List.of(), // professionalLabels
+                null,      // bankCode
+                null,      // bankAccount
+                null       // bankAccountHolder
         );
 
         mockMvc.perform(put("/api/v1/sitters/me/profile")

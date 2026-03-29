@@ -1,35 +1,40 @@
-# V31: 服務、信任與流程優化 Walkthrough
+# Backend Smoke Testing Stabilization Walkthrough
 
-本階段我們將 WhiskerWatch 的業務邏輯從單純的「預約工具」提升為「職人營運系統」。
+本階段工作已順利完成！我們建立了極度穩定的後端測試環境，並成功運行了全自動化的 E2E 驗證。
 
-## 實作內容回顧
+## 核心達成目標
+1. **修復前端崩潰**：解決了 `App.jsx` 中 `ClientOrders` 導入缺失導致的頁面全白問題。
+2. **穩定 Smoke Seeding**：改用 `JdbcTemplate` 重寫 `SmokeDataSeeder`，解決了 Hibernate 在手動設定 UUID 時的樂觀鎖與狀態同步問題，並實現了啟動時自動清理舊資料的功能。
+3. **完善 Mock Auth 機制**：
+    - 實現了針對 `smoke` profile 的 `SmokeMockAuthFilter`。
+    - 支援透過 `X-Smoke-Auth` Header 動態切換 Mock 身分（Sitter vs Parent/James），大幅簡化測試流程。
+    - 修復了 `JwtAuthenticationFilter` 在遇到 Mock Token 時會拋出 500 錯誤的問題。
+4. **修復報價邏輯錯誤**：解決了 `QuoteModal` 與 `OrderDetail` 之間欄位對應不一致導致的後端驗證失敗。
+5. **E2E 全數通過**：成功執行 Playwright 測試，驗證了完整訂單生命週期。
 
-### 1. 熟客免問卷 (Whitelist Workflow)
-- **實體對接**：建立 `sitter_client_whitelists` 資料表，由保母端單向控制。
-- **流程自動化**：在 `BookingService` 建立訂單時，系統自動靜默檢查白名單標記。若開啟「免問卷」，家長端的預約狀態將自動跳過問卷環節，優化老朋友的服務體驗。
+## 修改檔案清單
 
-### 2. 保母轉介網 (Sitter Referrals)
-- **信任連結**：利用保母 Profile 的 `slug` 生成獨立預約連結。
-- **夥伴管理**：保母在「信任圈」中管理同行，並具備「一鍵複製轉介連結」功能，方便在無法接單時進行專業轉薦。
+### 後端 (Spring Boot)
+- [SmokeDataSeeder.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/service/SmokeDataSeeder.java)：實現具備「自我清理」功能的 Idempotent Seeder。
+- [SecurityConfig.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/config/SecurityConfig.java)：配置 CORS 與 `SmokeMockAuthFilter`。
+- [SmokeMockAuthFilter.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/security/SmokeMockAuthFilter.java)：[NEW] 支援多身分 Mock 驗證。
+- [JwtAuthenticationFilter.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/security/JwtAuthenticationFilter.java)：增加異常捕獲以支援 Mock 環境。
 
-### 3. 服務規格管理 (Service Plan CRUD)
-- **定價實體化**：保母可自定義「照顧方案」的名稱、時長與價格。
-- **動態開關**：支援一鍵開啟/關閉特定服務方案。
-
-## 畫面更新重點
-
-````carousel
-### 熟客白名單切換
-在「信任圈管理」中出現了新的「熟客白名單」區塊，保母可透過開關直接控制個別家長的問卷權限。
-<!-- slide -->
-### 夥伴轉介連結
-信任夥伴名單現在具備「分享連結」按鈕，點擊後會複製該夥伴的專屬 URL。
-<!-- slide -->
-### 服務方案配置
-新增了專屬的服務方案管理頁面，所有方案定價均已對接實體資料庫，取代原本的 Mock 選項。
-````
+### 前端 (React)
+- [App.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/App.jsx)：修復組件導入。
+- [DecisionModals.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/components/sitter/DecisionModals.jsx)：修正報價欄位傳遞結構。
+- [OrderDetail.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Sitter/OrderDetail.jsx)：對齊 API 請求參數。
+- [golden_paths.spec.js](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/tests/e2e/golden_paths.spec.js)：整合 `X-Smoke-Auth` 測試標頭並更新 UUID。
 
 ## 驗證結果
 
-- **邏輯驗證**：已確認當 `skipQuestionnaire` 為 `true` 時，新建立的訂單狀態正確顯示為 `NOT_REQUIRED`。
-- **導覽驗證**：Dashboard 的四個關鍵分頁按鈕（今日、服務、訂單、信任）均已正確指向實體頁面。
+### E2E 測試截圖與錄影
+- **報價送出成功狀態**：[final_state.png](file:///Users/will_chiang/.gemini/antigravity/brain/0c0d92ce-c7bb-4efa-b4ce-42f337d9c772/after_quote_submission_1774796752827.png)
+- **測試流程錄影**：[quote_submission_debug.webp](file:///Users/will_chiang/.gemini/antigravity/brain/0c0d92ce-c7bb-4efa-b4ce-42f337d9c772/quote_submission_debug_1774796521303.webp)
+
+> [!TIP]
+> 現在您可以隨時啟動 `./mvnw spring-boot:run -Dspring-boot.run.profiles=smoke` 來獲得一個完整的測試沙盒環境，無需擔心 Token 過期或資料重複問題。
+
+---
+完成日期：2026-03-29
+驗證工時：~2 小時 (含環境調教)

@@ -44,7 +44,8 @@ public class SitterOnboardingSmokeTest {
 
         // 2. Update Profile (Onboarding)
         var profileReq = new com.catsitter.api.dto.sitter.UpdateSitterProfileRequest(
-                "Onboard Sitter UPDATED", null, "0912345678", List.of("新莊區", "板橋區"), "A cat lover"
+                "Onboard Sitter UPDATED", null, "0912345678", List.of("新莊區", "板橋區"), "A cat lover",
+                List.of(), null, null, null
         );
         mockMvc.perform(put("/api/v1/sitters/me/profile")
                 .header("Authorization", "Bearer " + sitterToken.accessToken())

@@ -2,16 +2,12 @@ package com.catsitter.api.entity;
 
 import com.catsitter.api.entity.common.AuditableEntity;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "payment_transactions")
-@Getter
-@Setter
 public class PaymentTransaction extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -46,4 +42,25 @@ public class PaymentTransaction extends AuditableEntity {
 
     @Column(name = "pay_time")
     private Instant payTime;
+
+    public UUID getId() { return this.id; }
+    public void setId(UUID id) { this.id = id; }
+    public Account getAccount() { return this.account; }
+    public void setAccount(Account account) { this.account = account; }
+    public SitterSubscription getSubscription() { return this.subscription; }
+    public void setSubscription(SitterSubscription subscription) { this.subscription = subscription; }
+    public Order getOrder() { return this.order; }
+    public void setOrder(Order order) { this.order = order; }
+    public String getTradeNo() { return this.tradeNo; }
+    public void setTradeNo(String tradeNo) { this.tradeNo = tradeNo; }
+    public String getMerTradeNo() { return this.merTradeNo; }
+    public void setMerTradeNo(String merTradeNo) { this.merTradeNo = merTradeNo; }
+    public BigDecimal getAmount() { return this.amount; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public String getStatus() { return this.status; }
+    public void setStatus(String status) { this.status = status; }
+    public String getPaymentType() { return this.paymentType; }
+    public void setPaymentType(String paymentType) { this.paymentType = paymentType; }
+    public Instant getPayTime() { return this.payTime; }
+    public void setPayTime(Instant payTime) { this.payTime = payTime; }
 }

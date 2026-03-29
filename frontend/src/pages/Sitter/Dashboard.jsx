@@ -67,25 +67,31 @@ const Dashboard = () => {
       </motion.section>
 
       {/* Navigation Tabs (Editorial style) */}
-      <nav className="flex p-1 bg-surface-container-low rounded-full ambient-shadow">
-        <button className="flex-1 py-3 px-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all bg-surface-container-lowest text-primary shadow-sm">
+      <nav className="flex p-1 bg-surface-container-low rounded-full ambient-shadow overflow-x-auto no-scrollbar">
+        <button className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all bg-surface-container-lowest text-primary shadow-sm">
           {t('dashboard.tab_today')}
         </button>
         <button 
           onClick={() => navigate('/sitter/service-packages')}
-          className="flex-1 py-3 px-1 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
+          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
         >
           {t('dashboard.tab_services', 'Services')}
         </button>
         <button 
+          onClick={() => navigate('/sitter/questionnaire')}
+          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
+        >
+          {t('dashboard.tab_questionnaire', 'Questions')}
+        </button>
+        <button 
           onClick={() => navigate('/sitter/orders')}
-          className="flex-1 py-3 px-1 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
+          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
         >
           {t('dashboard.tab_orders')}
         </button>
         <button 
           onClick={() => navigate('/sitter/trust-circle')}
-          className="flex-1 py-3 px-1 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
+          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
         >
           {t('dashboard.tab_trust')}
         </button>

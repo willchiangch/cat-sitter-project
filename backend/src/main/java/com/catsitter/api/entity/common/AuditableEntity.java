@@ -33,6 +33,7 @@ public abstract class AuditableEntity {
 
   public String getCreatedBy() { return createdBy; }
   public Instant getCreatedAt() { return createdAt; }
+  public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
   public String getUpdatedBy() { return updatedBy; }
   public Instant getUpdatedAt() { return updatedAt; }
 }

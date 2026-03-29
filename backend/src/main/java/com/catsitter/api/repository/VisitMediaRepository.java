@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public interface VisitMediaRepository extends JpaRepository<VisitMedia, UUID> {
     List<VisitMedia> findByVisitId(UUID visitId);
+    List<VisitMedia> findByVisitIdOrderByCreatedAtAsc(UUID visitId);
     
     /**
      * Finds media records that are older than the specified date and haven't been marked as deleted.

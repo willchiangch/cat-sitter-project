@@ -44,6 +44,9 @@ public class SitterQuestionnaireService {
         question.setSitterProfile(profile);
         question.setTargetPetType(request.targetPetType());
         question.setQuestionText(request.questionText());
+        question.setType(request.type());
+        question.setRequired(request.required() != null ? request.required() : true);
+        question.setOptions(request.options());
         question.setSortOrder(request.sortOrder() != null ? request.sortOrder() : 0);
         question.setIsActive(true);
 
@@ -62,6 +65,9 @@ public class SitterQuestionnaireService {
 
         question.setTargetPetType(request.targetPetType());
         question.setQuestionText(request.questionText());
+        question.setType(request.type());
+        question.setRequired(request.required() != null ? request.required() : true);
+        question.setOptions(request.options());
         question.setSortOrder(request.sortOrder());
         question.setIsActive(request.isActive());
 
@@ -98,6 +104,9 @@ public class SitterQuestionnaireService {
                 question.getId(),
                 question.getTargetPetType(),
                 question.getQuestionText(),
+                question.getType(),
+                question.getRequired(),
+                question.getOptions(),
                 question.getSortOrder(),
                 question.getIsActive()
         );

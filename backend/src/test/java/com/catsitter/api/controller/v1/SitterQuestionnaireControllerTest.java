@@ -10,7 +10,10 @@ import com.catsitter.api.entity.SitterQuestion;
 import com.catsitter.api.entity.enums.AccountStatus;
 import com.catsitter.api.entity.enums.OAuthProvider;
 import com.catsitter.api.entity.enums.RoleType;
+import com.catsitter.api.entity.enums.QuestionType;
 import com.catsitter.api.entity.enums.TargetPetType;
+import java.util.List;
+import java.util.UUID;
 import com.catsitter.api.repository.AccountRepository;
 import com.catsitter.api.repository.ProfileRepository;
 import com.catsitter.api.repository.SitterQuestionRepository;
@@ -94,6 +97,9 @@ class SitterQuestionnaireControllerTest {
         var request = new CreateQuestionRequest(
                 TargetPetType.CAT,
                 "How many cats do you have?",
+                QuestionType.TEXT,
+                true,
+                List.of(),
                 1
         );
 
@@ -134,6 +140,9 @@ class SitterQuestionnaireControllerTest {
         var request = new UpdateQuestionRequest(
                 TargetPetType.DOG,
                 "New Question",
+                QuestionType.TEXT,
+                true,
+                List.of(),
                 2,
                 false
         );

@@ -65,6 +65,9 @@ public class BookingPreviewService {
                         q.getId(),
                         q.getTargetPetType(),
                         q.getQuestionText(),
+                        q.getType(),
+                        q.getRequired(),
+                        q.getOptions(),
                         q.getSortOrder(),
                         q.getIsActive()
                 ))

@@ -103,12 +103,6 @@
 			<artifactId>spring-boot-testcontainers</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
-		</dependency>
-
 		<!-- Google Calendar API Dependencies -->
 		<dependency>
 			<groupId>com.google.api-client</groupId>

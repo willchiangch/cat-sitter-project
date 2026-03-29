@@ -35,9 +35,9 @@ const OrderDetail = () => {
       setIsLoading(true)
       const quoteRequest = {
         baseAmount: data.baseAmount,
-        surchargeAmount: data.surchargeAmount,
-        discountAmount: data.discountAmount,
-        pricingNotes: data.pricingNotes
+        surchargeAmount: data.surcharge,
+        discountAmount: data.discount,
+        pricingNotes: data.notes
       }
       await orderService.submitQuote(orderId, quoteRequest)
       await fetchOrderDetail() // Refresh status

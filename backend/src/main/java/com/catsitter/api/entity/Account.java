@@ -50,6 +50,7 @@ public class Account extends AuditableEntity implements UserDetails {
   private com.catsitter.api.entity.enums.RoleType lastActiveRole;
 
   public UUID getId() { return id; }
+  public void setId(UUID id) { this.id = id; }
   public String getEmail() { return email; }
   public void setEmail(String email) { this.email = email; }
   public String getPasswordHash() { return passwordHash; }

@@ -79,11 +79,6 @@ public class ApiV1StubController {
         return notImplemented("POST /api/v1/visits/{visitId}/checklist/custom-items");
     }
 
-    @PostMapping("/visits/{visitId}/media")
-    public ResponseEntity<Map<String, Object>> uploadVisitMedia(@PathVariable UUID visitId, @RequestBody Map<String, Object> body) {
-        return notImplemented("POST /api/v1/visits/{visitId}/media");
-    }
-
     @PutMapping("/visits/{visitId}/notes")
     public ResponseEntity<Map<String, Object>> updateVisitNotes(@PathVariable UUID visitId, @RequestBody Map<String, Object> body) {
         return notImplemented("PUT /api/v1/visits/{visitId}/notes");

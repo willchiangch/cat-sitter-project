@@ -16,9 +16,10 @@ import SitterOrderDetail from './pages/Sitter/OrderDetail'
 import TrustCircle from './pages/Sitter/TrustCircle'
 import Notifications from './pages/Shared/Notifications'
 import BookingFlow from './pages/Client/BookingFlow'
-import ClientOrders from './pages/Client/Orders'
 import Pets from './pages/Client/Pets'
 import ServicePackages from './pages/Sitter/ServicePackages'
+import QuestionnaireEditor from './pages/Sitter/QuestionnaireEditor'
+import ClientOrders from './pages/Client/Orders'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -44,6 +45,7 @@ function App() {
           <Route path="sitter/finance" element={<Finance />} />
           <Route path="sitter/trust-circle" element={<TrustCircle />} />
           <Route path="sitter/service-packages" element={<ServicePackages />} />
+          <Route path="sitter/questionnaire" element={<QuestionnaireEditor />} />
           <Route path="finance" element={<Finance />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />

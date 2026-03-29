@@ -80,6 +80,7 @@ public class Order extends AuditableEntity {
   private QuestionnaireStatus questionnaireStatus;
 
   public UUID getId() { return id; }
+  public void setId(UUID id) { this.id = id; }
   public Profile getClientProfile() { return clientProfile; }
   public void setClientProfile(Profile clientProfile) { this.clientProfile = clientProfile; }
   public Profile getCurrentSitter() { return currentSitter; }

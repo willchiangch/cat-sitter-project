@@ -43,6 +43,24 @@
 | `is_active` | BOOLEAN | 是否上架 |
 
 ### 4. `sitter_questions` (保母自訂問卷表)
+| 欄位名稱 | 型態 | 說明 |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | 題目 ID |
+| `sitter_profile_id` | UUID (FK) | 屬於哪位保母 |
+| `target_pet_type` | VARCHAR | `CAT`, `DOG`, `ALL` |
+| `question_text` | TEXT | 題目內容 |
+| `type` | VARCHAR | `TEXT`, `SINGLE_CHOICE`, `MULTIPLE_CHOICE` |
+| `required` | BOOLEAN | 是否必填 |
+| `sort_order` | INT | 排序權重 |
+| `is_active` | BOOLEAN | 是否啟用 |
+
+#### `sitter_question_options` (問卷題目選項)
+*存儲單選/多選題的預設選項*
+| 欄位名稱 | 型態 | 說明 |
+| :--- | :--- | :--- |
+| `question_id` | UUID (FK) | 對應至 `sitter_questions` |
+| `option_text` | VARCHAR | 選項內容 |
+
 ### 5. `pets` (服務注意事項表)
 
 ---
@@ -124,5 +142,6 @@
 | `visit_id` | UUID (FK) | 屬於哪次行程 |
 | `media_url` | VARCHAR | 儲存路徑 (本地或 GCS) |
 | `media_type` | VARCHAR | `PHOTO`, `VIDEO` |
+| `caption` | VARCHAR | **[NEW]** 媒體說明文字 |
 | `file_size` | BIGINT | 檔案大小 |
 | `is_deleted` | BOOLEAN | 是否已依保留政策刪除檔案 |

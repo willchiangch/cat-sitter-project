@@ -3,6 +3,8 @@ package com.catsitter.api.controller.v1;
 import com.catsitter.api.dto.booking.BookingDetailResponse;
 import com.catsitter.api.entity.Account;
 import com.catsitter.api.service.BookingService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;

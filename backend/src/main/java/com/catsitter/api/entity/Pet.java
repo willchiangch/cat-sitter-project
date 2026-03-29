@@ -60,6 +60,7 @@ public class Pet extends AuditableEntity {
   private String otherNotes;
 
   public UUID getId() { return id; }
+  public void setId(UUID id) { this.id = id; }
   public Profile getClientProfile() { return clientProfile; }
   public void setClientProfile(Profile clientProfile) { this.clientProfile = clientProfile; }
   public String getName() { return name; }

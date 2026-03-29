@@ -1,13 +1,5 @@
-- [ ] 服務方案實體化 (Service Packages Realization)
-    - [ ] 確保 `SitterServiceService` CRUD 邏輯對齊前端需求
-    - [ ] 更新 `ServicePanel.jsx` 對接實體服務數據
-- [ ] 熟客白名單與免問卷邏輯 (Whitelist & Questionnaire Logic)
-    - [ ] 新增 `SitterClientWhitelist.java` 實體與 Repository
-    - [ ] 實作 `WhitelistService` 管理常客狀態與免問卷標記
-    - [ ] 修改 `BookingService.java`：在下單時根據白名單狀態自動設定問卷為 `NOT_REQUIRED`
-- [ ] 信任圈管理與轉介功能 (Trust Circle & Referrals)
-    - [ ] 實作信任圈名單拉取 API
-    - [ ] 在 `TrustCircle.jsx` 實作「複製信任保母預約連結」功能
-- [ ] 驗證與同步 (Verification)
-    - [ ] `/persist-progress` 同步進度
-    - [ ] 交付 V31 業務優化 Walkthrough
+- `[ ]` 新增後端 `smoke` Profile 配置 (`application-smoke.yml`)
+- `[ ]` 修改 `SecurityConfig.java` 以支援測試環境免鑑權
+- `[ ]` 實作 `SmokeDataSeeder.java` 自動播種測試資料
+- `[ ]` 啟動後端並執行 Playwright 整合測試
+- `[ ]` 修復測試中發現的 DTO/Path 異常 (如有)

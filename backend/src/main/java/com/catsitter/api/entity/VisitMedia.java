@@ -30,6 +30,9 @@ public class VisitMedia extends AuditableEntity {
     @Column(name = "file_size")
     private Long fileSize;
 
+    @Column(length = 255)
+    private String caption;
+
     @Column(name = "is_deleted")
     private boolean isDeleted = false;
 
@@ -41,6 +44,8 @@ public class VisitMedia extends AuditableEntity {
     public void setVisit(Visit visit) { this.visit = visit; }
     public String getMediaUrl() { return mediaUrl; }
     public void setMediaUrl(String mediaUrl) { this.mediaUrl = mediaUrl; }
+    public String getCaption() { return caption; }
+    public void setCaption(String caption) { this.caption = caption; }
     public String getMediaType() { return mediaType; }
     public void setMediaType(String mediaType) { this.mediaType = mediaType; }
     public Long getFileSize() { return fileSize; }

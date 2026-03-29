@@ -2,15 +2,11 @@ package com.catsitter.api.entity;
 
 import com.catsitter.api.entity.common.AuditableEntity;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
 @Table(name = "subscription_plans")
-@Getter
-@Setter
 public class SubscriptionPlan extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -30,4 +26,17 @@ public class SubscriptionPlan extends AuditableEntity {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
+
+    public UUID getId() { return this.id; }
+    public void setId(UUID id) { this.id = id; }
+    public String getName() { return this.name; }
+    public void setName(String name) { this.name = name; }
+    public Integer getOrderLimit() { return this.orderLimit; }
+    public void setOrderLimit(Integer orderLimit) { this.orderLimit = orderLimit; }
+    public BigDecimal getMonthlyPrice() { return this.monthlyPrice; }
+    public void setMonthlyPrice(BigDecimal monthlyPrice) { this.monthlyPrice = monthlyPrice; }
+    public BigDecimal getYearlyPrice() { return this.yearlyPrice; }
+    public void setYearlyPrice(BigDecimal yearlyPrice) { this.yearlyPrice = yearlyPrice; }
+    public Boolean getIsActive() { return this.isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 }

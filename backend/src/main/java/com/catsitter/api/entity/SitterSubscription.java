@@ -2,15 +2,11 @@ package com.catsitter.api.entity;
 
 import com.catsitter.api.entity.common.AuditableEntity;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
 import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
 @Table(name = "sitter_subscriptions")
-@Getter
-@Setter
 public class SitterSubscription extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -32,4 +28,17 @@ public class SitterSubscription extends AuditableEntity {
 
     @Column(nullable = false, length = 50)
     private String status; // ACTIVE, EXPIRED, CANCELLED
+
+    public UUID getId() { return this.id; }
+    public void setId(UUID id) { this.id = id; }
+    public Profile getSitterProfile() { return this.sitterProfile; }
+    public void setSitterProfile(Profile sitterProfile) { this.sitterProfile = sitterProfile; }
+    public SubscriptionPlan getPlan() { return this.plan; }
+    public void setPlan(SubscriptionPlan plan) { this.plan = plan; }
+    public LocalDate getStartDate() { return this.startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+    public LocalDate getEndDate() { return this.endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+    public String getStatus() { return this.status; }
+    public void setStatus(String status) { this.status = status; }
 }

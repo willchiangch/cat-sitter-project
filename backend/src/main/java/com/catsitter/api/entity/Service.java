@@ -61,6 +61,7 @@ public class Service extends AuditableEntity {
   private Boolean isActive = true;
 
   public UUID getId() { return id; }
+  public void setId(UUID id) { this.id = id; }
   public Profile getSitterProfile() { return sitterProfile; }
   public void setSitterProfile(Profile sitterProfile) { this.sitterProfile = sitterProfile; }
   public String getName() { return name; }

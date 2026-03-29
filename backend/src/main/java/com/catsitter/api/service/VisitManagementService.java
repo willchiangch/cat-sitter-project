@@ -95,8 +95,8 @@ public class VisitManagementService {
                         media.getId(),
                         media.getMediaUrl(),
                         media.getCaption(),
-                        media.getMediaType() != null ? media.getMediaType().name() : "IMAGE",
-                        media.getCreatedAt()
+                        media.getMediaType() != null ? media.getMediaType() : "IMAGE",
+                        media.getCreatedAt() != null ? media.getCreatedAt().atOffset(ZoneOffset.UTC) : null
                 ))
                 .collect(Collectors.toList());
 
@@ -125,8 +125,8 @@ public class VisitManagementService {
         media.setVisit(visit);
         media.setMediaUrl(request.mediaUrl());
         media.setCaption(request.caption());
-        media.setMediaType(com.catsitter.api.entity.enums.MediaType.valueOf(request.mediaType() != null ? request.mediaType() : "IMAGE"));
-        media.setCreatedAt(OffsetDateTime.now());
+        media.setMediaType(request.mediaType() != null ? request.mediaType() : "IMAGE");
+        media.setCreatedAt(java.time.Instant.now());
         
         visitMediaRepository.save(media);
 

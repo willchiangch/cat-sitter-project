@@ -34,3 +34,6 @@
 - **開發規範**：
     - 保護 API：除 `/auth/register`、`/auth/login` 外，其餘 API 預設應受保護。
     - 獲取目前使用者：在 Controller 中使用 `@AuthenticationPrincipal Account account`。
+
+## 6. 其他規範
+- **組件風格**：專案目前傾向使用標準 Java (Getter/Setter/Standard Logger) 而非 Lombok，以確保所有環境（如 CI/CD 或不同代理環境）皆能穩定編譯。

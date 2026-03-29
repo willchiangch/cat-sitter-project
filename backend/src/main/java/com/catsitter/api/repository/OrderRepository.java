@@ -3,6 +3,7 @@ package com.catsitter.api.repository;
 import com.catsitter.api.entity.Order;
 import com.catsitter.api.entity.enums.OrderStatus;
 import com.catsitter.api.entity.enums.PaymentStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 

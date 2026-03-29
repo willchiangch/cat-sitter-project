@@ -102,6 +102,7 @@ public class Profile extends AuditableEntity {
   private String bankAccountHolder;
 
   public UUID getId() { return id; }
+  public void setId(UUID id) { this.id = id; }
   public String getSlug() { return slug; }
   public void setSlug(String slug) { this.slug = slug; }
   public Account getAccount() { return account; }

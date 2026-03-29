@@ -19,6 +19,10 @@
     - **夥伴轉介系統**：信任圈對接 `slug` 轉介連結。
 
 ### 2. 基礎設施健康度 [HEALTHY]
+- **Smoke Testing 環境穩定化 [NEW]**：
+    - 實作了 `smoke` profile 與具備自我清理功能的 `JdbcTemplate` Seeder。
+    - 解決了 CORS 與多身份 Mock Auth (Sophia vs James) 驗證問題。
+    - 整合 Playwright 驗證了兩大 Golden Paths (預約與報價)。
 - **後端架構**：Spring Boot 穩定支援多租戶隔離與業務擴充。
 - **前端架構**：Zustand 狀態機已與 `api.js` (Axios) 深度整合，所有核心頁面已實體化。
 - **儲存方案**：GCS 目錄結構已規模化（`visit_media`, `profiles`, `identity`）。

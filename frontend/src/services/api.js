@@ -107,4 +107,11 @@ export const sitterService = {
   delete: (id) => api.delete(`/sitters/me/services/${id}`).then(res => res.data)
 }
 
+export const questionnaireService = {
+  list: () => api.get('/sitters/me/questionnaires').then(res => res.data),
+  create: (data) => api.post('/sitters/me/questionnaires', data).then(res => res.data),
+  update: (id, data) => api.put(`/sitters/me/questionnaires/${id}`, data).then(res => res.data),
+  reorder: (questionIds) => api.patch('/sitters/me/questionnaires/reorder', { questionIds }).then(res => res.data)
+}
+
 export default api
