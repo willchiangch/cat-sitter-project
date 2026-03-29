@@ -10,9 +10,9 @@ const api = axios.create({
   }
 })
 
-// Request Interceptor: Add Auth Token (Current Mock Token)
+// Request Interceptor: Add Auth Token
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token') || 'test-jwt-token-v27'
+  const token = localStorage.getItem('token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -112,6 +112,17 @@ export const questionnaireService = {
   create: (data) => api.post('/sitters/me/questionnaires', data).then(res => res.data),
   update: (id, data) => api.put(`/sitters/me/questionnaires/${id}`, data).then(res => res.data),
   reorder: (questionIds) => api.patch('/sitters/me/questionnaires/reorder', { questionIds }).then(res => res.data)
+}
+
+// --- Auth Services ---
+export const authService = {
+  getMe: () => api.get('/auth/me').then(res => res.data),
+  switchRole: (roleType) => api.post('/auth/switch-role', { roleType }).then(res => res.data),
+  requestVerification: () => api.post('/auth/request-verification').then(res => res.data),
+  verifyEmail: (code) => api.post('/auth/verify-email', { code }).then(res => res.data),
+  
+  // Helpers for Social Login redirects
+  getOAuthUrl: (provider) => `${API_BASE_URL.replace('/api/v1', '')}/oauth2/authorization/${provider}`
 }
 
 export default api

@@ -49,6 +49,9 @@ public class Account extends AuditableEntity implements UserDetails {
   @Column(name = "last_active_role", length = 50)
   private com.catsitter.api.entity.enums.RoleType lastActiveRole;
 
+  @Column(name = "is_email_verified", nullable = false)
+  private boolean emailVerified = false;
+
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }
   public String getEmail() { return email; }
@@ -63,6 +66,8 @@ public class Account extends AuditableEntity implements UserDetails {
   public void setStatus(AccountStatus status) { this.status = status; }
   public com.catsitter.api.entity.enums.RoleType getLastActiveRole() { return lastActiveRole; }
   public void setLastActiveRole(com.catsitter.api.entity.enums.RoleType lastActiveRole) { this.lastActiveRole = lastActiveRole; }
+  public boolean isEmailVerified() { return emailVerified; }
+  public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {

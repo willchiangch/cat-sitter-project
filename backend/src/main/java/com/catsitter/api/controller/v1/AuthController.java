@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
   private final AuthService authService;
+  private final com.catsitter.api.service.EmailVerificationService emailVerificationService;
 
-  public AuthController(AuthService authService) {
+  public AuthController(AuthService authService, com.catsitter.api.service.EmailVerificationService emailVerificationService) {
     this.authService = authService;
+    this.emailVerificationService = emailVerificationService;
   }
 
   @PostMapping("/register")
@@ -39,5 +41,22 @@ public class AuthController {
           @AuthenticationPrincipal Account account,
           @Valid @RequestBody SwitchRoleRequest request) {
     return ResponseEntity.ok(authService.switchRole(account, request.roleType()));
+  }
+
+  @PostMapping("/request-verification")
+  public ResponseEntity<Void> requestVerification(@AuthenticationPrincipal Account account) {
+    emailVerificationService.sendVerificationCode(account);
+    return ResponseEntity.ok().build();
+  }
+
+  @PostMapping("/verify-email")
+  public ResponseEntity<AuthMeResponse> verifyEmail(
+          @AuthenticationPrincipal Account account,
+          @Valid @RequestBody VerifyEmailRequest request) {
+    boolean success = emailVerificationService.verifyCode(account, request.code());
+    if (success) {
+        return ResponseEntity.ok(authService.getMe(account));
+    }
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
   }
 }

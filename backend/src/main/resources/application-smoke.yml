@@ -14,11 +14,33 @@ spring:
   flyway:
     enabled: true
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:google-placeholder}
+            client-secret: ${GOOGLE_CLIENT_SECRET:secret-placeholder}
+            scope:
+              - email
+              - profile
+          facebook:
+            client-id: ${FACEBOOK_CLIENT_ID:fb-placeholder}
+            client-secret: ${FACEBOOK_CLIENT_SECRET:fb-secret-placeholder}
+            scope:
+              - email
+              - public_profile
+
 # Smoke testing specific settings
 application:
   jwt:
-    secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret-key: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 3600000
+    refresh-token:
+      expiration: 604800000
   storage:
     type: LOCAL
     local-path: ./storage/smoke-media
+  resend:
+    api-key: ${RESEND_API_KEY}
+    from-email: "WhiskerWatch <onboarding@resend.dev>"

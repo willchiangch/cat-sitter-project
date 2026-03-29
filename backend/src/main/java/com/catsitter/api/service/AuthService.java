@@ -102,6 +102,7 @@ public class AuthService {
             account.getId(),
             account.getEmail(),
             account.getLastActiveRole(),
+            account.isEmailVerified(),
             summaries
     );
   }

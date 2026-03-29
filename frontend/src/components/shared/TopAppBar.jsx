@@ -7,8 +7,8 @@ const TopAppBar = () => {
   const { mode, toggleMode } = useThemeStore()
 
   return (
-    <header className="fixed top-0 w-full z-50 glass-effect border-b border-outline-variant/10">
-      <div className="flex justify-between items-center px-6 h-16 max-w-md mx-auto">
+    <header className="w-full z-50 glass-effect border-b border-outline-variant/10">
+      <div className="flex justify-between items-center px-6 h-16 w-full">
         <div className="flex items-center gap-2">
           <span className={`material-symbols-outlined text-2xl ${mode === 'SITTER' ? 'text-primary' : 'text-secondary'}`}>
             pets

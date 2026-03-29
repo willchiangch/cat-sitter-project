@@ -32,6 +32,8 @@ public class SecurityConfig {
   private final JwtAuthenticationFilter jwtAuthFilter;
   private final MdcLogFilter mdcLogFilter;
   private final UserDetailsService userDetailsService;
+  private final com.catsitter.api.security.CustomOAuth2UserService customOAuth2UserService;
+  private final com.catsitter.api.security.OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
   private final com.catsitter.api.security.SmokeMockAuthFilter smokeMockAuthFilter;
 
   private final org.springframework.core.env.Environment env;
@@ -40,11 +42,15 @@ public class SecurityConfig {
                         MdcLogFilter mdcLogFilter,
                         UserDetailsService userDetailsService,
                         org.springframework.core.env.Environment env,
+                        com.catsitter.api.security.CustomOAuth2UserService customOAuth2UserService,
+                        com.catsitter.api.security.OAuth2AuthenticationSuccessHandler oauth2SuccessHandler,
                         @org.springframework.beans.factory.annotation.Autowired(required = false) com.catsitter.api.security.SmokeMockAuthFilter smokeMockAuthFilter) {
     this.jwtAuthFilter = jwtAuthFilter;
     this.mdcLogFilter = mdcLogFilter;
     this.userDetailsService = userDetailsService;
     this.env = env;
+    this.customOAuth2UserService = customOAuth2UserService;
+    this.oauth2SuccessHandler = oauth2SuccessHandler;
     this.smokeMockAuthFilter = smokeMockAuthFilter;
   }
 
@@ -74,6 +80,10 @@ public class SecurityConfig {
           response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"" + authException.getMessage() + "\"}");
       }))
       .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .oauth2Login(oauth2 -> oauth2
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                .successHandler(oauth2SuccessHandler)
+            )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(mdcLogFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from './layouts/MainLayout'
 import { useAuthStore } from './store/authStore'
 import Login from './pages/Auth/Login'
+import LoginCallback from './pages/Auth/LoginCallback'
 import Register from './pages/Auth/Register'
 import SitterDashboard from './pages/Sitter/Dashboard'
 import ClientDashboard from './pages/Client/Dashboard'
@@ -53,6 +54,7 @@ function App() {
 
         {/* Auth Flow */}
         <Route path="/login" element={<Login />} />
+        <Route path="/login/callback" element={<LoginCallback />} />
         <Route path="/register" element={<Register />} />
         
         {/* Fallback */}

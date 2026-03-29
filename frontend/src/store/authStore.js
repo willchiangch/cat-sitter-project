@@ -23,6 +23,10 @@ export const useAuthStore = create(
       updateUser: (user) => set((state) => ({ 
         user: { ...state.user, ...user } 
       })),
+      
+      setEmailVerified: (verified) => set((state) => ({
+        user: state.user ? { ...state.user, emailVerified: verified } : null
+      })),
     }),
     {
       name: 'whiskerwatch-auth-storage',

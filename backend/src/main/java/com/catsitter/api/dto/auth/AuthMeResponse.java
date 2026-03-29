@@ -8,6 +8,7 @@ public record AuthMeResponse(
     UUID accountId,
     String email,
     RoleType currentRole,
+    boolean emailVerified,
     List<ProfileSummary> profiles
 ) {
     public record ProfileSummary(
