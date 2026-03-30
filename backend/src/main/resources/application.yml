@@ -25,8 +25,9 @@ application:
     expiration: 3600000 # 1 hour
     refresh-token:
       expiration: 604800000 # 7 days
-  email:
-    resend-api-key: ${RESEND_API_KEY:default_if_not_set}
+  resend:
+    api-key: ${RESEND_API_KEY:re_default_key}
+    from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
   subscription:
     notification-days: ${SUBSCRIPTION_NOTIFICATION_DAYS:7}
   order:

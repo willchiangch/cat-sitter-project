@@ -35,6 +35,9 @@ public class AuthControllerTest {
   private ProfileRepository profileRepository;
 
   @Autowired
+  private com.catsitter.api.security.JwtService jwtService;
+
+  @Autowired
   private ObjectMapper objectMapper;
 
   @BeforeEach
@@ -146,5 +149,66 @@ public class AuthControllerTest {
   void shouldReturn401WhenAccessingMeWithoutToken() throws Exception {
     mockMvc.perform(get("/api/v1/auth/me"))
             .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void shouldCompleteOnboarding() throws Exception {
+    // 1. Create an account manually (simulating social login without profiles)
+    com.catsitter.api.entity.Account account = new com.catsitter.api.entity.Account();
+    account.setEmail("onboard@example.com");
+    account.setPasswordHash("hashed");
+    account.setOauthProvider(com.catsitter.api.entity.enums.OAuthProvider.GOOGLE);
+    account.setStatus(com.catsitter.api.entity.enums.AccountStatus.ACTIVE);
+    account = accountRepository.save(account);
+
+    String jwtToken = jwtService.generateToken(account);
+
+    // 2. Complete onboarding
+    com.catsitter.api.dto.auth.CompleteOnboardingRequest completeReq = new com.catsitter.api.dto.auth.CompleteOnboardingRequest(
+            RoleType.SITTER,
+            "Unique Onboard Name"
+    );
+
+    mockMvc.perform(post("/api/v1/auth/complete-onboarding")
+                    .header("Authorization", "Bearer " + jwtToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(completeReq)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.currentRole").value("SITTER"))
+            .andExpect(jsonPath("$.profiles[0].name").value("Unique Onboard Name"));
+  }
+
+  @Test
+  void shouldFailOnDuplicateDisplayName() throws Exception {
+    // 1. Create an existing user with a name
+    com.catsitter.api.entity.Account acc1 = new com.catsitter.api.entity.Account();
+    acc1.setEmail("ex1@ex.com");
+    acc1.setOauthProvider(com.catsitter.api.entity.enums.OAuthProvider.LOCAL);
+    acc1.setStatus(com.catsitter.api.entity.enums.AccountStatus.ACTIVE);
+    acc1 = accountRepository.save(acc1);
+
+    com.catsitter.api.entity.Profile p1 = new com.catsitter.api.entity.Profile();
+    p1.setAccount(acc1);
+    p1.setName("DuplicateName");
+    p1.setRoleType(RoleType.CLIENT);
+    profileRepository.save(p1);
+
+    // 2. New user trying same name during onboarding
+    com.catsitter.api.entity.Account acc2 = new com.catsitter.api.entity.Account();
+    acc2.setEmail("new@ex.com");
+    acc2.setOauthProvider(com.catsitter.api.entity.enums.OAuthProvider.LOCAL);
+    acc2.setStatus(com.catsitter.api.entity.enums.AccountStatus.ACTIVE);
+    acc2 = accountRepository.save(acc2);
+
+    String jwtToken = jwtService.generateToken(acc2);
+
+    com.catsitter.api.dto.auth.CompleteOnboardingRequest completeReq = new com.catsitter.api.dto.auth.CompleteOnboardingRequest(RoleType.CLIENT, "DuplicateName");
+
+    mockMvc.perform(post("/api/v1/auth/complete-onboarding")
+                    .header("Authorization", "Bearer " + jwtToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(completeReq)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Display name is already taken"));
   }
 }

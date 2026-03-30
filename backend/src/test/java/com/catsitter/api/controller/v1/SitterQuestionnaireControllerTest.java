@@ -188,4 +188,20 @@ class SitterQuestionnaireControllerTest {
         assert(updatedQ1.getSortOrder() == 1);
         assert(updatedQ2.getSortOrder() == 0);
     }
+
+    @Test
+    void shouldDeleteQuestion() throws Exception {
+        SitterQuestion q = new SitterQuestion();
+        q.setSitterProfile(sitterProfile);
+        q.setTargetPetType(TargetPetType.CAT);
+        q.setQuestionText("To be deleted");
+        q.setSortOrder(1);
+        q = questionRepository.save(q);
+
+        mockMvc.perform(delete("/api/v1/sitters/me/questionnaires/" + q.getId())
+                        .header("Authorization", sitterToken))
+                .andExpect(status().isNoContent());
+
+        assert(questionRepository.findById(q.getId()).isEmpty());
+    }
 }

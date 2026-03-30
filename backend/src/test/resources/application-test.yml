@@ -20,10 +20,36 @@ spring:
   flyway:
     enabled: false
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: mock-google-id
+            client-secret: mock-google-secret
+            scope: openid,profile,email
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+
 application:
   jwt:
     secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
     expiration: 3600000
     refresh-token:
       expiration: 604800000
+  resend:
+    api-key: mock_key
+    from-email: test@example.com
+  payuni:
+    mer-id: mock_id
+    hash-key: mock_key
+    hash-iv: mock_iv
+    api-url: http://localhost:8080
+  google:
+    client-id: mock_id
+    client-secret: mock_secret
+    redirect-uri: http://localhost:8081/callback
 

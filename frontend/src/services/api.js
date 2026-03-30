@@ -111,7 +111,15 @@ export const questionnaireService = {
   list: () => api.get('/sitters/me/questionnaires').then(res => res.data),
   create: (data) => api.post('/sitters/me/questionnaires', data).then(res => res.data),
   update: (id, data) => api.put(`/sitters/me/questionnaires/${id}`, data).then(res => res.data),
+  delete: (id) => api.delete(`/sitters/me/questionnaires/${id}`).then(res => res.data),
   reorder: (questionIds) => api.patch('/sitters/me/questionnaires/reorder', { questionIds }).then(res => res.data)
+}
+
+export const calendarService = {
+  getStatus: () => api.get('/sitters/me/calendar/status').then(res => res.data),
+  getAuthUrl: () => api.get('/sitters/me/calendar/auth-url').then(res => res.data),
+  resetToken: () => api.post('/sitters/me/calendar/reset-token').then(res => res.data),
+  disconnect: () => api.delete('/sitters/me/calendar').then(res => res.data)
 }
 
 // --- Auth Services ---
@@ -120,6 +128,7 @@ export const authService = {
   switchRole: (roleType) => api.post('/auth/switch-role', { roleType }).then(res => res.data),
   requestVerification: () => api.post('/auth/request-verification').then(res => res.data),
   verifyEmail: (code) => api.post('/auth/verify-email', { code }).then(res => res.data),
+  completeOnboarding: (data) => api.post('/auth/complete-onboarding', data).then(res => res.data),
   
   // Helpers for Social Login redirects
   getOAuthUrl: (provider) => `${API_BASE_URL.replace('/api/v1', '')}/oauth2/authorization/${provider}`

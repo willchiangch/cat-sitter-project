@@ -1,73 +1,60 @@
-# 社群登入 (Social Login) 實作計畫
+# PWA 架構升級計畫 (Progressive Web App Implementation)
 
-本計畫旨在為 WhiskerWatch 導入 Google、Apple 與 Facebook/Meta 的社群登入功能，提升使用者體驗並確保帳號安全性與聯絡有效性。
+> [!WARNING]
+> 經盤點目前的系統設定 (`index.html`, `vite.config.js`, `public/`)，**WhiskerWatch 目前尚未具備任何 PWA 的核心要素**。
+> 為了實現「將網站安裝至手機桌面，並帶來接近原生的 App 體驗」，我們需要全面引入 PWA Manifest Generator 常規的最佳實踐。
 
-## 使用者評論與決策 (User Review Required)
+## User Review Required
 
-> [!IMPORTANT]
-> **身分與通訊解耦策略**：社群登入 (OAuth) 僅用於帳號鑑定身分。後續的 **Email 驗證** 將作為獨立流程，主要用於確保雙方聯絡通透，不與註冊流程綁定，避免在第一步流失使用者。
+以下是為達到「優質 PWA 設計標準」所需進行的技術調整，在我們開始實作前，請問是否同意按照此清單進行？（另外請確認：Logo Icon 是否目前已有，或者我可以使用暫時的 SVG 代替？）
 
-> [!TIP]
-> **Email 為唯一識別**：若不同 Provider (Google/FB) 使用相同 Email，系統將嘗試進行帳號合併，保留同一組使用者 Profiles。
+## Proposed Changes
 
-## 擬議變更 (Proposed Changes)
+要讓這個專案轉型成符合標準的高級 PWA，我們需要在以下四個層面進行設計調整：
 
-### 1. 後端基礎設施 (Backend Infrastructure)
+### 1. 核心設定檔與建置生態 (Build Ecosystem)
 
-#### [MODIFY] [pom.xml](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/pom.xml)
-- 新增 `spring-boot-starter-oauth2-client` 依賴。
+我們需要引入業界標準的 `vite-plugin-pwa` 套件，讓 Vite 自動幫我們化繁為簡（自動壓制圖片、自動產生 Service Worker）。
 
-#### [MODIFY] [OAuthProvider.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/entity/enums/OAuthProvider.java)
-- 新增 `FACEBOOK` 列舉值。
+#### [MODIFY] `frontend/vite.config.js`
+- 引入並設定 `VitePWA` 插件。
+- 設定 `registerType: 'autoUpdate'`，讓新版本的網站能在背景自動更新。
+- 定義 `manifest` 的核心 JSON 設定（App 名稱、深/淺色主題顏色切換、顯示模式 `standalone` 等）。
 
-#### [NEW] `CustomOAuth2UserService.java`
-- 繼承 `DefaultOAuth2UserService`。
-- 核心邏輯：從 OAuth2User 中提取 Email 與 Provider ID，在資料庫中搜尋或建立 `Account`。
+### 2. PWA Manifest 與圖標資產 (Assets & Metadata)
 
-#### [NEW] `OAuth2AuthenticationSuccessHandler.java`
-- 繼承 `SimpleUrlAuthenticationSuccessHandler`。
-- 登入成功後：
-    1. 生成 JWT Token。
-    2. 將 Token 以 Cookie 或 Query Parameter 方式傳回前端（例如：`/login/callback?token=xxx`）。
+為了讓安裝至手機桌面時看起來足夠「高級」與原生：
 
-#### [MODIFY] [SecurityConfig.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/config/SecurityConfig.java)
-- 配置 `.oauth2Login()`。
-- 設定 `userInfoEndpoint` 指向 `CustomOAuth2UserService`。
-- 設定 `successHandler` 指向 `OAuth2AuthenticationSuccessHandler`。
+#### [MODIFY] `frontend/index.html`
+在 `<head>` 中必須補充以下原生設計所需的 Meta Tags：
+- `theme-color`：對齊我們目前的設計系統顏色 (Surface)。
+- `apple-touch-icon`：針對 iOS 系統的專屬安裝圖示設定。
+- `<meta name="apple-mobile-web-app-capable" content="yes">`：強制隱藏 Safari 的上下導覽列，達到真正的全螢幕沉浸感體驗。
 
-### 2. 前端開發 (Frontend Development)
+#### [NEW] `frontend/public/icons/`
+- PWA 要求至少提供 `192x192` 與 `512x512` 兩種尺寸的圖標以支援 `maskable` (適應性圓角)。
+- （實作時會先建立一組暫時向量圖標佔位）
 
-#### [NEW] `LoginPage.jsx`
-- 建立現代化的登入頁面，包含：
-    - 「使用 Google 繼續」按鈕 (Brand Colors)。
-    - 「使用 Facebook 繼續」按鈕。
-    - 「使用 Apple 繼續」按鈕。
-- 串接後端 `/oauth2/authorization/{provider}` 端點。
+### 3. Service Worker 快取與離線體驗 (Offline Experience)
 
-#### [NEW] `LoginCallback.jsx`
-- 處理登入成功後的跳轉。
-- 從 URL 提取 JWT 並存入儲存空間。
-- **Conditional Redirect**：若使用者尚未完成「通訊 Email 驗證」，則導向一個輕量化的補完頁面或在 Dashboard 顯示警示。
+網路不穩或是切換至飛航模式時，PWA 不能直接顯示小恐龍 (Chrome Dino)。
 
-#### [NEW] `CommunicationVerify.jsx`
-- 獨立的 Email 驗證 UI。
-- 提供「發送驗證信」與「輸入驗證碼/點擊連結」的互動。
+#### [MODIFY] `frontend/vite.config.js`
+- 在 PWA plugin 設定中配置 `workbox` 策略。
+- 針對 API 請求（如 `/api/v1/profiles`）加入 Network-First 策略。
+- 針對靜態資源（CSS、字體、圖片）加入 Cache-First 策略以大幅改善載入效能。
+
+### 4. 註冊提示與安裝 UI (Prompt UI)
+
+PWA 大多是被動觸發安裝。但在高級應用中，我們會希望在適當的時候引導使用者主動下載（A2HS: Add To Home Screen）。
+
+#### [NEW] `frontend/src/components/pwa/InstallPrompt.jsx`
+- （可選階段）在登入後 (Dashboard) 的某個區域，出現優雅的 Toast 或按鈕：「將管家加入主畫面，享受更快體驗」，並攔截 `beforeinstallprompt` 事件。
 
 ---
 
-## 開放問題 (Open Questions)
+## Verification Plan
 
-- **Apple ID 實作**：Apple Login 通常需要額外配置私鑰 (.p8) 與驗證網域。第一階段優先完成 Google/FB，穩定後再獨立處理 Apple。
-- **Resend 整合**：已確認使用 **Resend API Key**。我們將透過後端 Service 直接呼叫 Resend REST API，發送驗證碼/連結給使用者，不依賴傳統 JavaMailSender。
-
-## 驗證計畫 (Verification Plan)
-
-### 自動化測試
-- 使用 `MockMvc` 測試 OAuth2 登入成功後的 JWT 簽發邏輯。
-- 確認不同 Provider 的 Email 衝突處理。
-
-### 手動驗證
-1. 點擊前端「使用 Google 登入」。
-2. 完成 Google 授權。
-3. 確認正確重導回 Dashboard 且登入身分生效。
-4. 檢查資料庫 `accounts` 表是否正確儲存 `oauth_provider` 與 `oauth_id`。
+### Automated Tests
+1. **Lighthouse PWA 審查**：啟動 `npm run build`，並利用 Chrome Lighthouse 功能，確保 PWA 分數達到 100 分。
+2. **服務器部署檢查**：啟動 Live Server，使用 Chrome 開發人員工具 (`Application` > `Manifest` & `Service Workers`) 確保 Service worker 出現 `activated and is running` 的綠燈狀態，並且 Installable 狀態被正確觸發。

@@ -36,16 +36,22 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         
-        if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            String mockUser = request.getHeader("X-Smoke-Auth");
+        String mockUser = request.getHeader("X-Smoke-Auth");
+        if (SecurityContextHolder.getContext().getAuthentication() == null && mockUser != null) {
             UUID accountId;
             
             if ("JAMES".equalsIgnoreCase(mockUser)) {
                 // James Wilson (Client)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000002");
-            } else {
-                // Default to Sitter 1 (Sophia)
+            } else if ("NEWBIE".equalsIgnoreCase(mockUser)) {
+                // New User (No profiles yet)
+                accountId = UUID.fromString("efefefef-0000-0000-0000-000000000003");
+            } else if ("SITTER".equalsIgnoreCase(mockUser)) {
+                // Sophia (Sitter)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000001");
+            } else {
+                filterChain.doFilter(request, response);
+                return;
             }
 
             Optional<Account> accountOpt = accountRepository.findById(accountId);

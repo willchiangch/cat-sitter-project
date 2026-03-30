@@ -31,8 +31,12 @@ const LoginCallback = () => {
         // Update store
         setAuth(user, token)
         
-        // Redirect to main page
-        navigate('/')
+        // Redirect logic: if role is missing, go to onboarding
+        if (!user.lastActiveRole) {
+          navigate('/onboarding')
+        } else {
+          navigate('/')
+        }
       } catch (err) {
         console.error('Callback error:', err)
         setError('Verification failed. Please try again.')

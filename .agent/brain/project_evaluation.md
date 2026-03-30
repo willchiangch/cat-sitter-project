@@ -1,47 +1,48 @@
-# WhiskerWatch: 專案現況評估與健康度報告 (V31)
+# WhiskerWatch: 專案現況評估與健康度報告 (V10 / 2026-03-30)
 
-本報告總結了截至 **V31 (2026-03-29)** 的專案現況。目前專案已從「高保真 UI」全面轉向「高擬真業務邏輯實體化 (Realization)」，核心數據閉環已初步成型。
-
----
-
-## 🟢 目前已完成進度 (Current Status)
-
-### 1. 核心實體化模組 [DONE]
-- **V29：服務日誌 (Service Log Details)**：
-    - 實作了服務期間的媒體持久化 (Moments)，對接 GCS 上傳。
-    - 照護報告實體化，不再使用 Mock 數據。
-- **V30：身份認證與專業標籤 (Identity & Labels)**：
-    - 完成保母 KYC 實體對接，支援證件上傳、身份驗證標章顯示、專業標籤編輯。
-    - 財務層面預留了選填的撥款銀行欄位。
-- **V31：服務、信任與流程優化 (Services & Whitelist)**：
-    - **服務方案 CRUD**：保母可管理定價、時長與方案狀態。
-    - **常客精準經營**：建立「白名單」機制。標記常客為 `skipQuestionnaire` 時，預約流程會自動優化。
-    - **夥伴轉介系統**：信任圈對接 `slug` 轉介連結。
-
-### 2. 基礎設施健康度 [HEALTHY]
-- **Smoke Testing 環境穩定化 [NEW]**：
-    - 實作了 `smoke` profile 與具備自我清理功能的 `JdbcTemplate` Seeder。
-    - 解決了 CORS 與多身份 Mock Auth (Sophia vs James) 驗證問題。
-    - 整合 Playwright 驗證了兩大 Golden Paths (預約與報價)。
-- **後端架構**：Spring Boot 穩定支援多租戶隔離與業務擴充。
-- **前端架構**：Zustand 狀態機已與 `api.js` (Axios) 深度整合，所有核心頁面已實體化。
-- **儲存方案**：GCS 目錄結構已規模化（`visit_media`, `profiles`, `identity`）。
+本報告總結了完成 **混合測試架構 (Vitest + Playwright POM)** 與 **PWA 全面升級** 後的專案現況，並點出邁向 Production-Ready（正式上線準備）前亟需調整的重點項目。
 
 ---
 
-## 🚀 剩餘開發優先級 (Prioritized Roadmap)
+## 🟢 系統亮點與已防禦範圍 (Current Strengths)
 
-### 優先級一：問卷編輯器實體化 (Sitter Questionnaire Editor)
-目前後端已支援題目管理，但前端尚未有 UI 讓保母自定義「入站問卷」題目。
+### 1. 穩定且極速的開發體驗
+- **Hybrid Testing 防護網**：成功分離了高成本的跨角色 E2E (Playwright) 與低成本的元件邏輯測試 (Vitest)，CI/CD 執行時間大幅縮短，Flaky Tests 降至最低。
+- **PWA 桌面級體驗**：iOS/Android 已全部支援沉浸式安裝，並整合了 Workbox 網路降級快取策略 (Network-First & Cache-First)。
 
-### 優先級二：通知中心與推送邏輯 (Push & Global Notifications)
-實作 `Notification` 實體。當服務日誌更新、訂單狀態變更或夥伴轉介時，觸發系統級提醒。
-
-### 優先級三：金流與撥款閉環 (Financial Payouts)
-目前已完成「統計」與「撥款資訊錄入」，下一步是實體化「申請撥款」與「提現狀態流水」。
+### 2. 核心業務邏輯的成熟度
+- 雙軌行事曆同步、多檔案媒體持久化、VIP 熟客免問卷白名單、雙重角色帳號體系等都已經具備後端實體化 (Realization) 支援。
 
 ---
 
-## ⚠️ 風險評估 (Risk Assessment)
-- **i18n 覆蓋率**：隨著 V31 業務邏輯增加，需確保所有實體化後的動態文字（如錯誤訊息、狀態標籤）都有正確的語系對應。
-- **認證文件隱私**：身分證件存放在 GCS 的 `identity/` 目錄，需確保後續有權限檢核機制。
+## 🏗️ 亟需調整的工程架構 (Architectural Adjustments)
+
+作為一個接案與媒合性質的系統，目前在架構上還有幾個容易產生技術債或體驗扣分的「斷層」：
+
+### 1. API 契約管理缺失 (缺少 OpenAPI / Swagger 自動生成)
+- **現狀**：前端的 `services/api.js` 是純手寫的。當後端 Spring Boot 更改 DTO 屬性名稱時，前端在執行時才會報錯（幸好我們剛剛掛了單元測試）。
+- **調整建議**：導入 `openapi-spec-generation` 技能，讓 Spring Boot 啟動時自動產生 YAML，直接編譯出 Frontend 定義檔，達到前後端 API 型別 100% 同步。
+
+### 2. 靜態資源的隱私與安全漏洞 (GCS Presigned URLs)
+- **現狀**：目前保母上傳的「身分證正反面 (`identity/`)」與「飼主家長照片」也是採用公開讀取的 GCS URL 模式。
+- **調整建議**：高度隱私資料必須採用 **Pre-Signed URL (預先簽章網址)**，並限制 5~15 分鐘的時效。需要後端修改 Upload Service 的產出邏輯，前端則配合時效刷新顯示。
+
+### 3. CI/CD 管線未掛載最新防線 (Pipeline Gaps)
+- **現狀**：我們剛剛辛苦建置了 Vitest 跟 Playwright POM，但 `.github/workflows` 若沒有更新，PR 就不會被攔截。
+- **調整建議**：更新 GitHub Actions，強制要求合併 `main` 前必須 `npm run test` 並由 Playwright 進行檢查。
+
+---
+
+## 🚀 亟需補齊的核心業務功能 (Feature Adjustments)
+
+除了工程架構，在產品體驗上，PWA 需要這幾個區塊打通才能顯現威力：
+
+### 1. 實時通知系統 (Real-time Notifications / WebSockets)
+- **痛點**：保母在後台點選「加成報價 200 元」後，飼主目前必須手動 F5 重新整理頁面才能看到訂單變化，這在 PWA 體驗上非常扣分。
+- **解法**：導入 SSE (Server-Sent Events) 或 Spring WebSockets + 前端 Zustand Listener，實現「報價更改 -> 飼主手機立即彈出 Toast」。
+
+### 2. 動態問卷編輯器 (Sitter Questionnaire Editor)
+- **痛點**：後端 Schema 已經準備好讓保母自定義入站問卷。但前端欠缺一個「題目拖拉排序與選項編輯」的後台 UI。
+
+### 3. 提現與金流閉環 (Financial Payouts)
+- **痛點**：訂單走完 PAYUNi 刷卡後，目前只做到了記帳。保母目前還缺少「申請撥款 (Withdrawal Request)」的流水帳介面來正式把錢領出來。

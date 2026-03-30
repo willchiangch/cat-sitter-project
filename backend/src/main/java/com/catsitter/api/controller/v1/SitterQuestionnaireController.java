@@ -52,4 +52,12 @@ public class SitterQuestionnaireController {
         questionnaireService.reorderQuestions(account, request.questionIds());
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/{questionId}")
+    public ResponseEntity<Void> deleteQuestion(
+            @AuthenticationPrincipal Account account,
+            @PathVariable UUID questionId) {
+        questionnaireService.deleteQuestion(account, questionId);
+        return ResponseEntity.noContent().build();
+    }
 }

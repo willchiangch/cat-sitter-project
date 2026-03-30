@@ -43,6 +43,13 @@ public class AuthController {
     return ResponseEntity.ok(authService.switchRole(account, request.roleType()));
   }
 
+  @PostMapping("/complete-onboarding")
+  public ResponseEntity<AuthMeResponse> completeOnboarding(
+          @AuthenticationPrincipal Account account,
+          @Valid @RequestBody CompleteOnboardingRequest request) {
+    return ResponseEntity.ok(authService.completeOnboarding(account, request));
+  }
+
   @PostMapping("/request-verification")
   public ResponseEntity<Void> requestVerification(@AuthenticationPrincipal Account account) {
     emailVerificationService.sendVerificationCode(account);

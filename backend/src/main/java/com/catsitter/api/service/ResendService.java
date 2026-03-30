@@ -16,7 +16,7 @@ public class ResendService {
 
     private static final Logger logger = LoggerFactory.getLogger(ResendService.class);
 
-    @Value("${application.email.resend-api-key}")
+    @Value("${application.resend.api-key}")
     private String apiKey;
 
     private final RestTemplate restTemplate = new RestTemplate();

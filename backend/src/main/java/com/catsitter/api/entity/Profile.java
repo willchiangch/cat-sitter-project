@@ -34,7 +34,7 @@ public class Profile extends AuditableEntity {
   private RoleType roleType;
 
   @NotBlank
-  @Column(nullable = false, length = 255)
+  @Column(nullable = false, unique = true, length = 255)
   private String name;
 
   @Column(name = "avatar_url", length = 1024)

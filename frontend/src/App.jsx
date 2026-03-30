@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout'
 import { useAuthStore } from './store/authStore'
 import Login from './pages/Auth/Login'
 import LoginCallback from './pages/Auth/LoginCallback'
+import Onboarding from './pages/Auth/Onboarding'
 import Register from './pages/Auth/Register'
 import SitterDashboard from './pages/Sitter/Dashboard'
 import ClientDashboard from './pages/Client/Dashboard'
@@ -21,12 +22,29 @@ import Pets from './pages/Client/Pets'
 import ServicePackages from './pages/Sitter/ServicePackages'
 import QuestionnaireEditor from './pages/Sitter/QuestionnaireEditor'
 import ClientOrders from './pages/Client/Orders'
+import CalendarSyncResult from './pages/Sitter/CalendarSyncResult'
+import { useLocation } from 'react-router-dom'
+
+const OnboardingRedirect = () => {
+  const { pathname } = useLocation()
+  const publicPaths = ['/onboarding', '/login', '/register', '/login/callback']
+  
+  if (!publicPaths.includes(pathname)) {
+    return <Navigate to="/onboarding" replace />
+  }
+  return null
+}
 
 function App() {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
+
+  // Onboarding awareness: if authenticated but no profiles, redirect to onboarding
+  // except if already on onboarding/login/register paths
+  const needsOnboarding = isAuthenticated && (!user?.profiles || user.profiles.length === 0)
 
   return (
     <BrowserRouter>
+      {needsOnboarding && <OnboardingRedirect />}
       <Routes>
         {/* Main Application Flow */}
         <Route path="/" element={<MainLayout />}>
@@ -50,12 +68,14 @@ function App() {
           <Route path="finance" element={<Finance />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="sitter/calendar/callback" element={<CalendarSyncResult />} />
         </Route>
 
         {/* Auth Flow */}
         <Route path="/login" element={<Login />} />
         <Route path="/login/callback" element={<LoginCallback />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/onboarding" element={<Onboarding />} />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

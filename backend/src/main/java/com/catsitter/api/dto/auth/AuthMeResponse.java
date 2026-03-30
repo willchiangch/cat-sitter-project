@@ -7,7 +7,7 @@ import java.util.UUID;
 public record AuthMeResponse(
     UUID accountId,
     String email,
-    RoleType currentRole,
+    RoleType lastActiveRole,
     boolean emailVerified,
     List<ProfileSummary> profiles
 ) {

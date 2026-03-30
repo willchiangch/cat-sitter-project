@@ -118,7 +118,10 @@ public class CalendarSyncController {
         
         calendarConfigRepository.save(config);
 
-        return ResponseEntity.ok("Successfully linked Google Calendar! All future confirmed bookings will be synced.");
+        // Redirect back to frontend
+        return ResponseEntity.status(302)
+                .header("Location", "/sitter/calendar/callback?success=true")
+                .build();
     }
 
     /**
@@ -142,5 +145,24 @@ public class CalendarSyncController {
             "hasIcalToken", config.getIcalToken() != null,
             "feedUrl", config.getIcalToken() != null ? "/api/v1/calendar/feed/" + config.getIcalToken() + ".ics" : null
         ));
+    }
+
+    /**
+     * Disconnect Google Calendar sync.
+     */
+    @DeleteMapping("/sitters/me/calendar")
+    public ResponseEntity<Void> disconnectCalendar(@AuthenticationPrincipal Account account) {
+        Profile sitterProfile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                .orElseThrow(() -> new RuntimeException("Sitter profile not found."));
+
+        calendarConfigRepository.findBySitterProfileId(sitterProfile.getId())
+                .ifPresent(config -> {
+                    config.setProvider("NONE");
+                    config.setAccessToken("NONE");
+                    config.setRefreshToken(null);
+                    calendarConfigRepository.save(config);
+                });
+
+        return ResponseEntity.noContent().build();
     }
 }

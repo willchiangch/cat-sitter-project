@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
-import { profileService, storageService } from '../../services/api'
+import { profileService, storageService, calendarService } from '../../services/api'
 
 const Profile = () => {
   const { t } = useTranslation()
@@ -12,17 +12,21 @@ const Profile = () => {
   const [isUploading, setIsUploading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [sitterData, setSitterData] = useState(null)
-  const [activeTab, setActiveTab] = useState('account')
-
+  const [calendarStatus, setCalendarStatus] = useState(null)
+  
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       if (user?.role === 'ROLE_SITTER') {
         try {
           setIsLoading(true)
-          const data = await profileService.getSitterMe()
-          setSitterData(data)
+          const [profile, calendar] = await Promise.all([
+            profileService.getSitterMe(),
+            calendarService.getStatus()
+          ])
+          setSitterData(profile)
+          setCalendarStatus(calendar)
         } catch (error) {
-          console.error('Failed to fetch sitter profile:', error)
+          console.error('Failed to fetch sitter data:', error)
         } finally {
           setIsLoading(false)
         }
@@ -30,7 +34,7 @@ const Profile = () => {
         setIsLoading(false)
       }
     }
-    fetchProfile()
+    fetchData()
   }, [user])
 
   const handleUpdate = async (field, value) => {
@@ -60,6 +64,35 @@ const Profile = () => {
     }
   }
 
+  const handleConnectCalendar = async () => {
+    try {
+      const { url } = await calendarService.getAuthUrl()
+      window.location.href = url
+    } catch (e) {
+      console.error('Failed to get auth url:', e)
+    }
+  }
+
+  const handleDisconnectCalendar = async () => {
+    if (!window.confirm('確定要斷開 Google 行事曆連結嗎？')) return
+    try {
+      await calendarService.disconnect()
+      const status = await calendarService.getStatus()
+      setCalendarStatus(status)
+    } catch (e) {
+      console.error('Disconnect failed:', e)
+    }
+  }
+
+  const handleResetIcal = async () => {
+    try {
+      const status = await calendarService.resetToken()
+      setCalendarStatus(prev => ({ ...prev, ...status, hasIcalToken: true }))
+    } catch (e) {
+      console.error('Reset token failed:', e)
+    }
+  }
+
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -83,10 +116,10 @@ const Profile = () => {
     </div>
   )
 
-  const SettingsItem = ({ icon, label, value, onClick, color = "text-on-surface" }) => (
+  const SettingsItem = ({ icon, label, value, onClick, color = "text-on-surface", description }) => (
     <button 
       onClick={onClick}
-      className="w-full px-6 py-5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors border-b border-outline-variant/5 last:border-0"
+      className={`w-full px-6 py-5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors border-b border-outline-variant/5 last:border-0 ${!onClick ? 'cursor-default group' : ''}`}
     >
       <div className="flex items-center gap-4">
         <div className={`w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center ${color === "text-error" ? "text-error" : "text-primary"}`}>
@@ -95,9 +128,10 @@ const Profile = () => {
         <div className="text-left">
           <p className="text-xs font-bold opacity-40 uppercase tracking-widest leading-none mb-1.5">{label}</p>
           <p className={`text-sm font-extrabold ${color}`}>{value}</p>
+          {description && <p className="text-[10px] opacity-30 font-bold mt-1 max-w-[200px] truncate">{description}</p>}
         </div>
       </div>
-      <span className="material-symbols-outlined text-lg opacity-20">chevron_right</span>
+      {onClick && <span className="material-symbols-outlined text-lg opacity-20 group-hover:opacity-100 transition-opacity">chevron_right</span>}
     </button>
   )
 
@@ -131,7 +165,7 @@ const Profile = () => {
         </div>
 
         <div>
-          <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.name || 'James Wilson'}</h2>
+          <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.name}</h2>
           <div className="mt-2 flex items-center justify-center gap-2">
             <span className="px-3 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full border border-primary/20 uppercase tracking-widest">
               {user?.role === 'ROLE_SITTER' ? 'Professional Sitter' : 'Elite Owner'}
@@ -152,14 +186,14 @@ const Profile = () => {
           </div>
           <div className="relative z-10 space-y-6">
             <div className="space-y-1">
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-60">Account Status</p>
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-60">帳戶方案</p>
               <h3 className="text-4xl font-extrabold font-headline tracking-tighter italic">Professional.</h3>
             </div>
             <p className="text-xs font-medium opacity-80 leading-relaxed max-w-[200px]">
-              {t('profile.saas_description', 'You are currently on the Professional Tier ($899). Enjoy full billing sovereignty and AI reports.')}
+              您目前使用的是 專業版方案 ($899/月)。享受全自動日曆同步與專業報表。
             </p>
             <button className="flex items-center gap-2 px-5 py-2.5 bg-surface text-on-surface rounded-full text-[11px] font-bold hover:scale-105 active:scale-95 transition-all">
-              Manage Subscription
+              管理訂閱
               <span className="material-symbols-outlined text-base">north_east</span>
             </button>
           </div>
@@ -169,32 +203,66 @@ const Profile = () => {
         <div className="space-y-8">
           {user?.role === 'ROLE_SITTER' && sitterData && (
             <>
-              {/* Identity Verification Section (V30) */}
-              <SettingsSection title="Identity Verification">
+              {/* Calendar Sync (New) */}
+              <SettingsSection title="行事曆同步 (Beta)">
+                <SettingsItem 
+                  icon="calendar_apps" 
+                  label="Google 行事曆狀態" 
+                  value={calendarStatus?.linked ? "服務同步中" : "未連結"}
+                  description={calendarStatus?.linked ? "所有確認訂單將自動同步至 Google" : "同步您的預約排程至私人日曆"}
+                  color={calendarStatus?.linked ? "text-primary" : "text-on-surface-variant/40"}
+                  onClick={calendarStatus?.linked ? handleDisconnectCalendar : handleConnectCalendar}
+                />
+                <SettingsItem 
+                  icon="rss_feed" 
+                  label="Ical 訂閱網址" 
+                  value={calendarStatus?.feedUrl ? "點擊複製網址" : "尚未產生"}
+                  description={calendarStatus?.feedUrl || "同步至 Apple Calendar / Outlook"}
+                  onClick={() => {
+                    if (calendarStatus?.feedUrl) {
+                      navigator.clipboard.writeText(window.location.origin + calendarStatus.feedUrl)
+                      alert('已複製 Ical 網址')
+                    } else {
+                      handleResetIcal()
+                    }
+                  }}
+                />
+                {calendarStatus?.feedUrl && (
+                  <button 
+                    onClick={handleResetIcal}
+                    className="w-full py-4 text-[10px] font-black text-on-surface-variant/30 hover:text-on-surface-variant/60 transition-colors uppercase tracking-widest border-t border-outline-variant/5"
+                  >
+                    重置訂閱 Token
+                  </button>
+                )}
+              </SettingsSection>
+
+              {/* Identity Verification Section */}
+              <SettingsSection title="身份驗證狀態">
                 <SettingsItem 
                   icon={sitterData.isVerified ? "verified_user" : "pending_actions"} 
-                  label="Verification Status" 
-                  value={sitterData.isVerified ? "Verified Professional" : "Pending Verification"}
+                  label="審核狀態" 
+                  value={sitterData.isVerified ? "已通過專業認證" : "審核中"}
                   color={sitterData.isVerified ? "text-primary" : "text-on-surface-variant/40"}
                 />
                 <div className="grid grid-cols-2 gap-px bg-outline-variant/10">
-                  <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden">
-                     <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2">ID Front</p>
-                     <span className="material-symbols-outlined text-primary">{sitterData.idCardFrontUrl ? 'task' : 'upload_file'}</span>
-                     <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdentityUpload(e, 'front')} />
-                  </button>
-                  <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden">
-                     <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2">ID Back</p>
-                     <span className="material-symbols-outlined text-primary">{sitterData.idCardBackUrl ? 'task' : 'upload_file'}</span>
-                     <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdentityUpload(e, 'back')} />
-                  </button>
+                   <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden">
+                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2">證件正面</p>
+                      <span className="material-symbols-outlined text-primary">{sitterData.idCardFrontUrl ? 'task' : 'upload_file'}</span>
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdentityUpload(e, 'front')} />
+                   </button>
+                   <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden">
+                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2">證件反面</p>
+                      <span className="material-symbols-outlined text-primary">{sitterData.idCardBackUrl ? 'task' : 'upload_file'}</span>
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdentityUpload(e, 'back')} />
+                   </button>
                 </div>
               </SettingsSection>
 
-              {/* Professional Labels (V30) */}
-              <SettingsSection title="Professional Narrative">
+              {/* Professional Labels */}
+              <SettingsSection title="專業形象標籤">
                 <div className="p-6 space-y-4">
-                   <p className="text-[10px] font-bold opacity-40 uppercase tracking-[0.2em] leading-none mb-1">Your Focus Labels</p>
+                   <p className="text-[10px] font-bold opacity-40 uppercase tracking-[0.2em] leading-none mb-1">您的服務特色</p>
                    <div className="flex flex-wrap gap-2">
                       {sitterData.professionalLabels?.map((label, idx) => (
                         <span key={idx} className="px-3 py-1 bg-primary/5 text-primary text-[10px] font-extrabold rounded-lg border border-primary/10">
@@ -202,31 +270,31 @@ const Profile = () => {
                         </span>
                       ))}
                       <button className="px-3 py-1 bg-surface-container text-on-surface-variant text-[10px] font-extrabold rounded-lg border border-dashed border-outline-variant/30">
-                        + ADD LABEL
+                        + 新增標籤
                       </button>
                    </div>
                 </div>
               </SettingsSection>
 
-              {/* Payout Information (Optional, V30) */}
-              <SettingsSection title="Financial Settlement (Optional)">
-                <SettingsItem icon="account_balance" label="Bank Channel" value={sitterData.bankCode || "Not Linked"} />
-                <SettingsItem icon="credit_card" label="Account Number" value={sitterData.bankAccount || "Not Linked"} />
+              {/* Payout Information */}
+              <SettingsSection title="財務結算資訊 (選填)">
+                <SettingsItem icon="account_balance" label="銀行代碼" value={sitterData.bankCode || "未設定"} />
+                <SettingsItem icon="credit_card" label="匯款帳號" value={sitterData.bankAccount || "未設定"} />
               </SettingsSection>
             </>
           )}
 
-          <SettingsSection title={t('profile.account_group', 'Identity & Security')}>
-            <SettingsItem icon="person" label="Display Name" value={user?.name} />
-            <SettingsItem icon="alternate_email" label="Email Address" value={user?.email} />
-            <SettingsItem icon="lock" label="Account Password" value="••••••••" />
+          <SettingsSection title="帳號與安全">
+            <SettingsItem icon="person" label="顯示名稱" value={user?.name} />
+            <SettingsItem icon="alternate_email" label="電子郵件" value={user?.email} />
+            <SettingsItem icon="lock" label="修改密碼" value="••••••••" />
           </SettingsSection>
 
-          <SettingsSection title={t('profile.danger_group', 'Danger Zone')}>
+          <SettingsSection title="危險控制區">
             <SettingsItem 
               icon="logout" 
-              label="End Session" 
-              value="Sign out of WhiskerWatch" 
+              label="登出系統" 
+              value="結束本次連線" 
               color="text-error" 
               onClick={logout} 
             />

@@ -62,10 +62,6 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
       .authorizeHttpRequests(req -> {
-              if (isSmoke) {
-                  req.requestMatchers("/api/v1/**").permitAll()
-                     .requestMatchers("/actuator/**").permitAll();
-              }
               req.requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                        .requestMatchers("/api/v1/sitters/{slug}/availability/public").permitAll()
                        .requestMatchers("/api/v1/sitters/{slug}/booking-preview").permitAll()
@@ -118,7 +114,7 @@ public class SecurityConfig {
     CorsConfiguration configuration = new CorsConfiguration();
     configuration.setAllowedOrigins(java.util.List.of("http://localhost:5173", "http://localhost:4173"));
     configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Requested-With"));
+    configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "X-Requested-With", "X-Smoke-Auth"));
     configuration.setAllowCredentials(true);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);

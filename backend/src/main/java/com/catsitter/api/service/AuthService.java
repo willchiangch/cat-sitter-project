@@ -113,4 +113,28 @@ public class AuthService {
     accountRepository.save(account);
     return getMe(account);
   }
+
+  @Transactional
+  public com.catsitter.api.dto.auth.AuthMeResponse completeOnboarding(Account account, com.catsitter.api.dto.auth.CompleteOnboardingRequest request) {
+    if (profileRepository.findByAccountAndRoleType(account, request.roleType()).isPresent()) {
+      // If already exists, just update role and return
+      return switchRole(account, request.roleType());
+    }
+
+    // Check name uniqueness (simple check, entity also has constraint)
+    if (profileRepository.findByName(request.displayName()).isPresent()) {
+      throw new RuntimeException("Display name is already taken");
+    }
+
+    Profile profile = new Profile();
+    profile.setAccount(account);
+    profile.setName(request.displayName());
+    profile.setRoleType(request.roleType());
+    profileRepository.save(profile);
+
+    account.setLastActiveRole(request.roleType());
+    accountRepository.save(account);
+
+    return getMe(account);
+  }
 }

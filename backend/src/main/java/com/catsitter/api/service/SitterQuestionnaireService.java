@@ -94,6 +94,19 @@ public class SitterQuestionnaireService {
         questionRepository.saveAll(questions);
     }
 
+    @Transactional
+    public void deleteQuestion(Account account, UUID questionId) {
+        Profile profile = getSitterProfile(account);
+        SitterQuestion question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new RuntimeException("Question not found"));
+
+        if (!question.getSitterProfile().getId().equals(profile.getId())) {
+            throw new RuntimeException("Unauthorized to delete this question");
+        }
+
+        questionRepository.delete(question);
+    }
+
     private Profile getSitterProfile(Account account) {
         return profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
                 .orElseThrow(() -> new RuntimeException("Sitter profile not found"));

@@ -1,40 +1,36 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/cat_sitter_db
-    username: sitter_admin
-    password: dev_password123
-    driver-class-name: org.postgresql.Driver
+    url: jdbc:h2:mem:smokedb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.dialect.H2Dialect
+
   flyway:
-    enabled: true
+    enabled: false
 
   security:
     oauth2:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:google-placeholder}
-            client-secret: ${GOOGLE_CLIENT_SECRET:secret-placeholder}
-            scope:
-              - email
-              - profile
-          facebook:
-            client-id: ${FACEBOOK_CLIENT_ID:fb-placeholder}
-            client-secret: ${FACEBOOK_CLIENT_SECRET:fb-secret-placeholder}
-            scope:
-              - email
-              - public_profile
+            client-id: mock-id
+            client-secret: mock-secret
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
 
 # Smoke testing specific settings
 application:
   jwt:
-    secret-key: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
     expiration: 3600000
     refresh-token:
       expiration: 604800000
@@ -42,5 +38,5 @@ application:
     type: LOCAL
     local-path: ./storage/smoke-media
   resend:
-    api-key: ${RESEND_API_KEY}
+    api-key: mock_key
     from-email: "WhiskerWatch <onboarding@resend.dev>"

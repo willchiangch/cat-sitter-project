@@ -15,4 +15,5 @@ public interface ProfileRepository extends JpaRepository<Profile, UUID> {
   Optional<Profile> findByAccountIdAndRoleType(UUID accountId, RoleType roleType);
   Optional<Profile> findByAccountAndRoleType(Account account, RoleType roleType);
   Optional<Profile> findBySlug(String slug);
+  Optional<Profile> findByName(String name);
 }

@@ -15,7 +15,10 @@
     "revenue": "本次收益",
     "adjustment": "手動調價",
     "payout": "提領收益",
-    "ledger": "對帳明細錄"
+    "ledger": "對帳明細錄",
+    "save_changes": "儲存變更",
+    "cancel": "取消",
+    "confirm": "確認"
   },
   "sitter": {
     "trust_circle": "夥伴信任圈 (轉介網路)",
@@ -40,6 +43,17 @@
     "sign_in": "立即登入",
     "error_login": "登入失敗，請檢查您的憑證。",
     "error_register": "註冊失敗，請重試。"
+  },
+  "onboarding": {
+    "title": "歡迎加入 WhiskerWatch",
+    "subtitle": "讓我們開始建立您的管家專屬檔案",
+    "display_name_label": "您想使用的顯示名稱",
+    "display_name_placeholder": "例如：專業褓姆 Anna",
+    "role_selection": "選擇您的主要身分",
+    "role_parent_desc": "我正在尋找值得信賴的貓咪照顧者",
+    "role_sitter_desc": "我想成為提供優質服務的專業保母",
+    "submit": "完成設定",
+    "processing": "為您準備專屬介面中..."
   },
   "dashboard": {
     "greeting": "您好，{{name}}",
@@ -93,6 +107,7 @@
   "order_status": {
     "all": "全部",
     "pending": "待確認",
+    "quoted": "待付款",
     "confirmed": "已確認",
     "completed": "已結案",
     "cancelled": "已取消"
@@ -101,7 +116,38 @@
     "saas_description": "您目前處於「專業接案版 ($899)」方案。享有完整的定價主權與 AI 報告助手。",
     "account_group": "身分與安全性",
     "preferences_group": "偏好設定",
-    "danger_group": "危險區域"
+    "danger_group": "危險區域",
+    "edit_profile": "編輯資料",
+    "switch_role_prompt": "想以不同身分體驗平台？"
+  },
+  "calendar": {
+    "title": "行事曆同步",
+    "description": "與您的個人日曆無縫接軌，自動同步所有確認的預約與行程表。",
+    "connect_google": "連結 Google 行事曆",
+    "disconnect": "斷開連結",
+    "ical_link": "iCal 訂閱連結",
+    "ical_description": "ios / google / mac 訂閱網址 (請妥善保管)",
+    "reset_token": "重新產生連結",
+    "sync_success": "行事曆同步授權成功！",
+    "sync_failed": "行事曆授權失敗，請重試。",
+    "status_active": "同步中",
+    "status_inactive": "未連結",
+    "copy_success": "網址已複製到剪貼簿"
+  },
+  "trust": {
+    "title": "信任圈 (Trust Circle)",
+    "description": "與您核准的優質同業建立私密聯絡網，將滿班的訂單安全轉介給圈內夥伴。",
+    "add_partner": "新增夥伴",
+    "remove_partner": "解除合作",
+    "partner_status": "共同守護標準",
+    "refer_order": "轉介訂單給夥伴"
+  },
+  "whitelist": {
+    "title": "熟客名單 (Client Whitelist)",
+    "description": "針對長期配合且充分信任的家長，給予快速通關的預約體驗。",
+    "skip_questionnaire": "免除問卷填寫",
+    "add_client": "加入熟客",
+    "remove_client": "移出熟客"
   },
   "booking": {
     "regular_guest_skip": "尊榮常客狀態：考量到您與保母的長期信任，已為您免除本次照護問卷填寫。",
@@ -110,8 +156,10 @@
     "step2_title": "方案與時段",
     "step2_subtitle": "選擇照護深度與預約時間。",
     "step3_title": "特殊注意事項",
-    "step3_subtitle": "有什麼是保母 Sophia 需要特別留意的嗎？",
+    "step3_subtitle": "有什麼是管家需要特別留意的嗎？",
     "step4_title": "預約確認",
-    "step4_subtitle": "請再次檢核您的管家預約項目。"
+    "step4_subtitle": "請再次檢核您的管家預約項目。",
+    "confirm_booking": "確認預約",
+    "continue": "繼續"
   }
 }

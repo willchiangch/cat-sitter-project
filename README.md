@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V9 (Testing Suite Stabilized & Account Role Switching)**
+**目前版本：V10 (Hybrid Testing Strategy & Full PWA Experience)**
 
 ---
 
@@ -11,13 +11,14 @@
 ```
 cat-sitter-project/
 ├── .agent/            # AI 開發大腦同步目錄 (進度備份)
-├── frontend/          # React PWA（Vite + Tailwind CSS + Zustand/Context）
+├── frontend/          # React PWA（Vite 7 + Tailwind CSS 4 + Zustand + PWA Plugin）
 ├── backend/           # Java Spring Boot 3.x（RESTful API + Spring Data JPA）
+├── scenario/          # 業務測試情境（標註有 [Vitest RTL] 與 [Playwright E2E] 層級）
 ├── .github/workflows/  # CI/CD（前端 Firebase Hosting、後端 Cloud Run）
 └── README.md
 ```
 
-- **前端**：SPA/PWA，代管於 **Firebase Hosting**。
+- **前端**：專業 PWA 應用，具備離線快取與桌面安裝能力，代管於 **Firebase Hosting**。
 - **後端**：無狀態 API，代管於 **Cloud Run**；資料庫為 **Cloud SQL (PostgreSQL 15+)**；檔案存 **GCS**。
 - **通訊**：RESTful API、JSON、認證使用 **JWT**（Header 攜帶，無 Server Session）。
 
@@ -27,108 +28,79 @@ cat-sitter-project/
 
 | 層級     | 技術 |
 |----------|------|
-| 前端     | React 19、Vite 7、Tailwind CSS 4、Zustand/Context |
+| 前端     | React 19、Vite 7、Tailwind CSS 4、Zustand、**vite-plugin-pwa (Offline Cache)** |
+| 測試架構 | **Vitest + RTL (元件邏輯)**、**Playwright POM (黃金流程 E2E)** |
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
-| 安全認證 | Spring Security + JWT (Stateless, JJWT) |
+| 安全認證 | Spring Security + JWT (Stateless, JJWT) + **X-Smoke-Auth (Mock Auth)** |
 | 資料庫版控| Flyway（Schema V9: 帳號角色切換持久化、支付、訂閱、行事曆、媒體） |
 
 ---
 
 ## 核心功能模組
 
+- **全面 PWA 體驗**：支援 iOS/Android 桌面安裝、全螢幕沉浸式設計、Workbox 離線請求快取策略。
 - **雙軌行事曆同步**：支援 Google Calendar OAuth2 同步與 Universal iCal Feed (Apple/iOS)。
+- **VIP 熟客白名單**：保母可設定白名單，讓特定飼主預約時自動跳過繁瑣問卷，直達結帳。
+- **自動化 Onboarding**：全新社交登入使用者自動偵測並強制導航至身分設定流程。
 - **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼。
 - **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統。
-- **可觀測性 (Observability)**：
-  - **MDC Trace ID**：每個請求皆有唯一追蹤碼。
-  - **全域異常處理**：異常發生時自動捕捉並於日誌中標註 Trace ID。
 
 ---
 
-## 安全架構
-本系統採用 **無狀態 (Stateless) JWT 認證**：
-- **認證流程**：登入後取得 Access Token 與 Refresh Token。
-- **請求驗證**：在 Header 中使用 `Authorization: Bearer <Token>`。
-- **身分稽核**：透過 `AuditableEntity` 自動紀錄 `created_by` 等稽核資訊。
+## 混合測試策略 (Hybrid Testing)
+本專案遵循 **測試金字塔 (Test Pyramid)** 原則以平衡穩定性與執行速度：
+1. **底層：Vitest + React Testing Library**  
+   針對細節 UI 狀態、表單驗證、數學計算（如加成報價）進行毫秒級驗證。
+2. **頂層：Playwright (Page Object Model)**  
+   針對「跨帳號角色」的黃金流轉（如預約、報價、完工）進行真實資料庫環境驗證。
 
 ---
 
 ## 本地開發
 
 ### 必要環境
-
 - **Node.js** 20+（前端）
 - **Java** 21、**Maven**（後端）
-- **Docker / Docker Compose**（本地 PostgreSQL，預設 `localhost:5432`）
+- **Docker / Docker Compose**
 
-### 啟動步驟
+### 測試與驗證 (Verification)
 
-1. **啟動本地資料庫**（根目錄若有 `docker-compose.yml`）  
-   ```bash
-   docker compose up -d
-   ```
+#### 1. 前端元件測試 (Vitest)
+```bash
+cd frontend
+npm run test           # 執行所有元件測試
+```
 
-2. **後端**  
-   ```bash
-   cd backend
-   mvn spring-boot:run
-   ```  
-   本機設定（含 DB、JWT 等）請用 `application-local.properties` 或 `application-local.yml`（已列入 `.gitignore`，勿提交機密）。
+#### 2. 前端 E2E 流程測試 (Playwright)
+需啟動後端 `smoke` profile (Port 8081) 後執行：
+```bash
+cd frontend
+npx playwright test    # 執行所有 POM 化後的 E2E 腳本
+```
 
-3. **前端**  
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-### 測試執行 (Verification)
-
-- **後端單元/整合測試**:
-  ```bash
-  cd backend && ./mvnw test
-  ```
-- **核心業務冒煙測試 (Backend Smoke)**:
-  ```bash
-  cd backend && ./mvnw test -Dtest=com.catsitter.api.smoke.*
-  ```
-- **前端 API 冒煙測試 (Frontend/Smoke)**:
-  ```bash
-  # 需先啟動後端伺服器 (port 8081)
-  cd frontend && npx playwright test tests/smoke/
-  ```
-- **壓力測試 (Performance/k6)**:
-  ```bash
-  # 建議使用 Docker 執行以免去本地安裝 k6
-  docker run --rm -i -e BASE_URL=http://host.docker.internal:8081 grafana/k6 run - < backend/src/test/resources/performance/webhook-smoke.js
-  ```
-
-前端會依 `VITE_*` 環境變數接後端 API；後端時間以 UTC、ISO-8601 傳輸，前端可轉為 `Asia/Taipei` 顯示。
+#### 3. 後端單元與冒煙測試
+```bash
+cd backend
+./mvnw test            # 全體測試
+./mvnw test -Dtest=com.catsitter.api.smoke.*  # 業務冒煙測試
+```
 
 ---
 
-## 分支與 CI/CD
-
-| 分支      | 環境     | 說明 |
-|-----------|----------|------|
-| `main`    | Production | 正式環境部署 |
-| `develop` | UAT      | 測試環境部署 |
-
-- 開發請開 **Feature branch**，完成後 PR 合併至 `develop`。
-- **路徑過濾**：僅 `frontend/**` 變更觸發前端管線；僅 `backend/**` 變更觸發後端管線。  
-詳見 [.github/workflows/CI_CD_GUIDELINES.md](.github/workflows/CI_CD_GUIDELINES.md)。
+## 進度持久化工作流 (Persist Progress)
+為了確保跨環境開發的連續性，請務必遵循 `.persist-progress.md`：
+- **工作結束時**：將 `.gemini/antigravity/brain/` 下的 `.md` 文件同步至 `.agent/brain/`。
+- **提交時**：確保 `.agent/brain/` 同步更新並一併 commit。
 
 ---
 
 ## 其他規範摘要
-
 - **時區**：DB 使用 `timestamptz`；後端 UTC + ISO-8601；前端依需求轉本地時區。
-- **金流**：後端以 **策略模式** 依賴 `PaymentGateway` 介面，綠界等實作獨立 Adapter，Webhook 需具冪等性。
-- **進度同步**：開發者需定期同步 `.agent/brain/` 下的 `task.md` 與 `walkthrough.md` 至專案庫。
+- **進度同步**：詳見 [.persist-progress.md](.persist-progress.md)。
+- **業務情境**：詳見 [scenario/](scenario/) 標註之執行層級。
 
 更完整的架構與開發守則見：
 - [後端開發規範 (TDD & 測試策略)](backend/DEVELOPMENT_GUIDELINES.md)
-- [業務測試情境 (Scenarios)](scenario/)
-- 專案根目錄 `.cursorrules` 與 `.cursor/rules/cat-sitter-rule.mdc`
 - [核心資料庫規格書 (Schema V9)](doc/schema.md)
+
