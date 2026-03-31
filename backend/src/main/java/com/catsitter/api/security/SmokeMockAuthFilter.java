@@ -40,6 +40,7 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext().getAuthentication() == null && mockUser != null) {
             UUID accountId;
             
+            System.out.println("SmokeMockAuthFilter triggered for user: " + mockUser);
             if ("JAMES".equalsIgnoreCase(mockUser)) {
                 // James Wilson (Client)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000002");
@@ -50,6 +51,7 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
                 // Sophia (Sitter)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000001");
             } else {
+                System.out.println("Unknown mock user: " + mockUser);
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -57,10 +59,13 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
             Optional<Account> accountOpt = accountRepository.findById(accountId);
             
             if (accountOpt.isPresent()) {
+                System.out.println("Authenticated smoke user: " + accountOpt.get().getEmail());
                 Account account = accountOpt.get();
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                         account, null, Collections.emptyList());
                 SecurityContextHolder.getContext().setAuthentication(auth);
+            } else {
+                System.out.println("Failed to find account for UUID: " + accountId);
             }
         }
         

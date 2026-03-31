@@ -11,7 +11,12 @@ public record BookingResponse(
     UUID sitterProfileId,
     UUID serviceId,
     String serviceName,
+    String serviceType,
     BigDecimal totalAmount,
     OrderStatus orderStatus,
-    PaymentStatus paymentStatus
+    PaymentStatus paymentStatus,
+    String catName,
+    String catImageUrl,
+    String timeSlot,
+    String address
 ) {}

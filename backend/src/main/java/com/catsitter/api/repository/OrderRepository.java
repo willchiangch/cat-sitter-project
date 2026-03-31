@@ -14,6 +14,7 @@ import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID> {
   List<Order> findByClientProfileId(UUID clientProfileId);
+  List<Order> findByCurrentSitterId(UUID sitterId);
   List<Order> findByCurrentSitterIdAndOrderStatus(UUID sitterId, OrderStatus status);
   
   @Query("SELECT SUM(o.totalAmount) FROM Order o WHERE o.currentSitter.id = :sitterId AND o.orderStatus = :status")

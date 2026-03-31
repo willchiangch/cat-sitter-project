@@ -170,6 +170,32 @@ public class BookingService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getMyOrders(Account account) {
+        // Find orders where the account is either the client or the sitter
+        // We use the account's lastActiveRole to filter if needed, 
+        // but for now let's just return all where they are involved.
+        
+        List<Order> orders;
+        if (account.getLastActiveRole() == RoleType.SITTER) {
+            orders = orderRepository.findByCurrentSitterId(
+                profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                    .map(Profile::getId).orElse(null)
+            );
+        } else {
+            orders = orderRepository.findByClientProfileId(
+                profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.CLIENT)
+                    .map(Profile::getId).orElse(null)
+            );
+        }
+        
+        if (orders == null) return List.of();
+
+        return orders.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     private BookingResponse mapToResponse(Order order) {
         return new BookingResponse(
                 order.getId(),
@@ -177,9 +203,14 @@ public class BookingService {
                 order.getCurrentSitter().getId(),
                 order.getService().getId(),
                 order.getServiceName(),
+                order.getServiceName(),
                 order.getTotalAmount(),
                 order.getOrderStatus(),
-                order.getPaymentStatus()
+                order.getPaymentStatus(),
+                "貓咪夥伴", // catName
+                null,       // catImageUrl
+                "待約定時間", // timeSlot
+                "詳細地址請洽家長" // address
         );
     }
 

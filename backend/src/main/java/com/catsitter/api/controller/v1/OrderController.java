@@ -11,6 +11,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1/orders")
 public class OrderController {
@@ -19,6 +25,11 @@ public class OrderController {
 
     public OrderController(BookingService bookingService) {
         this.bookingService = bookingService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<com.catsitter.api.dto.booking.BookingResponse>> getOrders(@AuthenticationPrincipal Account account) {
+        return ResponseEntity.ok(bookingService.getMyOrders(account));
     }
 
     @PostMapping("/booking")

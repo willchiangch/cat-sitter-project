@@ -9,10 +9,16 @@ const OrderListItem = ({ order }) => {
 
   const statusColors = {
     PENDING: 'bg-amber-100 text-amber-700 border-amber-200',
+    QUOTED: 'bg-blue-100 text-blue-700 border-blue-200',
     CONFIRMED: 'bg-primary/10 text-primary border-primary/20',
     COMPLETED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     CANCELLED: 'bg-surface-container-high text-on-surface-variant/40 border-outline-variant/10'
   }
+
+  const status = order.orderStatus || order.status || 'PENDING'
+  const amount = order.totalAmount || order.amount || 0
+  const catName = order.catName || '貓咪夥伴'
+  const serviceName = order.serviceName || order.serviceType || '一般照顧'
 
   return (
     <motion.div 
@@ -22,37 +28,37 @@ const OrderListItem = ({ order }) => {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl overflow-hidden border border-outline-variant/10">
-            <img src={order.catImageUrl} alt={order.catName} className="w-full h-full object-cover" />
+            <img src={order.catImageUrl || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=200"} alt={catName} className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h4 className="text-base font-extrabold tracking-tight">{order.catName}</h4>
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-widest ${statusColors[order.status]}`}>
-                {t(`order_status.${order.status.toLowerCase()}`)}
+              <h4 className="text-base font-extrabold tracking-tight">{catName}</h4>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-widest ${statusColors[status]}`}>
+                {t(`order_status.${status.toLowerCase()}`)}
               </span>
             </div>
-            <p className="text-xs font-medium opacity-60 mt-0.5">{order.serviceType}</p>
+            <p className="text-xs font-medium opacity-60 mt-0.5">{serviceName}</p>
           </div>
         </div>
         <div className="text-right">
           <p className="text-[10px] font-bold opacity-30 uppercase tracking-widest leading-none mb-1">Estimated</p>
-          <p className="text-lg font-extrabold font-headline leading-none">${order.amount}</p>
+          <p className="text-lg font-extrabold font-headline leading-none">${amount}</p>
         </div>
       </div>
 
       <div className="bg-surface-container-lowest/50 rounded-2xl p-4 space-y-3">
         <div className="flex items-center gap-3 text-xs font-medium text-on-surface-variant">
           <span className="material-symbols-outlined text-sm opacity-40">schedule</span>
-          {order.timeSlot}
+          {order.timeSlot || '待約定時間'}
         </div>
         <div className="flex items-center gap-3 text-xs font-medium text-on-surface-variant">
           <span className="material-symbols-outlined text-sm opacity-40">location_on</span>
-          {order.address}
+          {order.address || '詳細地址請洽家長'}
         </div>
       </div>
 
       <div className="flex gap-2 pt-2">
-        {order.status === 'CONFIRMED' && (
+        {status === 'CONFIRMED' && (
           <button 
             onClick={() => navigate(`/sitter/service/${order.id}`)}
             className="flex-1 py-3 bg-primary text-on-primary rounded-full text-[11px] font-extrabold uppercase shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"

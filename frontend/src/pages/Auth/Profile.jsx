@@ -16,17 +16,21 @@ const Profile = () => {
   
   useEffect(() => {
     const fetchData = async () => {
-      if (user?.role === 'ROLE_SITTER') {
+      const isSitter = user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER'
+      if (isSitter) {
+        setIsLoading(true)
         try {
-          setIsLoading(true)
-          const [profile, calendar] = await Promise.all([
-            profileService.getSitterMe(),
-            calendarService.getStatus()
-          ])
+          const profile = await profileService.getSitterMe()
           setSitterData(profile)
+        } catch (error) {
+          console.error('Failed to fetch profile:', error)
+        }
+
+        try {
+          const calendar = await calendarService.getStatus()
           setCalendarStatus(calendar)
         } catch (error) {
-          console.error('Failed to fetch sitter data:', error)
+          console.warn('Failed to fetch calendar status:', error)
         } finally {
           setIsLoading(false)
         }
@@ -38,7 +42,8 @@ const Profile = () => {
   }, [user])
 
   const handleUpdate = async (field, value) => {
-    if (user?.role !== 'ROLE_SITTER') return
+    const isSitter = user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER'
+    if (!isSitter) return
     try {
       const updated = await profileService.updateSitterMe({
         ...sitterData,
@@ -165,10 +170,10 @@ const Profile = () => {
         </div>
 
         <div>
-          <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.name}</h2>
+          <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.profiles?.[0]?.name || user?.name}</h2>
           <div className="mt-2 flex items-center justify-center gap-2">
             <span className="px-3 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full border border-primary/20 uppercase tracking-widest">
-              {user?.role === 'ROLE_SITTER' ? 'Professional Sitter' : 'Elite Owner'}
+              {(user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER') ? 'Professional Sitter' : 'Elite Owner'}
             </span>
           </div>
         </div>
@@ -201,7 +206,7 @@ const Profile = () => {
 
         {/* Global Settings Sections */}
         <div className="space-y-8">
-          {user?.role === 'ROLE_SITTER' && sitterData && (
+          {(user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER') && sitterData && (
             <>
               {/* Calendar Sync (New) */}
               <SettingsSection title="行事曆同步 (Beta)">
@@ -246,15 +251,23 @@ const Profile = () => {
                   color={sitterData.isVerified ? "text-primary" : "text-on-surface-variant/40"}
                 />
                 <div className="grid grid-cols-2 gap-px bg-outline-variant/10">
-                   <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden">
-                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2">證件正面</p>
-                      <span className="material-symbols-outlined text-primary">{sitterData.idCardFrontUrl ? 'task' : 'upload_file'}</span>
-                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdentityUpload(e, 'front')} />
+                   <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden h-32">
+                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2 z-10 relative">證件正面</p>
+                      {sitterData.idCardFrontUrl ? (
+                        <img src={sitterData.idCardFrontUrl} alt="Front" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                      ) : (
+                        <span className="material-symbols-outlined text-primary relative z-10">upload_file</span>
+                      )}
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-20" onChange={(e) => handleIdentityUpload(e, 'front')} />
                    </button>
-                   <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden">
-                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2">證件反面</p>
-                      <span className="material-symbols-outlined text-primary">{sitterData.idCardBackUrl ? 'task' : 'upload_file'}</span>
-                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdentityUpload(e, 'back')} />
+                   <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden h-32">
+                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2 z-10 relative">證件反面</p>
+                      {sitterData.idCardBackUrl ? (
+                        <img src={sitterData.idCardBackUrl} alt="Back" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                      ) : (
+                        <span className="material-symbols-outlined text-primary relative z-10">upload_file</span>
+                      )}
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-20" onChange={(e) => handleIdentityUpload(e, 'back')} />
                    </button>
                 </div>
               </SettingsSection>
@@ -281,11 +294,33 @@ const Profile = () => {
                 <SettingsItem icon="account_balance" label="銀行代碼" value={sitterData.bankCode || "未設定"} />
                 <SettingsItem icon="credit_card" label="匯款帳號" value={sitterData.bankAccount || "未設定"} />
               </SettingsSection>
+
+              {/* Business Tools (New) */}
+              <SettingsSection title="專業經營工具">
+                <SettingsItem 
+                  icon="inventory_2" 
+                  label="管理服務方案" 
+                  value="設定定價與時數" 
+                  onClick={() => navigate('/sitter/service-packages')} 
+                />
+                <SettingsItem 
+                  icon="assignment" 
+                  label="預約問卷設定" 
+                  value="編輯家長必填題目" 
+                  onClick={() => navigate('/sitter/questionnaire')} 
+                />
+                <SettingsItem 
+                  icon="group" 
+                  label="信任圈夥伴" 
+                  value="管理互助保母列表" 
+                  onClick={() => navigate('/sitter/trust-circle')} 
+                />
+              </SettingsSection>
             </>
           )}
 
           <SettingsSection title="帳號與安全">
-            <SettingsItem icon="person" label="顯示名稱" value={user?.name} />
+            <SettingsItem icon="person" label="顯示名稱" value={user?.profiles?.[0]?.name || user?.name} />
             <SettingsItem icon="alternate_email" label="電子郵件" value={user?.email} />
             <SettingsItem icon="lock" label="修改密碼" value="••••••••" />
           </SettingsSection>

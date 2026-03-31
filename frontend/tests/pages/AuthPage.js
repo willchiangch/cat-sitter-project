@@ -5,16 +5,40 @@ export class AuthPage {
   }
 
   async injectSmokeAuth(role) {
-    // Injects the X-Smoke-Auth header at the browser context level
-    // This allows seamless testing of the simulated OAuth callback states 
-    // without actually doing Google/Apple redirects.
+    // 1. Injects the X-Smoke-Auth header at the context level so it's sent with EVERY request
     await this.page.context().setExtraHTTPHeaders({
       'X-Smoke-Auth': role
     })
+
+    // 2. Injects mock localStorage state at the context level
+    // This runs before any page scripts, ensuring Zustand sees the token on mount
+    await this.page.context().addInitScript((r) => {
+      const authState = {
+        state: {
+          token: 'smoke-test-token',
+          isAuthenticated: true,
+          user: {
+            id: 'efefefef-0000-0000-0000-000000000001',
+            email: 'sitter_smoke@test.com',
+            role: 'SITTER',
+            lastActiveRole: 'SITTER',
+            profiles: [
+              {
+                id: 'efefefef-0000-0000-0000-000000000011',
+                role: 'SITTER',
+                name: 'Sophia (Smoke Test)'
+              }
+            ]
+          }
+        },
+        version: 0
+      };
+      window.localStorage.setItem('whiskerwatch-auth-storage', JSON.stringify(authState));
+    }, role);
     
-    // Navigate home to trigger the interceptors 
-    await this.page.goto('/')
-    await this.page.waitForLoadState('networkidle')
+    // 3. Just go to the target page; no need to reload or go to '/' first
+    await this.page.goto('/profile')
+    await this.page.waitForLoadState('load')
   }
 
   async completeOnboarding(displayName, roleType) {

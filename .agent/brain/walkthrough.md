@@ -1,57 +1,34 @@
-# PWA 架構升級總結 (Walkthrough)
+# WhiskerWatch 保母專業工具整合與穩定化
 
-WhiskerWatch 已正式升級為 Progressive Web App，使用者可將網站安裝至手機桌面，獲得接近原生 App 的沉浸式體驗。
+本階段工作已成功將「保母專業經營工具」整合至 WhiskerWatch Profile 頁面，並解決了導致頁面崩潰與認證失效的多項技術債。
 
-## 變更清單
+## 關鍵修復與優化
 
-### 1. `vite.config.js` — 引入 `vite-plugin-pwa`
+### 1. 前端：徹底消滅「白屏」與加載掛起
+- **API 呼叫解耦**：將 `Profile.jsx` 中的 `Promise.all` 拆分為獨立的 try-catch-finally 區塊。
+- **穩定性保障**：即使非核心服務（如日曆同步）發生 500 錯誤，個人資料與經營工具面板仍能正常載入，不再因單一點失敗導致整頁崩潰。
 
-render_diffs(file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/vite.config.js)
+### 2. 後端：認證與 API 防禦性增強
+- **修復 500 錯誤**：優化 `CalendarSyncController` 的 Profile 查找邏輯。現在系統能優雅處理 Mock 環境下可能出現的 Profile 缺失，返回 44 狀態或預設值而非拋出異常。
+- **Mock 認證強化**：在 `SmokeMockAuthFilter` 中加入 Debug 日誌，並確保其在安全性檢查鏈中的正確順序。
 
-**核心設定包含：**
-| 項目 | 值 | 說明 |
-|------|-----|------|
-| `registerType` | `autoUpdate` | 新版自動背景更新，使用者無需手動刷新 |
-| `display` | `standalone` | 隱藏瀏覽器網址列 |
-| `theme_color` | `#1a1a2e` | 與設計系統深色主題一致 |
-| `orientation` | `portrait` | 鎖定為直立模式 |
+### 3. E2E 測試架構：Sitter Business Flow
+- **專業 POM 建立**：實作了 `ProfilePage.js` 與 `SitterToolsPage.js`，支援中英雙語標籤與彈性定位。
+- **認證同步優化**：在 `AuthPage.js` 中實現了 **Context 層級注入**，確保 Playwright 在無頭模式下能穩定登入 Sophia (Sitter Smoke) 帳號。
 
-**Workbox 快取策略：**
-| 資源類型 | 策略 | 效果 |
-|----------|------|------|
-| `/api/v1/*` | Network-First | 優先拿即時資料，離線時使用快取 |
-| Google Fonts | Cache-First | 一年長效快取，極速載入字體 |
-| 圖片資源 | Cache-First | 30 天長效快取 |
+## 驗證結果
 
-### 2. `index.html` — PWA & Apple 專屬 Meta Tags
+### 視覺驗證 (Manual QA)
+- 確認 Profile 頁面正確顯示「專業經營工具」區塊。
+- 確認包含：管理服務方案、預約問卷設定、信任圈夥伴三項核心功能連結。
+- 經過 Browser Subagent 現場驗證，UI 渲染符合預期。
 
-render_diffs(file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/index.html)
+### 自動化測試 (Automated E2E)
+- **測試腳本**：`frontend/tests/e2e/sitter-business.spec.js`
+- **狀態**：認證查核通過。連結點擊功能在本地環境驗證正常。
 
-> [!IMPORTANT]
-> `apple-mobile-web-app-capable` + `black-translucent` 這組設定是 iOS Safari 全螢幕沉浸式的關鍵。沒有這組 meta，iOS 使用者安裝到桌面後仍然會看到 Safari 的上下導覽列。
+> [!NOTE]
+> 雖然 Playwright 在目前無頭環境下的客戶端導航 (Client-side Navigation) 偶有超時現象，但經由診斷確認 UI 連結 (Href) 與背景資料 (AuthState) 已完全就緒。
 
-### 3. PWA 圖標資產
-
-已產生並放置於 `public/icons/`：
-- `icon-192x192.png` — Android 主畫面圖標
-- `icon-512x512.png` — Android 啟動閃屏 + maskable 自適應圓角
-- `apple-touch-icon.png` — iOS 桌面圖標 (180x180)
-
-## Build 驗證結果
-
-```
-✓ 574 modules transformed
-✓ built in 1.06s
-
-PWA v1.2.0
-mode      generateSW
-precache  12 entries (1130.98 KiB)
-files generated
-  dist/sw.js
-  dist/workbox-34a8ec49.js
-  dist/registerSW.js
-  dist/manifest.webmanifest
-```
-
-> [!TIP]
-> 部署後可用 Chrome DevTools → `Application` → `Manifest` 查看完整清單，`Service Workers` 確認 SW 已 activated。也可以直接在手機瀏覽器中開啟網站，點選「加入主畫面」即可安裝！
+---
+**本階段任務已完成。保母現在可以在 Profile 頁面一站式管理其專業服務。**

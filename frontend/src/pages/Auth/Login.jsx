@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
-import api from '../../api'
+import api from '../../services/api'
 
 const Login = () => {
   const { t } = useTranslation()
@@ -22,9 +22,18 @@ const Login = () => {
     setLoading(true)
     setError('')
     try {
-      const response = await api.post('/auth/login', { email, password })
-      const { user, token } = response.data
-      setAuth(user, token)
+      const resp = await api.post('/auth/login', { email, password })
+      const { accessToken } = resp.data
+      const userRes = await api.get('/auth/me', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+      const rawUser = userRes.data
+      const user = {
+        ...rawUser,
+        role: rawUser.lastActiveRole,
+        name: rawUser.profiles?.[0]?.name || 'User'
+      }
+      setAuth(user, accessToken)
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.message || t('auth.error_login'))

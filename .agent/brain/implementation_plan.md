@@ -1,60 +1,34 @@
-# PWA 架構升級計畫 (Progressive Web App Implementation)
+# 保母專業經營工具整合與穩定化計畫
 
-> [!WARNING]
-> 經盤點目前的系統設定 (`index.html`, `vite.config.js`, `public/`)，**WhiskerWatch 目前尚未具備任何 PWA 的核心要素**。
-> 為了實現「將網站安裝至手機桌面，並帶來接近原生的 App 體驗」，我們需要全面引入 PWA Manifest Generator 常規的最佳實踐。
+本計畫旨在將 Sophia (Sitter Smoke) 的專業管理工具完整整合至 WhiskerWatch Profile 頁面，並確保在 E2E 測試環境下的高度穩定性。
 
-## User Review Required
+## 使用者評論與決策
+*   **證件加密**：僅對證件照片進行加密處理。
+*   **測試優先順序**：優先確保本地自動化測試通過，再考慮 CI/CD 整合。
 
-以下是為達到「優質 PWA 設計標準」所需進行的技術調整，在我們開始實作前，請問是否同意按照此清單進行？（另外請確認：Logo Icon 是否目前已有，或者我可以使用暫時的 SVG 代替？）
+## 擬議變更
 
-## Proposed Changes
+### 1. 前端組件 (Auth/Profile)
+#### [修改] [Profile.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Auth/Profile.jsx)
+- **API 解耦**：將個人資料獲取與日曆狀態獲取拆分，避免 `Promise.all` 導致的連鎖失敗。
+- **UI 增強**：新增「專業經營工具」區塊，為保母提供服務方案、問卷與信任圈的快捷入口。
+- **加載狀態優化**：增加 `finally` 區塊，確保無論 API 成功或失敗，加載動畫都會消失。
 
-要讓這個專案轉型成符合標準的高級 PWA，我們需要在以下四個層面進行設計調整：
+### 2. 後端控制器 (Calendar)
+#### [修改] [CalendarSyncController.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/controller/v1/CalendarSyncController.java)
+- **防禦性編程**：在 `/status` 端點加入 Profile 存在性檢查，避免出現 `RuntimeException` (500 錯誤)。
 
-### 1. 核心設定檔與建置生態 (Build Ecosystem)
+### 3. 自動化測試 (E2E)
+#### [修改] [AuthPage.js](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/tests/pages/AuthPage.js) / [ProfilePage.js](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/tests/pages/ProfilePage.js)
+- **認證注入**：改用 Playwright `context().addInitScript` 進行全域 `localStorage` 注入，確保認證狀態在路由守衛 (Route Guard) 執行前生效。
+- **SPA 導航優化**：針對 React Router 的客戶端導航，使用 `waitForFunction` 監控 `pathname` 變化。
 
-我們需要引入業界標準的 `vite-plugin-pwa` 套件，讓 Vite 自動幫我們化繁為簡（自動壓制圖片、自動產生 Service Worker）。
+## 驗證計畫
 
-#### [MODIFY] `frontend/vite.config.js`
-- 引入並設定 `VitePWA` 插件。
-- 設定 `registerType: 'autoUpdate'`，讓新版本的網站能在背景自動更新。
-- 定義 `manifest` 的核心 JSON 設定（App 名稱、深/淺色主題顏色切換、顯示模式 `standalone` 等）。
+### 自動化測試
+- 執行 `npx playwright test tests/e2e/sitter-business.spec.js`。
+- 確認認證查核與工具面板導覽正常。
 
-### 2. PWA Manifest 與圖標資產 (Assets & Metadata)
-
-為了讓安裝至手機桌面時看起來足夠「高級」與原生：
-
-#### [MODIFY] `frontend/index.html`
-在 `<head>` 中必須補充以下原生設計所需的 Meta Tags：
-- `theme-color`：對齊我們目前的設計系統顏色 (Surface)。
-- `apple-touch-icon`：針對 iOS 系統的專屬安裝圖示設定。
-- `<meta name="apple-mobile-web-app-capable" content="yes">`：強制隱藏 Safari 的上下導覽列，達到真正的全螢幕沉浸感體驗。
-
-#### [NEW] `frontend/public/icons/`
-- PWA 要求至少提供 `192x192` 與 `512x512` 兩種尺寸的圖標以支援 `maskable` (適應性圓角)。
-- （實作時會先建立一組暫時向量圖標佔位）
-
-### 3. Service Worker 快取與離線體驗 (Offline Experience)
-
-網路不穩或是切換至飛航模式時，PWA 不能直接顯示小恐龍 (Chrome Dino)。
-
-#### [MODIFY] `frontend/vite.config.js`
-- 在 PWA plugin 設定中配置 `workbox` 策略。
-- 針對 API 請求（如 `/api/v1/profiles`）加入 Network-First 策略。
-- 針對靜態資源（CSS、字體、圖片）加入 Cache-First 策略以大幅改善載入效能。
-
-### 4. 註冊提示與安裝 UI (Prompt UI)
-
-PWA 大多是被動觸發安裝。但在高級應用中，我們會希望在適當的時候引導使用者主動下載（A2HS: Add To Home Screen）。
-
-#### [NEW] `frontend/src/components/pwa/InstallPrompt.jsx`
-- （可選階段）在登入後 (Dashboard) 的某個區域，出現優雅的 Toast 或按鈕：「將管家加入主畫面，享受更快體驗」，並攔截 `beforeinstallprompt` 事件。
-
----
-
-## Verification Plan
-
-### Automated Tests
-1. **Lighthouse PWA 審查**：啟動 `npm run build`，並利用 Chrome Lighthouse 功能，確保 PWA 分數達到 100 分。
-2. **服務器部署檢查**：啟動 Live Server，使用 Chrome 開發人員工具 (`Application` > `Manifest` & `Service Workers`) 確保 Service worker 出現 `activated and is running` 的綠燈狀態，並且 Installable 狀態被正確觸發。
+### 手動驗證
+- 使用 Browser Subagent 檢查 `localhost:5173/profile`。
+- 確認「專業經營工具」區塊顯示正確的連結。

@@ -129,8 +129,17 @@ public class CalendarSyncController {
      */
     @GetMapping("/sitters/me/calendar/status")
     public ResponseEntity<Map<String, Object>> getSyncStatus(@AuthenticationPrincipal Account account) {
-        Profile sitterProfile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
-                .orElseThrow(() -> new RuntimeException("Sitter profile not found."));
+        if (account == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        Optional<Profile> sitterProfileOpt = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER);
+        
+        if (sitterProfileOpt.isEmpty()) {
+            return ResponseEntity.ok(Map.of("linked", false, "provider", "NONE", "message", "Profile not initialized"));
+        }
+        
+        Profile sitterProfile = sitterProfileOpt.get();
 
         Optional<SitterCalendarConfig> configOpt = calendarConfigRepository.findBySitterProfileId(sitterProfile.getId());
         

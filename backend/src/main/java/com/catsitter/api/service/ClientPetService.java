@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 @Service
 public class ClientPetService {
 
+    private final PetRepository petRepository;
     private final ProfileRepository profileRepository;
     private final com.catsitter.api.service.storage.StorageService storageService;
 
