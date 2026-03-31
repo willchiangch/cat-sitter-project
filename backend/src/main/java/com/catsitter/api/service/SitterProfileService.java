@@ -13,12 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class SitterProfileService {
 
     private final ProfileRepository profileRepository;
+    private final com.catsitter.api.service.storage.StorageService storageService;
 
     @org.springframework.beans.factory.annotation.Value("${application.subscription.notification-days}")
     private Integer globalNotificationDays;
 
-    public SitterProfileService(ProfileRepository profileRepository) {
+    public SitterProfileService(ProfileRepository profileRepository, 
+                               com.catsitter.api.service.storage.StorageService storageService) {
         this.profileRepository = profileRepository;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
@@ -51,13 +54,13 @@ public class SitterProfileService {
         return new SitterProfileResponse(
                 profile.getId(),
                 profile.getName(),
-                profile.getAvatarUrl(),
+                storageService.getUrl(profile.getAvatarUrl()),
                 profile.getPhone(),
                 profile.getServiceAreas(),
                 profile.getBioSummary(),
                 profile.getIsVerified(),
-                profile.getIdCardFrontUrl(),
-                profile.getIdCardBackUrl(),
+                storageService.getSignedUrl(profile.getIdCardFrontUrl()),
+                storageService.getSignedUrl(profile.getIdCardBackUrl()),
                 profile.getProfessionalLabels(),
                 profile.getBankCode(),
                 profile.getBankAccount(),

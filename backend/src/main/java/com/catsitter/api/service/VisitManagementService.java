@@ -34,15 +34,18 @@ public class VisitManagementService {
     private final VisitServiceRepository visitServiceRepository;
     private final ProfileRepository profileRepository;
     private final VisitMediaRepository visitMediaRepository;
+    private final com.catsitter.api.service.storage.StorageService storageService;
 
     public VisitManagementService(VisitRepository visitRepository,
                                   VisitServiceRepository visitServiceRepository,
                                   ProfileRepository profileRepository,
-                                  VisitMediaRepository visitMediaRepository) {
+                                  VisitMediaRepository visitMediaRepository,
+                                  com.catsitter.api.service.storage.StorageService storageService) {
         this.visitRepository = visitRepository;
         this.visitServiceRepository = visitServiceRepository;
         this.profileRepository = profileRepository;
         this.visitMediaRepository = visitMediaRepository;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +88,7 @@ public class VisitManagementService {
                         item.getServiceType().name(),
                         item.getDescription(),
                         item.getIsCompleted(),
-                        item.getPhotoUrl(),
+                        storageService.getUrl(item.getPhotoUrl()),
                         item.getCompletedAt()
                 ))
                 .collect(Collectors.toList());
@@ -93,7 +96,7 @@ public class VisitManagementService {
         List<VisitDetailResponse.VisitMediaResponse> moments = visitMediaRepository.findByVisitIdOrderByCreatedAtAsc(visitId).stream()
                 .map(media -> new VisitDetailResponse.VisitMediaResponse(
                         media.getId(),
-                        media.getMediaUrl(),
+                        storageService.getUrl(media.getMediaUrl()),
                         media.getCaption(),
                         media.getMediaType() != null ? media.getMediaType() : "IMAGE",
                         media.getCreatedAt() != null ? media.getCreatedAt().atOffset(ZoneOffset.UTC) : null

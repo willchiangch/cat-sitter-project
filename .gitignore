@@ -20,6 +20,7 @@ frontend/.env
 frontend/.env.local
 frontend/playwright-report/
 frontend/test-results/
+frontend/src/services/gen/
 
 # === 後端 (Java/Spring Boot) ===
 backend/target/

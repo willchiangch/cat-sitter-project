@@ -17,12 +17,26 @@ public interface StorageService {
     void delete(String filePath) throws IOException;
     
     /**
-     * Load a file as a Resource.
+     * Get the public URL for a file.
      */
-    Resource load(String filePath);
+    String getUrl(String filePath);
 
     /**
-     * Generate a pre-signed URL for direct client-side upload.
+     * Get a signed URL for a file (short-lived access).
+     */
+    default String getSignedUrl(String filePath) {
+        return getUrl(filePath); // Fallback to public URL for development
+    }
+
+    /**
+     * Load a file as a Resource (for local serving).
+     */
+    default Resource load(String filePath) {
+        return null;
+    }
+
+    /**
+     * Generate a pre-signed URL for direct client-side upload (PUT).
      */
     default String generateUploadUrl(String fileName, String subFolder) {
         throw new UnsupportedOperationException("Signed URLs are not supported by this storage provider.");

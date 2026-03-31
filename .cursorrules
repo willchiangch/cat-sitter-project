@@ -21,4 +21,7 @@
 ## 4. AI 助理連續性規範 (AI Continuity)
 * 所有的開發進度、任務清單與總結必須即時同步至 `.agent/brain/` 文件夾。
 * 每次完成重大任務後，必須執行 `.agents/workflows/persist-progress.md` 中的同步流程。
-* 確保 `task.md`, `project_evaluation.md`, `walkthrough.md` 始終反映最新的專案現況。
+## 5. API 與型別同步規範 (API & Type Synchronization)
+* 當後端 Controller 或 DTO 變更時，**必須**在 `frontend/` 目錄執行 `npm run api:generate` 以同步前端型別與 SDK。
+* 嚴禁手寫 `src/services/gen/` 目錄下的任何內容，該目錄應始終由 OpenAPI 規格自動生成。
+* 自定義請求邏輯（如攔截器、特殊檔案上傳）應留在 `src/services/api.js` 中。

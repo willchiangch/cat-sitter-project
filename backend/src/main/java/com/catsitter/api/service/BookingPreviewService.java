@@ -20,13 +20,16 @@ public class BookingPreviewService {
     private final ProfileRepository profileRepository;
     private final ServiceRepository serviceRepository;
     private final SitterQuestionRepository questionRepository;
+    private final com.catsitter.api.service.storage.StorageService storageService;
 
     public BookingPreviewService(ProfileRepository profileRepository, 
                                  ServiceRepository serviceRepository, 
-                                 SitterQuestionRepository questionRepository) {
+                                 SitterQuestionRepository questionRepository,
+                                 com.catsitter.api.service.storage.StorageService storageService) {
         this.profileRepository = profileRepository;
         this.serviceRepository = serviceRepository;
         this.questionRepository = questionRepository;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
@@ -40,7 +43,7 @@ public class BookingPreviewService {
 
         var sitterProfile = new BookingPreviewResponse.SitterPublicProfile(
                 profile.getName(),
-                profile.getAvatarUrl(),
+                storageService.getUrl(profile.getAvatarUrl()),
                 profile.getBioSummary(),
                 profile.getServiceAreas()
         );

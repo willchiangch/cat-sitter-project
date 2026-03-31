@@ -57,10 +57,23 @@ public class GcsStorageService implements StorageService {
     }
 
     @Override
-    public Resource load(String filePath) {
-        // Typically in GCS we provide signed GET URLs or public URLs, 
-        // but this could return a GoogleCloudStorageResource if needed.
-        throw new UnsupportedOperationException("Direct resource loading not implemented for GCS. Use Signed URLs instead.");
+    public String getUrl(String filePath) {
+        if (filePath == null || filePath.isEmpty()) return null;
+        return String.format("https://storage.googleapis.com/%s/%s", bucketName, filePath);
+    }
+
+    @Override
+    public String getSignedUrl(String filePath) {
+        if (filePath == null || filePath.isEmpty()) return null;
+
+        BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, filePath)).build();
+
+        // Generate a 15-minute signed URL for GET
+        URL signedUrl = storage.signUrl(blobInfo, 15, TimeUnit.MINUTES,
+                Storage.SignUrlOption.httpMethod(HttpMethod.GET),
+                Storage.SignUrlOption.withV4Signature());
+
+        return signedUrl.toString();
     }
 
     @Override

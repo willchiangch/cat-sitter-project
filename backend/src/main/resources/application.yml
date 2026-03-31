@@ -50,5 +50,15 @@ application:
       bucket-name: whiskerwatch-media-uat
       credentials-path: ${GCP_KEY_PATH:../whiskerwatch-key.json}
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  packages-to-scan: com.catsitter.api.controller
+  default-produces-media-type: application/json
+
 server:
   port: 8081

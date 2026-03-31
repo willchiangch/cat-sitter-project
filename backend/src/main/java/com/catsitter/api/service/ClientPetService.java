@@ -20,12 +20,15 @@ import java.util.stream.Collectors;
 @Service
 public class ClientPetService {
 
-    private final PetRepository petRepository;
     private final ProfileRepository profileRepository;
+    private final com.catsitter.api.service.storage.StorageService storageService;
 
-    public ClientPetService(PetRepository petRepository, ProfileRepository profileRepository) {
+    public ClientPetService(PetRepository petRepository, 
+                           ProfileRepository profileRepository,
+                           com.catsitter.api.service.storage.StorageService storageService) {
         this.petRepository = petRepository;
         this.profileRepository = profileRepository;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
@@ -132,7 +135,7 @@ public class ClientPetService {
         return new ClientProfileResponse(
                 profile.getId(),
                 profile.getName(),
-                profile.getAvatarUrl(),
+                storageService.getUrl(profile.getAvatarUrl()),
                 profile.getPhone(),
                 profile.getAddress()
         );
@@ -146,7 +149,7 @@ public class ClientPetService {
                 pet.getGender(),
                 pet.getIsNeutered(),
                 pet.getWeightKg(),
-                pet.getAvatarUrl(),
+                storageService.getUrl(pet.getAvatarUrl()),
                 pet.getMedicalNotes(),
                 pet.getDietaryNotes(),
                 pet.getPersonalityNotes(),

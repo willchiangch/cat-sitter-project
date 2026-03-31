@@ -47,6 +47,13 @@ public class LocalStorageService implements StorageService {
     }
 
     @Override
+    public String getUrl(String filePath) {
+        if (filePath == null || filePath.isEmpty()) return null;
+        // Point to the Local Media Controller
+        return "/api/v1/media/" + filePath;
+    }
+
+    @Override
     public Resource load(String filePath) {
         Path targetFile = rootPath.resolve(filePath);
         if (Files.exists(targetFile)) {
