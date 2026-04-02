@@ -5,11 +5,11 @@ export class ProfilePage {
     this.sitterBadge = page.locator('span').filter({ hasText: /Professional|專業/ }).first()
     this.verifiedIcon = page.locator('span.material-symbols-outlined').filter({ hasText: /verified/i }).first()
     
-    // Professional Tools Locators - Target the links directly for better event triggering
-    this.toolsSection = page.locator('text=/Professional Tools|專業經營工具/i')
-    this.managePackagesBtn = page.locator('a[href="/sitter/service-packages"]')
-    this.questionnaireBtn = page.locator('a[href="/sitter/questionnaire"]')
-    this.trustCircleBtn = page.locator('a[href="/sitter/trust-circle"]')
+    // Professional Tools Locators - Updated to match SettingsItem (Button)
+    this.toolsSection = page.getByText(/專業經營工具|Professional Tools/i)
+    this.managePackagesBtn = page.getByRole('button', { name: /管理服務方案/i })
+    this.questionnaireBtn = page.getByRole('button', { name: /預約問卷設定/i })
+    this.trustCircleBtn = page.getByRole('button', { name: /信任圈夥伴/i })
   }
 
   async goto() {

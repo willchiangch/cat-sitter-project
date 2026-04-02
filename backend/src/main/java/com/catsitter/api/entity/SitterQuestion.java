@@ -53,6 +53,7 @@ public class SitterQuestion extends AuditableEntity {
   @Column(name = "is_active", nullable = false)
   private Boolean isActive = true;
 
+  public void setId(UUID id) { this.id = id; }
   public UUID getId() { return id; }
   public Profile getSitterProfile() { return sitterProfile; }
   public void setSitterProfile(Profile sitterProfile) { this.sitterProfile = sitterProfile; }

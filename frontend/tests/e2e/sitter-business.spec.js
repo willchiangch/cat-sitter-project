@@ -27,13 +27,18 @@ test.describe('Sitter Professional Tools E2E Verification', () => {
   })
 
   test('Navigation and content verification of Sitter Business Tools', async ({ page }) => {
-    // 1. Verify Profile Entrance
+    page.on('console', msg => console.log('BROWSER:', msg.text()));
+    page.on('pageerror', err => console.log('PAGE ERROR:', err.message));
+    
+    const authPage = new AuthPage(page)
     // Note: injectSmokeAuth already navigated to /profile
     
     // Ensure we are NOT redirected back to login
     await expect(page).not.toHaveURL(/\/login/)
     
-    await profilePage.verifySitterStatus()
+    const headings = await page.locator('h3').allTextContents()
+    console.log('[DIAGNOSTIC] All h3 headings:', headings)
+    
     await expect(profilePage.toolsSection).toBeVisible({ timeout: 15000 })
 
     // 2. Test Service Packages

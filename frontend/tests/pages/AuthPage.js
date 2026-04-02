@@ -5,9 +5,18 @@ export class AuthPage {
   }
 
   async injectSmokeAuth(role) {
-    // 1. Injects the X-Smoke-Auth header at the context level so it's sent with EVERY request
-    await this.page.context().setExtraHTTPHeaders({
-      'X-Smoke-Auth': role
+    // 1. Injects the X-Smoke-Auth header ONLY for internal API/app requests
+    // This avoids breaking CORS for external domains like Google Fonts/CDNs
+    await this.page.route('**/*', (route) => {
+      const url = route.request().url()
+      const headers = { ...route.request().headers() }
+      
+      // Only inject for our own domain
+      if (url.includes('localhost') || url.startsWith('/')) {
+        headers['X-Smoke-Auth'] = role
+      }
+      
+      route.continue({ headers })
     })
 
     // 2. Injects mock localStorage state at the context level

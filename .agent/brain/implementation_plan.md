@@ -1,34 +1,50 @@
-# 保母專業經營工具整合與穩定化計畫
+# WhiskerWatch: 戰備狀態回顧與今日行動計畫
 
-本計畫旨在將 Sophia (Sitter Smoke) 的專業管理工具完整整合至 WhiskerWatch Profile 頁面，並確保在 E2E 測試環境下的高度穩定性。
+## 當前專案現況評估 (Review)
 
-## 使用者評論與決策
-*   **證件加密**：僅對證件照片進行加密處理。
-*   **測試優先順序**：優先確保本地自動化測試通過，再考慮 CI/CD 整合。
+### 🟢 已完成事項 (DONE)
+- **Profile 頁面升級**：成功加入「專業經營工具」區塊，整合服務方案、問卷、信任圈入口。
+- **後端防禦性修復**：`CalendarSyncController` 已具備 Profile 缺失檢查，消滅了 500 錯誤。
+- **混合測試框架**：建立 `SitterBusinessFlow` E2E 腳本與對應的 POM (`ProfilePage`, `SitterToolsPage`)。
+- **資料預埋**：`SmokeDataSeeder` 已包含 Sophia 帳號、服務方案與問卷基礎資料。
 
-## 擬議變更
+### 🔴 待修復與缺口 (TODO / Gaps)
+- **前端 Bug**：`Profile.jsx` 使用 `navigate` 但未導入 `useNavigate`，點擊工具連結會崩潰。
+- **測試不穩定性**：E2E 測試在目前環境下偶爾發生「No tests found」或導航超時。
+- **業務缺口**：`project_evaluation.md` 提到目前 API 契約手寫容易出錯，且保母缺乏「提現/財務流水」UI。
 
-### 1. 前端組件 (Auth/Profile)
+---
+
+## 今日優先行動 (Proposed for Today)
+
+### 1. 穩定性鞏固 (Priority: High)
 #### [修改] [Profile.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Auth/Profile.jsx)
-- **API 解耦**：將個人資料獲取與日曆狀態獲取拆分，避免 `Promise.all` 導致的連鎖失敗。
-- **UI 增強**：新增「專業經營工具」區塊，為保母提供服務方案、問卷與信任圈的快捷入口。
-- **加載狀態優化**：增加 `finally` 區塊，確保無論 API 成功或失敗，加載動畫都會消失。
+- **修復導航語法**：導入 `useNavigate` 並正確初始化。
+- **優化加載邏輯**：確保 `calendarStatus` 在 Profile 載入後能非同步更新而不影響主 UI。
 
-### 2. 後端控制器 (Calendar)
-#### [修改] [CalendarSyncController.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/controller/v1/CalendarSyncController.java)
-- **防禦性編程**：在 `/status` 端點加入 Profile 存在性檢查，避免出現 `RuntimeException` (500 錯誤)。
+#### [修復] E2E 測試路徑
+- 調整 `playwright.config.js` 或執行參數，確保 `sitter-business.spec.js` 能穩定執行。
 
-### 3. 自動化測試 (E2E)
-#### [修改] [AuthPage.js](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/tests/pages/AuthPage.js) / [ProfilePage.js](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/tests/pages/ProfilePage.js)
-- **認證注入**：改用 Playwright `context().addInitScript` 進行全域 `localStorage` 注入，確保認證狀態在路由守衛 (Route Guard) 執行前生效。
-- **SPA 導航優化**：針對 React Router 的客戶端導航，使用 `waitForFunction` 監控 `pathname` 變化。
+### 2. 業務功能延伸 (Priority: Medium)
+#### [NEW] 財務介面原型 (Financial Payouts)
+- 在 `Finance.jsx` 基礎上，增加「申請撥款」彈窗與「歷史撥款紀錄」表格。
+- 符合 `project_evaluation.md` 中對「提現與金流閉環」的建議。
+
+#### [修改] [SmokeDataSeeder.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/service/SmokeDataSeeder.java)
+- 更新問卷資料，增加選項型題目，以支援開發中的問卷編輯器。
+
+---
+
+## 使用者確認事項 (User Review Required)
+
+> [!IMPORTANT]
+> 是否優先完成 **API 契約同步 (OpenAPI)** 的建置？
+> `project_evaluation.md` 提到這能從根本解決前後端屬性名稱不一致導致的 Bug。如果同意，我將優先使用 `openapi-spec-generation` 技能。
 
 ## 驗證計畫
 
-### 自動化測試
-- 執行 `npx playwright test tests/e2e/sitter-business.spec.js`。
-- 確認認證查核與工具面板導覽正常。
+### 自動化驗證
+- `npx playwright test sitter-business` 必須 100% 通過。
 
 ### 手動驗證
-- 使用 Browser Subagent 檢查 `localhost:5173/profile`。
-- 確認「專業經營工具」區塊顯示正確的連結。
+- 使用 Browser Subagent 點擊 Profile 中的「管理服務方案」，確認能正確跳轉至 `/sitter/service-packages`。

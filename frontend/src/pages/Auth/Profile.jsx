@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
@@ -6,6 +7,7 @@ import { profileService, storageService, calendarService } from '../../services/
 
 const Profile = () => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   
@@ -17,13 +19,15 @@ const Profile = () => {
   useEffect(() => {
     const fetchData = async () => {
       const isSitter = user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER'
+      console.log('[DEBUG] Auth State:', { user, isSitter });
       if (isSitter) {
         setIsLoading(true)
         try {
           const profile = await profileService.getSitterMe()
+          console.log('[DEBUG] Sitter Profile:', profile);
           setSitterData(profile)
         } catch (error) {
-          console.error('Failed to fetch profile:', error)
+          console.error('[DEBUG] Failed to fetch profile:', error)
         }
 
         try {
@@ -204,8 +208,12 @@ const Profile = () => {
           </div>
         </section>
 
-        {/* Global Settings Sections */}
         <div className="space-y-8">
+          {(() => {
+            const condRole = user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER';
+            console.log('[DEBUG] Condition Check:', { condRole, hasSitterData: !!sitterData });
+            return null;
+          })()}
           {(user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER') && sitterData && (
             <>
               {/* Calendar Sync (New) */}

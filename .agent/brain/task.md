@@ -1,11 +1,9 @@
-- [x] 研究 Profile 頁面選單結構
-- [x] 新增「專業經營工具」區塊至 Profile 頁面
-- [/] 補強 E2E 自動化測試
-    - [ ] 更新 SmokeDataSeeder (問卷與信任圈資料)
-    - [x] 解耦 Profile 與 Calendar API 呼叫 (消滅白屏)
-- [x] 新增「專業經營工具」導覽入口
-- [x] 建立 ProfilePage 與 SitterToolsPage POM
-- [x] 實作 `sitter-business.spec.js` E2E 腳本
-- [x] 強化 `injectSmokeAuth` (注入完整 User 狀態 & 清除 SW)
-- [/] 執行 E2E 自動化測試與最終驗證
-- [ ] 撰寫 Walkthrough 總結工作成果
+- [/] 基礎穩定性鞏固
+    - [/] 修復 `Profile.jsx` 中的 `useNavigate` 缺失 Bug
+    - [ ] 驗證 `sitter-business.spec.js` E2E 測試通過
+- [ ] 業務功能延伸
+    - [ ] 更新 `SmokeDataSeeder.java` (增加問卷選項資料)
+    - [ ] 實作「財務/提現」基本 UI 原型 (於 `Finance.jsx`)
+- [ ] (選位) API 契約同步
+    - [ ] 使用 `openapi-spec-generation` 技能生成規範 (待 user 確認)
+- [ ] 最終驗證與 Walkthrough 更新

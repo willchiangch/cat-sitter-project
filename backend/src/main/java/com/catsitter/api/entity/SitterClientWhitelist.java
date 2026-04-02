@@ -31,6 +31,7 @@ public class SitterClientWhitelist extends AuditableEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    public void setId(UUID id) { this.id = id; }
     public UUID getId() { return id; }
     public Profile getSitterProfile() { return sitterProfile; }
     public void setSitterProfile(Profile sitterProfile) { this.sitterProfile = sitterProfile; }
