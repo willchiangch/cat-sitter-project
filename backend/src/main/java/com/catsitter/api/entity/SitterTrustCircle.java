@@ -17,6 +17,7 @@ public class SitterTrustCircle extends AuditableEntity {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
+  @com.fasterxml.jackson.annotation.JsonIgnore
   @NotNull
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "owner_sitter_id", nullable = false)

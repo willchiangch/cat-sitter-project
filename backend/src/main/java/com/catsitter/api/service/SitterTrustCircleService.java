@@ -1,5 +1,6 @@
 package com.catsitter.api.service;
 
+import com.catsitter.api.dto.SitterTrustCircleDTO;
 import com.catsitter.api.entity.Account;
 import com.catsitter.api.entity.Profile;
 import com.catsitter.api.entity.SitterTrustCircle;
@@ -25,13 +26,17 @@ public class SitterTrustCircleService {
     }
 
     @Transactional(readOnly = true)
-    public List<SitterTrustCircle> getTrustCircle(Account account) {
-        Profile sitter = getSitterProfile(account);
-        return trustCircleRepository.findByOwnerSitterIdAndStatus(sitter.getId(), TrustCircleStatus.ACTIVE);
+    public List<SitterTrustCircleDTO> getTrustCircle(Account account) {
+        return profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                .map(sitter -> trustCircleRepository.findByOwnerSitterIdAndStatus(sitter.getId(), TrustCircleStatus.ACTIVE)
+                        .stream()
+                        .map(SitterTrustCircleDTO::fromEntity)
+                        .toList())
+                .orElse(java.util.Collections.emptyList());
     }
 
     @Transactional
-    public SitterTrustCircle addMember(Account account, UUID trustedSitterId) {
+    public SitterTrustCircleDTO addMember(Account account, UUID trustedSitterId) {
         Profile owner = getSitterProfile(account);
         Profile trusted = profileRepository.findById(trustedSitterId)
                 .orElseThrow(() -> new RuntimeException("Trusted sitter profile not found"));
@@ -45,7 +50,7 @@ public class SitterTrustCircleService {
         trustCircle.setTrustedSitter(trusted);
         trustCircle.setStatus(TrustCircleStatus.ACTIVE);
 
-        return trustCircleRepository.save(trustCircle);
+        return SitterTrustCircleDTO.fromEntity(trustCircleRepository.save(trustCircle));
     }
 
     @Transactional

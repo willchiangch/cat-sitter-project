@@ -1,7 +1,7 @@
 package com.catsitter.api.controller.v1;
 
+import com.catsitter.api.dto.SitterClientWhitelistDTO;
 import com.catsitter.api.entity.Account;
-import com.catsitter.api.entity.SitterClientWhitelist;
 import com.catsitter.api.service.WhitelistService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,12 +21,12 @@ public class WhitelistController {
     }
 
     @GetMapping
-    public ResponseEntity<List<SitterClientWhitelist>> getWhitelist(@AuthenticationPrincipal Account account) {
+    public ResponseEntity<List<SitterClientWhitelistDTO>> getWhitelist(@AuthenticationPrincipal Account account) {
         return ResponseEntity.ok(whitelistService.getWhitelistedClients(account));
     }
 
     @PutMapping("/clients/{clientId}")
-    public ResponseEntity<SitterClientWhitelist> updateWhitelist(
+    public ResponseEntity<SitterClientWhitelistDTO> updateWhitelist(
             @AuthenticationPrincipal Account account,
             @PathVariable UUID clientId,
             @RequestParam Boolean skipQuestionnaire) {

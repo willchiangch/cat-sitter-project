@@ -1,5 +1,6 @@
 package com.catsitter.api.service;
 
+import com.catsitter.api.dto.SitterClientWhitelistDTO;
 import com.catsitter.api.entity.Profile;
 import com.catsitter.api.entity.SitterClientWhitelist;
 import com.catsitter.api.entity.Account;
@@ -24,13 +25,17 @@ public class WhitelistService {
     }
 
     @Transactional(readOnly = true)
-    public List<SitterClientWhitelist> getWhitelistedClients(Account sitterAccount) {
-        Profile sitter = getSitterProfile(sitterAccount);
-        return whitelistRepository.findBySitterProfileId(sitter.getId());
+    public List<SitterClientWhitelistDTO> getWhitelistedClients(Account sitterAccount) {
+        return profileRepository.findByAccountIdAndRoleType(sitterAccount.getId(), RoleType.SITTER)
+                .map(sitter -> whitelistRepository.findBySitterProfileId(sitter.getId())
+                        .stream()
+                        .map(SitterClientWhitelistDTO::fromEntity)
+                        .toList())
+                .orElse(java.util.Collections.emptyList());
     }
 
     @Transactional
-    public SitterClientWhitelist toggleSkipQuestionnaire(Account sitterAccount, UUID clientId, Boolean skip) {
+    public SitterClientWhitelistDTO toggleSkipQuestionnaire(Account sitterAccount, UUID clientId, Boolean skip) {
         Profile sitter = getSitterProfile(sitterAccount);
         Profile client = profileRepository.findById(clientId)
                 .orElseThrow(() -> new RuntimeException("Client profile not found"));
@@ -44,7 +49,7 @@ public class WhitelistService {
                 });
 
         whitelist.setSkipQuestionnaire(skip);
-        return whitelistRepository.save(whitelist);
+        return SitterClientWhitelistDTO.fromEntity(whitelistRepository.save(whitelist));
     }
 
     @Transactional

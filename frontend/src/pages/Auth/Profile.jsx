@@ -6,13 +6,10 @@ import { useAuthStore } from '../../store/authStore'
 import { profileService, storageService, calendarService } from '../../services/api'
 
 const Profile = () => {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   
   const [isUploading, setIsUploading] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const [sitterData, setSitterData] = useState(null)
   const [calendarStatus, setCalendarStatus] = useState(null)
   

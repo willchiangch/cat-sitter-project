@@ -1,6 +1,8 @@
+package com.catsitter.api.controller.v1;
+
+import com.catsitter.api.dto.SitterTrustCircleDTO;
 import com.catsitter.api.dto.sitter.AddTrustCircleRequest;
 import com.catsitter.api.entity.Account;
-import com.catsitter.api.entity.SitterTrustCircle;
 import com.catsitter.api.service.SitterTrustCircleService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -21,12 +23,12 @@ public class SitterTrustCircleController {
     }
 
     @GetMapping
-    public ResponseEntity<List<SitterTrustCircle>> getTrustCircle(@AuthenticationPrincipal Account account) {
+    public ResponseEntity<List<SitterTrustCircleDTO>> getTrustCircle(@AuthenticationPrincipal Account account) {
         return ResponseEntity.ok(trustCircleService.getTrustCircle(account));
     }
 
     @PostMapping
-    public ResponseEntity<SitterTrustCircle> addMember(
+    public ResponseEntity<SitterTrustCircleDTO> addMember(
             @AuthenticationPrincipal Account account,
             @Valid @RequestBody AddTrustCircleRequest request) {
         return ResponseEntity.ok(trustCircleService.addMember(account, request.getTrustedSitterId()));

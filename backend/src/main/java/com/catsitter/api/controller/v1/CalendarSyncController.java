@@ -1,3 +1,5 @@
+package com.catsitter.api.controller.v1;
+
 import com.catsitter.api.entity.Account;
 import com.catsitter.api.entity.Profile;
 import com.catsitter.api.entity.SitterCalendarConfig;
@@ -152,13 +154,13 @@ public class CalendarSyncController {
 
         SitterCalendarConfig config = configOpt.get();
         System.out.println("[DEBUG] config provider: " + config.getProvider());
-        
-        return ResponseEntity.ok(Map.of(
-            "linked", !"NONE".equals(config.getProvider()),
-            "provider", config.getProvider(),
-            "hasIcalToken", config.getIcalToken() != null,
-            "feedUrl", config.getIcalToken() != null ? "/api/v1/calendar/feed/" + config.getIcalToken() + ".ics" : null
-        ));
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("linked", !"NONE".equals(config.getProvider()));
+        response.put("provider", config.getProvider());
+        response.put("hasIcalToken", config.getIcalToken() != null);
+        response.put("feedUrl", config.getIcalToken() != null ? "/api/v1/calendar/feed/" + config.getIcalToken() + ".ics" : null);
+        return ResponseEntity.ok(response);
     }
 
     /**

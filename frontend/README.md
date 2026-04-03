@@ -1,16 +1,36 @@
-# React + Vite
+# Frontend — WhiskerWatch PWA
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite 7 + Tailwind CSS 4 前端應用。
 
-Currently, two official plugins are available:
+## 開發指令
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm run dev            # 本地開發伺服器（預設 :5173）
+npm run build          # 正式建置
+npm run preview        # 預覽建置結果
+npm run lint           # ESLint 檢查
+```
 
-## React Compiler
+## 測試
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run test:e2e       # Playwright E2E 測試（需後端 smoke profile 運行於 :8081）
+npm run test:e2e:ui    # Playwright UI 互動模式
+```
 
-## Expanding the ESLint configuration
+## API 契約同步
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+後端有 API 異動時，執行以下指令同步 OpenAPI spec 並重新生成 TypeScript SDK：
+
+```bash
+npm run api:sync       # = api:fetch + api:generate（需後端運行）
+npm run api:fetch      # 僅從後端抓 spec → backend/openapi.json
+npm run api:generate   # 僅重新生成 src/services/gen/（使用現有 openapi.json）
+```
+
+生成產物位於 `src/services/gen/`：
+- `types.gen.ts` — 所有 API 型別定義
+- `sdk.gen.ts` — 各端點的強型別呼叫函式
+- `client.gen.ts` — Axios client 設定
+
+自訂攔截器與無法自動生成的服務邏輯請維護於 `src/services/api.ts`。

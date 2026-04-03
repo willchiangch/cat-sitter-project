@@ -35,5 +35,15 @@
     - 保護 API：除 `/auth/register`、`/auth/login` 外，其餘 API 預設應受保護。
     - 獲取目前使用者：在 Controller 中使用 `@AuthenticationPrincipal Account account`。
 
-## 6. 其他規範
+## 6. OpenAPI 規範 (springdoc)
+
+本專案使用 `springdoc-openapi-starter-webmvc-ui` 自動從 Controller 生成 API 文件。
+
+- **Spec 端點**：後端啟動後可由 `http://localhost:8081/v3/api-docs` 取得 JSON spec。
+- **Swagger UI**：`http://localhost:8081/swagger-ui.html`
+- **operationId**：每個 Controller method 應有唯一且有意義的 `operationId`（透過 `@Operation(operationId = "...")` 宣告），供前端 SDK 自動命名。
+- **DTO 原則**：API 回傳值應使用 DTO 而非 Entity，避免 Hibernate Lazy Proxy 序列化錯誤，同時提供明確的 response schema。
+- **同步流程**：後端 API 異動後，須在前端執行 `npm run api:sync` 更新 TypeScript SDK。
+
+## 7. 其他規範
 - **組件風格**：專案目前傾向使用標準 Java (Getter/Setter/Standard Logger) 而非 Lombok，以確保所有環境（如 CI/CD 或不同代理環境）皆能穩定編譯。

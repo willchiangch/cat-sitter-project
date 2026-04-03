@@ -30,8 +30,8 @@ public class SmokeDataSeeder implements CommandLineRunner {
         // 1. Cleanup - Reverse order of FK constraints
         String[] tables = {
             "VISIT_SERVICES", "VISIT_MEDIA", "VISITS", "ORDER_ANSWERS", "ORDER_ACTION_LOGS",
-            "ORDERS", "SITTER_QUESTION_OPTIONS", "SITTER_QUESTIONS", "SITTER_CLIENT_WHITELISTS",
-            "SERVICES", "PETS", "PROFILES", "ACCOUNTS"
+            "ORDERS", "SITTER_QUESTION_OPTIONS", "SITTER_QUESTIONS", "SITTER_TRUST_CIRCLES",
+            "SITTER_CLIENT_WHITELISTS", "SERVICES", "PETS", "PROFILES", "ACCOUNTS"
         };
         
         for (String table : tables) {

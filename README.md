@@ -72,14 +72,28 @@ cd frontend
 npm run test           # 執行所有元件測試
 ```
 
-#### 2. 前端 E2E 流程測試 (Playwright)
+#### 2. API 契約同步（OpenAPI → TypeScript SDK）
+
+> 後端每次新增或修改 API 後，執行此步驟將最新 spec 同步至前端型別。
+
+```bash
+cd frontend
+npm run api:sync       # 從後端抓 spec + 重新生成 TypeScript SDK（需後端運行）
+npm run api:generate   # 僅重新生成 SDK（使用現有 backend/openapi.json）
+```
+
+- `api:fetch`：從 `http://localhost:8081/v3/api-docs` 抓取最新 spec，覆寫 `backend/openapi.json`
+- `api:generate`：從 `backend/openapi.json` 生成 `frontend/src/services/gen/`（型別 + SDK + client）
+- `api:sync`：以上兩步合一
+
+#### 3. 前端 E2E 流程測試 (Playwright)
 需啟動後端 `smoke` profile (Port 8081) 後執行：
 ```bash
 cd frontend
 npx playwright test    # 執行所有 POM 化後的 E2E 腳本
 ```
 
-#### 3. 後端單元與冒煙測試
+#### 4. 後端單元與冒煙測試
 ```bash
 cd backend
 ./mvnw test            # 全體測試
