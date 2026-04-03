@@ -1,9 +1,16 @@
-- [/] 基礎穩定性鞏固
-    - [/] 修復 `Profile.jsx` 中的 `useNavigate` 缺失 Bug
-    - [ ] 驗證 `sitter-business.spec.js` E2E 測試通過
-- [ ] 業務功能延伸
-    - [ ] 更新 `SmokeDataSeeder.java` (增加問卷選項資料)
-    - [ ] 實作「財務/提現」基本 UI 原型 (於 `Finance.jsx`)
-- [ ] (選位) API 契約同步
-    - [ ] 使用 `openapi-spec-generation` 技能生成規範 (待 user 確認)
+- [x] 基礎穩定性鞏固 (Repair & Stabilize)
+    - [x] 修正實體序列化問題 (Hibernate Proxy: Profile, TrustCircle, Whitelist)
+    - [x] 修復 `MediaController` NullPointerException
+    - [x] 診斷並修復 `CalendarSyncController` 的 500 報錯
+- [x] 核心業務功能實作 (Trust Circle & Whitelist)
+    - [x] 實作 `SitterTrustCircleService` 與 `SitterTrustCircleController`
+    - [x] 建立 `AddTrustCircleRequest` DTO 並更新 Controller
+    - [x] 更新 `SmokeDataSeeder.java` 確保測試資料完整
+- [/] API 契約同步與自動化 (Contract Sync)
+    - [ ] 執行 `openapi.json` 更新 (Trust Circle 節點與 Schema)
+    - [ ] 執行 `npm run api:generate` 並驗證 `src/services/gen` 內容
+- [ ] 驗證與最終測試
+    - [ ] 確保 `sitter-business.spec.js` 100% 通過
+    - [ ] `Profile.jsx` 骨架屏 (Skeleton UI)
+    - [ ] `Finance.jsx` 提現成功 Toast 修復
 - [ ] 最終驗證與 Walkthrough 更新

@@ -1,5 +1,6 @@
 package com.catsitter.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.catsitter.api.entity.common.AuditableEntity;
 import com.catsitter.api.entity.enums.TrustCircleStatus;
 import jakarta.persistence.*;
@@ -9,6 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "sitter_trust_circles")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class SitterTrustCircle extends AuditableEntity {
 
   @Id

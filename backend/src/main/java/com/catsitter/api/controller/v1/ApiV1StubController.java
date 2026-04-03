@@ -39,27 +39,6 @@ public class ApiV1StubController {
         return notImplemented("POST /api/v1/bookings/{bookingId}/cancel");
     }
 
-    // Trust circle/referral
-    @GetMapping("/sitters/me/trust-circle/search")
-    public ResponseEntity<Map<String, Object>> searchTrustCircle(@RequestParam String q) {
-        return notImplemented("GET /api/v1/sitters/me/trust-circle/search");
-    }
-
-    @PostMapping("/sitters/me/trust-circle")
-    public ResponseEntity<Map<String, Object>> addTrustCircle(@RequestBody Map<String, Object> body) {
-        return notImplemented("POST /api/v1/sitters/me/trust-circle");
-    }
-
-    @PatchMapping("/sitters/me/trust-circle/{partnerId}")
-    public ResponseEntity<Map<String, Object>> updateTrustCircle(@PathVariable UUID partnerId, @RequestBody Map<String, Object> body) {
-        return notImplemented("PATCH /api/v1/sitters/me/trust-circle/{partnerId}");
-    }
-
-    @DeleteMapping("/sitters/me/trust-circle/{partnerId}")
-    public ResponseEntity<Map<String, Object>> removeTrustCircle(@PathVariable UUID partnerId) {
-        return notImplemented("DELETE /api/v1/sitters/me/trust-circle/{partnerId}");
-    }
-
     @PostMapping("/bookings/{bookingId}/referrals")
     public ResponseEntity<Map<String, Object>> createReferral(@PathVariable UUID bookingId, @RequestBody Map<String, Object> body) {
         return notImplemented("POST /api/v1/bookings/{bookingId}/referrals");

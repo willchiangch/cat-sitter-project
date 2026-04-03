@@ -129,11 +129,13 @@ public class CalendarSyncController {
      */
     @GetMapping("/sitters/me/calendar/status")
     public ResponseEntity<Map<String, Object>> getSyncStatus(@AuthenticationPrincipal Account account) {
+        System.out.println("[DEBUG] getSyncStatus called for account: " + (account != null ? account.getEmail() : "null"));
         if (account == null) {
             return ResponseEntity.status(401).build();
         }
         
         Optional<Profile> sitterProfileOpt = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER);
+        System.out.println("[DEBUG] sitterProfileOpt found: " + sitterProfileOpt.isPresent());
         
         if (sitterProfileOpt.isEmpty()) {
             return ResponseEntity.ok(Map.of("linked", false, "provider", "NONE", "message", "Profile not initialized"));
@@ -142,12 +144,15 @@ public class CalendarSyncController {
         Profile sitterProfile = sitterProfileOpt.get();
 
         Optional<SitterCalendarConfig> configOpt = calendarConfigRepository.findBySitterProfileId(sitterProfile.getId());
+        System.out.println("[DEBUG] configOpt found: " + configOpt.isPresent());
         
         if (configOpt.isEmpty()) {
             return ResponseEntity.ok(Map.of("linked", false, "provider", "NONE"));
         }
 
         SitterCalendarConfig config = configOpt.get();
+        System.out.println("[DEBUG] config provider: " + config.getProvider());
+        
         return ResponseEntity.ok(Map.of(
             "linked", !"NONE".equals(config.getProvider()),
             "provider", config.getProvider(),

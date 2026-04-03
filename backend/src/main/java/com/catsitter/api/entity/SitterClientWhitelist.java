@@ -1,5 +1,6 @@
 package com.catsitter.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.catsitter.api.entity.common.AuditableEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -9,6 +10,7 @@ import java.util.UUID;
 @Table(name = "sitter_client_whitelists", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"sitter_profile_id", "client_profile_id"})
 })
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class SitterClientWhitelist extends AuditableEntity {
 
     @Id

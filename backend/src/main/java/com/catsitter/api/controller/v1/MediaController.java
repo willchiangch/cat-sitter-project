@@ -54,11 +54,22 @@ public class MediaController {
         String path = request.getRequestURI().split("/api/v1/media/")[1];
         Resource file = storageService.load(path);
         
+        if (file == null || !file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
         String contentType = "application/octet-stream";
         try {
-            contentType = request.getServletContext().getMimeType(file.getFile().getAbsolutePath());
-        } catch (IOException ex) {
-            // Log warning or keep default
+            // Use a safer way to get content type that doesn't rely solely on getFile()
+            String fileName = file.getFilename();
+            if (fileName != null) {
+                contentType = request.getServletContext().getMimeType(fileName);
+            }
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+        } catch (Exception ex) {
+            // Fallback to default
         }
 
         return ResponseEntity.ok()

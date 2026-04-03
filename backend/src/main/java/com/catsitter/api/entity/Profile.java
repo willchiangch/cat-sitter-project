@@ -1,5 +1,6 @@
 package com.catsitter.api.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.catsitter.api.entity.common.AuditableEntity;
 import com.catsitter.api.entity.enums.RoleType;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "profiles")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Profile extends AuditableEntity {
 
   @Id

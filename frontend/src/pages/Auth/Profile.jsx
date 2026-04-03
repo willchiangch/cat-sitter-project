@@ -19,15 +19,14 @@ const Profile = () => {
   useEffect(() => {
     const fetchData = async () => {
       const isSitter = user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER'
-      console.log('[DEBUG] Auth State:', { user, isSitter });
       if (isSitter) {
-        setIsLoading(true)
+        // Only show global loading on first fetch
+        if (!sitterData) setIsLoading(true)
         try {
           const profile = await profileService.getSitterMe()
-          console.log('[DEBUG] Sitter Profile:', profile);
           setSitterData(profile)
         } catch (error) {
-          console.error('[DEBUG] Failed to fetch profile:', error)
+          console.error('Failed to fetch profile:', error)
         }
 
         try {
