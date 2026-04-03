@@ -143,15 +143,45 @@ const Login = () => {
               </svg>
               使用 Facebook 繼續
             </button>
-            <button 
-              onClick={() => window.location.href = '/api/v1/oauth2/authorization/apple'}
-              className="flex items-center justify-center gap-3 w-full py-4 rounded-full bg-black text-white hover:opacity-90 transition-all text-sm font-bold shadow-lg shadow-black/20"
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.82a3.69 3.69 0 0 0-1.297 3.687c1.35.104 2.741-.665 3.584-1.677z"/>
-              </svg>
-              使用 Apple 繼續
-            </button>
+            
+            {/* Demo Login for Testing (Only when password login is disabled to facilitate UAT manual testing) */}
+            {!enablePasswordLogin && (
+              <button 
+                type="button"
+                onClick={async () => {
+                  console.log('Demo Login Clicked');
+                  setLoading(true);
+                  setError('');
+                  try {
+                    const resp = await api.post('/auth/login', { 
+                      email: 'sitter_smoke@test.com', 
+                      password: 'password123' 
+                    });
+                    const { accessToken } = resp.data;
+                    const userRes = await api.get('/auth/me', { 
+                      headers: { Authorization: `Bearer ${accessToken}` } 
+                    });
+                    const rawUser = userRes.data;
+                    const user = {
+                      ...rawUser,
+                      role: rawUser.lastActiveRole,
+                      name: rawUser.profiles?.[0]?.name || 'Demo Sitter'
+                    };
+                    setAuth(user, accessToken);
+                    navigate('/');
+                  } catch (err) {
+                    console.error('Demo Login Error:', err);
+                    setError('Demo Login Failed: ' + (err.response?.data?.message || err.message));
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="mt-8 flex items-center justify-center gap-3 w-full py-4 rounded-full bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/10 active:scale-95 cursor-pointer transition-all text-[11px] font-bold border border-on-surface/10 uppercase tracking-widest"
+              >
+                <span className="material-symbols-outlined text-sm">terminal</span>
+                [開發測試] 快速登入為保母
+              </button>
+            )}
           </div>
         </div>
 

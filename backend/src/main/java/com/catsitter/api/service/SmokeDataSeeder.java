@@ -60,8 +60,8 @@ public class SmokeDataSeeder implements CommandLineRunner {
 
         // 3. Profiles
         UUID sitterProfileId = UUID.fromString("efefefef-0000-0000-0000-000000000011");
-        jdbcTemplate.update("INSERT INTO PROFILES (ID, ACCOUNT_ID, ROLE_TYPE, NAME, SLUG, IS_VERIFIED, ID_CARD_FRONT_URL, ID_CARD_BACK_URL, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            sitterProfileId, sitterAccId, "SITTER", "Sophia (Smoke Test)", "sophia-smoke", true, "identity/sophia-front.jpg", "identity/sophia-back.jpg", now, now);
+        jdbcTemplate.update("INSERT INTO PROFILES (ID, ACCOUNT_ID, ROLE_TYPE, NAME, SLUG, IS_VERIFIED, ID_CARD_FRONT_URL, FACE_PHOTO_URL, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            sitterProfileId, sitterAccId, "SITTER", "Sophia (Smoke Test)", "sophia-smoke", true, "identity/sophia-front.jpg", "identity/sophia-face.jpg", now, now);
 
         UUID buddyProfileId = UUID.fromString("efefefef-0000-0000-0000-000000000013");
         jdbcTemplate.update("INSERT INTO PROFILES (ID, ACCOUNT_ID, ROLE_TYPE, NAME, SLUG, IS_VERIFIED, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

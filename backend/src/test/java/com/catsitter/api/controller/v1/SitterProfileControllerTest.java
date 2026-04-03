@@ -107,7 +107,9 @@ class SitterProfileControllerTest {
                 List.of(), // professionalLabels
                 null,      // bankCode
                 null,      // bankAccount
-                null       // bankAccountHolder
+                null,      // bankAccountHolder
+                null,      // idCardFrontUrl
+                null       // facePhotoUrl
         );
 
         mockMvc.perform(put("/api/v1/sitters/me/profile")
