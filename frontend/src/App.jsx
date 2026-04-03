@@ -19,6 +19,7 @@ import TrustCircle from './pages/Sitter/TrustCircle'
 import Notifications from './pages/Shared/Notifications'
 import BookingFlow from './pages/Client/BookingFlow'
 import Pets from './pages/Client/Pets'
+import ClientSitters from './pages/Client/Sitters'
 import ServicePackages from './pages/Sitter/ServicePackages'
 import QuestionnaireEditor from './pages/Sitter/QuestionnaireEditor'
 import ClientOrders from './pages/Client/Orders'
@@ -58,6 +59,7 @@ function App() {
           <Route path="client/cat-passport/:id" element={<CatPassport />} />
           <Route path="client/cat-passport/:id" element={<CatPassport />} />
           <Route path="client/pets" element={<Pets />} />
+          <Route path="client/sitters" element={<ClientSitters />} />
           <Route path="booking/sitter/:sitterId" element={<BookingFlow />} />
           <Route path="client/orders" element={<ClientOrders />} />
           <Route path="orders" element={<ClientOrders />} />

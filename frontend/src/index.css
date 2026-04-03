@@ -28,6 +28,7 @@
     --on-secondary-container: #004a7e;
 
     /* Tonal Rules */
+    --outline: #8a8c8a;
     --outline-variant: #acadac;
   }
 
@@ -75,6 +76,7 @@
   --color-primary-container: var(--primary-container);
   --color-on-primary-container: var(--on-primary-container);
   
+  --color-outline: var(--outline);
   --color-outline-variant: var(--outline-variant);
 
   /* Radius Rules from DESIGN.md */

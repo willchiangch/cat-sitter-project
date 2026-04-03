@@ -40,38 +40,14 @@ const ClientDashboard = () => {
       <BentoShortcuts />
 
       {/* Today's Visit Card */}
-      <ClientVisitCard {...activeVisit} />
-
-      {/* Recent Activity Teaser */}
-      <section className="px-1 pb-12 space-y-4">
-        <h3 className="font-headline font-extrabold text-xl text-on-surface tracking-tight">{t('client.recent_updates')}</h3>
-        <motion.div 
-          whileHover={{ scale: 1.01 }}
-          className="bg-surface-container-low rounded-2xl p-5 flex items-start gap-4 border border-outline-variant/10 shadow-sm"
-        >
-          <div className="mt-1">
-            <span className="material-symbols-outlined text-tertiary">check_circle</span>
-          </div>
-          <div className="flex-1 space-y-0.5">
-            <div className="flex justify-between items-start">
-              <h4 className="font-extrabold text-on-surface text-sm">{t('client.visit_completed')}</h4>
-              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest opacity-60">
-                {t('client.yesterday')}
-              </span>
-            </div>
-            <p className="text-xs text-on-surface-variant font-body leading-relaxed opacity-80">
-              Miso enjoyed his treats and we had a good play session with the feather wand.
-            </p>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* Contextual FAB (Owner Action: Add Cat/Service) */}
-      <div className="fixed bottom-28 right-6 z-40">
-        <button className="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-95 transition-transform duration-200 shadow-blue-500/20">
-          <span className="material-symbols-outlined text-3xl">add</span>
-        </button>
-      </div>
+      {activeVisit ? (
+        <ClientVisitCard {...activeVisit} />
+      ) : (
+        <div className="py-16 text-center space-y-3 opacity-40">
+          <span className="material-symbols-outlined text-5xl">event_available</span>
+          <p className="text-sm font-bold uppercase tracking-widest">今日沒有預約行程</p>
+        </div>
+      )}
     </motion.div>
   )
 }

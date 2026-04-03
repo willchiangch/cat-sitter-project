@@ -7,21 +7,21 @@ import { useNotificationStore } from '../../store/notificationStore'
 const BottomNavBar = () => {
   const { t } = useTranslation()
   const { mode } = useThemeStore()
-  const { getUnreadCount } = useNotificationStore()
-  const unreadCount = getUnreadCount()
+  const { getUnreadCountForRole } = useNotificationStore()
+  const unreadCount = getUnreadCountForRole(mode)
   
   const navItems = mode === 'SITTER' ? [
-    { icon: 'dashboard', label: t('auth.role_sitter'), path: '/sitter' },
-    { icon: 'receipt_long', label: t('common.orders'), path: '/sitter/orders' },
-    { icon: 'payments', label: t('common.finance'), path: '/sitter/finance' },
-    { icon: 'notifications', label: t('common.alerts'), path: '/notifications', badge: true },
-    { icon: 'person', label: t('common.profile'), path: '/profile' },
+    { icon: 'dashboard', label: t('common.tab_itinerary'), path: '/sitter' },
+    { icon: 'receipt_long', label: t('common.tab_orders'), path: '/sitter/orders' },
+    { icon: 'payments', label: t('common.tab_finance'), path: '/sitter/finance' },
+    { icon: 'notifications', label: t('common.tab_notifications'), path: '/notifications', badge: true },
+    { icon: 'person', label: t('common.tab_profile'), path: '/profile' },
   ] : [
-    { icon: 'dashboard', label: t('auth.role_parent'), path: '/client' },
-    { icon: 'pets', label: t('common.orders'), path: '/client/orders' },
-    { icon: 'search', label: t('common.sitters'), path: '/explore' },
-    { icon: 'notifications', label: t('common.inbox'), path: '/notifications' },
-    { icon: 'person', label: t('common.profile'), path: '/profile' },
+    { icon: 'dashboard', label: t('common.tab_itinerary'), path: '/client' },
+    { icon: 'pets', label: t('common.tab_orders'), path: '/client/orders' },
+    { icon: 'search', label: t('common.tab_sitters'), path: '/client/sitters' },
+    { icon: 'notifications', label: t('common.tab_notifications'), path: '/notifications' },
+    { icon: 'person', label: t('common.tab_profile'), path: '/profile' },
   ]
 
   return (

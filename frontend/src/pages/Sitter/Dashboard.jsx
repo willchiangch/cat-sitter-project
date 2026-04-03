@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import StatCard from '../../components/sitter/StatCard'
 import UpcomingVisitCard from '../../components/sitter/UpcomingVisitCard'
 import TimelinePreview from '../../components/sitter/TimelinePreview'
 
@@ -13,15 +12,11 @@ const Dashboard = () => {
   const user = useAuthStore((state) => state.user)
 
   // Mock Data for the Sitter Dashboard View
-  const stats = [
-    { id: 'earnings', icon: 'monetization_on', label: t('dashboard.stats_earnings'), value: '$145.00', variant: 'primary' },
-    { id: 'visits', icon: 'verified', label: t('dashboard.stats_visits'), value: '24', subValue: '(122)', variant: 'secondary' }
-  ]
-
   const nextVisit = {
+    id: 'mock-visit-1',
     catName: 'Oliver',
     address: '422 West Oak Avenue',
-    time: '14:00 PM',
+    date: '週三 · 今日',
     duration: '60 min Visit',
     services: 'Feeding & Play',
     statusLabel: t('dashboard.status_active_soon'),
@@ -66,46 +61,12 @@ const Dashboard = () => {
         </button>
       </motion.section>
 
-      {/* Navigation Tabs (Editorial style) */}
-      <nav className="flex p-1 bg-surface-container-low rounded-full ambient-shadow overflow-x-auto no-scrollbar">
-        <button className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest transition-all bg-surface-container-lowest text-primary shadow-sm">
-          {t('dashboard.tab_today')}
-        </button>
-        <button 
-          onClick={() => navigate('/sitter/service-packages')}
-          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
-        >
-          {t('dashboard.tab_services', 'Services')}
-        </button>
-        <button 
-          onClick={() => navigate('/sitter/questionnaire')}
-          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
-        >
-          {t('dashboard.tab_questionnaire', 'Questions')}
-        </button>
-        <button 
-          onClick={() => navigate('/sitter/orders')}
-          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
-        >
-          {t('dashboard.tab_orders')}
-        </button>
-        <button 
-          onClick={() => navigate('/sitter/trust-circle')}
-          className="flex-none py-3 px-4 rounded-full text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors opacity-60"
-        >
-          {t('dashboard.tab_trust')}
-        </button>
-      </nav>
-
       {/* Up Next Section */}
-      <UpcomingVisitCard {...nextVisit} />
-
-      {/* Dashboard Insights Bento */}
-      <div className="grid grid-cols-2 gap-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.id} {...stat} />
-        ))}
-      </div>
+      <UpcomingVisitCard
+        {...nextVisit}
+        onSopClick={() => {}}
+        onPanelClick={() => navigate('/sitter/service/' + nextVisit.id)}
+      />
 
       {/* Timeline Section */}
       <TimelinePreview events={schedule} />

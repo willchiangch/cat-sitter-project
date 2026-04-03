@@ -4,12 +4,14 @@ export class DashboardPage {
   }
 
   async navigateToInboxOrOrders() {
-    await this.page.goto('/orders')
+    await this.page.goto('/sitter/orders')
     await this.page.waitForLoadState('networkidle')
   }
 
   async openFirstPendingOrder() {
-    // Navigate via UI to prove functionality
+    // Click the 評估中 tab to surface PENDING/QUOTED orders
+    await this.page.getByRole('button', { name: '評估中' }).click()
+    // Click the first order item to navigate to detail
     await this.page.getByText('待報價').first().click()
     await this.page.waitForURL(/\/orders\/.*/)
   }

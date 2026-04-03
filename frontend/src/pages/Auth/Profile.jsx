@@ -3,15 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
-import { profileService, storageService, calendarService } from '../../services/api'
+import { profileService, storageService, calendarService, petService } from '../../services/api'
+import PetFormModal from '../../components/client/PetFormModal'
 
 const Profile = () => {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   
   const [isUploading, setIsUploading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [sitterData, setSitterData] = useState(null)
   const [calendarStatus, setCalendarStatus] = useState(null)
+  const [pets, setPets] = useState([])
+  const [showPetModal, setShowPetModal] = useState(false)
   
   useEffect(() => {
     const fetchData = async () => {
@@ -39,6 +43,13 @@ const Profile = () => {
       }
     }
     fetchData()
+  }, [user])
+
+  useEffect(() => {
+    const isClient = !(user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER')
+    if (isClient && user) {
+      petService.list().then(setPets).catch(() => {})
+    }
   }, [user])
 
   const handleUpdate = async (field, value) => {
@@ -184,6 +195,35 @@ const Profile = () => {
         animate={{ opacity: 1, y: 0 }}
         className="px-5 space-y-10 max-w-xl mx-auto"
       >
+        {/* Booking URL (Sitter only) */}
+        {(user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER') && sitterData && (
+          <section className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-6 space-y-4">
+            <p className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/40 uppercase">接單專屬網址</p>
+            <p className="text-xs font-bold text-on-surface-variant break-all">
+              {`https://whiskerwatch.com/book/${sitterData?.slug || user?.id}`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://whiskerwatch.com/book/${sitterData?.slug || user?.id}`)
+                  alert('已複製接單網址')
+                }}
+                className="flex-1 py-3 bg-surface-container rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 hover:bg-surface-container-high transition-colors active:scale-95"
+              >
+                <span className="material-symbols-outlined text-base">content_copy</span>
+                複製網址
+              </button>
+              <button
+                onClick={() => window.open(`https://whiskerwatch.com/book/${sitterData?.slug || user?.id}`, '_blank')}
+                className="flex-1 py-3 bg-surface-container rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 hover:bg-surface-container-high transition-colors active:scale-95"
+              >
+                <span className="material-symbols-outlined text-base">north_east</span>
+                預覽對外網頁
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* SaaS Tier Card (Magazine Style) */}
         <section className="relative overflow-hidden rounded-[40px] p-8 bg-gradient-to-br from-on-surface to-on-surface-variant text-surface shadow-2xl">
           <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -197,7 +237,9 @@ const Profile = () => {
             <p className="text-xs font-medium opacity-80 leading-relaxed max-w-[200px]">
               您目前使用的是 專業版方案 ($899/月)。享受全自動日曆同步與專業報表。
             </p>
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-surface text-on-surface rounded-full text-[11px] font-bold hover:scale-105 active:scale-95 transition-all">
+            <button
+              onClick={() => window.open('https://whiskerwatch.com/pricing', '_blank')}
+              className="flex items-center gap-2 px-5 py-2.5 bg-surface text-on-surface rounded-full text-[11px] font-bold hover:scale-105 active:scale-95 transition-all">
               管理訂閱
               <span className="material-symbols-outlined text-base">north_east</span>
             </button>
@@ -313,14 +355,59 @@ const Profile = () => {
                   value="編輯家長必填題目" 
                   onClick={() => navigate('/sitter/questionnaire')} 
                 />
-                <SettingsItem 
-                  icon="group" 
-                  label="信任圈夥伴" 
-                  value="管理互助保母列表" 
-                  onClick={() => navigate('/sitter/trust-circle')} 
+                <SettingsItem
+                  icon="group"
+                  label="信任圈夥伴"
+                  value="管理互助保母列表"
+                  onClick={() => navigate('/sitter/trust-circle')}
+                />
+                <SettingsItem
+                  icon="manage_accounts"
+                  label="客群門禁管理"
+                  value="白名單 / 黑名單設定"
+                  onClick={() => navigate('/sitter/trust-circle')}
                 />
               </SettingsSection>
             </>
+          )}
+
+          {!(user?.role === 'SITTER' || user?.lastActiveRole === 'SITTER') && (
+            <SettingsSection title="我的毛孩">
+              <div className="p-5 space-y-4">
+                {pets.length > 0 && (
+                  <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
+                    {pets.map(pet => (
+                      <div key={pet.id} className="flex-shrink-0 flex flex-col items-center gap-1.5">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container ring-2 ring-outline-variant/10">
+                          <img
+                            src={pet.avatarUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100'}
+                            alt={pet.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <p className="text-[10px] font-bold">{pet.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPetModal(true)}
+                    className="flex-1 py-3 bg-primary text-on-primary rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                  >
+                    <span className="material-symbols-outlined text-base">add</span>
+                    新增寵物
+                  </button>
+                  <button
+                    onClick={() => navigate('/client/pets')}
+                    className="flex-1 py-3 bg-surface-container rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-95 transition-colors hover:bg-surface-container-high"
+                  >
+                    <span className="material-symbols-outlined text-base">pets</span>
+                    管理全部
+                  </button>
+                </div>
+              </div>
+            </SettingsSection>
           )}
 
           <SettingsSection title="帳號與安全">
@@ -340,6 +427,13 @@ const Profile = () => {
           </SettingsSection>
         </div>
       </motion.main>
+
+      <PetFormModal
+        isOpen={showPetModal}
+        onClose={() => setShowPetModal(false)}
+        onSave={() => { setShowPetModal(false); petService.list().then(setPets).catch(() => {}) }}
+      />
+
     </div>
   )
 }

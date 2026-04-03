@@ -3,11 +3,15 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNotificationStore } from '../../store/notificationStore'
+import { useThemeStore } from '../../store/themeStore'
 
 const Notifications = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { notifications, markAsRead, markAllAsRead } = useNotificationStore()
+  const { mode } = useThemeStore()
+
+  const filtered = notifications.filter(n => n.role === 'ALL' || n.role === mode)
 
   const handleNotificationClick = (notif) => {
     markAsRead(notif.id)
@@ -25,36 +29,33 @@ const Notifications = () => {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface pb-32">
-      {/* Sticky Header with Bulk Action */}
-      <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md px-4 py-4 flex items-center justify-between border-b border-outline-variant/5">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-on-surface-variant hover:text-primary transition-colors">
-          <span className="material-symbols-outlined text-2xl">arrow_back</span>
-        </button>
+      {/* Header */}
+      <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-outline-variant/5">
         <h1 className="text-sm font-extrabold font-headline uppercase tracking-widest">{t('common.alerts')}</h1>
-        <button 
-          onClick={markAllAsRead} 
+        <button
+          onClick={markAllAsRead}
           className="text-[10px] font-bold text-primary uppercase tracking-widest hover:opacity-70 transition-opacity"
         >
-          {t('notifications.read_all', 'Read All')}
+          {t('notifications.read_all', '全部已讀')}
         </button>
       </nav>
 
-      <motion.main 
+      <motion.main
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="px-5 pt-8 space-y-8 max-w-xl mx-auto"
       >
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-extrabold tracking-[0.2em] text-on-surface-variant/40 uppercase">Recent Updates</h2>
-          <span className="text-[10px] font-bold opacity-20">{notifications.length} MESSAGES</span>
+          <h2 className="text-xs font-extrabold tracking-[0.2em] text-on-surface-variant/40 uppercase">最新通知</h2>
+          <span className="text-[10px] font-bold opacity-20">{filtered.length} 則</span>
         </div>
 
         <div className="space-y-4">
           <AnimatePresence initial={false}>
-            {notifications.map((notif) => {
+            {filtered.map((notif) => {
               const styles = getTypeStyles(notif.type)
               return (
-                <motion.div 
+                <motion.div
                   key={notif.id}
                   layout
                   initial={{ opacity: 0, y: 10 }}
@@ -92,10 +93,10 @@ const Notifications = () => {
             })}
           </AnimatePresence>
 
-          {notifications.length === 0 && (
+          {filtered.length === 0 && (
             <div className="text-center py-20 space-y-4 opacity-30">
               <span className="material-symbols-outlined text-6xl">notifications_off</span>
-              <p className="text-xs font-bold tracking-widest uppercase">{t('notifications.empty', 'Quiet at the moment.')}</p>
+              <p className="text-xs font-bold tracking-widest uppercase">{t('notifications.empty', '目前沒有新通知')}</p>
             </div>
           )}
         </div>

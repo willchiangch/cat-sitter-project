@@ -2,14 +2,14 @@ import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
 
-const UpcomingVisitCard = ({ catName, address, time, duration, services, statusLabel, imageUrl }) => {
+const UpcomingVisitCard = ({ catName, address, date, duration, services, statusLabel, imageUrl, onSopClick, onPanelClick }) => {
   const { t } = useTranslation()
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-end px-1">
         <h3 className="text-lg font-bold font-headline text-on-surface">{t('dashboard.up_next')}</h3>
-        <span className="text-[10px] font-bold text-primary uppercase tracking-widest leading-none pt-2">{time}</span>
+        <span className="text-[10px] font-bold text-primary uppercase tracking-widest leading-none pt-2">{date}</span>
       </div>
       
       <motion.div 
@@ -55,11 +55,11 @@ const UpcomingVisitCard = ({ catName, address, time, duration, services, statusL
         <div className="h-[1px] bg-outline-variant/5 w-full"></div>
 
         <div className="grid grid-cols-2 gap-3">
-          <button className="flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-surface-container-low text-on-surface font-bold text-xs hover:bg-surface-container transition-all active:scale-95 duration-150">
+          <button onClick={onSopClick} className="flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-surface-container-low text-on-surface font-bold text-xs hover:bg-surface-container transition-all active:scale-95 duration-150">
             <span className="material-symbols-outlined text-lg">description</span>
             {t('dashboard.view_sop')}
           </button>
-          <button className="flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-gradient-to-br from-primary to-primary-dim text-on-primary font-bold text-xs shadow-lg shadow-primary/20 hover:opacity-95 transition-all active:scale-95 duration-150">
+          <button onClick={onPanelClick} className="flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-gradient-to-br from-primary to-primary-dim text-on-primary font-bold text-xs shadow-lg shadow-primary/20 hover:opacity-95 transition-all active:scale-95 duration-150">
             <span className="material-symbols-outlined text-lg">play_circle</span>
             {t('dashboard.service_panel')}
           </button>

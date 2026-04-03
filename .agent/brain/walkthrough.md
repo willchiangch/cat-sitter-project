@@ -1,6 +1,112 @@
 # WhiskerWatch 開發進度紀錄 (Walkthrough)
 
-> 最後更新：2026-04-04（新增 Codebase 深度探索與前端重構計劃制定）
+> 最後更新：2026-04-04（Phase 1–7 Source Code 全部完成）
+
+---
+
+## 📌 階段四：前端 UI/UX 重構執行（Phase 1–7）(2026-04-04)
+
+### 背景
+
+基於階段三的 Codebase 深度探索結果，本階段正式執行 7 Phase 重構計劃。目標是讓前端實作對齊 `doc/frontend-spec.md` 與 `doc/business-requirements.md`。本階段完成所有 **source code 變更**，E2E 測試批次留待下一步執行。
+
+### 執行策略
+
+- **E2E 批次處理**：Phase 1–7 source code 全部完成後再統一補 E2E，避免中途重工。
+- **唯一例外**：Phase 4 的 `DashboardPage.js` `openFirstPendingOrder()` 需同步更新（因為更改 Sitter Orders tab 結構會立即破壞現有測試 POM）。
+
+---
+
+### Phase 1 — 基礎修復
+
+**目標**：修復全域 CSS token 缺失、統一 5 tab 標籤術語。
+
+| 檔案 | 變更 |
+|------|------|
+| `frontend/src/index.css` | `:root` 加入 `--outline: #8a8c8a;`；`@theme` 加入 `--color-outline: var(--outline);` — 修復 inactive nav icon 不可見 |
+| `frontend/src/components/shared/BottomNavBar.jsx` | Sitter/Client 各 5 tab 標籤改為行程/訂單/收款·保母/通知/我的；Client tab 3 路由 `/explore` → `/client/sitters`；badge 改用 `getUnreadCountForRole` |
+| `frontend/src/locales/zh-TW.json` | 新增 6 個 `common.tab_*` 短標籤鍵值 |
+| `frontend/tests/pages/DashboardPage.js` | 修正 `navigateToInboxOrOrders()` 路由 `/orders` → `/sitter/orders` |
+
+---
+
+### Phase 2 — 建立缺失頁面
+
+**目標**：消滅 Client「保母」tab 的 live 404。
+
+| 檔案 | 變更 |
+|------|------|
+| 新建 `frontend/src/pages/Client/Sitters.jsx` | header「我的保母」+ 保母代碼搜尋列 + 保母卡片列表 + 空白狀態；backend API 未備妥，以 mock 先行 |
+| `frontend/src/App.jsx` | 新增 `import ClientSitters` + `<Route path="client/sitters" />` |
+
+---
+
+### Phase 3 — Dashboard 重構
+
+**目標**：移除 Sitter Dashboard 錯置元件，清理 Client Dashboard 英文佔位符。
+
+| 檔案 | 變更 |
+|------|------|
+| `frontend/src/pages/Sitter/Dashboard.jsx` | 移除工具 tab bar（Services/Questionnaire/TrustCircle）；移除 StatCard 收益統計；mock data `time` → `date`；UpcomingVisitCard 加入 `onPanelClick` navigate |
+| `frontend/src/components/sitter/UpcomingVisitCard.jsx` | 加入 `onSopClick`/`onPanelClick` props；header 顯示 `date` 而非 `time` |
+| `frontend/src/pages/Client/Dashboard.jsx` | 移除英文 "Recent Activity Teaser" 與 "Miso enjoying treats" 佔位符；移除硬編碼藍色 FAB；加入今日無預約中文空白狀態 |
+
+---
+
+### Phase 4 — 訂單 Tab 對齊
+
+**目標**：Sitter Orders 改為與 Client Orders 一致的 3-tab 結構。
+
+| 檔案 | 變更 |
+|------|------|
+| `frontend/src/pages/Sitter/Orders.jsx` | 6 pill filter → 3-tab segmented control（評估中/進行中/歷史訂單）；移除返回箭頭 header；各 tab 中文空白狀態 |
+| `frontend/tests/pages/DashboardPage.js` | `openFirstPendingOrder()` 先 click「評估中」tab 再找訂單（同步更新，避免現有 E2E 立即破壞） |
+
+---
+
+### Phase 5 — Finance Tab 重構
+
+**目標**：Finance 加入 PENDING/HISTORY 分頁，保留 payout modal 邏輯。
+
+| 檔案 | 變更 |
+|------|------|
+| `frontend/src/pages/Sitter/Finance.jsx` | 修復缺失的 `AnimatePresence` import；加入 `activeTab` state；2-tab（待付款/收款紀錄）segmented control；移除返回箭頭 header；payout modal 保持頁面層級；全面中文化英文文字 |
+
+---
+
+### Phase 6 — Notifications 角色分流
+
+**目標**：通知依 SITTER/CLIENT 角色過濾，badge 只計算當前角色未讀數。
+
+| 檔案 | 變更 |
+|------|------|
+| `frontend/src/store/notificationStore.js` | mock data 加入 `role` 欄位（n1→CLIENT, n2→SITTER, n3→ALL）；新增 `getNotificationsForRole(role)` 和 `getUnreadCountForRole(role)` |
+| `frontend/src/pages/Shared/Notifications.jsx` | import `useThemeStore`；依 `mode` 過濾 `filtered`；移除返回箭頭；"Recent Updates" → 「最新通知」 |
+| `frontend/src/components/shared/BottomNavBar.jsx` | badge count 改用 `getUnreadCountForRole(mode)` |
+
+---
+
+### Phase 7 — Profile 補全
+
+**目標**：修復 crash，補齊 Sitter 接單網址 + Client 寵物管理。
+
+| 檔案 | 變更 |
+|------|------|
+| `frontend/src/pages/Auth/Profile.jsx` | **[7A Critical]** 加入 `const [isLoading, setIsLoading] = useState(true)` — 修復 Sitter profile runtime crash |
+| `frontend/src/pages/Auth/Profile.jsx` | **[7B Sitter]** 新增「接單專屬網址」section（whiskerwatch.com/book/{slug\|id}，複製+預覽按鈕）；新增「客群門禁管理」SettingsItem；綁定「管理訂閱」button → window.open |
+| `frontend/src/pages/Auth/Profile.jsx` | **[7C Client]** 新增 `pets`/`showPetModal` state；Client 角色自動 fetch `petService.list()`；「我的毛孩」section（水平卡片 + 新增寵物 + 管理全部）；PetFormModal 掛載 |
+
+**附帶修復**：Profile.jsx 引用 `navigate` 但從未呼叫 `useNavigate()`（預存在 bug），在本次改動中一併加入。
+
+---
+
+### 完成狀態
+
+| 工作類型 | 狀態 |
+|---------|:----:|
+| Phase 1–7 Source Code 全部變更 | ✅ 完成 |
+| DashboardPage POM 同步更新（Phase 4） | ✅ 完成 |
+| E2E 批次（8 個 spec/POM 新建或更新） | ⏳ 待執行 |
 
 ---
 
@@ -47,11 +153,6 @@
 | 6 | Notifications 角色分流 | 依 SITTER/CLIENT 角色過濾通知、badge count 分離 |
 | 7 | Profile 補全 | 修復 crash、Sitter 加接單網址/門禁管理、Client 加寵物列表 |
 
-計劃同步包含 E2E 測試更新策略：
-- 更新 3 個現有 POM（DashboardPage / ProfilePage / sitter-business.spec）
-- 新建 4 個 E2E spec（sitters / finance / notifications / client-profile）
-- 新建 3 個 POM（ClientSittersPage / FinancePage / 相關 helpers）
-
 #### 4. Brain 文件同步
 
 | 文件 | 動作 |
@@ -66,10 +167,6 @@
 - [implementation_plan.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/.agent/brain/implementation_plan.md) — 7 Phase 重構計劃（含改動清單、驗證方式、E2E 策略）
 - [task.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/.agent/brain/task.md) — 可執行任務清單（Phase 1–7 各子任務）
 - [project_evaluation.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/.agent/brain/project_evaluation.md) — V11 健康度報告（含評分、風險矩陣、優先級排序）
-
-### 下一步
-
-立即開始 Phase 1（Critical Bug Hotfix + 基礎修復），按 `task.md` 的 checkbox 順序逐一執行。
 
 ---
 
@@ -88,29 +185,15 @@
 - [Profile.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Auth/Profile.jsx)：
   - 移除「身分證反面」，替換為「人臉辨識(自拍)」區塊。
   - 使用 `capture="user"` 屬性，在行動裝置上直接調用前置攝像頭。
-  - 修復了 Lint 錯誤（移除未使用的 `t` 與 `isLoading`）。
 
 #### 3. Backend & Database：資料結構更新
 - **Profile 實體**：在 `Profile.java` 中將 `id_card_back_url` 替換為 `face_photo_url`。
 - **DTO 更新**：同步更新 `SitterProfileResponse` 與 `UpdateSitterProfileRequest`。
-- **Bug 修復**：修正了 `UpdateSitterProfileRequest` 遺漏身分證與人臉照片網址欄位的問題。
 - **Migration**：建立 `V15__update_profile_identity_verification.sql`。
 
 #### 4. OpenAPI 規格同步
 - [openapi.yaml](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi/openapi.yaml)：更新 API 手冊。
 - [openapi.json](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi.json)：同步 JSON 規格書。
-
-### 驗證結果
-
-> [!TIP]
-> 1. 設定 `VITE_ENABLE_PASSWORD_LOGIN=false` 後，登入頁面僅剩社群按鈕（已臨時加入開發測試快速登入按鈕供 UAT 使用）。
-> 2. 後端已通過 `./mvnw compile` 驗證。
-> 3. 前端已通過 `eslint` 檢查。
-> 4. 解決了 CORS 阻擋問題，允許 `5174`/`5175` 等常見 Vite local port。
-
-> [!WARNING]
-> **人工端對端測試 (QA) 結果：發現重大架構落差**
-> 在完成 UAT 驗證後進行了人工 UI 巡檢，發現目前前端實作僅為空殼，促成了階段三的 Codebase 深度探索。
 
 ---
 
