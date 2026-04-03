@@ -1,17 +1,11 @@
-# 任務清單：UAT 登入開關與人臉辨識修改
-
-- [x] 1. Frontend 修改
-  - [x] 1.1 更新 `Login.jsx` 隱藏 UAT 期間的註冊與密碼登入
-  - [x] 1.2 更新 `Register.jsx` 加入環境變數防呆機制與社群按紐
-  - [x] 1.3 更新 `Profile.jsx` 將身分證反面改為 PWA 人臉自拍與 `facePhotoUrl`
-- [x] 2. Backend 修改
-  - [x] 2.1 修改 `Profile.java` 實體 (新增 `facePhotoUrl`，不使用 `idCardBackUrl`)
-  - [x] 2.2 修改 `SitterProfileResponse.java` 回傳 DTO
-  - [x] 2.3 修改 `UpdateSitterProfileRequest.java` 接收參數 DTO (修復未綁定 Bug)
-  - [x] 2.4 修改 `SitterProfileService.java` 服務層儲存邏輯 (解決未儲存 Bug)
-- [x] 3. DataBase Migration 修改
-  - [x] 3.1 增加 `V15__update_profile_identity_verification.sql`
-- [x] 4. OpenAPI 規格同步
-  - [x] 4.1 更新 `openapi.yaml`
-  - [x] 4.2 更新 `openapi.json`
-- [x] 5. 進行驗證測試
+- `[x]` 【檢視規劃】研讀 `business-requirements.md` 與 `sass-level-program.md`，比對當前 UI 實作落差。
+- `[x]` 【產出草案】提出前端 UI/UX 全面重構實作計畫 (`implementation_plan.md`)。
+- `[x]` 【確認細節】確認獨立「客群名單門禁管理」與修復 Top/Bottom Bar 之對比度問題。
+- `[ ]` 【前端重構】修復全域 Top / Bottom Bar 主色系缺乏遮罩或過暗導致無法辨識的 UI Bug。
+- `[ ]` 【前端重構】統一介面名詞：訂單管理(原本為預約訂單紀錄)、行程管理(原本為我是保母/我是家長)。
+- `[ ]` 【Tab 行程管理】保母端移除非行程功能，改為「今日服務與捷徑」，修正並綁定按鈕點擊事件，全面移除具體的 14:00 PM 時段改為日期制。飼主端重構顯示今天到府狀況。
+- `[ ]` 【Tab 訂單管理】確保雙端皆有 `評估中`, `進行中`, `歷史紀錄`，並製作空狀態提示。
+- `[ ]` 【Tab 收款(Sitter) / 我的保母(Client)】保母建立待撥款與收款紀錄介面。飼主建立最愛保母卡片，包含代碼搜尋加入與移除功能。
+- `[ ]` 【Tab 通知】依據角色拆分並渲染真實(或符合角色)之通知版位設計。
+- `[ ]` 【Tab 我的 (Profile)】保母端補齊大頭貼上傳、專屬接單網址預覽、服務方案維護、問卷設定、信任圈管理、訂閱管理與白名單/黑名單門禁管理。
+- `[ ]` 【Tab 我的 (Profile)】飼主端補全個人資料編輯，最重要的是串接與加入「毛孩寵物清單」Modal (`PetFormModal`) 功能。

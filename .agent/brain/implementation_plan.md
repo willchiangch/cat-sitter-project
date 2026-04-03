@@ -1,90 +1,75 @@
-# 登入頁面與身分驗證修改計劃
+# 全面重構前端 UI/UX 以對齊業務規格與前端設計書
 
-本修改計劃旨在達成以下兩個主要目標：
-1. **UAT環境隱藏密碼登入**：以環境變數 / 功能開關方式，讓特定部署環境（如 UAT）隱藏密碼登入與註冊區塊，僅開放社交平台登入（Google, Apple, Facebook 等），同時保留開發環境及 E2E 測試所需的帳密登入入口。
-2. **人臉認證(自拍)取代身分證反面**：修改保母身份驗證流程，不再要求提交「身分證反面」，改為要求上傳「人臉辨識照片(Face Photo)」，並於行動物件/PWA調用原生相機，後續由人工於GCS平台與資料庫手動審核。
+根據人工測試的回饋與 `doc/business-requirements.md`、`doc/frontend-spec.md` 的比對，目前前端實作僅有外殼，且組件放置位置、命名、以及功能支援度嚴重偏離原始設計。
+本計畫旨在進行一次大規模的前端重構，將所有 Tab 與視圖歸位，並補齊缺失的核心業務功能。
 
 ## User Review Required
 
-> [!WARNING]
-> 現有程式碼 Bug 提醒：
-> 在評估時發現，目前前端上傳身分證照片 (呼叫 `profileService.updateSitterMe`) 時，後端的 `UpdateSitterProfileRequest` DTO 和 `SitterProfileService` 其實 **沒有** 處理 `idCardFrontUrl` 和 `idCardBackUrl`，導致上傳照片後，後端會直接忽略該網址，無法寫入資料庫。本次修改將會一併修正這個資料綁定遺漏的 Bug。
+> [!IMPORTANT]
+> 此次改動範圍極大，幾乎涉及所有前台頁面（`Dashboard`, `Orders`, `Finances`, `Notifications`, `Profile`, `Sitters` 等）。
+> 請確認以下的重構架構是否完全符合您的期待，如有遺漏請在此階段提出。
 
 ## Proposed Changes
 
----
+我們將依據 `doc/frontend-spec.md` 定義的 5 個底部導覽列 (Tab) 為基準，逐一重構 Sitter 與 Client 的介面：
 
-### Frontend 修改
-
-#### [MODIFY] [Login.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Auth/Login.jsx)
-- 引入前端環境變數（例如 `import.meta.env.VITE_ENABLE_PASSWORD_LOGIN`）。
-- 預設值為 `true`（當環境變數不存在時），以避免影響本地端與 E2E 測試。
-- 若在 UAT 環境設為 `"false"`，則隱藏 `email`, `password` 輸入框、**提交按鈕** 以及「沒有帳號？註冊」等區塊，只留「社群登入 (使用Google繼續等)」。
-
-#### [MODIFY] [Register.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Auth/Register.jsx)
-- 使用相同的環境變數 `VITE_ENABLE_PASSWORD_LOGIN`，若為 `"false"` 時，直接隱藏註冊輸入框，若有需要也可以導向其他提示畫面或隱藏註冊表單。但由於註冊頁面目前沒有提供社群登入按鈕，我們會將前端的註冊頁入口也依據開關做調整，或是在 `Register.jsx` 加入社群綁定的按鈕。
-
-#### [MODIFY] [Profile.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Auth/Profile.jsx)
-- 在身分驗證的區塊中，修改左側為「證件正面」，右側改為「人臉辨識(自拍)」。
-- 移除 `idCardBackUrl` 相關邏輯。
-- 在人臉辨識上傳的 `input` 加入 `capture="user"` 以及 `accept="image/*"` 屬性。在行動裝置的 PWA 中，這會直接開啟前置鏡頭進行拍攝，完美符合需求。
-- 更新上傳處理將欄位改為對應到 `facePhotoUrl`。
+### 1. 全域樣式與導覽設定 (Global & Navigation)
+- **Top/Bottom Bar 顏色與遮罩修復**：修復 Top/Bottom Bar 疑似漏掉色板或遮罩，導致內容文字無法看清的 UI Bug（檢查 Tailwind 設定檔中 `bg-primary`, `text-on-primary` 變數的對應映射是否正確生效，確保有足夠的對比度讓圖示與文字突顯）。
+- **名詞統一**：將「預約訂單紀錄」更名為「訂單管理 / 訂單」；將首頁從「我是保母/我是家長」更名為「行程管理 / 行程」。
 
 ---
 
-### Backend 修改
-
-#### [MODIFY] [Profile.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/entity/Profile.java)
-- 新增欄位：`@Column(name = "face_photo_url", length = 1024) private String facePhotoUrl;`。
-- 保留 `idCardBackUrl` 欄位或將其標為廢棄，為確保資料庫整潔，我們將透過 Flyway migration 直接移除它。
-
-#### [MODIFY] [SitterProfileResponse.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/dto/sitter/SitterProfileResponse.java)
-- 移除 `idCardBackUrl`。
-- 新增 `facePhotoUrl`。
-
-#### [MODIFY] [UpdateSitterProfileRequest.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/dto/sitter/UpdateSitterProfileRequest.java)
-- 新增 `@Size(max = 1024) String idCardFrontUrl`。
-- 新增 `@Size(max = 1024) String facePhotoUrl`。
-*(原本遺漏了這些欄位導致前端儲存不進資料庫)*
-
-#### [MODIFY] [SitterProfileService.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/service/SitterProfileService.java)
-- 在 `updateSitterProfile` 方法中，將 request 傳入的 `idCardFrontUrl` 及 `facePhotoUrl` 對應寫回 DB entity 內。
-- 修正原本無處理的 bug。
-
-#### [NEW] [V15__update_profile_identity_verification.sql](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/resources/db/migration/V15__update_profile_identity_verification.sql)
-- 撰寫資料庫移轉腳本以匹配 JPA 的更動：
-  ```sql
-  ALTER TABLE profiles ADD COLUMN face_photo_url VARCHAR(1024);
-  ALTER TABLE profiles DROP COLUMN id_card_back_url;
-  ```
+### 2. Tab 1: 行程管理 (Dashboard)
+- **保母端 (Sitter)**：
+  - **移除**不該出現於此的區塊：方案設定、問卷設定、信任圈、總收益/服務次數（全數移至對應的 Tab）。
+  - **重構**為「今日服務列表」與「捷徑」。
+  - **修正點擊失效**：進入「服務面板」與「查看SOP備註」按鈕將綁定 Modal 或頁面跳轉邏輯。
+  - **修正時間顯示**：移除 `14:00 PM` 這種具體時間，全面改為「以日為單位 (Day-based)」的服務顯示格式。
+- **飼主端 (Client)**：
+  - 移除錯誤的開發佔位內容。
+  - 重構為單純顯示「今日保母到府排程與執行狀況」。
 
 ---
 
-### OpenAPI 規格同步
-
-#### [MODIFY] [openapi.yaml](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi/openapi.yaml)
-- 在 `SitterProfile` 與 `UpdateSitterProfileRequest` 補上 `facePhotoUrl` 等新欄位，維持 API Contract 一致性。
-
-#### [MODIFY] [openapi.json](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi.json)
-- 同步更新 JSON 格式規格書，確保前端 SDK 生成工具（`openapi-ts`）能正確抓取新屬性。
+### 3. Tab 2: 訂單管理 (Orders)
+- 確保保母端與飼主端皆實作三個子分頁 (Tabs)：`評估中` (Pending)、`進行中` (Active)、`歷史紀錄` (History)。
+- 建立空狀態 (Empty State) 視覺提示，而非僅顯示空白。
 
 ---
 
-## Open Questions
+### 4. Tab 3: 特殊角色 Tab (Sitter: 收款 / Client: 我的保母)
+- **保母端 - 收款 (Finances)**：
+  - 建立 `待撥款` 與 `收款紀錄` Tabs 介面與空狀態。
+- **飼主端 - 我的保母 (Client Sitters)**：
+  - **名稱更正**：從「探索專業保母」改為「我的保母」。
+  - **功能實作**：加入頂部搜尋框 (透過代碼搜尋保母)、將保母「加入清單」的功能、列出最愛保母卡片，以及「移除保母」的功能按鈕。
 
-1. **對於註冊頁 (Register.jsx) 的處理方式：**
-   若關閉密碼登入，該頁面目前沒有「使用社群註冊」的按鈕，因為登入跟註冊似乎都可以使用同一個 OAuth Endpoint 進行。是否在 `Register.jsx` 隱藏表單後直接顯示與 `Login.jsx` 相同的社群登入按鈕？或者針對 UAT 直接在路由將 `/register` 重導向到 `/login`？
+---
 
-2. **確認 Bug 修復：**
-   本次將一起修復原前後端串接的「上傳照片後未存進資料庫」的問題，此舉是否符合您的預期？
+### 5. Tab 4: 通知 (Notifications)
+- 根據目前角色 (Sitter / Client) 拆分通知內容渲染邏輯，移除共用的假資料。
+- 建立第一層列表 (Sitter看飼主列表 / Client看保母列表)。
+
+---
+
+### 6. Tab 5: 我的 (Profile Settings)
+- **保母端 (Sitter)** (此次補齊最大缺口)：
+  - **大頭貼/照片**：修復上方照片上傳與預覽邏輯。
+  - **預覽網址**：加入「專屬接單網址」區塊與「預覽對外網頁」按鈕。
+  - **營業設定區塊**：完整建立「服務方案維護」、「問卷設定」、「信任圈管理」等入口介面。
+  - **管理訂閱**：綁定點擊事件，進入方案與月費管理介面。
+  - **客群名單門禁管理**：獨立於信任圈之外，建立白名單/黑名單管理介面 (依據《方案架構》中的預約門禁 Gatekeeper 功能)。
+- **飼主端 (Client)**：
+  - 加回飼主個人資料編輯。
+  - **核心功能**：加入「寵物資料卡片」列表，並連結「新增/編輯毛孩資料 Modal (`PetFormModal`)」，供後續建檔與結帳使用。
 
 ## Verification Plan
 
-### 自動測試
-- 若有 E2E 測試，將確保在未設定變數 (預設啟用) 情況下 `sitter-business.spec.js` 執行的自動化測試不會壞掉。
-
-### 人工驗證
-- 準備 `.env.uat` 或將 `VITE_ENABLE_PASSWORD_LOGIN=false` 設定啟動 Frontend。
-- 觀察登入畫面，確認是否只包含 Google, Meta 等按紐，無帳密登入入口。
-- PWA / 手機端登入後，點擊「身分證驗證 - 自拍」，確認是否啟動了手機相機。
-- 透過前台完成照片上傳後，檢視 DB `profiles` 表是否成功紀錄了 `id_card_front_url` 以及 `face_photo_url`。
+### Manual Verification
+1. **導覽列檢查**：切換保母/飼主角色，底部 5 個 Tab 的名稱與內容是否完全符合前端規格。
+2. **顏色查驗**：確認深色/淺色主題下的頂底列文字是否清晰可見。
+3. **功能連動檢查**：
+   - 飼主端 `我的` 是否能新增寵物。
+   - 飼主端 `保母` 是否能搜尋並加入保母。
+   - 保母端 `我的` 是否出現訂閱、方案、問卷、網址預覽等入口。
+   - 保母端 `行程` 服務時間是否已移除時間點，僅留日期。
