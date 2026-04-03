@@ -25,16 +25,22 @@
 - **[openapi.yaml](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi/openapi.yaml)**: 更新 API 手冊，確保 Contract 與實作一致。
 - **[openapi.json](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi.json)**: 同步 JSON 規格書，支援前端 SDK 自動生成。
 
-## 驗證結果
+## 驗證結果與後續方向
 
 > [!TIP]
 > **驗證重點：**
-> 1. 設定 `VITE_ENABLE_PASSWORD_LOGIN=false` 後，登入頁面僅剩社群按鈕。
+> 1. 設定 `VITE_ENABLE_PASSWORD_LOGIN=false` 後，登入頁面僅剩社群按鈕 (已臨時加入 [開發測試] 快速登入按鈕供 UAT 使用)。
 > 2. 後端已通過 `./mvnw compile` 驗證，確保實體與 Service 邏輯正確。
 > 3. 前端已通過 `eslint` 檢查，無新引入的語法錯誤。
+> 4. 解決了 CORS 阻擋問題，允許 `5174`/`5175` 等常見 Vite local port 連線。
 
-## 後後續建議
-- **UAT 部署**: 部署到 UAT 時請務必在環境變數中設定 `VITE_ENABLE_PASSWORD_LOGIN=false`。
-- **人工審核**: 由於目前無後台系統，請直接至 Google Cloud Storage 檢視照片，並在資料庫手動更新 `verification_status`。
+> [!WARNING]
+> **人工端對端測試 (QA) 結果：發現重大架構落差**
+> 在完成 UAT 驗證後進行了人工 UI 巡檢，發現目前前端實作僅為空殼，組件佈局、用詞與功能嚴重偏離 `doc/frontend-spec.md` 與 `doc/business-requirements.md`。
+> 例如：保母端/飼主端的 Tab 內容錯置、缺失問卷與方案設定、缺乏客群名單門禁、全網域主題顏色對比度過暗等。
 
-[實作細節與工作任務清單參考](file:///Users/will_chiang/Widget_home/cat-sitter-project/.agent/brain/task.md)
+## 下一步：前端全面重構
+針對 QA 發現的嚴重 UI/UX 偏差，我們已制定了一份全新的重構藍圖，將進行由外到內的全面對齊。
+
+👉 詳見新版 [實作計畫 (Implementation Plan)](file:///Users/will_chiang/Widget_home/cat-sitter-project/.agent/brain/implementation_plan.md)
+👉 [工作任務清單參考 (Task)](file:///Users/will_chiang/Widget_home/cat-sitter-project/.agent/brain/task.md)
