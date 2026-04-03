@@ -13,5 +13,7 @@ public record UpdateSitterProfileRequest(
     List<String> professionalLabels,
     String bankCode,
     String bankAccount,
-    String bankAccountHolder
+    String bankAccountHolder,
+    @Size(max = 1024) String idCardFrontUrl,
+    @Size(max = 1024) String facePhotoUrl
 ) {}

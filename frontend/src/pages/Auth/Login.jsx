@@ -16,6 +16,7 @@ const Login = () => {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
   const { mode } = useThemeStore()
+  const enablePasswordLogin = import.meta.env.VITE_ENABLE_PASSWORD_LOGIN !== 'false'
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -69,56 +70,60 @@ const Login = () => {
 
         {/* Form Section */}
         <div className="space-y-6">
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-1.5 px-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  {t('auth.email_label')}
-                </label>
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full bg-surface-container-low border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                  placeholder="hello@whiskerwatch.com"
-                />
+          {enablePasswordLogin && (
+            <>
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-1.5 px-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t('auth.email_label')}
+                    </label>
+                    <input 
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="w-full bg-surface-container-low border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                      placeholder="hello@whiskerwatch.com"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5 px-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t('auth.password_label')}
+                    </label>
+                    <input 
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="w-full bg-surface-container-low border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+
+                {error && <p className="text-xs text-red-500 font-bold px-1">! {error}</p>}
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-5 rounded-full bg-primary text-on-primary font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all text-sm uppercase tracking-widest disabled:opacity-50"
+                >
+                  {loading ? t('common.loading') : t('auth.login_btn')}
+                </button>
+              </form>
+
+              {/* Divider */}
+              <div className="relative py-4 flex items-center">
+                <div className="flex-grow border-t border-on-surface/10"></div>
+                <span className="flex-shrink mx-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+                  或透過社群登入
+                </span>
+                <div className="flex-grow border-t border-on-surface/10"></div>
               </div>
-              
-              <div className="space-y-1.5 px-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  {t('auth.password_label')}
-                </label>
-                <input 
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full bg-surface-container-low border-none rounded-xl px-4 py-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-
-            {error && <p className="text-xs text-red-500 font-bold px-1">! {error}</p>}
-
-            <button 
-              type="submit"
-              disabled={loading}
-              className="w-full py-5 rounded-full bg-primary text-on-primary font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all text-sm uppercase tracking-widest disabled:opacity-50"
-            >
-              {loading ? t('common.loading') : t('auth.login_btn')}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative py-4 flex items-center">
-            <div className="flex-grow border-t border-on-surface/10"></div>
-            <span className="flex-shrink mx-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
-              或透過社群登入
-            </span>
-            <div className="flex-grow border-t border-on-surface/10"></div>
-          </div>
+            </>
+          )}
 
           {/* Social Buttons */}
           <div className="grid grid-cols-1 gap-3">
@@ -150,11 +155,13 @@ const Login = () => {
           </div>
         </div>
 
-        <div className="text-center pt-4">
-          <p className="text-sm text-on-surface-variant font-medium">
-            {t('auth.no_account')} <Link to="/register" className="text-primary font-bold border-b-2 border-primary/20 hover:border-primary transition-all">{t('common.request_access')}</Link>
-          </p>
-        </div>
+        {enablePasswordLogin && (
+          <div className="text-center pt-4">
+            <p className="text-sm text-on-surface-variant font-medium">
+              {t('auth.no_account')} <Link to="/register" className="text-primary font-bold border-b-2 border-primary/20 hover:border-primary transition-all">{t('common.request_access')}</Link>
+            </p>
+          </div>
+        )}
       </motion.div>
     </div>
   )

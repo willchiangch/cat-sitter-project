@@ -14,8 +14,15 @@ const Register = () => {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
   const navigate = useNavigate()
+  const enablePasswordLogin = import.meta.env.VITE_ENABLE_PASSWORD_LOGIN !== 'false'
+
+  // If password login is disabled, registration is only via social login on the Login page
+  React.useEffect(() => {
+    if (!enablePasswordLogin) {
+      navigate('/login', { replace: true })
+    }
+  }, [enablePasswordLogin, navigate])
 
   const handleRegister = async (e) => {
     e.preventDefault()
@@ -30,6 +37,8 @@ const Register = () => {
       setLoading(false)
     }
   }
+
+  if (!enablePasswordLogin) return null;
 
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 bg-surface">

@@ -1,16 +1,17 @@
-- [x] 基礎穩定性鞏固 (Repair & Stabilize)
-    - [x] 修正實體序列化問題 (Hibernate Proxy: Profile, TrustCircle, Whitelist)
-    - [x] 修復 `MediaController` NullPointerException
-    - [x] 診斷並修復 `CalendarSyncController` 的 500 報錯
-- [x] 核心業務功能實作 (Trust Circle & Whitelist)
-    - [x] 實作 `SitterTrustCircleService` 與 `SitterTrustCircleController`
-    - [x] 建立 `AddTrustCircleRequest` DTO 並更新 Controller
-    - [x] 更新 `SmokeDataSeeder.java` 確保測試資料完整
-- [/] API 契約同步與自動化 (Contract Sync)
-    - [ ] 執行 `openapi.json` 更新 (Trust Circle 節點與 Schema)
-    - [ ] 執行 `npm run api:generate` 並驗證 `src/services/gen` 內容
-- [ ] 驗證與最終測試
-    - [ ] 確保 `sitter-business.spec.js` 100% 通過
-    - [ ] `Profile.jsx` 骨架屏 (Skeleton UI)
-    - [ ] `Finance.jsx` 提現成功 Toast 修復
-- [ ] 最終驗證與 Walkthrough 更新
+# 任務清單：UAT 登入開關與人臉辨識修改
+
+- [x] 1. Frontend 修改
+  - [x] 1.1 更新 `Login.jsx` 隱藏 UAT 期間的註冊與密碼登入
+  - [x] 1.2 更新 `Register.jsx` 加入環境變數防呆機制與社群按紐
+  - [x] 1.3 更新 `Profile.jsx` 將身分證反面改為 PWA 人臉自拍與 `facePhotoUrl`
+- [x] 2. Backend 修改
+  - [x] 2.1 修改 `Profile.java` 實體 (新增 `facePhotoUrl`，不使用 `idCardBackUrl`)
+  - [x] 2.2 修改 `SitterProfileResponse.java` 回傳 DTO
+  - [x] 2.3 修改 `UpdateSitterProfileRequest.java` 接收參數 DTO (修復未綁定 Bug)
+  - [x] 2.4 修改 `SitterProfileService.java` 服務層儲存邏輯 (解決未儲存 Bug)
+- [x] 3. DataBase Migration 修改
+  - [x] 3.1 增加 `V15__update_profile_identity_verification.sql`
+- [x] 4. OpenAPI 規格同步
+  - [x] 4.1 更新 `openapi.yaml`
+  - [x] 4.2 更新 `openapi.json`
+- [x] 5. 進行驗證測試

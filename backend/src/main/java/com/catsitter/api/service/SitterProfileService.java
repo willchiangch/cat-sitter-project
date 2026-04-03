@@ -46,6 +46,8 @@ public class SitterProfileService {
         profile.setBankCode(request.bankCode());
         profile.setBankAccount(request.bankAccount());
         profile.setBankAccountHolder(request.bankAccountHolder());
+        profile.setIdCardFrontUrl(request.idCardFrontUrl());
+        profile.setFacePhotoUrl(request.facePhotoUrl());
 
         return mapToResponse(profileRepository.save(profile));
     }
@@ -60,7 +62,7 @@ public class SitterProfileService {
                 profile.getBioSummary(),
                 profile.getIsVerified(),
                 storageService.getSignedUrl(profile.getIdCardFrontUrl()),
-                storageService.getSignedUrl(profile.getIdCardBackUrl()),
+                storageService.getSignedUrl(profile.getFacePhotoUrl()),
                 profile.getProfessionalLabels(),
                 profile.getBankCode(),
                 profile.getBankAccount(),

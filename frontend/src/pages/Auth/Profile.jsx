@@ -64,7 +64,7 @@ const Profile = () => {
     setIsUploading(true)
     try {
       const url = await storageService.uploadFile(file, 'identity')
-      await handleUpdate(type === 'front' ? 'idCardFrontUrl' : 'idCardBackUrl', url)
+      await handleUpdate(type === 'front' ? 'idCardFrontUrl' : 'facePhotoUrl', url)
     } catch (error) {
       console.error('Identity upload failed:', error)
     } finally {
@@ -265,16 +265,16 @@ const Profile = () => {
                       ) : (
                         <span className="material-symbols-outlined text-primary relative z-10">upload_file</span>
                       )}
-                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-20" onChange={(e) => handleIdentityUpload(e, 'front')} />
+                      <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer z-20" onChange={(e) => handleIdentityUpload(e, 'front')} />
                    </button>
                    <button className="p-6 bg-surface-container-low hover:bg-surface-container-high transition-colors text-left relative overflow-hidden h-32">
-                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2 z-10 relative">證件反面</p>
-                      {sitterData.idCardBackUrl ? (
-                        <img src={sitterData.idCardBackUrl} alt="Back" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2 z-10 relative">人臉辨識(自拍)</p>
+                      {sitterData.facePhotoUrl ? (
+                        <img src={sitterData.facePhotoUrl} alt="Face Photo" className="absolute inset-0 w-full h-full object-cover opacity-50" />
                       ) : (
-                        <span className="material-symbols-outlined text-primary relative z-10">upload_file</span>
+                        <span className="material-symbols-outlined text-primary relative z-10">face</span>
                       )}
-                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-20" onChange={(e) => handleIdentityUpload(e, 'back')} />
+                      <input type="file" accept="image/*" capture="user" className="absolute inset-0 opacity-0 cursor-pointer z-20" onChange={(e) => handleIdentityUpload(e, 'face')} />
                    </button>
                 </div>
               </SettingsSection>

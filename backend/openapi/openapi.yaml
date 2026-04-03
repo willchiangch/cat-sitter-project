@@ -1089,6 +1089,16 @@ components:
           type: array
           items: { type: string }
         bioSummary: { type: string, nullable: true }
+        isVerified: { type: boolean }
+        idCardFrontUrl: { type: string, format: uri, nullable: true }
+        facePhotoUrl: { type: string, format: uri, nullable: true }
+        professionalLabels:
+          type: array
+          items: { type: string }
+        bankCode: { type: string, nullable: true }
+        bankAccount: { type: string, nullable: true }
+        bankAccountHolder: { type: string, nullable: true }
+        notificationDaysBefore: { type: integer, nullable: true }
     UpdateSitterProfileRequest:
       type: object
       properties:
@@ -1099,6 +1109,14 @@ components:
           type: array
           items: { type: string, minLength: 1, maxLength: 100 }
         bioSummary: { type: string, maxLength: 2000 }
+        professionalLabels:
+          type: array
+          items: { type: string }
+        bankCode: { type: string }
+        bankAccount: { type: string }
+        bankAccountHolder: { type: string }
+        idCardFrontUrl: { type: string, format: uri }
+        facePhotoUrl: { type: string, format: uri }
     ServicePlan:
       type: object
       required: [serviceId, name, basePrice, durationMinutes, isActive]

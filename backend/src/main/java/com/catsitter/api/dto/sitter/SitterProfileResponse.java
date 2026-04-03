@@ -12,7 +12,7 @@ public record SitterProfileResponse(
     String bioSummary,
     Boolean isVerified,
     String idCardFrontUrl,
-    String idCardBackUrl,
+    String facePhotoUrl,
     List<String> professionalLabels,
     String bankCode,
     String bankAccount,

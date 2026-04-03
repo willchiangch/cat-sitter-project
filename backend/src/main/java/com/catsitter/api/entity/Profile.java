@@ -85,8 +85,8 @@ public class Profile extends AuditableEntity {
   @Column(name = "id_card_front_url", length = 1024)
   private String idCardFrontUrl;
 
-  @Column(name = "id_card_back_url", length = 1024)
-  private String idCardBackUrl;
+  @Column(name = "face_photo_url", length = 1024)
+  private String facePhotoUrl;
 
   /** V30 新增：專業標籤 (純文字列表) */
   @JdbcTypeCode(SqlTypes.JSON)
@@ -140,8 +140,8 @@ public class Profile extends AuditableEntity {
   public void setVerifiedAt(java.time.OffsetDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
   public String getIdCardFrontUrl() { return idCardFrontUrl; }
   public void setIdCardFrontUrl(String idCardFrontUrl) { this.idCardFrontUrl = idCardFrontUrl; }
-  public String getIdCardBackUrl() { return idCardBackUrl; }
-  public void setIdCardBackUrl(String idCardBackUrl) { this.idCardBackUrl = idCardBackUrl; }
+  public String getFacePhotoUrl() { return facePhotoUrl; }
+  public void setFacePhotoUrl(String facePhotoUrl) { this.facePhotoUrl = facePhotoUrl; }
   public List<String> getProfessionalLabels() { return professionalLabels; }
   public void setProfessionalLabels(List<String> professionalLabels) { this.professionalLabels = professionalLabels; }
   public String getBankCode() { return bankCode; }
