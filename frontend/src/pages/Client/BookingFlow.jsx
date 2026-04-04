@@ -161,14 +161,16 @@ const BookingFlow = () => {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   {['STANDARD', 'ELITE'].map(s => (
-                    <button 
+                    <button
                       key={s}
                       onClick={() => setService(s)}
                       className={`p-6 rounded-[32px] border text-left transition-all ${
                         service === s ? 'bg-on-surface text-surface border-on-surface' : 'bg-surface-container-low border-outline-variant/10'
                       }`}
                     >
-                      <h4 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">{s}</h4>
+                      <h4 className="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">
+                        {s === 'STANDARD' ? '單次照護' : '全方位照護'}
+                      </h4>
                       <p className="text-xl font-extrabold font-headline">${s === 'STANDARD' ? '500' : '800'}</p>
                     </button>
                   ))}

@@ -26,6 +26,27 @@ test.describe('Sitter Professional Tools E2E Verification', () => {
     await authPage.injectSmokeAuth('SITTER')
   })
 
+  test('Sitter Profile renders with booking URL section visible', async ({ page }) => {
+    await profilePage.goto()
+    await page.waitForLoadState('networkidle')
+    const section = await profilePage.getBookingUrlSection()
+    await expect(section).toBeVisible({ timeout: 15000 })
+    await expect(section.getByRole('button', { name: '複製網址' })).toBeVisible()
+    await expect(section.getByRole('button', { name: '預覽對外網頁' })).toBeVisible()
+  })
+
+  test('Sitter Dashboard shows today schedule without tool tab bar', async ({ page }) => {
+    await page.goto('/sitter')
+    await page.waitForLoadState('networkidle')
+    // Must not be redirected to login
+    await expect(page).not.toHaveURL(/\/login/)
+    // UpcomingVisitCard (today's schedule) should be visible
+    await expect(page.getByText('Oliver').first()).toBeVisible({ timeout: 10000 })
+    // Tool tab bar buttons should NOT exist on the dashboard page
+    await expect(page.getByRole('button', { name: /Questionnaire|問卷設定/i })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: /Services|服務方案/i })).not.toBeVisible()
+  })
+
   test('Navigation and content verification of Sitter Business Tools', async ({ page }) => {
     page.on('console', msg => console.log('BROWSER:', msg.text()));
     page.on('pageerror', err => console.log('PAGE ERROR:', err.message));

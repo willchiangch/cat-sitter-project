@@ -50,4 +50,12 @@ export class ProfilePage {
     await this.trustCircleBtn.click()
     await this.page.waitForFunction(() => window.location.pathname.includes('/sitter/trust-circle'), { timeout: 30000 })
   }
+
+  async getBookingUrlSection() {
+    return this.page.locator('section').filter({ hasText: '接單專屬網址' })
+  }
+
+  async copyBookingUrl() {
+    await this.page.getByRole('button', { name: '複製網址' }).click()
+  }
 }

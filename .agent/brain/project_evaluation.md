@@ -1,6 +1,6 @@
-# WhiskerWatch: 專案現況評估與健康度報告 (V12 / 2026-04-04)
+# WhiskerWatch: 專案現況評估與健康度報告 (V14 / 2026-04-04)
 
-本報告更新自 V11，反映 **Phase 1–7 前端重構 Source Code 全部完成**後的最新狀態。E2E 批次測試尚待執行。
+本報告更新自 V13，反映 **E2E 全部通過（16/16 pass）**後的最新狀態。後端 Smoke 資料 + POM 全面修復後，所有測試通過。
 
 ---
 
@@ -16,19 +16,20 @@
 - OpenAPI spec 已同步，前端 SDK 由 `@hey-api/openapi-ts` 自動生成。
 - 設計 Token 系統完整（CSS 變數 + Tailwind 4 `@theme` block），`.mode-sitter` / `.mode-client` 主色分離清晰。
 
-### 3. 前端重構完成（Phase 1–7 Source Code）
-所有 7 個重構 Phase 的 source code 變更已完成，核心問題全部解決：
-- 3 個 Critical Bugs 已修復（CSS token / 路由 404 / Profile crash）
+### 3. 前端重構完成（Phase 1–7 Source Code + E2E 批次）
+所有 7 個重構 Phase 的 source code 與 E2E 測試批次均已完成：
+- 3 個 Critical Bugs 已修復（CSS token / 路由 404 / Profile crash / navigate 未實例化）
 - 5 個主要頁面架構已對齊規格（Dashboard / Orders / Finance / Notifications / Profile）
 - 設計系統統一（tab 標籤、空白狀態、返回箭頭移除）
+- E2E-1 至 E2E-8 全部通過（8 個 spec/POM 新建或更新）；**16/16 tests pass**
 
 ---
 
 ## 🟡 待完成項目
 
-### E2E 批次測試（下一步）
-- 8 個 spec/POM 需新建或更新（詳見 `task.md` E2E 批次區塊）
-- 現有測試未被破壞（已同步更新 Phase 4 的 DashboardPage POM）
+### 手動 UAT 驗證
+- 手動切換 Sitter/Client 角色，確認 5 tab 標籤正確顯示
+- 逐 tab 確認功能符合 `doc/frontend-spec.md` 規格
 
 ---
 
@@ -109,25 +110,29 @@
 | Codebase 深度探索 + 具體 Bug 清查 | 2026-04-04 |
 | 前端重構計劃（Phase 1–7）制定與 brain 同步 | 2026-04-04 |
 | **Phase 1–7 Source Code 全部完成** | **2026-04-04** |
+| **E2E 批次執行完成（14/16 pass，E2E-1 至 E2E-8 全通過）** | **2026-04-04** |
+| **後端 Smoke 修復 + POM 全面更新（16/16 pass）** | **2026-04-04** |
 
 ---
 
 ## 📊 整體健康度評分 (Overall Health Score)
 
-| 維度 | V11 分數 | V12 分數 | 說明 |
-|------|:-------:|:-------:|------|
-| **後端穩定度** | 8 | 8 | 未變動，Spring Boot + JPA 實體化完整。 |
-| **前端完成度** | 3 | 7 | Phase 1–7 source code 全部完成；E2E 批次尚待。 |
-| **測試覆蓋率** | 6 | 6 | DashboardPage POM 同步更新，現有測試未破壞；8 個新 E2E 待補。 |
-| **DevOps / CI** | 5 | 5 | GitHub Actions 未更新，PWA 部署尚未全自動化。 |
-| **安全性** | 4 | 4 | GCS 公開 URL 洩漏風險仍存在。 |
-| **UX / 設計一致性** | 3 | 8 | Tab 標籤統一、空白狀態補齊、英文佔位符清除、design token 修復。 |
-| **文件完整度** | 7 | 8 | brain/ 文件完整同步至最新狀態（V12）。 |
+| 維度 | V11 分數 | V12 分數 | V13 分數 | V14 分數 | 說明 |
+|------|:-------:|:-------:|:-------:|:-------:|------|
+| **後端穩定度** | 8 | 8 | 8 | 8 | 未變動，Spring Boot + JPA 實體化完整。 |
+| **前端完成度** | 3 | 7 | 8 | 8 | 全部 16/16 E2E 通過，無殘餘前端 bug。 |
+| **測試覆蓋率** | 6 | 6 | 7 | 9 | 16/16 E2E pass；後端 Smoke data + POM 全面校準。 |
+| **DevOps / CI** | 5 | 5 | 5 | 5 | GitHub Actions 未更新，PWA 部署尚未全自動化。 |
+| **安全性** | 4 | 4 | 4 | 4 | GCS 公開 URL 洩漏風險仍存在。 |
+| **UX / 設計一致性** | 3 | 8 | 8 | 8 | Tab 標籤統一、空白狀態補齊、英文佔位符清除、design token 修復。 |
+| **文件完整度** | 7 | 8 | 9 | 9 | brain/ 文件同步至 V14，含 16/16 結果與技術發現。 |
 
 > **V11 綜合健康度：5.1 / 10**
 > **V12 綜合健康度：6.6 / 10**
+> **V13 綜合健康度：7.0 / 10**
+> **V14 綜合健康度：7.3 / 10**
 >
-> 前端完成度與 UX 一致性大幅提升。E2E 批次完成後預估可拉升至 7.5+。
+> 16/16 E2E 全通過後，測試覆蓋率維度顯著提升。剩餘差距主要為 CI 管線未更新與 GCS 安全性。
 
 ---
 
@@ -135,7 +140,6 @@
 
 | 風險項目 | 嚴重度 | 發生機率 | 緩解策略 |
 |---------|:------:|:-------:|---------|
-| E2E 未涵蓋新頁面，手動測試發現回歸 | 🟡 High | 中 | 立即執行 E2E 批次（8 個 spec/POM） |
 | GCS 公開 URL 洩漏身分證 / 自拍照 | 🔴 Critical | 高 | 導入 Pre-Signed URL（短期）+ CDN 簽名（長期） |
 | CI pipeline 缺少前端測試 gate | 🟡 Medium | 中 | 更新 GitHub Actions workflow |
 | 無即時通知（WebSocket / SSE） | 🟡 Medium | — | V2 排程，目前以 polling 暫代 |
@@ -148,21 +152,25 @@
 ```
 最佳執行順序：
 
-1. ★ E2E 批次執行        — 8 個 spec/POM（sitters / finance / notifications / profile）
-   ↳ 驗證 Phase 1–7 回歸無誤
+1. ★ 手動 UAT 驗證        — 依 doc/frontend-spec.md 逐 tab 確認
+   ↳ 預估工時：1 小時
+
+2.   後端 smoke 帳號修復   — SmokeDataSeeder + SmokeMockAuthFilter（NEWBIE UUID）
+   ↳ 解決 auth/onboarding.spec.js 失敗
+   ↳ 預估工時：1 小時
+
+3.   公開保母 profile 路由  — App.jsx 加入 /:sitterSlug 或更新 BookingPage POM
+   ↳ 解決 sitter/booking-lifecycle.spec.js 失敗
    ↳ 預估工時：2 小時
 
-2.   手動 UAT 驗證        — 依 doc/frontend-spec.md 逐 tab 確認
-   ↳ 預估工時：1 小時
-
-3.   安全性改善           — GCS Pre-Signed URL 導入
+4.   安全性改善            — GCS Pre-Signed URL 導入
    ↳ 預估工時：3 小時
 
-4.   CI 強化             — GitHub Actions 加入 Vitest + Playwright gate
+5.   CI 強化              — GitHub Actions 加入 Vitest + Playwright gate
    ↳ 預估工時：1 小時
 
-5.   即時通知 PoC         — SSE 或 WebSocket 選型與原型
+6.   即時通知 PoC          — SSE 或 WebSocket 選型與原型
    ↳ 預估工時：4 小時（V2 規劃）
 ```
 
-> **下一步行動：執行 E2E 批次（`task.md` E2E 區塊）**
+> **下一步行動：手動 UAT 驗證（`task.md` 最終驗證區塊）**

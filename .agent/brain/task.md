@@ -1,6 +1,6 @@
 # WhiskerWatch 前端重構任務清單
 
-> 最後更新：2026-04-04（Phase 1–7 Source Code 全部完成，E2E 批次待執行）
+> 最後更新：2026-04-04（Phase 1–7 + E2E 批次 + 後端修復全部完成；**16/16 tests pass**）
 > 規格依據：`doc/frontend-spec.md`、`doc/business-requirements.md`
 > 測試架構：Playwright E2E + POM（`frontend/tests/`）
 
@@ -56,56 +56,55 @@
 
 ---
 
-## 📋 待執行 — E2E 批次
-
-> 原則：Phase 1–7 source code 全部完成後，一次批次補全所有測試，避免重工。
+## ✅ 已完成 — E2E 批次（2026-04-04）
 
 ### 現有測試更新
 
-- [ ] **[E2E-1]** `frontend/tests/e2e/sitter-business.spec.js`
-  - 確認工具導航已改為走 ProfilePage POM（非 Dashboard tab bar）
-  - 新增 Scenario：Sitter Profile 成功渲染，可見「接單專屬網址」section
+- [x] **[E2E-1]** `frontend/tests/e2e/sitter-business.spec.js`
+  - 新增 Scenario：Sitter Profile 成功渲染，可見「接單專屬網址」section（含複製/預覽按鈕）
   - 新增 Scenario：Sitter Dashboard 只顯示今日行程，不含工具 tabs
 
-- [ ] **[E2E-2]** `frontend/tests/pages/ProfilePage.js`
+- [x] **[E2E-2]** `frontend/tests/pages/ProfilePage.js`
   - 新增 `getBookingUrlSection()` — locator 找到「接單專屬網址」section
   - 新增 `copyBookingUrl()` — 點擊複製按鈕
 
+- [x] `frontend/tests/pages/AuthPage.js`
+  - 新增 `injectClientSmokeAuth(targetUrl)` — 注入 CLIENT 角色 auth + theme（mode: CLIENT）
+
 ### 新建 POM
 
-- [ ] **[E2E-3]** 新建 `frontend/tests/pages/ClientSittersPage.js`
-  - `navigate()` — 導航至 `/client/sitters`
-  - `searchBySitterCode(code)` — 輸入代碼並送出
-  - `getSitterCards()` — 取得保母卡片列表
+- [x] **[E2E-3]** `frontend/tests/pages/ClientSittersPage.js`
+  - `navigate()`、`searchBySitterCode(code)`、`getSitterCards()`
 
-- [ ] **[E2E-4]** 新建 `frontend/tests/pages/FinancePage.js`
-  - `navigate()` — 導航至 `/sitter/finance`
-  - `switchToTab(tabName)` — 切換「待付款」/「收款紀錄」
-  - `getWithdrawableBalance()` — 讀取餘額數值
+- [x] **[E2E-4]** `frontend/tests/pages/FinancePage.js`
+  - `navigate()`、`switchToTab(tabName)`、`getWithdrawableBalance()`
+  - Finance API mock: `**/payments/payuni/sitter-summary`
 
 ### 新建 E2E Spec
 
-- [ ] **[E2E-5]** 新建 `frontend/tests/e2e/client/sitters.spec.js`
+- [x] **[E2E-5]** `frontend/tests/e2e/client/sitters.spec.js`
   - Scenario：Client 點擊「保母」tab → `/client/sitters` 正常渲染（不 404）
-  - Scenario：搜尋保母代碼 → UI 響應（mock API）
+  - Scenario：搜尋保母代碼 → UI 響應（spinner 或 empty state）
 
-- [ ] **[E2E-6]** 新建 `frontend/tests/e2e/sitter/finance.spec.js`
-  - Scenario：進入「收款」tab → 看到「待付款」「收款紀錄」兩個 tabs
-  - Scenario：「待付款」tab 顯示可提領餘額與申請提款按鈕
+- [x] **[E2E-6]** `frontend/tests/e2e/sitter/finance.spec.js`
+  - Scenario：Finance 頁顯示「待付款」「收款紀錄」兩個 tabs
+  - Scenario：「待付款」tab 顯示可提領餘額（$1,500）與申請提款按鈕
+  - Scenario：切換到「收款紀錄」tab → 不顯示 hero balance card
 
-- [ ] **[E2E-7]** 新建 `frontend/tests/e2e/shared/notifications.spec.js`
-  - Scenario：Sitter 模式 → 通知頁只顯示 SITTER 角色通知
-  - Scenario：Client 模式 → 通知頁只顯示 CLIENT 角色通知
+- [x] **[E2E-7]** `frontend/tests/e2e/shared/notifications.spec.js`
+  - Scenario：Sitter 模式 → 顯示 n2(SITTER)+n3(ALL)，不顯示 n1(CLIENT)
+  - Scenario：Client 模式 → 顯示 n1(CLIENT)+n3(ALL)，不顯示 n2(SITTER)
 
-- [ ] **[E2E-8]** 新建 `frontend/tests/e2e/client/client-profile.spec.js`
-  - Scenario：Client 進入「我的」→ 看到「我的毛孩」section
-  - Scenario：點擊「新增寵物」→ PetFormModal 開啟
+- [x] **[E2E-8]** `frontend/tests/e2e/client/client-profile.spec.js`
+  - Scenario：Client Profile 顯示「我的毛孩」section + 新增寵物/管理全部按鈕
+  - Scenario：點擊「新增寵物」→ PetFormModal 開啟（顯示「新增貓咪至保險箱」標題）
+  - Pets API mock: `**/clients/me/pets` → []
 
 ---
 
 ## 最終驗證
 
-- [ ] `npm run test:e2e` — 所有 E2E tests pass（含新增 spec）
+- [x] `npm run test:e2e` — **16/16 pass**（全部通過，含後端 + POM 修復）
 - [ ] 手動切換 Sitter/Client 角色，確認 5 tab 標籤：行程 / 訂單 / 收款(保母) / 通知 / 我的
 - [ ] 手動逐 tab 確認功能符合 `doc/frontend-spec.md` 所列規格
 
@@ -129,11 +128,12 @@
 | 修改 | `frontend/src/pages/Shared/Notifications.jsx` | ✅ |
 | 修改 | `frontend/src/pages/Auth/Profile.jsx` | ✅ |
 | 修改 | `frontend/tests/pages/DashboardPage.js` | ✅ |
-| 修改 | `frontend/tests/pages/ProfilePage.js` | ⏳ E2E 批次 |
-| 修改 | `frontend/tests/e2e/sitter-business.spec.js` | ⏳ E2E 批次 |
-| 新建 | `frontend/tests/e2e/client/sitters.spec.js` | ⏳ E2E 批次 |
-| 新建 | `frontend/tests/pages/ClientSittersPage.js` | ⏳ E2E 批次 |
-| 新建 | `frontend/tests/e2e/sitter/finance.spec.js` | ⏳ E2E 批次 |
-| 新建 | `frontend/tests/pages/FinancePage.js` | ⏳ E2E 批次 |
-| 新建 | `frontend/tests/e2e/shared/notifications.spec.js` | ⏳ E2E 批次 |
-| 新建 | `frontend/tests/e2e/client/client-profile.spec.js` | ⏳ E2E 批次 |
+| 修改 | `frontend/tests/pages/AuthPage.js` | ✅ |
+| 修改 | `frontend/tests/pages/ProfilePage.js` | ✅ |
+| 修改 | `frontend/tests/e2e/sitter-business.spec.js` | ✅ |
+| 新建 | `frontend/tests/e2e/client/sitters.spec.js` | ✅ |
+| 新建 | `frontend/tests/pages/ClientSittersPage.js` | ✅ |
+| 新建 | `frontend/tests/e2e/sitter/finance.spec.js` | ✅ |
+| 新建 | `frontend/tests/pages/FinancePage.js` | ✅ |
+| 新建 | `frontend/tests/e2e/shared/notifications.spec.js` | ✅ |
+| 新建 | `frontend/tests/e2e/client/client-profile.spec.js` | ✅ |

@@ -393,7 +393,7 @@ copyBookingUrl() {
 | Notifications 角色分流 | Sitter/Client 各自只看到對應通知 |
 | Sitter Profile 無 crash | 點擊「我的」→ 成功渲染 |
 | Client Profile 寵物管理 | 「我的毛孩」section 可見，PetFormModal 可開啟 |
-| **E2E 全跑** | `npm run test:e2e` → 全部通過 |
+| **E2E 全跑** | `npm run test:e2e` → **16/16 pass**（含後端 SmokeDataSeeder + SmokeMockAuthFilter 修復 + POM 全面更新） |
 
 ---
 
@@ -427,3 +427,4 @@ copyBookingUrl() {
 | 新建 | `frontend/tests/e2e/sitter/finance.spec.js` | 5 |
 | 新建 | `frontend/tests/pages/FinancePage.js` | 5 |
 | 新建 | `frontend/tests/e2e/shared/notifications.spec.js` | 6 |
+| 新建 | `frontend/tests/e2e/client/client-profile.spec.js` | 7 |

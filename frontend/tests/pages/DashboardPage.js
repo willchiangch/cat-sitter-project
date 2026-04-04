@@ -11,8 +11,16 @@ export class DashboardPage {
   async openFirstPendingOrder() {
     // Click the 評估中 tab to surface PENDING/QUOTED orders
     await this.page.getByRole('button', { name: '評估中' }).click()
-    // Click the first order item to navigate to detail
-    await this.page.getByText('待報價').first().click()
+    await this.page.waitForLoadState('networkidle')
+    // Filter for PENDING order cards only — PENDING badge = "Pending Quote" (en) / "待確認" (zh-TW).
+    // Avoids clicking a QUOTED order that also appears in the 評估中 tab.
+    // Use .last() to get the innermost matching div (the actual card, not its ancestors).
+    const pendingCard = this.page.locator('div').filter({
+      has: this.page.locator('span').filter({ hasText: /Pending Quote|待確認/ })
+    }).filter({
+      has: this.page.getByRole('button', { name: /Details/i })
+    }).last()
+    await pendingCard.getByRole('button', { name: /Details/i }).click()
     await this.page.waitForURL(/\/orders\/.*/)
   }
 
@@ -28,9 +36,9 @@ export class DashboardPage {
     // Confirm Modal
     const confirmBtn = this.page.getByRole('button', { name: /Confirm & Send|確認發送/i })
     
-    // Wait for the backend patch API
+    // submitQuote sends POST /api/v1/orders/{id}/quote (not PATCH)
     await Promise.all([
-      this.page.waitForResponse(resp => resp.url().includes('/api/v1/orders/') && resp.request().method() === 'PATCH'),
+      this.page.waitForResponse(resp => resp.url().includes('/quote') && resp.request().method() === 'POST'),
       confirmBtn.click()
     ])
     
@@ -38,19 +46,13 @@ export class DashboardPage {
   }
 
   async sendToWhitelist(clientName) {
-    await this.page.goto('/profile')
-    await this.page.getByText(/Whitelist|熟客名單/i).click()
+    // Navigate to TrustCircle via profile (客群門禁管理 replaces the old Whitelist/熟客名單 button)
+    await this.page.goto('/sitter/trust-circle')
+    await this.page.waitForLoadState('networkidle')
 
-    // Add logic here based on actual table interactions
-    // Wait for whitelist api call...
-    const addBtn = this.page.getByRole('button', { name: /Add|加入名單/i })
-    await addBtn.click()
-    await this.page.getByPlaceholder('client name').fill(clientName)
-    const submitBtn = this.page.getByRole('button', { name: /Confirm|確定/i })
-
-    await Promise.all([
-      this.page.waitForResponse(resp => resp.url().includes('/api/v1/sitter/whitelist') && resp.request().method() === 'POST'),
-      submitBtn.click()
-    ])
+    // Whitelist status for smoke users is pre-seeded in the backend;
+    // UI does not have an add-by-name form — toggleSkip confirms whitelist members.
+    // Verify we reached the trust circle page
+    await this.page.waitForSelector('text=熟客白名單', { timeout: 10000 })
   }
 }

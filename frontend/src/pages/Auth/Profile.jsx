@@ -9,7 +9,8 @@ import PetFormModal from '../../components/client/PetFormModal'
 const Profile = () => {
   const user = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
-  
+  const navigate = useNavigate()
+
   const [isUploading, setIsUploading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [sitterData, setSitterData] = useState(null)

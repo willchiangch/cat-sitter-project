@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V10 (Hybrid Testing Strategy & Full PWA Experience)**
+**目前版本：V14 (E2E 16/16 全通過 — Backend Smoke + POM Fixes Complete)**
 
 ---
 
@@ -41,10 +41,12 @@ cat-sitter-project/
 
 - **全面 PWA 體驗**：支援 iOS/Android 桌面安裝、全螢幕沉浸式設計、Workbox 離線請求快取策略。
 - **雙軌行事曆同步**：支援 Google Calendar OAuth2 同步與 Universal iCal Feed (Apple/iOS)。
-- **VIP 熟客白名單**：保母可設定白名單，讓特定飼主預約時自動跳過繁瑣問卷，直達結帳。
+- **VIP 熟客白名單（客群門禁管理）**：保母可設定白名單，讓特定飼主預約時自動跳過繁瑣問卷，直達結帳；門禁管理入口整合於保母 Profile。
 - **自動化 Onboarding**：全新社交登入使用者自動偵測並強制導航至身分設定流程。
-- **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼。
-- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統。
+- **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼；Finance 頁分為「待付款」與「收款紀錄」雙 tab。
+- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統；人臉辨識自拍取代身分證背面上傳。
+- **接單專屬網址**：保母 Profile 提供可複製的個人預約連結（`/book/{slug}`）供對外推廣。
+- **Client 寵物管理**：飼主 Profile 整合寵物列表卡片，可快速新增或進入完整管理頁。
 
 ---
 

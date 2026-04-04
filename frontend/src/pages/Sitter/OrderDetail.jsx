@@ -142,17 +142,17 @@ const OrderDetail = () => {
                >
                  <span className="material-symbols-outlined">hub</span>
                </button>
-               <button 
+               <button
                  onClick={() => setShowQuote(true)}
                  className="flex-1 py-5 bg-on-surface text-surface rounded-full text-sm font-extrabold tracking-widest uppercase shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
                >
-                 Review & Quote
+                 專業報價
                </button>
             </>
           ) : (
             <div className="flex-1 py-5 bg-surface-container-low border border-outline-variant/10 rounded-full text-center">
                <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">
-                  {order.orderStatus === 'QUOTED' ? '已送出報價，待家長付款' : order.orderStatus}
+                  {order.orderStatus === 'QUOTED' ? '已送出報價 · 待付款' : order.orderStatus}
                </span>
             </div>
           )}

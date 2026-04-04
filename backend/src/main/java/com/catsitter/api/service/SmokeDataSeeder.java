@@ -54,6 +54,10 @@ public class SmokeDataSeeder implements CommandLineRunner {
         jdbcTemplate.update("INSERT INTO ACCOUNTS (ID, EMAIL, PASSWORD_HASH, OAUTH_PROVIDER, STATUS, LAST_ACTIVE_ROLE, IS_EMAIL_VERIFIED, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             buddyAccId, "buddy_smoke@test.com", encodedPassword, "LOCAL", "ACTIVE", "SITTER", true, now, now);
 
+        UUID newbieAccId = UUID.fromString("efefefef-0000-0000-0000-000000000004");
+        jdbcTemplate.update("INSERT INTO ACCOUNTS (ID, EMAIL, PASSWORD_HASH, OAUTH_PROVIDER, STATUS, LAST_ACTIVE_ROLE, IS_EMAIL_VERIFIED, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            newbieAccId, "newbie_smoke@test.com", encodedPassword, "LOCAL", "ACTIVE", null, false, now, now);
+
         UUID clientAccId = UUID.fromString("efefefef-0000-0000-0000-000000000002");
         jdbcTemplate.update("INSERT INTO ACCOUNTS (ID, EMAIL, PASSWORD_HASH, OAUTH_PROVIDER, STATUS, LAST_ACTIVE_ROLE, IS_EMAIL_VERIFIED, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             clientAccId, "client_smoke@test.com", encodedPassword, "LOCAL", "ACTIVE", "CLIENT", true, now, now);
@@ -71,13 +75,13 @@ public class SmokeDataSeeder implements CommandLineRunner {
         jdbcTemplate.update("INSERT INTO PROFILES (ID, ACCOUNT_ID, ROLE_TYPE, NAME, SLUG, IS_VERIFIED, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             clientProfileId, clientAccId, "CLIENT", "James Wilson (Smoke)", "james-smoke", false, now, now);
 
-        // 4. Pet
+        // 4. Pet — named "Fluffy" to match E2E spec selector /Fluffy|貓咪/
         UUID petId = UUID.fromString("efefefef-0000-0000-0000-000000000021");
         jdbcTemplate.update("INSERT INTO PETS (ID, CLIENT_PROFILE_ID, NAME, SPECIES, GENDER, WEIGHT_KG, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            petId, clientProfileId, "Oliver", "CAT", "MALE", 5.5, now, now);
+            petId, clientProfileId, "Fluffy", "CAT", "MALE", 5.5, now, now);
 
-        // 5. Service
-        UUID serviceId = UUID.randomUUID();
+        // 5. Service — fixed UUID to match BookingFlow.jsx hardcoded serviceId for STANDARD plan
+        UUID serviceId = UUID.fromString("68511200-0045-6120-0000-000000000001");
         String jsonPayload = "[\"CAT\"]";
         jdbcTemplate.update("INSERT INTO SERVICES (ID, SITTER_PROFILE_ID, NAME, BASE_PRICE, DURATION_MINUTES, SUPPORTED_PET_TYPES, SORT_ORDER, IS_ACTIVE, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ? FORMAT JSON, ?, ?, ?, ?)",
             serviceId, sitterProfileId, "STANDARD", 500.0, 30, jsonPayload, 0, true, now, now);

@@ -37,7 +37,7 @@ const Dashboard = () => {
       {/* Welcome Header */}
       <section className="space-y-1 px-1">
         <h2 className="text-3xl font-extrabold font-headline tracking-tighter text-on-surface">
-          {t('dashboard.greeting', { name: user?.name || 'Sitter' })}
+          {t('dashboard.greeting', { name: user?.profiles?.[0]?.name || user?.name || 'Sitter' })}
         </h2>
         <p className="text-sm font-body text-on-surface-variant">
           {t('dashboard.sitter_summary', { count: 3 })}
