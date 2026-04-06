@@ -56,7 +56,7 @@ public class BookingFlowSmokeTest {
 
         // 2. Add Service
         var serviceReq = new com.catsitter.api.dto.sitter.CreateServiceRequest(
-                "Standard Caring", new BigDecimal("500"), 60, List.of("CAT")
+                "Standard Caring", new BigDecimal("500"), 60, List.of("CAT"), null, null, null, null
         );
         String svcResp = mockMvc.perform(post("/api/v1/sitters/me/services")
                 .header("Authorization", "Bearer " + sitterToken.accessToken())

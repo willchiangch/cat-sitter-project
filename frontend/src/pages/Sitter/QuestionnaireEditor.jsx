@@ -12,6 +12,7 @@ const QuestionnaireEditor = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // Form State
   const [formData, setFormData] = useState({
@@ -21,6 +22,8 @@ const QuestionnaireEditor = () => {
     required: true,
     options: []
   })
+
+  useEffect(() => { document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' }) }, [])
 
   useEffect(() => {
     fetchQuestions()
@@ -39,6 +42,7 @@ const QuestionnaireEditor = () => {
   }
 
   const handleOpenEdit = (q = null) => {
+    setSaveError('')
     if (q) {
       setCurrentQuestion(q)
       setFormData({
@@ -80,6 +84,7 @@ const QuestionnaireEditor = () => {
       fetchQuestions()
     } catch (e) {
       console.error('Save failed:', e)
+      setSaveError('儲存失敗，請確認內容後再試一次')
     } finally {
       setIsSaving(false)
     }
@@ -149,11 +154,8 @@ const QuestionnaireEditor = () => {
       
       <div className="flex-grow min-w-0 pr-2">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-black bg-on-surface-variant/5 text-on-surface-variant px-2 py-0.5 rounded-full uppercase tracking-widest text-xs">
-            {q.targetPetType === 'CAT' ? '🐱 貓咪' : q.targetPetType}
-          </span>
           {q.required && (
-            <span className="text-[10px] font-bold text-red-500/80 bg-red-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">必填</span>
+            <span className="text-[10px] font-bold text-error bg-error/10 px-2 py-0.5 rounded-full uppercase tracking-tighter">必填</span>
           )}
         </div>
         <p className="text-sm font-bold truncate opacity-90">{q.questionText}</p>
@@ -356,9 +358,13 @@ const QuestionnaireEditor = () => {
                   </div>
                 </div>
 
+                {saveError && (
+                  <p className="text-xs font-bold text-error px-1">{saveError}</p>
+                )}
+
                 <div className="flex gap-4 pt-4 pb-2">
-                  <button 
-                    onClick={() => setIsEditing(false)}
+                  <button
+                    onClick={() => { setIsEditing(false); setSaveError('') }}
                     disabled={isSaving}
                     className="flex-1 py-5 bg-on-surface-variant/5 text-on-surface-variant/60 rounded-full font-black text-sm active:scale-95 transition-all"
                   >

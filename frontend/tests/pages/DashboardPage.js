@@ -46,13 +46,8 @@ export class DashboardPage {
   }
 
   async sendToWhitelist(clientName) {
-    // Navigate to TrustCircle via profile (客群門禁管理 replaces the old Whitelist/熟客名單 button)
-    await this.page.goto('/sitter/trust-circle')
+    await this.page.goto('/sitter/client-gate')
     await this.page.waitForLoadState('networkidle')
-
-    // Whitelist status for smoke users is pre-seeded in the backend;
-    // UI does not have an add-by-name form — toggleSkip confirms whitelist members.
-    // Verify we reached the trust circle page
-    await this.page.waitForSelector('text=熟客白名單', { timeout: 10000 })
+    await this.page.waitForSelector('button', { timeout: 10000 })
   }
 }

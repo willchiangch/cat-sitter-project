@@ -1,6 +1,178 @@
 # WhiskerWatch 開發進度紀錄 (Walkthrough)
 
-> 最後更新：2026-04-04（Phase 1–7 + E2E 批次 + 後端修復全部完成；**16/16 tests pass**）
+> 最後更新：2026-04-06（保母公開頁、IME 修正、多項 UI bug 修復、GCS proxy 架構、DB migration 修復）
+
+---
+
+## 📌 階段十：UI 修復 + GCS Proxy 架構（2026-04-06）
+
+### 背景
+
+承接階段九，針對 Profile 頁面與保母工具頁面的多個 UI/UX 問題進行修復，並建立 GCS 圖片安全存取架構（後端 proxy，bucket 保持私有）。同時修復多個 Flyway migration 錯誤讓後端可以正常啟動。
+
+### IME / 輸入法問題（本 session 前半段，跨 context）
+
+| 問題 | 修復 |
+|------|------|
+| 注音輸入法在「專業形象標籤」無法轉換中文 | 改用 uncontrolled input（`defaultValue` + `ref`），移除 `value` prop |
+| 按「確認」儲存標籤無反應 | `handleUpdate` 回傳 `true/false`；`handleAddLabel` 等待結果再關閉 |
+| `calendar_apps` icon 顯示 "ENDA" 大字 | 改為 `calendar_month`；container 加 `overflow-hidden` |
+
+### 保母頁面 10 項修復（本 session 前半段）
+
+| # | 問題 | 修復 |
+|---|------|------|
+| 1 | 帳號與安全無名稱/編輯功能 | 新增可點擊名稱 + Sitter Name Edit Modal |
+| 2 | 接單網址不顯示 | 移除 `sitterData &&` gate；`SitterProfileResponse` 加 `slug` 欄位 |
+| 3 | 登出不跳頁 | `onClick={() => { logout(); navigate('/login') }}` |
+| 4–7 | 四個工具頁進入後不在最上方 | 改用 `document.querySelector('main')?.scrollTo`（scroll container 是 main，不是 window）|
+| 8 | Client 編輯 modal 無 email + 儲存沒反應 | 加入 email readonly 顯示；修復 `handleSaveClientProfile` 送出 explicit fields |
+| 9 | 我的毛孩頁無 scroll to top / 無返回按鈕 | 加 `useScrollToTop` + back button；標題改「我的毛孩」|
+| 10 | 新增寵物 + 上傳圖片失敗 | 後端新增 `POST /storage/upload` multipart endpoint；前端改用 multipart POST |
+
+### 保母公開頁（本 session）
+
+| 元件 | 說明 |
+|------|------|
+| 新建 `frontend/src/pages/Public/SitterPublicPage.jsx` | 一頁式保母公開頁：頭像、名稱、服務區域、專業標籤、自我介紹、方案卡片（可點立即預約）|
+| `frontend/src/App.jsx` | 新增 `/s/:slug` 公開路由（在 auth gate 外）|
+| `BookingPreviewResponse.SitterPublicProfile` | 加入 `professionalLabels` 欄位 |
+| `SitterProfileResponse` | 加入 `slug` 欄位 |
+| `SitterProfileService.mapToResponse` | 補上 `profile.getSlug()` |
+| `Profile.jsx` 接單網址 | 從 `/booking/sitter/{id}` 改為 `/s/{slug}` |
+
+### GCS 圖片安全架構
+
+**問題根源**：bucket 不公開 → 圖片 403；DB 存 full GCS URL → `getUrl()` double URL。
+
+| 元件 | 變更 |
+|------|------|
+| `GcsStorageService.getUrl()` | 改回傳 `/api/v1/media/{path}`（proxy 路徑，不直接對 GCS）|
+| `GcsStorageService.load()` | 實作從 GCS 用 service account 讀 bytes 回傳（`ByteArrayResource`）|
+| `StorageController.uploadFile` | 回傳 `/api/v1/media/{path}` 而非 full GCS URL |
+| `SecurityConfig` | `/api/v1/media/identity/**` 需登入；`/api/v1/media/**` permitAll |
+| `SitterProfileService` | `getSignedUrl()` 改為 `getUrl()`（身分證/人臉照）|
+| DB 資料修復 | `UPDATE profiles SET avatar_url = REPLACE(...)` 把 full URL 改成相對路徑 |
+
+### 其他 UI 修復
+
+| 問題 | 修復 |
+|------|------|
+| 黑名單按鈕/加入按鈕呈灰色 | `--error` CSS 變數從未定義 → `index.css` 補齊 error / surface-container / on-surface-variant token |
+| 問卷列表顯示 🐱 貓咪 flag | 移除 `targetPetType` badge |
+| 訂閱方案當前方案灰底看不清 | hero card text 根據 `highlight` flag 切 `text-on-primary` vs `text-on-surface` |
+| 保母自我介紹無輸入欄 | Profile.jsx 新增「自我介紹」section（textarea + onBlur 自動儲存）|
+| scroll to top 無效 | `window.scrollTo` → `document.querySelector('main')?.scrollTo`（真正的 scroll container）|
+
+### DB Migration 修復
+
+| Migration | 問題 | 修復 |
+|-----------|------|------|
+| V14 | INSERT 用了不存在的 `is_email_verified` 欄位 | 移掉該欄位 |
+| V16 | INSERT subscription_plans 沒帶 `created_at/updated_at` | 加 `NOW()` + `gen_random_uuid()` |
+| V18（新建） | JPA entity `Account` 有 `isEmailVerified` 但 DB 無欄位 | `ALTER TABLE accounts ADD COLUMN is_email_verified` |
+| V19（新建） | JPA entity `VerificationCode` 對應 table 不存在 | 建立 `verification_codes` table |
+| `application.yml` | Spring Security OAuth2 Login 缺少 client registration 設定 | 加入 `spring.security.oauth2.client` + dummy fallback |
+
+---
+
+## 📌 階段八：後端 API 完整同步（2026-04-05）
+
+### 背景
+
+前端在階段七已完整重構 Profile 頁面的 12 個問題，但後端仍有多個缺口：黑名單 API 完全不存在、訂閱管理是 stub (501)、服務方案日期欄位未在 DTO 開放、AddTrustCircleRequest 欄位名稱與前端不符。本階段補齊所有後端缺口，並同步 DB migration 與測試。
+
+### 變更清單
+
+#### DB — V16 Migration
+
+| 變更 | 說明 |
+|------|------|
+| `subscription_plans.plan_code` | 新增 VARCHAR(20) UNIQUE；種子 FREE/STANDARD/PRO/PREMIUM；價格對齊前端（0/499/899/1299） |
+| `services.effective_date` | 新增 DATE column |
+| `sitter_client_blacklists` | 全新資料表（sitter_profile_id, client_profile_id, reason, UNIQUE constraint） |
+| Smoke 訂閱種子 | 保母 smoke 帳號自動獲得 PRO 訂閱（供 E2E 測試）|
+
+#### 新建後端元件
+
+| 元件 | 說明 |
+|------|------|
+| `SitterClientBlacklist` entity | 對應 `sitter_client_blacklists` 資料表 |
+| `SitterClientBlacklistRepository` | `findBySitterProfileId` / `findBySitterProfileIdAndClientProfileId` |
+| `SitterClientBlacklistDTO` | `fromEntity` 工廠方法 |
+| `SitterSubscriptionDTO` | record（planId, status, renewsAt） |
+| `BlacklistService` | CRUD + searchClients（`findByRoleTypeAndNameContainingIgnoreCase`）|
+| `BlacklistController` | `GET/POST /clients/DELETE /clients/{id}/GET /search` |
+| `SitterSubscriptionController` | `GET/PUT/DELETE /sitters/me/subscription` |
+
+#### 更新現有後端元件
+
+| 元件 | 變更 |
+|------|------|
+| `SubscriptionPlan` entity | 加入 `planCode` 欄位 |
+| `Service` entity | 加入 `effectiveDate` 欄位 |
+| `SubscriptionPlanRepository` | `findByPlanCode(String)` |
+| `SitterSubscriptionRepository` | `findBySitterProfileIdAndStatus(UUID, String)` / `findTopBySitterProfileIdOrderByCreatedAtDesc(UUID)` |
+| `ProfileRepository` | `findByRoleTypeAndNameContainingIgnoreCase(RoleType, String)` |
+| `SubscriptionService` | `getCurrentSubscription` / `changePlan` / `cancelSubscription` |
+| `WhitelistService` | `addToWhitelist` / `searchClients` |
+| `WhitelistController` | `POST /clients` / `GET /search` |
+| `ServicePlanResponse` | 加入 `bookableStartDate` / `bookableEndDate` / `effectiveDate` |
+| `CreateServiceRequest` | 同三個日期欄位（nullable） |
+| `UpdateServiceRequest` | 同三個日期欄位（nullable） |
+| `SitterServiceService` | `mapToResponse` / `createService` / `updateService` 同步日期欄位 |
+| `AddTrustCircleRequest` | `trustedSitterId` → `sitterProfileId`（對齊前端 `api.ts`）|
+| `SitterTrustCircleController` | 使用 `getSitterProfileId()` |
+| `ApiV1StubController` | 移除 subscription 兩個 stub（已由真實 controller 接手）|
+
+#### 新建測試
+
+| 測試 | 類型 | 驗證項目 |
+|------|------|---------|
+| `SubscriptionSmokeTest` | JUnit / MockMvc | GET(FREE)→PUT(PRO)→DELETE→GET(CANCELLED) |
+| `BlacklistSmokeTest` | JUnit / MockMvc | empty→add→list(1)→remove→empty |
+| `sitter/subscription.spec.js` | Playwright E2E | 導航 / 四張方案卡 / 目前方案卡 / 月年切換 |
+| `sitter/client-gate.spec.js` | Playwright E2E | 導航 / 白名單 tab / 黑名單切換 / 搜尋欄位 |
+| `sitter-business.spec.js` | Playwright E2E | 追加 2 個 test（subscription page / client gate） |
+
+### 待驗證（需後端啟動）
+
+- `./mvnw test -Dtest=com.catsitter.api.smoke.*` — SubscriptionSmokeTest + BlacklistSmokeTest
+- `npm run test:e2e` — 含新 spec 的完整 E2E 跑
+- `npm run api:sync` — 重新生成 TypeScript SDK
+
+---
+
+## 📌 階段七：Profile 頁面 12 項重構（2026-04-05）
+
+### 背景
+
+對保母與飼主「我的」(Profile) 頁面進行系統性修復，解決 12 個具體問題：功能缺失、導航錯誤、UI 排版、設計一致性。
+
+### 修復清單
+
+| # | 問題 | 解法 |
+|---|------|------|
+| 1 | GCS 身分照上傳後無縮圖 | `uploadingField`/`uploadError` per card 狀態；loading spinner + error overlay |
+| 2 | 專業標籤與銀行資料無法編輯 | 標籤 hover 顯示 × 可刪；銀行資料開啟 modal 編輯（`editBankCode`/`editBankAccount`/`isSavingBank`）|
+| 3 | 「管理服務方案」不捲到頂 | `window.scrollTo({ top: 0, behavior: 'instant' })` |
+| 4 | ServicePackages 表單不完整 | 物種多選 chips（7 種）、名稱、啟用切換+生效日期、可預約日期區間、時長 |
+| 5 | TrustCircle 文字與移除按鈕 | 標題「關於信任圈」、說明更新、新增 `person_remove` 移除按鈕 |
+| 6 | 客群門禁管理無獨立頁面 | 新建 `ClientGate.jsx`：白名單/黑名單雙 tab，各有搜尋/新增/移除 |
+| 7 | Calendar sync 元件重疊 | 改用 `min-w-0` flex 佈局 + `break-all` 的 iCal URL 獨立區塊 |
+| 8 | 「管理訂閱」開外部 URL | `navigate('/sitter/subscription')` + 新建 `SubscriptionManagement.jsx` |
+| 9 | Avatar 上傳只支援 Sitter | 加入 Client 分支呼叫 `profileService.updateClientMe`；`setLocalAvatarUrl` 即時更新 |
+| 10 | 「保母預覽網頁」開不存在的外部 URL | `navigate('/booking/sitter/${slug}')` 改站內路由；複製 URL 用 `window.location.origin` |
+| 11 | Client Profile 無編輯功能 | 新增「我的基本資料」section，姓名/電話可編輯（Client edit modal） |
+| 12 | BottomNavBar 對比度問題 | 背景維持 glass-effect；圖示/文字改白色；選中加暗金色光暈 |
+
+### api.ts 同步（前端服務層）
+
+- `subscriptionService`：`getCurrent` / `cancel` / `changePlan`
+- `blacklistService`：`list` / `add` / `remove` / `search`
+- `whitelistService`：`add` / `search`
+- `trustCircleService`：`add` / `remove`
+- `profileService`：`getClientMe` / `updateClientMe`
 
 ---
 
@@ -55,6 +227,9 @@
 | `client/client-profile.spec.js` | ✅ 2/2 | 通過 |
 | `auth/onboarding.spec.js` | ✅ 1/1 | 後端 NEWBIE UUID + POM 修復後通過 |
 | `sitter/booking-lifecycle.spec.js` | ✅ 1/1 | POM 全面修復後通過 |
+
+- [x] `npm run test:e2e` — **16/16 pass**（全部通過，含後端 + POM 修復）
+- [x] **人工 UI 巡檢** — 透過 `browse` 工具確認 Sitter/Client 雙端 5 tab 標籤、Dashboard 行程顯示、Finance 分頁結構均對齊規格。
 
 **總計：16 passed / 0 failed ✅**
 

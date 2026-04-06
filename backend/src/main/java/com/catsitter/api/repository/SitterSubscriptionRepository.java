@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface SitterSubscriptionRepository extends JpaRepository<SitterSubscription, UUID> {
     Optional<SitterSubscription> findBySitterProfileAndStatus(Profile profile, String status);
     List<SitterSubscription> findByEndDateBetweenAndStatus(LocalDate start, LocalDate end, String status);
+    Optional<SitterSubscription> findTopBySitterProfileIdOrderByCreatedAtDesc(UUID sitterProfileId);
+    Optional<SitterSubscription> findBySitterProfileIdAndStatus(UUID sitterProfileId, String status);
 }

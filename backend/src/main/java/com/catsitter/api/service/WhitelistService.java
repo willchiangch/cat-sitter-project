@@ -1,5 +1,6 @@
 package com.catsitter.api.service;
 
+import com.catsitter.api.dto.ProfileMiniDTO;
 import com.catsitter.api.dto.SitterClientWhitelistDTO;
 import com.catsitter.api.entity.Profile;
 import com.catsitter.api.entity.SitterClientWhitelist;
@@ -10,8 +11,10 @@ import com.catsitter.api.repository.SitterClientWhitelistRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class WhitelistService {
@@ -57,6 +60,34 @@ public class WhitelistService {
         Profile sitter = getSitterProfile(sitterAccount);
         whitelistRepository.findBySitterProfileIdAndClientProfileId(sitter.getId(), clientId)
                 .ifPresent(whitelistRepository::delete);
+    }
+
+    @Transactional
+    public SitterClientWhitelistDTO addToWhitelist(Account sitterAccount, UUID clientId) {
+        Profile sitter = getSitterProfile(sitterAccount);
+        Profile client = profileRepository.findById(clientId)
+                .orElseThrow(() -> new RuntimeException("Client profile not found: " + clientId));
+
+        SitterClientWhitelist entry = whitelistRepository
+                .findBySitterProfileIdAndClientProfileId(sitter.getId(), clientId)
+                .orElseGet(() -> {
+                    SitterClientWhitelist e = new SitterClientWhitelist();
+                    e.setSitterProfile(sitter);
+                    e.setClientProfile(client);
+                    e.setSkipQuestionnaire(false);
+                    return e;
+                });
+        whitelistRepository.save(entry);
+        return SitterClientWhitelistDTO.fromEntity(entry);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProfileMiniDTO> searchClients(Account sitterAccount, String query) {
+        if (query == null || query.isBlank()) return Collections.emptyList();
+        return profileRepository.findByRoleTypeAndNameContainingIgnoreCase(RoleType.CLIENT, query)
+                .stream()
+                .map(ProfileMiniDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
     private Profile getSitterProfile(Account account) {

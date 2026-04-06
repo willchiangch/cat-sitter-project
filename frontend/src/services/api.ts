@@ -51,20 +51,13 @@ client.instance.interceptors.request.use(config => {
 // Storage Services (GCS 直傳需要繞過 Axios interceptor)
 export const storageService = {
   async uploadFile(file, subFolder = 'pets') {
-    try {
-      const { data } = await api.post('/storage/upload-url', {
-        fileName: file.name,
-        subFolder: subFolder
-      })
-      const { uploadUrl } = data
-      await axios.put(uploadUrl, file, {
-        headers: { 'Content-Type': file.type }
-      })
-      return uploadUrl.split('?')[0]
-    } catch (error) {
-      console.error('File upload failed:', error)
-      throw error
-    }
+    const form = new FormData()
+    form.append('file', file)
+    form.append('subFolder', subFolder)
+    const { data } = await api.post('/storage/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return data.url
   }
 }
 
@@ -100,18 +93,32 @@ export const visitService = {
 // --- Profile & Identity Services ---
 export const profileService = {
   getSitterMe: () => api.get('/sitters/me/profile').then(res => res.data),
-  updateSitterMe: (data) => api.put('/sitters/me/profile', data).then(res => res.data)
+  updateSitterMe: (data) => api.put('/sitters/me/profile', data).then(res => res.data),
+  getClientMe: () => api.get('/clients/me/profile').then(res => res.data),
+  updateClientMe: (data) => api.put('/clients/me/profile', data).then(res => res.data),
 }
 
 // --- Whitelist & Trust Services (V31) ---
 export const whitelistService = {
   list: () => api.get('/sitters/me/whitelist').then(res => res.data),
+  add: (clientId) => api.post('/sitters/me/whitelist/clients', { clientId }).then(res => res.data),
   toggleSkip: (clientId, skip) => api.put(`/sitters/me/whitelist/clients/${clientId}`, null, { params: { skipQuestionnaire: skip } }).then(res => res.data),
-  remove: (clientId) => api.delete(`/sitters/me/whitelist/clients/${clientId}`).then(res => res.data)
+  remove: (clientId) => api.delete(`/sitters/me/whitelist/clients/${clientId}`).then(res => res.data),
+  search: (q) => api.get('/sitters/me/whitelist/search', { params: { q } }).then(res => res.data),
+}
+
+export const blacklistService = {
+  list: () => api.get('/sitters/me/blacklist').then(res => res.data),
+  add: (clientId) => api.post('/sitters/me/blacklist/clients', { clientId }).then(res => res.data),
+  remove: (clientId) => api.delete(`/sitters/me/blacklist/clients/${clientId}`).then(res => res.data),
+  search: (q) => api.get('/sitters/me/blacklist/search', { params: { q } }).then(res => res.data),
 }
 
 export const trustCircleService = {
   listSitters: () => api.get('/sitters/me/trust-circle').then(res => res.data),
+  searchBySlug: (slug) => api.get(`/sitters/${slug}/booking-preview`).then(res => res.data),
+  add: (sitterProfileId) => api.post('/sitters/me/trust-circle', { sitterProfileId }).then(res => res.data),
+  remove: (id) => api.delete(`/sitters/me/trust-circle/${id}`).then(res => res.data),
 }
 
 export const sitterService = {
@@ -127,6 +134,12 @@ export const questionnaireService = {
   update: (id, data) => api.put(`/sitters/me/questionnaires/${id}`, data).then(res => res.data),
   delete: (id) => api.delete(`/sitters/me/questionnaires/${id}`).then(res => res.data),
   reorder: (questionIds) => api.patch('/sitters/me/questionnaires/reorder', { questionIds }).then(res => res.data)
+}
+
+export const subscriptionService = {
+  getCurrent: () => api.get('/sitters/me/subscription').then(res => res.data),
+  cancel: () => api.delete('/sitters/me/subscription').then(res => res.data),
+  changePlan: (planId) => api.put('/sitters/me/subscription', { planId }).then(res => res.data),
 }
 
 export const calendarService = {

@@ -30,21 +30,28 @@ const BottomNavBar = () => {
         <NavLink
           key={item.path}
           to={item.path}
-          className={({ isActive }) => `
-            flex flex-col items-center justify-center px-3 py-1.5 transition-all duration-200 active:scale-95 relative
-            ${isActive ? 'text-primary' : 'text-outline'}
-          `}
+          className="flex flex-col items-center justify-center px-3 py-1.5 transition-all duration-200 active:scale-95 relative"
         >
-          <span className={`material-symbols-outlined text-2xl`}>
-            {item.icon}
-          </span>
-          <span className="font-body text-[10px] font-bold uppercase tracking-widest mt-1">
-            {item.label}
-          </span>
-          {item.icon === 'notifications' && unreadCount > 0 && (
-            <div className="absolute top-1 right-2 w-4 h-4 bg-primary text-on-primary text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-surface animate-bounce shadow-lg">
-              {unreadCount}
-            </div>
+          {({ isActive }) => (
+            <>
+              <div className={`relative flex items-center justify-center w-10 h-7 rounded-full transition-all duration-300 ${
+                isActive
+                  ? 'text-[#c69a00] drop-shadow-[0_0_8px_rgba(118,86,0,0.7)]'
+                  : 'text-white/80'
+              }`}>
+                <span className="material-symbols-outlined text-2xl">{item.icon}</span>
+              </div>
+              <span className={`font-body text-[10px] font-bold uppercase tracking-widest mt-1 transition-colors duration-300 ${
+                isActive ? 'text-[#c69a00]' : 'text-white/70'
+              }`}>
+                {item.label}
+              </span>
+              {item.icon === 'notifications' && unreadCount > 0 && (
+                <div className="absolute top-1 right-2 w-4 h-4 bg-primary text-on-primary text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-surface animate-bounce shadow-lg">
+                  {unreadCount}
+                </div>
+              )}
+            </>
           )}
         </NavLink>
       ))}

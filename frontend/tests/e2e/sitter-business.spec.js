@@ -76,9 +76,31 @@ test.describe('Sitter Professional Tools E2E Verification', () => {
     await toolsPage.verifyQuestionVisible('聯絡方式')
 
     // 4. Test Trust Circle
-    await profilePage.goto() 
+    await profilePage.goto()
     await profilePage.navigateToTrustCircle()
     await expect(page).toHaveURL(/\/sitter\/trust-circle/)
     await toolsPage.verifyBuddyVisible('Buddy Sitter')
+  })
+
+  test('Subscription management page is accessible', async ({ page }) => {
+    await page.goto('/sitter/subscription')
+    await page.waitForLoadState('networkidle')
+
+    // Page title
+    await expect(page.getByText(/訂閱方案管理/i)).toBeVisible({ timeout: 10000 })
+
+    // All four plans
+    await expect(page.getByText('免費版').first()).toBeVisible()
+    await expect(page.getByText('基礎版').first()).toBeVisible()
+    await expect(page.getByText('專業版').first()).toBeVisible()
+    await expect(page.getByText('頂級版').first()).toBeVisible()
+  })
+
+  test('Client gate page shows whitelist and blacklist tabs', async ({ page }) => {
+    await page.goto('/sitter/client-gate')
+    await page.waitForLoadState('networkidle')
+
+    await expect(page.getByRole('button', { name: /白名單/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('button', { name: /黑名單/i })).toBeVisible()
   })
 })

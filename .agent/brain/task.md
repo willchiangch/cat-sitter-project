@@ -1,8 +1,8 @@
-# WhiskerWatch 前端重構任務清單
+# WhiskerWatch 任務清單
 
-> 最後更新：2026-04-04（Phase 1–7 + E2E 批次 + 後端修復全部完成；**16/16 tests pass**）
-> 規格依據：`doc/frontend-spec.md`、`doc/business-requirements.md`
-> 測試架構：Playwright E2E + POM（`frontend/tests/`）
+> 最後更新：2026-04-06（保母公開頁 + GCS proxy + UI 修復 + DB migration 修復；Schema V18/V19）
+> 規格依據：`doc/frontend-spec.md`、`doc/business-requirements.md`、`doc/sass-level-program.md`
+> 測試架構：Playwright E2E + POM（`frontend/tests/`）+ JUnit Smoke（`backend/src/test/`）
 
 ---
 
@@ -102,15 +102,155 @@
 
 ---
 
+## ✅ 已完成 — Phase 8：Profile 頁面 12 項重構（2026-04-05）
+
+> 前端深度修正，對齊業務規格與設計書
+
+- [x] **[8-1]** GCS 身分驗證照片上傳後縮圖即時顯示（`uploadingField`/`uploadError` per card 狀態）
+- [x] **[8-2]** 專業形象標籤（professionalLabels）可新增/刪除；財務結算資訊（bank info）可開啟 modal 編輯
+- [x] **[8-3]** 「管理服務方案」按鈕點擊後頁面捲至頂部（`window.scrollTo({ top: 0 })`）
+- [x] **[8-4]** ServicePackages 表單補齊：物種多選（貓/狗/鳥/鼠/兔/爬蟲/其他）、啟用切換 + 生效日期、可預約日期區間、服務時長
+- [x] **[8-5]** TrustCircle 標題改為「關於信任圈」；說明文字更新；加入移除夥伴按鈕（`person_remove` icon）
+- [x] **[8-6]** 「客群門禁管理」新建獨立頁面 `ClientGate.jsx`（含白名單 + 黑名單雙 tab，各有搜尋/新增/移除）
+- [x] **[8-7]** Calendar sync section 排版修復（使用 `min-w-0` + `break-all` 避免元素重疊）
+- [x] **[8-8]** 「管理訂閱」改為 `navigate('/sitter/subscription')` 進入站內頁面；新建 `SubscriptionManagement.jsx`
+- [x] **[8-9]** Avatar 上傳雙角色支援（Sitter 呼叫 `updateSitterMe`、Client 呼叫 `updateClientMe`）；`localAvatarUrl` 即時更新
+- [x] **[8-10]** 「保母預覽網頁」改為 `navigate('/booking/sitter/${slug}')` 站內路由；複製 URL 改為 `window.location.origin` 前綴
+- [x] **[8-11]** Client Profile 新增「我的基本資料」section（姓名/電話可透過 modal 編輯，呼叫 `updateClientMe`）
+- [x] **[8-12]** BottomNavBar：背景維持 glass-effect (navy blue)；圖示與文字改為白色；選中時加上暗金色光暈（`drop-shadow-[0_0_8px_rgba(118,86,0,0.7)]`）
+- [x] 新建 `App.jsx` 路由：`/sitter/client-gate`、`/sitter/subscription`
+
+---
+
+## ✅ 已完成 — Phase 9：後端 API 完整同步（2026-04-05）
+
+> 前端已先行，本階段補齊後端 API、DB Schema、E2E 測試
+
+### DB Migration
+
+- [x] **V16** (`V16__blacklist_subscription_dates.sql`)：
+  - `subscription_plans.plan_code` VARCHAR(20) UNIQUE（FREE/STANDARD/PRO/PREMIUM）
+  - 更新訂閱方案價格（0/499/899/1299）
+  - `services.effective_date` DATE
+  - 新建 `sitter_client_blacklists` 資料表
+  - Smoke 保母 PRO 訂閱資料種子
+
+### 新建後端檔案
+
+- [x] `entity/SitterClientBlacklist.java`
+- [x] `repository/SitterClientBlacklistRepository.java`
+- [x] `dto/SitterClientBlacklistDTO.java`
+- [x] `dto/sitter/SitterSubscriptionDTO.java`（record: planId, status, renewsAt）
+- [x] `service/BlacklistService.java`（getBlacklistedClients / addToBlacklist / removeFromBlacklist / searchClients）
+- [x] `controller/v1/BlacklistController.java`（GET / POST /clients / DELETE /clients/{id} / GET /search）
+- [x] `controller/v1/SitterSubscriptionController.java`（GET / PUT / DELETE）
+
+### 更新現有後端檔案
+
+- [x] `entity/SubscriptionPlan.java`：加入 `planCode` 欄位
+- [x] `entity/Service.java`：加入 `effectiveDate` 欄位
+- [x] `repository/SubscriptionPlanRepository.java`：加入 `findByPlanCode(String)`
+- [x] `repository/SitterSubscriptionRepository.java`：加入 `findBySitterProfileIdAndStatus(UUID, String)` / `findTopBySitterProfileIdOrderByCreatedAtDesc(UUID)`
+- [x] `repository/ProfileRepository.java`：加入 `findByRoleTypeAndNameContainingIgnoreCase(RoleType, String)`
+- [x] `service/SubscriptionService.java`：加入 `getCurrentSubscription` / `changePlan` / `cancelSubscription`
+- [x] `service/WhitelistService.java`：加入 `addToWhitelist` / `searchClients`
+- [x] `controller/v1/WhitelistController.java`：加入 `POST /clients` / `GET /search`
+- [x] `dto/sitter/ServicePlanResponse.java`：加入 `bookableStartDate` / `bookableEndDate` / `effectiveDate`
+- [x] `dto/sitter/CreateServiceRequest.java`：加入同三個日期欄位（nullable）
+- [x] `dto/sitter/UpdateServiceRequest.java`：加入同三個日期欄位（nullable）
+- [x] `service/SitterServiceService.java`：`mapToResponse` / `createService` / `updateService` 同步日期欄位
+- [x] `dto/sitter/AddTrustCircleRequest.java`：`trustedSitterId` 改名為 `sitterProfileId`（對齊前端 API 呼叫）
+- [x] `controller/v1/SitterTrustCircleController.java`：使用 `getSitterProfileId()`
+- [x] `controller/v1/ApiV1StubController.java`：移除已實作的 `GET /sitters/me/subscription` 與 `POST /sitters/me/subscription/checkout` stub
+
+### 新建後端 Smoke 測試
+
+- [x] `smoke/SubscriptionSmokeTest.java`：GET→PUT(PRO)→DELETE→GET(CANCELLED) 完整流程
+- [x] `smoke/BlacklistSmokeTest.java`：empty→add→list(1)→remove→empty 完整流程
+
+### 新建前端 E2E 測試
+
+- [x] `e2e/sitter/subscription.spec.js`（4 tests：導航 / 方案卡片 / 目前方案 / 月年切換）
+- [x] `e2e/sitter/client-gate.spec.js`（4 tests：導航 / 白名單 tab / 黑名單切換 / 搜尋欄位）
+- [x] `e2e/sitter-business.spec.js`：追加 2 個 test（subscription page / client gate tabs）
+- [x] `pages/DashboardPage.js`：`sendToWhitelist` 更新為導向 `/sitter/client-gate`
+
+---
+
 ## 最終驗證
 
 - [x] `npm run test:e2e` — **16/16 pass**（全部通過，含後端 + POM 修復）
-- [ ] 手動切換 Sitter/Client 角色，確認 5 tab 標籤：行程 / 訂單 / 收款(保母) / 通知 / 我的
-- [ ] 手動逐 tab 確認功能符合 `doc/frontend-spec.md` 所列規格
+- [x] 手動切換 Sitter/Client 角色，確認 5 tab 標籤：行程 / 訂單 / 收款(保母) / 通知 / 我的
+- [x] 手動逐 tab 確認功能符合 `doc/frontend-spec.md` 所列規格
+- [ ] **待執行**：`npm run test:e2e` 重跑含新 subscription / client-gate spec
+- [ ] **待執行**：`./mvnw test -Dtest=com.catsitter.api.smoke.*` 確認 SubscriptionSmokeTest + BlacklistSmokeTest 通過
+- [ ] **待執行**：`npm run api:sync` 重新生成 OpenAPI SDK
+
+---
+
+## ✅ 已完成 — Phase 10：保母公開頁 + GCS Proxy + UI 修復（2026-04-06）
+
+### 新建檔案
+
+- [x] `frontend/src/pages/Public/SitterPublicPage.jsx` — 一頁式保母公開頁（`/s/:slug`，不需登入）
+- [x] `backend/src/main/resources/db/migration/V18__add_is_email_verified_to_accounts.sql`
+- [x] `backend/src/main/resources/db/migration/V19__add_verification_codes.sql`
+
+### 修改檔案
+
+- [x] `frontend/src/App.jsx` — 新增 `/s/:slug` 公開路由 + `SitterPublicPage` import
+- [x] `frontend/src/pages/Auth/Profile.jsx` — 接單網址改 `/s/{slug}`；加自我介紹 textarea；scroll 改用 main container；Sitter name edit；Client profile email + save fix
+- [x] `frontend/src/pages/Sitter/QuestionnaireEditor.jsx` — scroll to top 改 main；移除 🐱 貓咪 badge
+- [x] `frontend/src/pages/Sitter/TrustCircle.jsx` — scroll to top 改 main
+- [x] `frontend/src/pages/Sitter/ClientGate.jsx` — scroll to top 改 main
+- [x] `frontend/src/pages/Sitter/ServicePackages.jsx` — scroll to top 改 main
+- [x] `frontend/src/pages/Sitter/SubscriptionManagement.jsx` — hero card text 顏色修正（highlight flag）
+- [x] `frontend/src/pages/Client/Pets.jsx` — scroll to top 改 main；加返回按鈕；標題改「我的毛孩」
+- [x] `frontend/src/services/api.ts` — storageService 改 multipart POST
+- [x] `frontend/src/index.css` — 補齊 error / surface-container / on-surface-variant / secondary token
+- [x] `backend/.../dto/sitter/BookingPreviewResponse.java` — `SitterPublicProfile` 加 `professionalLabels`
+- [x] `backend/.../dto/sitter/SitterProfileResponse.java` — 加 `slug` 欄位
+- [x] `backend/.../service/BookingPreviewService.java` — 傳入 `profile.getProfessionalLabels()`
+- [x] `backend/.../service/SitterProfileService.java` — 傳入 `profile.getSlug()`；身分證/人臉照改 `getUrl()`
+- [x] `backend/.../service/storage/GcsStorageService.java` — `getUrl()` 改回傳 proxy 路徑；實作 `load()` 從 GCS 讀 bytes
+- [x] `backend/.../controller/v1/StorageController.java` — upload 回傳相對路徑
+- [x] `backend/.../config/SecurityConfig.java` — `/api/v1/media/identity/**` authenticated；`/api/v1/media/**` permitAll
+- [x] `backend/src/main/resources/application.yml` — 加 `spring.security.oauth2.client` registration
+- [x] `backend/src/main/resources/db/migration/V14__add_smoke_test_newbie.sql` — 移除 `is_email_verified` 欄位
+- [x] `backend/src/main/resources/db/migration/V16__blacklist_subscription_dates.sql` — INSERT 補 `id/created_at/updated_at`
 
 ---
 
 ## 新增/修改檔案速查表
+
+### Phase 8–9 新增/修改
+
+| 操作 | 檔案 | 階段 |
+|------|------|:----:|
+| 新建 | `frontend/src/pages/Sitter/ClientGate.jsx` | 8-6 |
+| 新建 | `frontend/src/pages/Sitter/SubscriptionManagement.jsx` | 8-8 |
+| 新建 | `frontend/src/pages/Sitter/ServicePackages.jsx`（完整重寫） | 8-4 |
+| 修改 | `frontend/src/pages/Auth/Profile.jsx` | 8-1~12 |
+| 修改 | `frontend/src/pages/Sitter/TrustCircle.jsx` | 8-5 |
+| 修改 | `frontend/src/components/shared/BottomNavBar.jsx` | 8-12 |
+| 修改 | `frontend/src/App.jsx` | 8-6,8-8 |
+| 修改 | `frontend/src/services/api.ts` | 9 |
+| 新建 | `backend/.../entity/SitterClientBlacklist.java` | 9 |
+| 新建 | `backend/.../repository/SitterClientBlacklistRepository.java` | 9 |
+| 新建 | `backend/.../dto/SitterClientBlacklistDTO.java` | 9 |
+| 新建 | `backend/.../dto/sitter/SitterSubscriptionDTO.java` | 9 |
+| 新建 | `backend/.../service/BlacklistService.java` | 9 |
+| 新建 | `backend/.../controller/v1/BlacklistController.java` | 9 |
+| 新建 | `backend/.../controller/v1/SitterSubscriptionController.java` | 9 |
+| 新建 | `backend/src/main/resources/db/migration/V16__blacklist_subscription_dates.sql` | 9 |
+| 新建 | `backend/.../smoke/SubscriptionSmokeTest.java` | 9 |
+| 新建 | `backend/.../smoke/BlacklistSmokeTest.java` | 9 |
+| 新建 | `frontend/tests/e2e/sitter/subscription.spec.js` | 9 |
+| 新建 | `frontend/tests/e2e/sitter/client-gate.spec.js` | 9 |
+| 修改 | `frontend/tests/e2e/sitter-business.spec.js` | 9 |
+| 修改 | `frontend/tests/pages/DashboardPage.js` | 9 |
+
+### Phase 1–7 原始檔案（參考）
 
 | 操作 | 檔案 | 狀態 |
 |------|------|:----:|

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public record UpdateServiceRequest(
@@ -12,5 +13,9 @@ public record UpdateServiceRequest(
     @NotNull @Positive BigDecimal basePrice,
     @NotNull @Positive Integer durationMinutes,
     @NotEmpty List<String> supportedPetTypes,
-    @NotNull Boolean isActive
+    @NotNull Boolean isActive,
+    LocalDate bookableStartDate,
+    LocalDate bookableEndDate,
+    LocalDate effectiveStartDate,
+    LocalDate effectiveEndDate
 ) {}

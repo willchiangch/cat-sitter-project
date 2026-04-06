@@ -34,3 +34,4 @@ backend/src/main/resources/application-local.yml
 # 忽略本地媒體儲存
 backend/storage/
 .gstack/
+CLAUDE.md

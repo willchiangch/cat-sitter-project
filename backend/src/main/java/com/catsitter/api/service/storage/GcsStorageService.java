@@ -1,5 +1,6 @@
 package com.catsitter.api.service.storage;
 
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.HttpMethod;
@@ -8,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -59,7 +61,19 @@ public class GcsStorageService implements StorageService {
     @Override
     public String getUrl(String filePath) {
         if (filePath == null || filePath.isEmpty()) return null;
-        return String.format("https://storage.googleapis.com/%s/%s", bucketName, filePath);
+        // Serve via backend proxy — bucket stays private
+        return "/api/v1/media/" + filePath;
+    }
+
+    @Override
+    public Resource load(String filePath) {
+        if (filePath == null || filePath.isEmpty()) return null;
+        Blob blob = storage.get(BlobId.of(bucketName, filePath));
+        if (blob == null || !blob.exists()) return null;
+        return new ByteArrayResource(blob.getContent()) {
+            @Override
+            public String getFilename() { return filePath.substring(filePath.lastIndexOf('/') + 1); }
+        };
     }
 
     @Override

@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface SubscriptionPlanRepository extends JpaRepository<SubscriptionPlan, UUID> {
     Optional<SubscriptionPlan> findByName(String name);
+    Optional<SubscriptionPlan> findByPlanCode(String planCode);
 }

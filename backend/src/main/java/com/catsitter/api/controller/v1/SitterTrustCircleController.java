@@ -31,7 +31,7 @@ public class SitterTrustCircleController {
     public ResponseEntity<SitterTrustCircleDTO> addMember(
             @AuthenticationPrincipal Account account,
             @Valid @RequestBody AddTrustCircleRequest request) {
-        return ResponseEntity.ok(trustCircleService.addMember(account, request.getTrustedSitterId()));
+        return ResponseEntity.ok(trustCircleService.addMember(account, request.getSitterProfileId()));
     }
 
     @DeleteMapping("/{partnerId}")

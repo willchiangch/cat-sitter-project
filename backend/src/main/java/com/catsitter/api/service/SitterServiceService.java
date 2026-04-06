@@ -47,6 +47,10 @@ public class SitterServiceService {
         service.setSupportedPetTypes(request.supportedPetTypes());
         service.setIsActive(true);
         service.setSortOrder(0); // Default
+        service.setBookableStartDate(request.bookableStartDate());
+        service.setBookableEndDate(request.bookableEndDate());
+        service.setEffectiveStartDate(request.effectiveStartDate());
+        service.setEffectiveEndDate(request.effectiveEndDate());
 
         return mapToResponse(serviceRepository.save(service));
     }
@@ -66,6 +70,10 @@ public class SitterServiceService {
         service.setDurationMinutes(request.durationMinutes());
         service.setSupportedPetTypes(request.supportedPetTypes());
         service.setIsActive(request.isActive());
+        service.setBookableStartDate(request.bookableStartDate());
+        service.setBookableEndDate(request.bookableEndDate());
+        service.setEffectiveStartDate(request.effectiveStartDate());
+        service.setEffectiveEndDate(request.effectiveEndDate());
 
         return mapToResponse(serviceRepository.save(service));
     }
@@ -95,7 +103,11 @@ public class SitterServiceService {
                 service.getBasePrice(),
                 service.getDurationMinutes(),
                 service.getSupportedPetTypes(),
-                service.getIsActive()
+                service.getIsActive(),
+                service.getBookableStartDate(),
+                service.getBookableEndDate(),
+                service.getEffectiveStartDate(),
+                service.getEffectiveEndDate()
         );
     }
 }

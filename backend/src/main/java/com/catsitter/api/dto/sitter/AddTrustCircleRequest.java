@@ -6,13 +6,13 @@ import java.util.UUID;
 public class AddTrustCircleRequest {
 
     @NotNull
-    private UUID trustedSitterId;
+    private UUID sitterProfileId;
 
-    public UUID getTrustedSitterId() {
-        return trustedSitterId;
+    public UUID getSitterProfileId() {
+        return sitterProfileId;
     }
 
-    public void setTrustedSitterId(UUID trustedSitterId) {
-        this.trustedSitterId = trustedSitterId;
+    public void setSitterProfileId(UUID sitterProfileId) {
+        this.sitterProfileId = sitterProfileId;
     }
 }

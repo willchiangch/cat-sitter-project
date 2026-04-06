@@ -19,6 +19,19 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:dummy-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy-client-secret}
+            scope: openid, email, profile
+          facebook:
+            client-id: ${FACEBOOK_CLIENT_ID:dummy-client-id}
+            client-secret: ${FACEBOOK_CLIENT_SECRET:dummy-client-secret}
+            scope: email, public_profile
+
 application:
   jwt:
     secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970

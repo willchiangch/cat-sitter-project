@@ -17,5 +17,6 @@ public record SitterProfileResponse(
     String bankCode,
     String bankAccount,
     String bankAccountHolder,
-    Integer notificationDaysBefore
+    Integer notificationDaysBefore,
+    String slug
 ) {}

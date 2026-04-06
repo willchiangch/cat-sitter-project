@@ -27,6 +27,9 @@ public class SubscriptionPlan extends AuditableEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "plan_code", nullable = false, unique = true, length = 20)
+    private String planCode;
+
     public UUID getId() { return this.id; }
     public void setId(UUID id) { this.id = id; }
     public String getName() { return this.name; }
@@ -39,4 +42,6 @@ public class SubscriptionPlan extends AuditableEntity {
     public void setYearlyPrice(BigDecimal yearlyPrice) { this.yearlyPrice = yearlyPrice; }
     public Boolean getIsActive() { return this.isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public String getPlanCode() { return this.planCode; }
+    public void setPlanCode(String planCode) { this.planCode = planCode; }
 }

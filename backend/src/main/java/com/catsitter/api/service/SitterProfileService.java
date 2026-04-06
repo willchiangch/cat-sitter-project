@@ -61,13 +61,14 @@ public class SitterProfileService {
                 profile.getServiceAreas(),
                 profile.getBioSummary(),
                 profile.getIsVerified(),
-                storageService.getSignedUrl(profile.getIdCardFrontUrl()),
-                storageService.getSignedUrl(profile.getFacePhotoUrl()),
+                storageService.getUrl(profile.getIdCardFrontUrl()),
+                storageService.getUrl(profile.getFacePhotoUrl()),
                 profile.getProfessionalLabels(),
                 profile.getBankCode(),
                 profile.getBankAccount(),
                 profile.getBankAccountHolder(),
-                globalNotificationDays
+                globalNotificationDays,
+                profile.getSlug()
         );
     }
 }

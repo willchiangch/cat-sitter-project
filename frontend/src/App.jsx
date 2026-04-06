@@ -16,6 +16,8 @@ import Finance from './pages/Sitter/Finance'
 import SitterOrders from './pages/Sitter/Orders'
 import SitterOrderDetail from './pages/Sitter/OrderDetail'
 import TrustCircle from './pages/Sitter/TrustCircle'
+import ClientGate from './pages/Sitter/ClientGate'
+import SubscriptionManagement from './pages/Sitter/SubscriptionManagement'
 import Notifications from './pages/Shared/Notifications'
 import BookingFlow from './pages/Client/BookingFlow'
 import Pets from './pages/Client/Pets'
@@ -24,6 +26,7 @@ import ServicePackages from './pages/Sitter/ServicePackages'
 import QuestionnaireEditor from './pages/Sitter/QuestionnaireEditor'
 import ClientOrders from './pages/Client/Orders'
 import CalendarSyncResult from './pages/Sitter/CalendarSyncResult'
+import SitterPublicPage from './pages/Public/SitterPublicPage'
 import { useLocation } from 'react-router-dom'
 
 const OnboardingRedirect = () => {
@@ -65,6 +68,8 @@ function App() {
           <Route path="orders" element={<ClientOrders />} />
           <Route path="sitter/finance" element={<Finance />} />
           <Route path="sitter/trust-circle" element={<TrustCircle />} />
+          <Route path="sitter/client-gate" element={<ClientGate />} />
+          <Route path="sitter/subscription" element={<SubscriptionManagement />} />
           <Route path="sitter/service-packages" element={<ServicePackages />} />
           <Route path="sitter/questionnaire" element={<QuestionnaireEditor />} />
           <Route path="finance" element={<Finance />} />
@@ -72,6 +77,9 @@ function App() {
           <Route path="profile" element={<Profile />} />
           <Route path="sitter/calendar/callback" element={<CalendarSyncResult />} />
         </Route>
+
+        {/* Public Sitter Page */}
+        <Route path="/s/:slug" element={<SitterPublicPage />} />
 
         {/* Auth Flow */}
         <Route path="/login" element={<Login />} />

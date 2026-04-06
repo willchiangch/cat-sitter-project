@@ -68,9 +68,9 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
       >
         <div className="space-y-1">
           <h3 className="text-3xl font-extrabold font-headline tracking-tighter">
-            {initialData ? '編輯貓咪資料' : '新增貓咪至保險箱'}
+            {initialData ? '編輯毛孩資料' : '新增毛孩'}
           </h3>
-          <p className="text-xs font-bold opacity-30 uppercase tracking-widest">Update your digital cat passport.</p>
+          <p className="text-xs font-bold opacity-30 uppercase tracking-widest">Manage your pet profile.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">

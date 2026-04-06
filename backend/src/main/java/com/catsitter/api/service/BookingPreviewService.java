@@ -42,10 +42,12 @@ public class BookingPreviewService {
         }
 
         var sitterProfile = new BookingPreviewResponse.SitterPublicProfile(
+                profile.getId(),
                 profile.getName(),
                 storageService.getUrl(profile.getAvatarUrl()),
                 profile.getBioSummary(),
-                profile.getServiceAreas()
+                profile.getServiceAreas(),
+                profile.getProfessionalLabels()
         );
 
         var services = serviceRepository.findBySitterProfileIdOrderBySortOrderAsc(profile.getId())
@@ -57,7 +59,11 @@ public class BookingPreviewService {
                         s.getBasePrice(),
                         s.getDurationMinutes(),
                         s.getSupportedPetTypes(),
-                        s.getIsActive()
+                        s.getIsActive(),
+                        s.getBookableStartDate(),
+                        s.getBookableEndDate(),
+                        s.getEffectiveStartDate(),
+                        s.getEffectiveEndDate()
                 ))
                 .collect(Collectors.toList());
 

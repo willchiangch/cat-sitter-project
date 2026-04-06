@@ -1,5 +1,6 @@
 package com.catsitter.api.service;
 
+import com.catsitter.api.dto.sitter.SitterSubscriptionDTO;
 import com.catsitter.api.entity.*;
 import com.catsitter.api.entity.enums.RoleType;
 import com.catsitter.api.repository.*;
@@ -86,5 +87,64 @@ public class SubscriptionService {
                 "https://catsitter.example/api/v1/payments/payuni/webhook", // Should be real public domain
                 "https://catsitter.example/payments/success"
         );
+    }
+
+    @Transactional(readOnly = true)
+    public SitterSubscriptionDTO getCurrentSubscription(Account account) {
+        Profile profile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                .orElseThrow(() -> new RuntimeException("Sitter profile not found"));
+
+        // Try ACTIVE first, fall back to most recent
+        SitterSubscription sub = subscriptionRepository.findBySitterProfileIdAndStatus(profile.getId(), "ACTIVE")
+                .orElseGet(() -> subscriptionRepository
+                    .findTopBySitterProfileIdOrderByCreatedAtDesc(profile.getId())
+                    .orElse(null));
+
+        if (sub == null) {
+            // Return FREE plan as default
+            return new SitterSubscriptionDTO("FREE", "ACTIVE", null);
+        }
+        return new SitterSubscriptionDTO(
+            sub.getPlan().getPlanCode(),
+            sub.getStatus(),
+            sub.getEndDate()
+        );
+    }
+
+    @Transactional
+    public SitterSubscriptionDTO changePlan(Account account, String planCode) {
+        Profile profile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                .orElseThrow(() -> new RuntimeException("Sitter profile not found"));
+
+        SubscriptionPlan plan = planRepository.findByPlanCode(planCode)
+                .orElseThrow(() -> new RuntimeException("Plan not found: " + planCode));
+
+        SitterSubscription sub = subscriptionRepository.findBySitterProfileIdAndStatus(profile.getId(), "ACTIVE")
+                .orElseGet(() -> {
+                    SitterSubscription newSub = new SitterSubscription();
+                    newSub.setSitterProfile(profile);
+                    newSub.setStartDate(java.time.LocalDate.now());
+                    return newSub;
+                });
+
+        sub.setPlan(plan);
+        sub.setStatus("ACTIVE");
+        if (sub.getStartDate() == null) sub.setStartDate(java.time.LocalDate.now());
+        sub.setEndDate(java.time.LocalDate.now().plusDays(30));
+        subscriptionRepository.save(sub);
+
+        return new SitterSubscriptionDTO(plan.getPlanCode(), "ACTIVE", sub.getEndDate());
+    }
+
+    @Transactional
+    public void cancelSubscription(Account account) {
+        Profile profile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                .orElseThrow(() -> new RuntimeException("Sitter profile not found"));
+
+        subscriptionRepository.findBySitterProfileIdAndStatus(profile.getId(), "ACTIVE")
+                .ifPresent(sub -> {
+                    sub.setStatus("CANCELLED");
+                    subscriptionRepository.save(sub);
+                });
     }
 }

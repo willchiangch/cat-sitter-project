@@ -76,16 +76,6 @@ public class ApiV1StubController {
         return notImplemented("GET /api/v1/sitters/me/payouts");
     }
 
-    @GetMapping("/sitters/me/subscription")
-    public ResponseEntity<Map<String, Object>> getSubscription() {
-        return notImplemented("GET /api/v1/sitters/me/subscription");
-    }
-
-    @PostMapping("/sitters/me/subscription/checkout")
-    public ResponseEntity<Map<String, Object>> createSubscriptionCheckout(@RequestBody Map<String, Object> body) {
-        return notImplemented("POST /api/v1/sitters/me/subscription/checkout");
-    }
-
     @PostMapping("/payments/webhooks/ecpay")
     public ResponseEntity<Map<String, Object>> ecpayWebhook(@RequestBody Map<String, Object> body) {
         return notImplemented("POST /api/v1/payments/webhooks/ecpay");

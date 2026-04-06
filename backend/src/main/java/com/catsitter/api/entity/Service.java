@@ -51,6 +51,12 @@ public class Service extends AuditableEntity {
   @Column(name = "bookable_end_date")
   private LocalDate bookableEndDate;
 
+  @Column(name = "effective_start_date")
+  private LocalDate effectiveStartDate;
+
+  @Column(name = "effective_end_date")
+  private LocalDate effectiveEndDate;
+
   @Column(name = "advance_booking_days")
   private Integer advanceBookingDays = 0;
 
@@ -76,6 +82,10 @@ public class Service extends AuditableEntity {
   public void setBookableStartDate(LocalDate bookableStartDate) { this.bookableStartDate = bookableStartDate; }
   public LocalDate getBookableEndDate() { return bookableEndDate; }
   public void setBookableEndDate(LocalDate bookableEndDate) { this.bookableEndDate = bookableEndDate; }
+  public LocalDate getEffectiveStartDate() { return effectiveStartDate; }
+  public void setEffectiveStartDate(LocalDate effectiveStartDate) { this.effectiveStartDate = effectiveStartDate; }
+  public LocalDate getEffectiveEndDate() { return effectiveEndDate; }
+  public void setEffectiveEndDate(LocalDate effectiveEndDate) { this.effectiveEndDate = effectiveEndDate; }
   public Integer getAdvanceBookingDays() { return advanceBookingDays; }
   public void setAdvanceBookingDays(Integer advanceBookingDays) { this.advanceBookingDays = advanceBookingDays; }
   public Integer getSortOrder() { return sortOrder; }

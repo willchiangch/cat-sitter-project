@@ -30,6 +30,16 @@
     /* Tonal Rules */
     --outline: #8a8c8a;
     --outline-variant: #acadac;
+
+    /* Error */
+    --error: #ba1a1a;
+    --on-error: #ffffff;
+    --error-container: #ffdad6;
+    --on-error-container: #410002;
+
+    /* Surface Container (missing mid-level) */
+    --surface-container: #e8eae8;
+    --on-surface-variant: #5a5c5a;
   }
 
   .mode-sitter {
@@ -78,6 +88,17 @@
   
   --color-outline: var(--outline);
   --color-outline-variant: var(--outline-variant);
+
+  --color-error: var(--error);
+  --color-on-error: var(--on-error);
+  --color-error-container: var(--error-container);
+  --color-on-error-container: var(--on-error-container);
+
+  --color-surface-container: var(--surface-container);
+  --color-on-surface-variant: var(--on-surface-variant);
+
+  --color-secondary: var(--secondary);
+  --color-on-secondary: var(--on-secondary);
 
   /* Radius Rules from DESIGN.md */
   --radius-default: 1rem;

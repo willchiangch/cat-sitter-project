@@ -1,6 +1,6 @@
-# WhiskerWatch: 專案現況評估與健康度報告 (V14 / 2026-04-04)
+# WhiskerWatch: 專案現況評估與健康度報告 (V19 / 2026-04-06)
 
-本報告更新自 V13，反映 **E2E 全部通過（16/16 pass）**後的最新狀態。後端 Smoke 資料 + POM 全面修復後，所有測試通過。
+本報告更新自 V16，反映 **保母公開頁 + GCS Proxy 架構 + UI 多項修復 + DB migration 修復（Schema V18/V19）** 後的最新狀態。
 
 ---
 
@@ -16,20 +16,40 @@
 - OpenAPI spec 已同步，前端 SDK 由 `@hey-api/openapi-ts` 自動生成。
 - 設計 Token 系統完整（CSS 變數 + Tailwind 4 `@theme` block），`.mode-sitter` / `.mode-client` 主色分離清晰。
 
-### 3. 前端重構完成（Phase 1–7 Source Code + E2E 批次）
-所有 7 個重構 Phase 的 source code 與 E2E 測試批次均已完成：
+### 3. 前端與後端對齊完成（Phase 1–10）
+所有 10 個 Phase 均已完成：
 - 3 個 Critical Bugs 已修復（CSS token / 路由 404 / Profile crash / navigate 未實例化）
 - 5 個主要頁面架構已對齊規格（Dashboard / Orders / Finance / Notifications / Profile）
-- 設計系統統一（tab 標籤、空白狀態、返回箭頭移除）
+- 設計系統統一（tab 標籤、空白狀態、返回箭頭移除、BottomNavBar 白字金暈）
 - E2E-1 至 E2E-8 全部通過（8 個 spec/POM 新建或更新）；**16/16 tests pass**
+- Profile 頁面 12 項重構完成（Phase 8）
+- 後端 API 完整同步：黑名單 CRUD、訂閱管理 CRUD、服務方案日期欄位、白名單搜尋/新增（Phase 9）
+- DB Schema V16：`plan_code`、`effective_date`、`sitter_client_blacklists`
+- 新增後端 Smoke Test：`SubscriptionSmokeTest`、`BlacklistSmokeTest`
+- 新增前端 E2E：`sitter/subscription.spec.js`、`sitter/client-gate.spec.js`
+- 保母公開頁 `/s/:slug`（Phase 10）
+- GCS Proxy 架構：bucket 私有，圖片由後端 proxy 存取（Phase 10）
+- DB migration 修復：V14/V16/V18/V19（Phase 10）
+- 全域 CSS error token 補齊，修復多處灰色 UI（Phase 10）
 
 ---
 
 ## 🟡 待完成項目
 
+### 測試驗證
+- `./mvnw test -Dtest=com.catsitter.api.smoke.*` — 確認新 smoke test 通過
+- `npm run test:e2e` — E2E 含新 spec（Phase 10 尚未新增測試）
+- `npm run api:sync` — 重新生成 TypeScript SDK（slug / professionalLabels 等新欄位型別同步）
+
 ### 手動 UAT 驗證
 - 手動切換 Sitter/Client 角色，確認 5 tab 標籤正確顯示
 - 逐 tab 確認功能符合 `doc/frontend-spec.md` 規格
+- 驗證訂閱方案切換、黑名單管理、身分照片上傳縮圖、保母公開頁
+
+### Phase 10 尚未新增的測試
+- `SitterPublicPage` 的 E2E spec（`/s/:slug` 公開路由）
+- `StorageController` 新 upload endpoint 的 smoke test
+- `BookingPreviewResponse` 加 `professionalLabels` 的 smoke test
 
 ---
 
@@ -58,9 +78,10 @@
 - **現狀**：前端的 `services/api.js` 是純手寫的。當後端 Spring Boot 更改 DTO 屬性名稱時，前端在執行時才會報錯。
 - **調整建議**：讓 Spring Boot 啟動時自動產生 YAML，直接編譯出 Frontend 定義檔，達到前後端 API 型別 100% 同步。
 
-### 2. 靜態資源的隱私與安全漏洞 (GCS Presigned URLs)
-- **現狀**：保母上傳的「身分證正面」與「人臉自拍（face_photo_url）」採用公開讀取的 GCS URL 模式。
-- **調整建議**：高度隱私資料必須採用 **Pre-Signed URL**，並限制 5–15 分鐘時效。
+### 2. 靜態資源的隱私與安全 (GCS Proxy) ✅ 已改善
+- **原狀**：GCS bucket 公開 → 任何人可直接存取圖片 URL（403 因未設定）。
+- **現狀（Phase 10）**：後端 proxy `/api/v1/media/**`，bucket 保持私有；`/api/v1/media/identity/**` 需登入。
+- **剩餘工作**：目前所有非 identity 圖片（頭像、寵物照）是 permitAll，屬於合理設計（公開資訊）。未來若有更細粒度控管需求（例如只有訂單相關方可看寵物照），需加 ownership check。
 
 ### 3. CI/CD 管線未掛載最新防線 (Pipeline Gaps)
 - **現狀**：Vitest 與 Playwright POM 已建置，但 `.github/workflows` 若沒有更新，PR 就不會被攔截。
@@ -95,6 +116,12 @@
 | Notifications | 依角色過濾分組 | ✅ Phase 6 |
 | Sitter Profile | 接單網址、門禁管理、無 crash | ✅ Phase 7 |
 | Client Profile | 寵物列表 | ✅ Phase 7 |
+| 保母公開頁 | `/s/:slug` 一頁式不需登入 | ✅ Phase 10 |
+| IME 輸入法 | 標籤輸入法支援 + 確認儲存 | ✅ Phase 10 |
+| GCS 圖片存取 | Proxy 架構，bucket 私有 | ✅ Phase 10 |
+| CSS error token | 黑名單/錯誤紅色正常顯示 | ✅ Phase 10 |
+| scroll to top | 改用 main container（正確 scroll target）| ✅ Phase 10 |
+| 自我介紹欄位 | onBlur 自動儲存 textarea | ✅ Phase 10 |
 
 ---
 

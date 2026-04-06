@@ -4,12 +4,16 @@ import { useNavigate } from 'react-router-dom'
 import { petService } from '../../services/api'
 import PetFormModal from '../../components/client/PetFormModal'
 
+// scroll to top on mount
+const useScrollToTop = () => useEffect(() => { document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' }) }, [])
+
 const Pets = () => {
   const [pets, setPets] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPet, setEditingPet] = useState(null)
   const navigate = useNavigate()
+  useScrollToTop()
 
   useEffect(() => {
     fetchPets()
@@ -47,17 +51,24 @@ const Pets = () => {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface pb-32">
-      <header className="px-6 pt-12 pb-8 flex justify-between items-end">
-        <div className="space-y-1">
-           <h1 className="text-4xl font-extrabold font-headline tracking-tighter">貓咪保險箱</h1>
-           <p className="text-xs font-bold opacity-30 uppercase tracking-[0.2em]">The Digital Cat Vault</p>
+      <header className="px-6 pt-12 pb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-on-surface-variant hover:text-primary transition-colors">
+            <span className="material-symbols-outlined text-2xl">arrow_back</span>
+          </button>
         </div>
-        <button 
-          onClick={() => { setEditingPet(null); setIsModalOpen(true); }}
-          className="w-12 h-12 bg-primary text-on-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 active:scale-90 transition-transform"
-        >
-          <span className="material-symbols-outlined">add</span>
-        </button>
+        <div className="flex justify-between items-end">
+          <div className="space-y-1">
+            <h1 className="text-4xl font-extrabold font-headline tracking-tighter">我的毛孩</h1>
+            <p className="text-xs font-bold opacity-30 uppercase tracking-[0.2em]">My Pets</p>
+          </div>
+          <button
+            onClick={() => { setEditingPet(null); setIsModalOpen(true); }}
+            className="w-12 h-12 bg-primary text-on-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 active:scale-90 transition-transform"
+          >
+            <span className="material-symbols-outlined">add</span>
+          </button>
+        </div>
       </header>
 
       <main className="px-6 space-y-6">

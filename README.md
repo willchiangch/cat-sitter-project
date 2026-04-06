@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V14 (E2E 16/16 全通過 — Backend Smoke + POM Fixes Complete)**
+**目前版本：V16 (Profile 全面重構 + 後端 API 完整同步 — 黑名單 / 訂閱管理 / 服務方案日期欄位)**
 
 ---
 
@@ -33,7 +33,7 @@ cat-sitter-project/
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 安全認證 | Spring Security + JWT (Stateless, JJWT) + **X-Smoke-Auth (Mock Auth)** |
-| 資料庫版控| Flyway（Schema V9: 帳號角色切換持久化、支付、訂閱、行事曆、媒體） |
+| 資料庫版控| Flyway（Schema V16: 黑名單、訂閱方案代碼 plan_code、服務生效日期 effective_date） |
 
 ---
 
@@ -41,12 +41,15 @@ cat-sitter-project/
 
 - **全面 PWA 體驗**：支援 iOS/Android 桌面安裝、全螢幕沉浸式設計、Workbox 離線請求快取策略。
 - **雙軌行事曆同步**：支援 Google Calendar OAuth2 同步與 Universal iCal Feed (Apple/iOS)。
-- **VIP 熟客白名單（客群門禁管理）**：保母可設定白名單，讓特定飼主預約時自動跳過繁瑣問卷，直達結帳；門禁管理入口整合於保母 Profile。
+- **客群門禁管理（白名單 + 黑名單）**：保母可透過 `/sitter/client-gate` 頁面同時管理白名單（VIP 免問卷）與黑名單（拒絕預約），後端有完整 CRUD API (`/sitters/me/whitelist`、`/sitters/me/blacklist`) 支撐。
+- **訂閱方案管理**：保母可在 `/sitter/subscription` 內切換 FREE / STANDARD / PRO / PREMIUM 四個等級，後端 `GET/PUT/DELETE /sitters/me/subscription` 完整實作，月繳/年繳切換附 -15% 折扣顯示。
 - **自動化 Onboarding**：全新社交登入使用者自動偵測並強制導航至身分設定流程。
 - **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼；Finance 頁分為「待付款」與「收款紀錄」雙 tab。
-- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統；人臉辨識自拍取代身分證背面上傳。
-- **接單專屬網址**：保母 Profile 提供可複製的個人預約連結（`/book/{slug}`）供對外推廣。
-- **Client 寵物管理**：飼主 Profile 整合寵物列表卡片，可快速新增或進入完整管理頁。
+- **服務方案完整表單**：ServicePackages 支援物種多選（貓/狗/鳥/鼠/兔/爬蟲/其他）、名稱、啟用切換 + 生效日期、可預約日期區間、服務時長；後端 DTO 已同步 `bookableStartDate`、`bookableEndDate`、`effectiveDate` 三個日期欄位。
+- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統；人臉辨識自拍取代身分證背面上傳；身分驗證照片上傳後縮圖即時顯示。
+- **接單專屬網址**：保母 Profile 提供可複製的個人預約連結（`/booking/sitter/{id}`）供對外推廣，「預覽」按鈕導向站內路由而非外部 URL。
+- **Client 寵物管理**：飼主 Profile 整合寵物列表卡片，可快速新增或進入完整管理頁；Client 基本資料（姓名/電話）可透過 `PUT /clients/me/profile` 編輯。
+- **信任圈（Trust Circle）**：保母間可互相加入信任圈，支援查看、新增、移除夥伴，並提供介紹文字與區塊標題中文化。
 
 ---
 
@@ -101,6 +104,27 @@ cd backend
 ./mvnw test            # 全體測試
 ./mvnw test -Dtest=com.catsitter.api.smoke.*  # 業務冒煙測試
 ```
+
+---
+
+## API 端點速查（後端完整實作清單）
+
+| 端點 | 方法 | 說明 |
+|------|------|------|
+| `/sitters/me/subscription` | GET | 取得當前訂閱（回傳 planId/status/renewsAt） |
+| `/sitters/me/subscription` | PUT | 切換方案（body: `{planId: "PRO"}`) |
+| `/sitters/me/subscription` | DELETE | 取消訂閱（status → CANCELLED） |
+| `/sitters/me/whitelist` | GET | 列出白名單 |
+| `/sitters/me/whitelist/clients` | POST | 新增至白名單 |
+| `/sitters/me/whitelist/clients/{id}` | PUT | 切換免問卷旗標 |
+| `/sitters/me/whitelist/clients/{id}` | DELETE | 移除白名單 |
+| `/sitters/me/whitelist/search` | GET | 搜尋 Client（`?q=...`） |
+| `/sitters/me/blacklist` | GET | 列出黑名單 |
+| `/sitters/me/blacklist/clients` | POST | 新增至黑名單 |
+| `/sitters/me/blacklist/clients/{id}` | DELETE | 移除黑名單 |
+| `/sitters/me/blacklist/search` | GET | 搜尋 Client（`?q=...`） |
+| `/sitters/me/services` | POST | 建立服務方案（含 `bookableStartDate`、`bookableEndDate`、`effectiveDate`） |
+| `/sitters/me/services/{id}` | PUT | 更新服務方案（同上三個日期欄位） |
 
 ---
 

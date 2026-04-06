@@ -97,7 +97,11 @@ class SitterServiceControllerTest {
                 "Cat Sitting 30m",
                 new BigDecimal("500.00"),
                 30,
-                List.of("CAT")
+                List.of("CAT"),
+                null,
+                null,
+                null,
+                null
         );
 
         mockMvc.perform(post("/api/v1/sitters/me/services")
@@ -141,7 +145,11 @@ class SitterServiceControllerTest {
                 new BigDecimal("200.00"),
                 30,
                 List.of("CAT", "DOG"),
-                false
+                false,
+                null,
+                null,
+                null,
+                null
         );
 
         mockMvc.perform(put("/api/v1/sitters/me/services/" + service.getId())
