@@ -2,9 +2,17 @@ debug: true
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cat_sitter_db}
-    username: ${SPRING_DATASOURCE_USERNAME:sitter_admin}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:dev_password123}
     driver-class-name: org.postgresql.Driver
+    # Hikari 連線池優化：針對 Supabase 和 Cloud Run 冷啟動
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 600000
+      keepalive-time: 30000
   jpa:
     hibernate:
       # 既然用了 Flyway，就關閉 Hibernate 的自動建表，全權交給 Flyway 處理

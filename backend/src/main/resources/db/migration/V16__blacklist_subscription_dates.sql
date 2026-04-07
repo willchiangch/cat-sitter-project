@@ -47,6 +47,7 @@ SELECT
     'ACTIVE'
 FROM subscription_plans sp
 WHERE sp.plan_code = 'PRO'
+  AND EXISTS (SELECT 1 FROM profiles WHERE id = 'efefefef-0000-0000-0000-000000000011')
   AND NOT EXISTS (
     SELECT 1 FROM sitter_subscriptions
     WHERE sitter_profile_id = 'efefefef-0000-0000-0000-000000000011'
