@@ -74,4 +74,4 @@ springdoc:
   default-produces-media-type: application/json
 
 server:
-  port: 8081
+  port: ${PORT:8080}
