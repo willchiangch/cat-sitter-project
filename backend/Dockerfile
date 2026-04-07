@@ -21,5 +21,5 @@ COPY --from=build /app/target/*.jar app.jar
 ENV PORT=8080
 EXPOSE 8080
 
-# 使用 -Dserver.port=${PORT} 確保 Spring Boot 聽從 Cloud Run 傳入的埠號環境變數
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dserver.port=${PORT}", "-jar", "app.jar"]
+# 修正：使用 sh -c 以確保 ${PORT} 環境變數能被 Shell 正式解析並傳入 Java
+ENTRYPOINT ["sh", "-c", "java -Djava.security.egd=file:/dev/./urandom -Dserver.port=${PORT} -jar app.jar"]
