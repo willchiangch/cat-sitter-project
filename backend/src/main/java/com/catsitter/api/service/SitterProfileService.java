@@ -29,6 +29,11 @@ public class SitterProfileService {
         Profile profile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
                 .orElseThrow(() -> new RuntimeException("Sitter profile not found"));
         
+        // --- 補全缺失的 Slug (存量資料修復) ---
+        if (profile.getSlug() == null) {
+            profile.setSlug(java.util.UUID.randomUUID().toString().substring(0, 8));
+        }
+        
         return mapToResponse(profile);
     }
 
@@ -48,6 +53,11 @@ public class SitterProfileService {
         profile.setBankAccountHolder(request.bankAccountHolder());
         profile.setIdCardFrontUrl(request.idCardFrontUrl());
         profile.setFacePhotoUrl(request.facePhotoUrl());
+
+        // --- 確保更新時 Slug 也存在 ---
+        if (profile.getSlug() == null) {
+            profile.setSlug(java.util.UUID.randomUUID().toString().substring(0, 8));
+        }
 
         return mapToResponse(profileRepository.save(profile));
     }

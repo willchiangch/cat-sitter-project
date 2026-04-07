@@ -5,13 +5,12 @@ import com.catsitter.api.entity.common.AuditableEntity;
 import com.catsitter.api.entity.enums.RoleType;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 @Table(name = "profiles")
@@ -102,6 +101,13 @@ public class Profile extends AuditableEntity {
 
   @Column(name = "bank_account_holder", length = 100)
   private String bankAccountHolder;
+
+  @PrePersist
+  public void generateSlug() {
+    if (this.slug == null && this.roleType == RoleType.SITTER) {
+      this.slug = UUID.randomUUID().toString().substring(0, 8);
+    }
+  }
 
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }

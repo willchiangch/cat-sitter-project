@@ -1,9 +1,9 @@
 debug: true
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/cat_sitter_db
-    username: sitter_admin
-    password: dev_password123
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cat_sitter_db}
+    username: ${SPRING_DATASOURCE_USERNAME:sitter_admin}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev_password123}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -34,7 +34,7 @@ spring:
 
 application:
   jwt:
-    secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    secret-key: ${APPLICATION_JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 3600000 # 1 hour
     refresh-token:
       expiration: 604800000 # 7 days
