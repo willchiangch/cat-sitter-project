@@ -270,14 +270,17 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface pb-32">
+
+
       {/* Header with Avatar */}
       <section className="px-6 pt-12 pb-8 flex flex-col items-center text-center space-y-6">
         <div className="relative group">
-          <div className="w-32 h-32 rounded-[48px] bg-primary/5 p-1 border-2 border-primary/20 overflow-hidden relative">
+          <div className="w-32 h-32 rounded-[48px] bg-white p-1.5 shadow-[0_10px_40px_rgba(30,58,138,0.12)] relative">
+            <div className="absolute inset-0 rounded-[48px] bg-gradient-to-br from-[#e0f2fe] to-[#f3e8ff] opacity-50" />
             <img
               src={localAvatarUrl || sitterData?.avatarUrl || clientData?.avatarUrl || user?.avatarUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200"}
               alt="Profile"
-              className={`w-full h-full object-cover rounded-[44px] transition-all duration-500 ${isUploading ? 'blur-sm scale-95' : 'group-hover:scale-105'}`}
+              className={`w-full h-full object-cover rounded-[40px] relative z-10 transition-all duration-500 ${isUploading ? 'blur-sm scale-95' : 'group-hover:scale-105'}`}
             />
             <AnimatePresence>
               {isUploading && (
@@ -291,7 +294,7 @@ const Profile = () => {
               )}
             </AnimatePresence>
           </div>
-          <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-primary text-on-primary rounded-2xl shadow-xl flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all">
+          <label className="absolute -bottom-1 -right-1 w-10 h-10 bg-navy text-white rounded-2xl shadow-xl flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all z-20">
             <span className="material-symbols-outlined text-base">photo_camera</span>
             <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} />
           </label>
@@ -300,7 +303,7 @@ const Profile = () => {
         <div>
           <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.profiles?.[0]?.name || user?.name}</h2>
           <div className="mt-2 flex items-center justify-center gap-2">
-            <span className="px-3 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full border border-primary/20 uppercase tracking-widest">
+            <span className="px-3 py-1 bg-gradient-to-r from-[#e0f2fe] to-[#f3e8ff] text-navy text-[10px] font-black rounded-full border border-blue-200/50 uppercase tracking-widest shadow-sm">
               {(isSitter) ? 'Professional Sitter' : 'Elite Owner'}
             </span>
           </div>
@@ -347,28 +350,7 @@ const Profile = () => {
         )}
 
         {/* SaaS Tier Card (Sitter only) */}
-        {(isSitter) && (
-        <section className="relative overflow-hidden rounded-[40px] p-8 bg-gradient-to-br from-on-surface to-on-surface-variant text-surface shadow-2xl">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <span className="material-symbols-outlined text-9xl">verified</span>
-          </div>
-          <div className="relative z-10 space-y-6">
-            <div className="space-y-1">
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-60">帳戶方案</p>
-              <h3 className="text-4xl font-extrabold font-headline tracking-tighter italic">Professional.</h3>
-            </div>
-            <p className="text-xs font-medium opacity-80 leading-relaxed max-w-[200px]">
-              您目前使用的是 專業版方案 ($899/月)。享受全自動日曆同步與專業報表。
-            </p>
-            <button
-              onClick={() => navigate('/sitter/subscription')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-surface text-on-surface rounded-full text-[11px] font-bold hover:scale-105 active:scale-95 transition-all">
-              管理訂閱
-              <span className="material-symbols-outlined text-base">north_east</span>
-            </button>
-          </div>
-        </section>
-        )}
+
 
         <div className="space-y-8">
           {/* Business Tools — shown for all sitters regardless of sitterData load status */}
@@ -505,7 +487,7 @@ const Profile = () => {
                         </div>
                       )}
                       <label className="absolute inset-0 cursor-pointer z-20 flex items-end justify-end p-3">
-                        <span className="w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-lg">
+                        <span className="w-8 h-8 bg-navy text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
                           <span className="material-symbols-outlined text-sm">photo_camera</span>
                         </span>
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => handleIdentityUpload(e, 'front')} />
@@ -530,7 +512,7 @@ const Profile = () => {
                         </div>
                       )}
                       <label className="absolute inset-0 cursor-pointer z-20 flex items-end justify-end p-3">
-                        <span className="w-7 h-7 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-lg">
+                        <span className="w-8 h-8 bg-navy text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
                           <span className="material-symbols-outlined text-sm">photo_camera</span>
                         </span>
                         <input type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => handleIdentityUpload(e, 'face')} />
@@ -660,7 +642,7 @@ const Profile = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowPetModal(true)}
-                    className="flex-1 py-3 bg-primary text-on-primary rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                    className="flex-1 py-3 bg-navy text-white rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-lg shadow-navy/20"
                   >
                     <span className="material-symbols-outlined text-base">add</span>
                     新增寵物
@@ -682,6 +664,30 @@ const Profile = () => {
               <SettingsItem icon="person" label="顯示名稱" value={sitterData?.name || user?.profiles?.[0]?.name || user?.name || '未設定'} onClick={openSitterNameEdit} />
               <SettingsItem icon="alternate_email" label="電子郵件" value={user?.email} />
             </SettingsSection>
+          )}
+
+          {/* SaaS Tier Card (Sitter only) - Relocated and resized */}
+          {(isSitter) && (
+            <section className="relative overflow-hidden rounded-[32px] p-6 bg-navy text-white shadow-xl">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <span className="material-symbols-outlined text-7xl">verified</span>
+              </div>
+              <div className="relative z-10 space-y-4">
+                <div className="space-y-0.5">
+                  <p className="text-[9px] font-bold tracking-[0.3em] uppercase opacity-60 leading-none">帳戶方案</p>
+                  <h3 className="text-2xl font-extrabold font-headline tracking-tighter italic text-[#f59e0b]">Professional.</h3>
+                </div>
+                <p className="text-[11px] font-medium opacity-80 leading-relaxed max-w-[240px]">
+                  您目前使用的是 專業版方案 ($899/月)。享受全自動日曆同步與專業報表。
+                </p>
+                <button
+                  onClick={() => navigate('/sitter/subscription')}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-full text-[10px] font-bold active:scale-95 transition-all w-fit">
+                  管理訂閱
+                  <span className="material-symbols-outlined text-sm">north_east</span>
+                </button>
+              </div>
+            </section>
           )}
 
           <SettingsSection title="危險控制區">

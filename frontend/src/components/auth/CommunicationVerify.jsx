@@ -48,15 +48,15 @@ const CommunicationVerify = () => {
       <motion.div 
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center justify-between z-40"
+        className="bg-surface-container-low border-b border-blue-200/30 px-6 py-3 flex items-center justify-between sticky top-0 z-[60] backdrop-blur-md"
       >
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-sm">mail</span>
-          <span className="text-[10px] font-bold text-primary uppercase tracking-wider">信箱尚未驗證</span>
+        <div className="flex items-center gap-3">
+          <span className="material-symbols-outlined text-navy text-base">mail</span>
+          <span className="text-[11px] font-extrabold text-navy/70 uppercase tracking-widest leading-none">信箱尚未驗證</span>
         </div>
         <button 
           onClick={() => setShowModal(true)}
-          className="text-[10px] font-black text-primary bg-primary/20 px-3 py-1 rounded-full active:scale-95 transition-all"
+          className="px-4 py-1.5 bg-navy text-white text-[10px] font-black rounded-full shadow-lg shadow-navy/20 active:scale-95 transition-all"
         >
           立即驗證
         </button>

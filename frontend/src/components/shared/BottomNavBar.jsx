@@ -25,7 +25,7 @@ const BottomNavBar = () => {
   ]
 
   return (
-    <nav className="fixed bottom-0 w-full z-50 rounded-t-[3rem] glass-effect shadow-top border-t border-outline-variant/10 h-24 pb-6 flex justify-around items-center max-w-md mx-auto left-0 right-0">
+    <nav className="fixed bottom-0 w-full z-50 rounded-t-[2rem] bg-[#1e3a8a] shadow-[0_-8px_30px_rgba(30,58,138,0.15)] border-t border-white/10 h-16 flex justify-around items-center max-w-md mx-auto left-0 right-0">
       {navItems.map((item) => (
         <NavLink
           key={item.path}
@@ -36,18 +36,18 @@ const BottomNavBar = () => {
             <>
               <div className={`relative flex items-center justify-center w-10 h-7 rounded-full transition-all duration-300 ${
                 isActive
-                  ? 'text-[#c69a00] drop-shadow-[0_0_8px_rgba(118,86,0,0.7)]'
-                  : 'text-white/80'
+                  ? 'text-[#f59e0b] drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]'
+                  : 'text-white/60'
               }`}>
                 <span className="material-symbols-outlined text-2xl">{item.icon}</span>
               </div>
               <span className={`font-body text-[10px] font-bold uppercase tracking-widest mt-1 transition-colors duration-300 ${
-                isActive ? 'text-[#c69a00]' : 'text-white/70'
+                isActive ? 'text-[#f59e0b]' : 'text-white/50'
               }`}>
                 {item.label}
               </span>
               {item.icon === 'notifications' && unreadCount > 0 && (
-                <div className="absolute top-1 right-2 w-4 h-4 bg-primary text-on-primary text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-surface animate-bounce shadow-lg">
+                <div className="absolute top-1 right-2 w-4 h-4 bg-[#f59e0b] text-[#1e3a8a] text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-[#1e3a8a] animate-bounce shadow-lg">
                   {unreadCount}
                 </div>
               )}

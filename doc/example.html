@@ -1,0 +1,2325 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>貓咪保母 APP - 保母端與客戶端雛形</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 隱藏捲軸但保持可捲動 */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .phone-container {
+            width: 375px;
+            height: 812px;
+            background-color: white;
+            border-radius: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            border: 8px solid #1f2937;
+        }
+
+        .notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 25px;
+            background-color: #1f2937;
+            border-bottom-left-radius: 15px;
+            border-bottom-right-radius: 15px;
+            z-index: 50;
+        }
+
+        .app-header {
+            background-color: #1e3a8a;
+            color: white;
+            padding: 40px 20px 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 40;
+            transition: background-color 0.3s;
+        }
+
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #ffffff;
+            padding-bottom: 80px;
+        }
+
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background-color: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0 20px 0;
+            z-index: 40;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #6b7280;
+            font-size: 0.7rem;
+            cursor: pointer;
+            width: 20%;
+            position: relative;
+            /* 為了定位紅點 */
+        }
+
+        .nav-item.active {
+            color: #f59e0b;
+        }
+
+        .nav-item.client-active {
+            color: #3b82f6;
+            /* 客戶端的主題色設定為藍色以作區隔 */
+        }
+
+        .nav-item i {
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+        }
+
+        .view-section {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .card {
+            background: linear-gradient(145deg, #ffffff, #fffaf0);
+            border: 1px solid #fef08a;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(30, 58, 138, 0.05);
+        }
+
+        .btn-primary {
+            background-color: #f59e0b;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            display: block;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary:active {
+            background-color: #d97706;
+        }
+
+        .btn-client-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            display: block;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            display: block;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .btn-danger-outline {
+            background-color: transparent;
+            color: #ef4444;
+            border: 1px solid #ef4444;
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            display: block;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .tag {
+            background-color: #fef3c7;
+            color: #d97706;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .tag-alert {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+
+        /* 自動調整高度的 Textarea 樣式 */
+        .auto-resize {
+            resize: none;
+            overflow: hidden;
+            min-height: 40px;
+        }
+
+        /* 顯示更多漸變遮罩 */
+        .read-more-container {
+            position: relative;
+        }
+
+        .text-clamp {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* 彈出層 Modal */
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            visibility: hidden;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 20px;
+            max-height: 85%;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+    
+        /* 自定義容器漸層，避免使用純淡灰色，提升立體感與溫度 */
+        .bg-gray-50 {
+            background: linear-gradient(135deg, #ffffff, #fefce8) !important;
+            border: 1px solid #fef08a !important;
+        }
+        .bg-gray-100 {
+            background: linear-gradient(135deg, #fefce8, #fef3c7) !important;
+            border: 1px solid #fde68a !important;
+        }
+        .bg-gray-200 {
+            background: linear-gradient(135deg, #fef3c7, #fde68a) !important;
+            border: 1px solid #fcd34d !important;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="phone-container">
+        <div class="notch"></div>
+
+        <!-- Header -->
+        <div class="app-header" id="appHeader">
+            <span id="header-title" style="color: #fdfbf7;"><i class="fa-solid fa-cat mr-2"></i> WhiskerWatch</span>
+            <div id="header-right">
+                <!-- 預設右側內容由 JS 動態替換 -->
+            </div>
+        </div>
+
+        <!-- 內容區域 -->
+        <div class="content-area" id="contentArea">
+
+            <!-- ========================================================================= -->
+            <!--                                保母端視圖                                 -->
+            <!-- ========================================================================= -->
+
+            <!-- 保母首頁 (Dashboard) -->
+            <div id="view-dashboard" class="view-section active">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">哈囉，Will 太太 👋<br><span
+                        class="text-sm font-normal text-gray-500">今天有 2 趟到府任務，1 筆待確認新單。</span></h2>
+
+                <div class="flex space-x-2 mb-4 overflow-x-auto pb-1">
+                    <button
+                        class="px-4 py-1.5 bg-gray-800 text-white rounded-full text-sm font-medium whitespace-nowrap">今日任務
+                        (2)</button>
+                    <button
+                        onclick="switchView('view-orders', document.querySelector('#bottomNavSitter .nav-item:nth-child(2)'))"
+                        class="px-4 py-1.5 bg-white border border-gray-300 text-gray-600 rounded-full text-sm font-medium whitespace-nowrap">前往訂單中心</button>
+                    <button
+                        onclick="switchView('view-trust-circle', document.querySelector('#bottomNavSitter .nav-item:nth-child(3)'))"
+                        class="px-4 py-1.5 bg-white border border-gray-300 text-gray-600 rounded-full text-sm font-medium whitespace-nowrap">信任圈派單</button>
+                </div>
+
+                <!-- 任務卡片 1 -->
+                <div class="card border-l-4 border-amber-500">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-amber-600 font-bold text-sm"><i class="fa-regular fa-clock"></i> 10:00 -
+                                11:00</span>
+                            <h3 class="font-bold text-lg mt-1">🐱 橘子 (2 貓家庭)</h3>
+                        </div>
+                        <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-md font-medium">尚未出發</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-2"><i class="fa-solid fa-location-dot w-4"></i> 新莊區仁愛街</p>
+                    <div class="flex space-x-2 mb-3">
+                        <span class="tag tag-alert">⚠️ 需餵藥</span>
+                        <span class="tag">注意大門防護網</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mt-3">
+                        <button onclick="switchView('view-pet-profile')" class="btn-secondary text-sm"><i
+                                class="fa-solid fa-book-open mr-1"></i> 檢視護照與SOP</button>
+                        <button onclick="switchView('view-active-service')"
+                            class="btn-primary text-sm flex items-center justify-center">
+                            <i class="fa-solid fa-clipboard-list mr-1"></i> 任務面板
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start mt-4">
+                    <i class="fa-solid fa-circle-info text-blue-500 mt-0.5 mr-2"></i>
+                    <div>
+                        <p class="text-sm text-blue-800 font-medium">事前問卷已回收</p>
+                        <p class="text-xs text-blue-600 mt-1">新客戶陳先生透過專屬網頁送出了預約申請，請前往「訂單」評估。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 保母訂單中心 (Orders) -->
+            <div id="view-orders" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">訂單管理</h2>
+
+                <div class="flex mb-4 border-b border-gray-200">
+                    <button onclick="toggleOrderTab('evaluating', 'sitter')" id="sitter-tab-evaluating"
+                        class="flex-1 pb-2 font-bold text-amber-600 border-b-2 border-amber-500 text-sm">評估中
+                        (1)</button>
+                    <button onclick="toggleOrderTab('ongoing', 'sitter')" id="sitter-tab-ongoing"
+                        class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent text-sm">進行中
+                        (2)</button>
+                    <button onclick="toggleOrderTab('history', 'sitter')" id="sitter-tab-history"
+                        class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent text-sm">歷史訂單</button>
+                </div>
+
+                <!-- 評估中 -->
+                <div id="sitter-content-evaluating" class="block">
+                    <p class="text-xs text-gray-500 mb-3">客戶已送單，等待您確認報價與接單。</p>
+                    <div class="card cursor-pointer hover:shadow-md transition" onclick="switchView('view-order-eval')">
+                        <div class="flex justify-between items-start mb-2 border-b border-gray-100 pb-2">
+                            <span class="text-xs font-bold text-gray-400">#A1023</span>
+                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded font-bold">待評估</span>
+                        </div>
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold mr-3">
+                                陳</div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">陳先生 <span
+                                        class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-1">新客戶</span>
+                                </h3>
+                                <p class="text-xs text-gray-500">預計 5 趟服務 · 距離約 2.5km</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span class="text-xs text-gray-600">系統試算金額</span>
+                            <span class="font-bold text-amber-600">$2,400</span>
+                        </div>
+                        <div class="text-center mt-3 text-xs text-amber-600 font-bold">點擊進入評估與報價 <i
+                                class="fa-solid fa-chevron-right ml-1"></i></div>
+                    </div>
+                </div>
+
+                <!-- 進行中 -->
+                <div id="sitter-content-ongoing" class="hidden">
+                    <p class="text-xs text-gray-500 mb-3">已確認接單，尚未完全結案的訂單。</p>
+                    <div class="card">
+                        <div class="flex justify-between items-start mb-2 border-b border-gray-100 pb-2">
+                            <span class="text-xs font-bold text-gray-400">#A1018</span>
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-bold">執行中
+                                (1/4)</span>
+                        </div>
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold mr-3">
+                                林</div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">林小姐 (橘子家)</h3>
+                                <p class="text-xs text-gray-500">共 4 趟服務 · 已付清</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-3 border-t border-gray-100 pt-3">
+                            <button onclick="switchView('view-pet-profile')" class="btn-secondary text-sm bg-gray-50"><i
+                                    class="fa-solid fa-book-open mr-1"></i> 護照/SOP</button>
+                            <button onclick="switchView('view-order-task-edit')"
+                                class="btn-secondary text-sm bg-gray-50"><i class="fa-solid fa-list-check mr-1"></i>
+                                任務內容</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 歷史訂單 -->
+                <div id="sitter-content-history" class="hidden">
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 mb-4 shadow-sm">
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500">起始月份</label>
+                                <input type="month"
+                                    class="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:border-amber-400">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500">狀態</label>
+                                <select
+                                    class="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:border-amber-400">
+                                    <option>全部 (不含取消)</option>
+                                    <option>已完成</option>
+                                    <option>已取消</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <input type="text" placeholder="搜尋客戶名稱或訂單號"
+                                class="w-full border border-gray-300 rounded p-1.5 text-xs focus:outline-none focus:border-amber-400">
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex justify-between items-center">
+                        <div>
+                            <h4 class="text-xs font-bold text-amber-800">篩選區間總收入</h4>
+                            <p class="text-[10px] text-amber-600">已排除取消訂單</p>
+                        </div>
+                        <div class="font-bold text-xl text-amber-600">$ 12,450</div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="bg-white border border-gray-200 rounded-lg p-3 opacity-70">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-[10px] font-bold text-gray-400">#A0988 | 2026/01/15</span>
+                                <span
+                                    class="bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold">已完成</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-gray-700 text-sm">王先生 (波波)</h3>
+                                <span class="font-bold text-gray-600 text-sm">$ 2,400</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 保母：訂單評估與微調 -->
+            <div id="view-order-eval" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView('view-orders', document.querySelector('#bottomNavSitter .nav-item:nth-child(2)'))"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">新訂單評估 <span
+                            class="text-sm font-normal text-gray-500">#A1023</span></h2>
+                </div>
+
+                <div class="card">
+                    <div class="flex items-center mb-3 pb-3 border-b border-gray-100">
+                        <div
+                            class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold mr-3">
+                            陳</div>
+                        <div>
+                            <h3 class="font-bold text-gray-800">飼主：陳先生 <span
+                                    class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded ml-1">新客戶</span>
+                            </h3>
+                            <p class="text-sm text-gray-500"><i class="fa-solid fa-location-dot mr-1"></i> 距離約 2.5 公里
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-blue-50 p-3 rounded-lg mb-4 flex justify-between items-center border border-blue-100">
+                        <div>
+                            <p class="text-sm font-bold text-blue-800"><i class="fa-solid fa-clipboard-check mr-1"></i>
+                                事前問卷狀態</p>
+                            <p class="text-xs text-blue-600 mt-1">已填寫 4 個開放式問題</p>
+                        </div>
+                        <button onclick="switchView('view-questionnaire')"
+                            class="text-blue-600 text-sm font-bold underline">查看問卷</button>
+                    </div>
+
+                    <div class="mb-4">
+                        <h4 class="font-bold text-sm text-gray-700 mb-2">📅 預約排程與指定方案：</h4>
+                        <div class="space-y-2">
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                <div class="font-bold text-gray-700 text-sm mb-2 border-b border-gray-200 pb-1">
+                                    10/01-10/03, 10/05 (共 4 天)</div>
+                                <div class="flex justify-between items-center mb-1 text-sm">
+                                    <div class="text-gray-600"><span
+                                            class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-xs mr-1 font-bold">1次/天</span>30分鐘方案
+                                    </div>
+                                    <span class="font-bold text-gray-600">$450</span>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                <div class="font-bold text-gray-700 text-sm mb-2 border-b border-gray-200 pb-1">10/04 (共
+                                    1 天)</div>
+                                <div class="flex justify-between items-center mb-1 text-sm">
+                                    <div class="text-gray-600"><span
+                                            class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-xs mr-1 font-bold">1次/天</span>60分鐘方案
+                                    </div>
+                                    <span class="font-bold text-gray-600">$600</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-200 pt-3">
+                        <h4 class="font-bold text-sm text-gray-700 mb-2">💰 報價微調</h4>
+                        <div class="flex justify-between text-sm mb-2 text-gray-600">
+                            <span>基礎服務費 (共 5 趟)</span>
+                            <span id="base-fee" data-value="2400">$ 2,400</span>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2 text-amber-600 items-center">
+                            <span class="flex items-center"><i class="fa-solid fa-plus-circle mr-1"></i> 新增附加費用</span>
+                            <div class="flex items-center">
+                                <span class="mr-1">+ $</span>
+                                <input type="number" id="add-fee" value="0" oninput="calcTotal()"
+                                    class="w-16 border rounded px-1 py-0.5 text-right bg-amber-50 focus:outline-none focus:border-amber-400">
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2 text-red-500 items-center">
+                            <span class="flex items-center"><i class="fa-solid fa-minus-circle mr-1"></i> 折扣金額</span>
+                            <div class="flex items-center">
+                                <span class="mr-1">- $</span>
+                                <input type="number" id="discount-fee" value="0" oninput="calcTotal()"
+                                    class="w-16 border rounded px-1 py-0.5 text-right bg-red-50 focus:outline-none focus:border-red-400">
+                            </div>
+                        </div>
+                        <div class="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-gray-100">
+                            <span>總計金額</span>
+                            <span id="final-total">$ 2,400</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button
+                        onclick="alert('已拒絕此訂單，將移至歷史訂單(已取消)。'); switchView('view-orders', document.querySelector('#bottomNavSitter .nav-item:nth-child(2)'));"
+                        class="btn-danger-outline flex-1">拒絕接單</button>
+                    <button
+                        onclick="alert('已發送確認連結與報價至客戶 LINE！'); switchView('view-orders', document.querySelector('#bottomNavSitter .nav-item:nth-child(2)'));"
+                        class="btn-primary flex-1 shadow-md">確認發送報價</button>
+                </div>
+            </div>
+
+            <!-- 保母：編輯訂單專屬任務內容 -->
+            <div id="view-order-task-edit" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView('view-orders', document.querySelector('#bottomNavSitter .nav-item:nth-child(2)'))"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">編輯任務內容 <span
+                            class="text-sm font-normal text-gray-500">#A1018</span></h2>
+                    <button
+                        onclick="switchView('view-orders', document.querySelector('#bottomNavSitter .nav-item:nth-child(2)')); alert('任務內容已更新！');"
+                        class="ml-auto text-white bg-amber-500 px-4 py-1.5 rounded-lg text-sm font-bold">儲存</button>
+                </div>
+
+                <div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-xs mb-4 border border-blue-200">
+                    <i class="fa-solid fa-circle-info mr-1"></i> 您可以在此與飼主溝通並調整本次訂單的專屬任務細節。執行當天首頁的「任務面板」將以此處的設定為準。
+                </div>
+
+                <!-- 10/01 任務內容 -->
+                <div class="mb-6">
+                    <h3 class="font-bold text-gray-800 mb-3 text-sm border-b-2 border-amber-500 pb-1 inline-block">10/01
+                        (二) - 30分鐘方案</h3>
+                    <div class="space-y-2">
+                        <div class="flex items-center bg-white border border-gray-200 rounded-lg p-2 shadow-sm">
+                            <i class="fa-solid fa-bars text-gray-400 mr-2 cursor-move"></i>
+                            <input type="text" class="flex-1 text-sm focus:outline-none" value="確認門窗防護網已關閉">
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                        <div class="flex items-center bg-white border border-gray-200 rounded-lg p-2 shadow-sm">
+                            <i class="fa-solid fa-bars text-gray-400 mr-2 cursor-move"></i>
+                            <input type="text" class="flex-1 text-sm focus:outline-none" value="清理貓砂 (丟後陽台紅色垃圾桶)">
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                        <div class="flex items-center bg-white border border-gray-200 rounded-lg p-2 shadow-sm">
+                            <i class="fa-solid fa-bars text-gray-400 mr-2 cursor-move"></i>
+                            <input type="text" class="flex-1 text-sm focus:outline-none" value="餵食罐罐 (加水 50cc)">
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full mt-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg py-2 text-sm font-bold hover:bg-gray-50 flex justify-center items-center">
+                        <i class="fa-solid fa-plus mr-1"></i> 新增任務項目
+                    </button>
+                </div>
+            </div>
+
+            <!-- 任務執行 (SOP/日誌) -->
+            <div id="view-active-service" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView('view-dashboard', document.querySelector('#bottomNavSitter .nav-item:nth-child(1)'))"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">返回</h2>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 overflow-hidden">
+                    <div class="bg-amber-50 px-4 py-3 border-b border-amber-100 flex justify-between items-center">
+                        <div class="flex items-center text-amber-800 font-bold text-sm">
+                            <i class="fa-solid fa-cat mr-2"></i> 任務執行中：橘子家
+                        </div>
+                    </div>
+                    <div class="p-3 text-sm text-gray-600 bg-white">
+                        <p class="font-bold text-gray-800"><i class="fa-brands fa-line text-green-500 mr-1"></i>
+                            提醒：別忘了先用 LINE 傳照片給飼主報平安哦！</p>
+                    </div>
+                </div>
+
+                <div class="flex mb-4 border-b border-gray-200">
+                    <button onclick="toggleTab('sop')" id="tab-btn-sop"
+                        class="flex-1 pb-2 font-bold text-amber-600 border-b-2 border-amber-500">📋 任務檢核表</button>
+                    <button onclick="toggleTab('media')" id="tab-btn-media"
+                        class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent">📸 多媒體日誌</button>
+                </div>
+
+                <div id="tab-content-sop" class="block">
+                    <div class="card border border-gray-100">
+                        <label class="flex items-center space-x-3 mb-3 cursor-pointer">
+                            <input type="checkbox"
+                                class="form-checkbox h-5 w-5 text-amber-500 rounded focus:ring-amber-500 accent-amber-500">
+                            <span class="text-sm text-gray-700">確認門窗防護網已關閉</span>
+                        </label>
+                        <label class="flex items-center space-x-3 mb-3 cursor-pointer">
+                            <input type="checkbox"
+                                class="form-checkbox h-5 w-5 text-amber-500 rounded focus:ring-amber-500 accent-amber-500">
+                            <span class="text-sm text-gray-700">餵食罐罐 (加水 50cc)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="tab-content-media" class="hidden">
+                    <button
+                        class="w-full bg-amber-50 border-2 border-dashed border-amber-300 text-amber-600 rounded-xl py-4 mb-4 font-bold flex flex-col items-center justify-center cursor-pointer hover:bg-amber-100">
+                        <i class="fa-solid fa-camera text-2xl mb-1"></i>
+                        <span>拍照 / 錄影上傳</span>
+                    </button>
+                </div>
+
+                <button onclick="finishService()" class="btn-primary py-3 shadow-lg hover:bg-gray-700">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> 任務完成，產出並發送報告
+                </button>
+            </div>
+
+            <!-- 事前評估問卷 -->
+            <div id="view-questionnaire" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button onclick="switchView('view-order-eval')" class="text-gray-500 mr-3"><i
+                            class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">事前評估問卷</h2>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <p class="text-xs text-gray-500 mb-4 pb-2 border-b">填單時間：2026-10-01 09:30 | 填寫人：陳先生</p>
+
+                    <div class="space-y-4 text-sm">
+                        <div>
+                            <p class="font-bold text-gray-700">Q1. 貓咪是否有慢性疾病或需要特殊醫療行為？</p>
+                            <p class="text-gray-600 mt-1 bg-gray-50 p-3 rounded border border-gray-100">完全沒有，非常健康喔！</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-700">Q2. 貓咪面對陌生人的反應？會攻擊嗎？</p>
+                            <p class="text-gray-600 mt-1 bg-gray-50 p-3 rounded border border-gray-100">
+                                不怕生，喜歡被拍屁股，絕對不會咬人。</p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-700">Q3. 家中是否有安裝門窗防護網？</p>
+                            <p class="text-gray-600 mt-1 bg-gray-50 p-3 rounded border border-gray-100">有，大門與陽台都有安裝格子網。
+                            </p>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-700">Q4. 垃圾與貓砂通常希望保母怎麼處理？</p>
+                            <p class="text-gray-600 mt-1 bg-gray-50 p-3 rounded border border-gray-100">
+                                裝進小塑膠袋綁緊，丟後陽台的紅色垃圾桶就可以了，不用追垃圾車。</p>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="switchView('view-order-eval')" class="btn-primary mt-4">已了解，返回報價</button>
+            </div>
+
+            <!-- 專屬毛孩護照 (共用) -->
+            <div id="view-pet-profile" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView(currentRole === 'sitter' ? 'view-dashboard' : 'view-client-ongoing-detail')"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">數位護照與 SOP</h2>
+                    <div class="ml-auto flex gap-2">
+                        <button onclick="switchView('view-edit-profile')"
+                            class="text-amber-600 bg-amber-50 px-3 py-1 rounded-lg text-sm font-bold"><i
+                                class="fa-solid fa-pen"></i> 編輯</button>
+                    </div>
+                </div>
+
+                <div
+                    class="bg-blue-50 text-blue-800 p-2 rounded-lg text-xs mb-4 flex items-center border border-blue-200">
+                    <i class="fa-solid fa-circle-info mr-2"></i> 此護照為您(保母)專屬建立，分享連結即可與飼主共同協作維護。
+                </div>
+
+                <div class="flex items-center mb-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+                    <div
+                        class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-3xl shadow-sm mr-4 border-2 border-amber-200">
+                        🐈</div>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">橘子 & 柚子</h2>
+                        <p class="text-sm text-gray-600">飼主：林小姐 | 新莊區仁愛街</p>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-bold text-gray-800 border-l-4 border-amber-500 pl-2">🏠 家訪環境備註</h3>
+                        <span class="text-[10px] text-gray-400">最後編輯: 昨天 (飼主 林小姐)</span>
+                    </div>
+                    <div class="bg-white rounded-lg p-3 border border-gray-200 text-sm space-y-2">
+                        <p><span class="font-bold text-gray-600">門禁/鑰匙：</span>密碼 1234，進門後需隨手扣上防護網。</p>
+                        <p><span class="font-bold text-gray-600">垃圾處理：</span>貓砂打包後丟後陽台紅色垃圾桶。</p>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-bold text-gray-800 border-l-4 border-amber-500 pl-2">⚕️ 醫療與個性雷達</h3>
+                    </div>
+                    <div class="bg-white rounded-lg p-3 border border-gray-200 text-sm space-y-2">
+                        <p><span class="font-bold text-gray-600">橘子 (橘貓)：</span>親人貪吃。有泌尿道病史，需確認水碗水量及尿塊大小。</p>
+                        <p><span class="font-bold text-gray-600">柚子 (虎斑)：</span>極度膽小，通常躲在沙發下。不勉強互動，確認有吃飯即可。</p>
+                    </div>
+                </div>
+
+                <!-- 編輯紀錄按鈕 -->
+                <button onclick="openHistoryModal()"
+                    class="w-full bg-white border border-gray-200 text-gray-600 text-xs py-2 rounded-lg mb-4 flex justify-center items-center hover:bg-gray-50">
+                    <i class="fa-solid fa-clock-rotate-left mr-1"></i> 查看協作編輯紀錄
+                </button>
+
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                    <button onclick="alert('已複製專屬連結！\n您可以將此連結傳給飼主，邀請他們一起檢視與修改護照內容。');"
+                        class="btn-secondary text-sm flex items-center justify-center text-blue-600 bg-blue-50 border border-blue-200">
+                        <i class="fa-solid fa-share-nodes mr-1"></i> 分享協作
+                    </button>
+                    <button
+                        onclick="switchView(currentRole === 'sitter' ? 'view-dashboard' : 'view-client-ongoing-detail')"
+                        class="btn-secondary text-sm">返回</button>
+                </div>
+            </div>
+
+            <!-- 編輯護照與 SOP -->
+            <div id="view-edit-profile" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button onclick="switchView('view-pet-profile')" class="text-gray-500 mr-3"><i
+                            class="fa-solid fa-xmark text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">編輯護照與 SOP</h2>
+                    <button onclick="switchView('view-pet-profile'); alert('資料已儲存！對方也能同步看到最新內容。');"
+                        class="ml-auto text-white bg-amber-500 px-4 py-1.5 rounded-lg text-sm font-bold">儲存</button>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm">🏠 家訪環境備註</h3>
+                    <textarea oninput="autoResize(this)"
+                        class="auto-resize w-full bg-white border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-amber-400">門禁/鑰匙：密碼 1234，進門後需隨手扣上防護網。</textarea>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm">⚕️ 醫療與個性雷達</h3>
+                    <textarea oninput="autoResize(this)"
+                        class="auto-resize w-full bg-white border border-gray-200 rounded-lg p-3 text-sm text-gray-700 focus:outline-none focus:border-amber-400">橘子：有泌尿道病史，需確認水碗水量及尿塊大小。
+柚子：極度膽小，不勉強互動，確認有吃飯即可。</textarea>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm flex justify-between items-center">
+                        <span>📋 專屬 SOP 任務清單設定</span>
+                    </h3>
+                    <div class="space-y-2">
+                        <div class="flex items-center bg-white border border-gray-200 rounded-lg p-2">
+                            <i class="fa-solid fa-bars text-gray-400 mr-2 cursor-move"></i>
+                            <input type="text" class="flex-1 text-sm focus:outline-none" value="確認門窗防護網已關閉">
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full mt-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg py-2 text-sm font-bold hover:bg-gray-50 flex justify-center items-center">
+                        <i class="fa-solid fa-plus mr-1"></i> 新增 SOP 項目
+                    </button>
+                </div>
+            </div>
+
+            <!-- 信任圈轉單 (保母專屬) -->
+            <div id="view-trust-circle" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView('view-dashboard', document.querySelector('#bottomNavSitter .nav-item:nth-child(1)'))"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">派發給信任圈</h2>
+                </div>
+
+                <p class="text-sm text-gray-600 mb-4">您目前檔期已滿，請選擇一位您信任的白名單保母進行需求轉介：</p>
+
+                <div class="space-y-3">
+                    <label
+                        class="flex items-center p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-amber-400 focus-within:ring-2 focus-within:ring-amber-500">
+                        <input type="radio" name="sitter" class="form-radio text-amber-500 h-5 w-5 mr-3" checked>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-gray-800">咪咪 (Mimi)</h3>
+                                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">目前有空</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1"><i class="fa-solid fa-star text-amber-400"></i> 5.0
+                                (與您合作過 12 次轉單)</p>
+                        </div>
+                    </label>
+
+                    <label
+                        class="flex items-center p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:border-amber-400 focus-within:ring-2 focus-within:ring-amber-500">
+                        <input type="radio" name="sitter" class="form-radio text-amber-500 h-5 w-5 mr-3">
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-bold text-gray-800">王阿姨</h3>
+                                <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">檔期較滿</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1"><i class="fa-solid fa-star text-amber-400"></i> 4.9
+                                (資深保母)</p>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="mt-6 bg-amber-50 p-3 rounded-lg border border-amber-200 text-sm text-amber-800 mb-4">
+                    <i class="fa-solid fa-circle-info mr-1"></i> 轉介成功且客戶同意後，系統將自動授權該客戶的「毛孩數位護照」給接手保母。
+                </div>
+
+                <button
+                    onclick="alert('已發送轉單邀請給 咪咪！\n若對方確認接單，系統將通知飼主進行更換保母確認。'); switchView('view-dashboard', document.querySelector('#bottomNavSitter .nav-item:nth-child(1)'));"
+                    class="btn-primary shadow-md">確認發送轉介邀請</button>
+            </div>
+
+            <!-- 系統通知中心 第一層 (保母對飼主列表) -->
+            <div id="view-notifications-layer1" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">通知中心 - 飼主列表</h2>
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center cursor-pointer hover:bg-gray-50"
+                        onclick="switchView('view-notifications-detail')">
+                        <div class="relative">
+                            <div
+                                class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-lg mr-3">
+                                林</div>
+                            <div class="absolute top-0 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-white">
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center mb-1">
+                                <h3 class="font-bold text-gray-800">林小姐 (橘子家)</h3>
+                                <span class="text-[10px] text-gray-400">剛剛</span>
+                            </div>
+                            <p class="text-xs text-gray-600 text-clamp">有 2 則新通知 (包含訂單確認、結案)</p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center cursor-pointer hover:bg-gray-50">
+                        <div class="relative">
+                            <div
+                                class="w-12 h-12 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-lg mr-3">
+                                張</div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center mb-1">
+                                <h3 class="font-bold text-gray-800">張先生</h3>
+                                <span class="text-[10px] text-gray-400">昨天</span>
+                            </div>
+                            <p class="text-xs text-gray-500 text-clamp">訂單 #A1012 客戶已取消。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系統通知中心 第二層 (特定飼主的訂單通知) -->
+            <div id="view-notifications-detail" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button onclick="switchView('view-notifications-layer1')" class="text-gray-500 mr-3"><i
+                            class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">與 林小姐 的通知</h2>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded-xl border-l-4 border-amber-500 shadow-sm relative">
+                        <div class="flex items-start">
+                            <div
+                                class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-check text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-400 mb-1">剛剛</p>
+                                <h3 class="text-sm font-bold text-gray-800 mb-1">訂單 #A1021 已確認成立</h3>
+                                <p class="text-xs text-gray-600">客戶 林小姐 已透過您的報價連結確認訂單。訂單已移至「進行中」。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <div class="flex items-start">
+                            <div
+                                class="w-8 h-8 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-wand-magic-sparkles text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-400 mb-1">昨天 18:00</p>
+                                <h3 class="text-sm font-bold text-gray-700 mb-1">訂單 #A1005 飼主已確認結案</h3>
+                                <p class="text-xs text-gray-500">飼主已點擊確認完成任務，款項已入帳並移至歷史紀錄。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 我的接單專頁設定 (保母我的) -->
+            <div id="view-my-profile" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">保母設定中心</h2>
+
+                <div
+                    class="bg-amber-50 rounded-xl p-4 border border-amber-200 mb-5 flex flex-col items-center justify-center text-center">
+                    <i class="fa-solid fa-link text-2xl text-amber-500 mb-2"></i>
+                    <h3 class="font-bold text-gray-800 mb-1">這是您的專屬接單網址</h3>
+                    <div class="flex w-full gap-2 mt-2">
+                        <input type="text" readonly value="catsitter.app/book/will-wife"
+                            class="flex-1 text-xs bg-white border border-gray-300 rounded px-2 py-2 text-gray-600 focus:outline-none">
+                        <button onclick="alert('已複製網址！');"
+                            class="bg-amber-500 text-white px-3 py-2 rounded text-xs font-bold whitespace-nowrap"><i
+                                class="fa-regular fa-copy"></i></button>
+                    </div>
+                    <button onclick="switchView('view-client-booking')"
+                        class="mt-3 text-amber-700 text-sm font-bold underline flex items-center">
+                        <i class="fa-regular fa-eye mr-1"></i> 預覽客戶預約畫面
+                    </button>
+                </div>
+
+                <div class="mb-5">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm flex justify-between items-center">
+                        <span><i class="fa-solid fa-calendar-check mr-1 text-gray-400"></i> 開放預約期間設定</span>
+                        <button class="text-amber-500 text-xs font-bold">儲存</button>
+                    </h3>
+                    <div class="bg-white rounded-lg border border-gray-200 p-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700 font-bold">開放客戶預約至</span>
+                            <input type="date" value="2026-08-31"
+                                class="border border-gray-300 rounded px-2 py-1 text-sm text-gray-700 focus:outline-none focus:border-amber-400 bg-gray-50">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 個人簡介設定 -->
+                <div class="mb-5">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm flex justify-between items-center">
+                        <span><i class="fa-solid fa-address-card mr-1 text-gray-400"></i> 保母介紹設定</span>
+                        <button class="text-amber-500 text-xs font-bold">儲存</button>
+                    </h3>
+                    <div class="bg-white rounded-lg border border-gray-200 p-3">
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 mr-3 overflow-hidden">
+                                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100"
+                                    class="w-full h-full object-cover">
+                            </div>
+                            <div class="flex-1">
+                                <input type="text" value="Will 太太"
+                                    class="font-bold text-gray-800 w-full focus:outline-none border-b border-dashed border-gray-300 pb-1">
+                                <input type="text" value="新北市新莊區、板橋區"
+                                    class="text-xs text-gray-500 w-full mt-1 focus:outline-none">
+                            </div>
+                        </div>
+                        <textarea oninput="autoResize(this)"
+                            class="auto-resize w-full text-sm text-gray-600 focus:outline-none bg-gray-50 p-2 rounded border border-gray-100">您好！我擁有五年的專業貓咪照護經驗，本身也是兩隻貓咪的媽媽。提供細心、耐心的到府陪伴與清潔服務，會用照片記錄寶貝的每個可愛瞬間！如果您有特殊的醫療需求（如餵藥），我也非常樂意協助。期待能為您的寶貝服務，讓您出門在外也能超安心！</textarea>
+                    </div>
+                </div>
+
+                <!-- 服務方案與報價設定 -->
+                <div class="mb-5">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm flex justify-between items-center">
+                        <span><i class="fa-solid fa-tags mr-1 text-gray-400"></i> 服務方案與報價設定</span>
+                        <button class="text-amber-500 text-xs font-bold">儲存</button>
+                    </h3>
+
+                    <div id="service-plans" class="space-y-3">
+                        <!-- 方案 1 (無限制) -->
+                        <div class="bg-white rounded-lg border border-gray-200 p-3 relative shadow-sm">
+                            <i class="fa-solid fa-bars text-gray-300 absolute left-2 top-4 cursor-move"></i>
+                            <div class="pl-5">
+                                <div class="flex justify-between items-center mb-2 border-b border-gray-100 pb-2">
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" value="" class="sr-only peer" checked>
+                                        <div
+                                            class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500">
+                                        </div>
+                                        <span
+                                            class="ml-2 text-xs font-bold text-gray-600 peer-checked:text-amber-600">公開</span>
+                                    </label>
+                                    <div class="flex items-center bg-gray-50 px-2 py-1 rounded">
+                                        <span class="text-sm font-bold text-amber-600 mr-1">$</span>
+                                        <input type="number" value="450"
+                                            class="font-bold text-amber-600 text-sm focus:outline-none w-12 text-right bg-transparent">
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 mb-2">
+                                    <select
+                                        class="text-xs border rounded p-1 bg-gray-50 text-gray-600 focus:outline-none focus:border-amber-400">
+                                        <option>🐱 貓</option>
+                                    </select>
+                                    <select
+                                        class="text-xs border rounded p-1 bg-gray-50 text-gray-600 focus:outline-none focus:border-amber-400">
+                                        <option>🏠 到府</option>
+                                    </select>
+                                    <input type="text" value="基礎陪伴"
+                                        class="text-xs border rounded p-1 flex-1 min-w-[80px] focus:outline-none focus:border-amber-400">
+                                </div>
+                                <input type="text" value="30分鐘方案"
+                                    class="font-bold text-gray-800 text-sm focus:outline-none w-full mb-1">
+                                <textarea oninput="autoResize(this)"
+                                    class="auto-resize text-xs text-gray-500 w-full focus:outline-none bg-transparent"
+                                    rows="2">單貓適用，含餵食、清貓砂、基礎陪玩。若為首次預約，需安排一次免費家訪確認環境與貓咪狀況。</textarea>
+
+                                <!-- 方案上架與預約條件 (無限制) -->
+                                <div class="mt-2 pt-2 border-t border-dashed border-gray-200">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-xs font-bold text-gray-700">方案上架時間</span>
+                                        <label class="flex items-center text-[10px] text-gray-500 cursor-pointer">
+                                            <input type="checkbox" class="mr-1 accent-amber-500" checked
+                                                onchange="toggleDateInputs(this, 'dates-listing-1')"> 無限制
+                                        </label>
+                                    </div>
+                                    <div id="dates-listing-1"
+                                        class="flex gap-1 items-center mb-2 opacity-40 pointer-events-none">
+                                        <input type="date"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none text-gray-500">
+                                        <span class="text-[10px] text-gray-400">至</span>
+                                        <input type="date"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none text-gray-500">
+                                    </div>
+
+                                    <div class="flex justify-between items-center mt-2 mb-1">
+                                        <span class="text-xs font-bold text-gray-700">可預約(下單)日期限制</span>
+                                        <label class="flex items-center text-[10px] text-gray-500 cursor-pointer">
+                                            <input type="checkbox" class="mr-1 accent-amber-500" checked
+                                                onchange="toggleDateInputs(this, 'dates-order-1')"> 無限制
+                                        </label>
+                                    </div>
+                                    <div id="dates-order-1"
+                                        class="flex gap-1 items-center opacity-40 pointer-events-none">
+                                        <input type="date"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none text-gray-500">
+                                        <span class="text-[10px] text-gray-400">至</span>
+                                        <input type="date"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none text-gray-500">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 方案 2 (有限制區間) -->
+                        <div class="bg-white rounded-lg border border-gray-200 p-3 relative shadow-sm">
+                            <i class="fa-solid fa-bars text-gray-300 absolute left-2 top-4 cursor-move"></i>
+                            <div class="pl-5">
+                                <div class="flex justify-between items-center mb-2 border-b border-gray-100 pb-2">
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" value="" class="sr-only peer" checked>
+                                        <div
+                                            class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500">
+                                        </div>
+                                        <span
+                                            class="ml-2 text-xs font-bold text-gray-600 peer-checked:text-amber-600">公開</span>
+                                    </label>
+                                    <div class="flex items-center bg-gray-50 px-2 py-1 rounded">
+                                        <span class="text-sm font-bold text-amber-600 mr-1">$</span>
+                                        <input type="number" value="600"
+                                            class="font-bold text-amber-600 text-sm focus:outline-none w-12 text-right bg-transparent">
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 mb-2">
+                                    <select
+                                        class="text-xs border rounded p-1 bg-gray-50 text-gray-600 focus:outline-none focus:border-amber-400">
+                                        <option>🐱 貓</option>
+                                    </select>
+                                    <select
+                                        class="text-xs border rounded p-1 bg-gray-50 text-gray-600 focus:outline-none focus:border-amber-400">
+                                        <option>🏠 到府</option>
+                                    </select>
+                                    <input type="text" value="深度陪伴"
+                                        class="text-xs border rounded p-1 flex-1 min-w-[80px] focus:outline-none focus:border-amber-400">
+                                </div>
+                                <input type="text" value="60分鐘方案"
+                                    class="font-bold text-gray-800 text-sm focus:outline-none w-full mb-1">
+                                <textarea oninput="autoResize(this)"
+                                    class="auto-resize text-xs text-gray-500 w-full focus:outline-none bg-transparent"
+                                    rows="2">多貓適用，含深度玩耍、梳毛、剪指甲(限乖貓)等客製化需求。若需代為就醫另計。建議三貓以上家庭選擇此方案，以確保每隻貓咪都能獲得妥善照顧。</textarea>
+
+                                <!-- 方案上架與預約條件 (有限制區間示範) -->
+                                <div
+                                    class="mt-2 pt-2 border-t border-dashed border-gray-200 bg-amber-50/50 p-2 rounded">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-xs font-bold text-gray-700">方案上架時間</span>
+                                        <label class="flex items-center text-[10px] text-gray-500 cursor-pointer">
+                                            <input type="checkbox" class="mr-1 accent-amber-500"
+                                                onchange="toggleDateInputs(this, 'dates-listing-2')"> 無限制
+                                        </label>
+                                    </div>
+                                    <div id="dates-listing-2" class="flex gap-1 items-center mb-2">
+                                        <input type="date" value="2026-09-01"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none focus:border-amber-400 text-gray-700">
+                                        <span class="text-[10px] text-gray-400">至</span>
+                                        <input type="date" value="2026-12-31"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none focus:border-amber-400 text-gray-700">
+                                    </div>
+
+                                    <div class="flex justify-between items-center mb-1 mt-2">
+                                        <span class="text-xs font-bold text-gray-700">可預約(下單)日期限制</span>
+                                        <label class="flex items-center text-[10px] text-gray-500 cursor-pointer">
+                                            <input type="checkbox" class="mr-1 accent-amber-500"
+                                                onchange="toggleDateInputs(this, 'dates-order-2')"> 無限制
+                                        </label>
+                                    </div>
+                                    <div id="dates-order-2" class="flex gap-1 items-center">
+                                        <input type="date" value="2026-10-01"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none focus:border-amber-400 text-gray-700">
+                                        <span class="text-[10px] text-gray-400">至</span>
+                                        <input type="date" value="2026-10-31"
+                                            class="w-full border border-gray-300 rounded p-1 text-[10px] focus:outline-none focus:border-amber-400 text-gray-700">
+                                    </div>
+                                    <p class="text-[9px] text-amber-600 mt-1">※ 客戶選擇的預約日須落在此區間內，才能選用此方案。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        class="w-full mt-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg py-2 text-sm font-bold hover:bg-gray-50 flex justify-center items-center">
+                        <i class="fa-solid fa-plus mr-1"></i> 新增服務方案
+                    </button>
+                </div>
+
+                <!-- 事前評估問卷設定 -->
+                <div class="mb-5">
+                    <h3 class="font-bold text-gray-800 mb-2 text-sm flex justify-between items-center">
+                        <span><i class="fa-solid fa-clipboard-question mr-1 text-gray-400"></i> 事前問卷題目設定 (開放式)</span>
+                        <button class="text-amber-500 text-xs font-bold">儲存</button>
+                    </h3>
+                    <p class="text-xs text-gray-500 mb-3">客戶預約時須填寫以下問題。若無設定，則隱藏問卷步驟。</p>
+
+                    <div class="space-y-3">
+                        <div class="bg-white rounded-lg border border-gray-200 p-3 relative flex items-start">
+                            <i class="fa-solid fa-bars text-gray-300 mt-1.5 mr-2 cursor-move"></i>
+                            <textarea oninput="autoResize(this)"
+                                class="auto-resize flex-1 font-bold text-gray-800 text-sm focus:outline-none bg-transparent">貓咪是否有慢性疾病或需要特殊醫療行為？</textarea>
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                        <div class="bg-white rounded-lg border border-gray-200 p-3 relative flex items-start">
+                            <i class="fa-solid fa-bars text-gray-300 mt-1.5 mr-2 cursor-move"></i>
+                            <textarea oninput="autoResize(this)"
+                                class="auto-resize flex-1 font-bold text-gray-800 text-sm focus:outline-none bg-transparent">貓咪面對陌生人的反應？會攻擊嗎？</textarea>
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                        <div class="bg-white rounded-lg border border-gray-200 p-3 relative flex items-start">
+                            <i class="fa-solid fa-bars text-gray-300 mt-1.5 mr-2 cursor-move"></i>
+                            <textarea oninput="autoResize(this)"
+                                class="auto-resize flex-1 font-bold text-gray-800 text-sm focus:outline-none bg-transparent">家中是否有安裝門窗防護網？</textarea>
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                        <div class="bg-white rounded-lg border border-gray-200 p-3 relative flex items-start">
+                            <i class="fa-solid fa-bars text-gray-300 mt-1.5 mr-2 cursor-move"></i>
+                            <textarea oninput="autoResize(this)"
+                                class="auto-resize flex-1 font-bold text-gray-800 text-sm focus:outline-none bg-transparent">垃圾與貓砂通常希望保母怎麼處理？</textarea>
+                            <button class="text-red-400 ml-2 mt-1"><i class="fa-solid fa-minus-circle"></i></button>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full mt-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-lg py-2 text-sm font-bold hover:bg-gray-50 flex justify-center items-center">
+                        <i class="fa-solid fa-plus mr-1"></i> 新增問卷題目
+                    </button>
+                </div>
+
+                <p class="text-center text-xs text-gray-400 mt-8 mb-4">系統資訊：保母版 v1.0.0</p>
+            </div>
+
+
+            <!-- ========================================================================= -->
+            <!--                                客戶端視圖                                 -->
+            <!-- ========================================================================= -->
+
+            <!-- 客戶首頁 (行程 Dashboard) -->
+            <div id="view-client-dashboard" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">哈囉，陳先生 👋<br><span
+                        class="text-sm font-normal text-gray-500">今天您的寶貝有 1 趟到府服務。</span></h2>
+
+                <div class="card border-l-4 border-blue-500">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-blue-600 font-bold text-sm"><i class="fa-regular fa-clock"></i> 10:00 -
+                                11:00</span>
+                            <h3 class="font-bold text-lg mt-1">🐱 橘子 (由 Will 太太 服務)</h3>
+                        </div>
+                        <span class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-md font-medium">尚未開始</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-3"><i class="fa-solid fa-circle-info w-4 text-gray-400"></i>
+                        保母抵達後，您會收到通知。</p>
+                    <button onclick="switchView('view-client-ongoing-detail')"
+                        class="btn-secondary text-sm bg-gray-50"><i class="fa-solid fa-list-check mr-1"></i>
+                        檢視今日任務項目</button>
+                </div>
+            </div>
+
+            <!-- 客戶訂單中心 -->
+            <div id="view-client-orders" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">我的訂單</h2>
+
+                <div class="flex mb-4 border-b border-gray-200">
+                    <button onclick="toggleOrderTab('evaluating', 'client')" id="client-tab-evaluating"
+                        class="flex-1 pb-2 font-bold text-blue-600 border-b-2 border-blue-500 text-sm">評估中 (1)</button>
+                    <button onclick="toggleOrderTab('ongoing', 'client')" id="client-tab-ongoing"
+                        class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent text-sm">進行中
+                        (1)</button>
+                    <button onclick="toggleOrderTab('history', 'client')" id="client-tab-history"
+                        class="flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent text-sm">歷史紀錄</button>
+                </div>
+
+                <!-- 客戶評估中 -->
+                <div id="client-content-evaluating" class="block">
+                    <p class="text-xs text-gray-500 mb-3">保母正在評估您的需求，請等待報價。</p>
+                    <div class="card cursor-pointer hover:shadow-md transition"
+                        onclick="switchView('view-client-eval-detail')">
+                        <div class="flex justify-between items-start mb-2 border-b border-gray-100 pb-2">
+                            <span class="text-xs font-bold text-gray-400">#A1024</span>
+                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded font-bold">保母評估中</span>
+                        </div>
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">
+                                <i class="fa-solid fa-user-nurse"></i></div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">保母：Will 太太</h3>
+                                <p class="text-xs text-gray-500">預計 5 趟服務 · 基礎陪伴</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span class="text-xs text-gray-600">您的試算預估</span>
+                            <span class="font-bold text-gray-600">$2,400</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 客戶進行中 -->
+                <div id="client-content-ongoing" class="hidden">
+                    <div class="card cursor-pointer" onclick="switchView('view-client-ongoing-detail')">
+                        <div class="flex justify-between items-start mb-2 border-b border-gray-100 pb-2">
+                            <span class="text-xs font-bold text-gray-400">#A1022</span>
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-bold">執行中
+                                (1/2)</span>
+                        </div>
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">
+                                <i class="fa-solid fa-user-nurse"></i></div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">保母：Will 太太</h3>
+                                <p class="text-xs text-gray-500">已付清 $1,200</p>
+                            </div>
+                        </div>
+                        <div class="text-center mt-2 text-xs text-blue-600 font-bold">查看任務與護照 <i
+                                class="fa-solid fa-chevron-right ml-1"></i></div>
+                    </div>
+                </div>
+
+                <!-- 客戶歷史紀錄 -->
+                <div id="client-content-history" class="hidden">
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 mb-4 shadow-sm">
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500">起始月份</label>
+                                <input type="month"
+                                    class="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:border-blue-400">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500">狀態</label>
+                                <select
+                                    class="w-full border border-gray-300 rounded p-1 text-xs focus:outline-none focus:border-blue-400">
+                                    <option>全部 (不含取消)</option>
+                                    <option>已完成</option>
+                                    <option>已取消</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <input type="text" placeholder="搜尋保母名稱或訂單號"
+                                class="w-full border border-gray-300 rounded p-1.5 text-xs focus:outline-none focus:border-blue-400">
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="bg-white border border-gray-200 rounded-lg p-3 opacity-70">
+                            <div class="flex justify-between items-start mb-1">
+                                <span class="text-[10px] font-bold text-gray-400">#A0988 | 2026/01/10</span>
+                                <span
+                                    class="bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold">已完成</span>
+                            </div>
+                            <h3 class="font-bold text-gray-700 text-sm">保母：咪咪 (3趟)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 客戶：訂單評估檢視 (Evaluating Detail) -->
+            <div id="view-client-eval-detail" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView('view-client-orders', document.querySelector('#bottomNavClient .nav-item:nth-child(2)'))"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">送單內容確認</h2>
+                </div>
+
+                <div class="card border-l-4 border-amber-500 mb-4">
+                    <h3 class="font-bold text-gray-800 mb-2">保母：Will 太太</h3>
+                    <p class="text-xs text-gray-500 mb-3">狀態：等待保母確認檔期與報價中</p>
+                    <div class="bg-gray-50 p-2 rounded text-sm text-gray-700 space-y-1 mb-3">
+                        <div class="flex justify-between border-b border-gray-200 pb-1"><span>10/01-10/03, 10/05 (共 4
+                                天)</span><span>30分鐘方案</span></div>
+                        <div class="flex justify-between"><span>10/04 (共 1 天)</span><span>60分鐘方案</span></div>
+                    </div>
+                    <div class="flex justify-between font-bold text-lg">
+                        <span>試算金額</span>
+                        <span class="text-amber-600">$ 2,400</span>
+                    </div>
+                </div>
+
+                <button
+                    onclick="alert('已取消此筆預約申請。'); switchView('view-client-orders', document.querySelector('#bottomNavClient .nav-item:nth-child(2)'));"
+                    class="btn-danger-outline">取消送單</button>
+            </div>
+
+            <!-- 客戶：進行中訂單檢視 (Ongoing Detail) -->
+            <div id="view-client-ongoing-detail" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button
+                        onclick="switchView('view-client-orders', document.querySelector('#bottomNavClient .nav-item:nth-child(2)'))"
+                        class="text-gray-500 mr-3"><i class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">訂單執行狀況</h2>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div onclick="switchView('view-pet-profile')"
+                        class="bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer shadow-sm hover:border-blue-300">
+                        <i class="fa-solid fa-book-open text-2xl text-blue-500 mb-2"></i>
+                        <span class="font-bold text-sm text-gray-700">協作毛孩護照</span>
+                        <span class="text-[10px] text-gray-400">與保母共同維護 SOP</span>
+                    </div>
+                    <div
+                        class="bg-white border border-gray-200 rounded-xl p-3 flex flex-col items-center justify-center shadow-sm opacity-50">
+                        <i class="fa-solid fa-camera-retro text-2xl text-gray-400 mb-2"></i>
+                        <span class="font-bold text-sm text-gray-700">服務日誌</span>
+                        <span class="text-[10px] text-gray-400">本次尚無紀錄</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="font-bold text-gray-800 mb-2">本次所有排程</h3>
+                    <div class="text-sm text-gray-600 space-y-2">
+                        <div class="flex items-center"><i class="fa-solid fa-circle-check text-green-500 mr-2"></i>
+                            <span class="line-through">10/01 (已完成)</span></div>
+                        <div class="flex items-center"><i class="fa-regular fa-clock text-amber-500 mr-2"></i>
+                            <span>10/02 (待執行)</span></div>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-6 text-xs text-blue-800">
+                    <i class="fa-solid fa-circle-info mr-1"></i> 當保母完成所有排程後，您可以點擊下方按鈕進行訂單確認與結案。
+                </div>
+
+                <button
+                    onclick="alert('✅ 訂單已確認結案！將移至歷史紀錄並可給予保母評價。'); switchView('view-client-orders', document.querySelector('#bottomNavClient .nav-item:nth-child(2)'));"
+                    class="btn-client-primary shadow-lg py-3">
+                    確認任務全部完成 (結案)
+                </button>
+            </div>
+
+            <!-- 系統通知中心 第一層 (客戶對保母列表) -->
+            <div id="view-client-notifications-layer1" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">通知中心 - 保母列表</h2>
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center cursor-pointer hover:bg-gray-50"
+                        onclick="switchView('view-client-notifications-detail')">
+                        <div class="relative">
+                            <div
+                                class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg mr-3">
+                                <i class="fa-solid fa-user-nurse"></i></div>
+                            <div class="absolute top-0 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-white">
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center mb-1">
+                                <h3 class="font-bold text-gray-800">Will 太太</h3>
+                                <span class="text-[10px] text-gray-400">2 小時前</span>
+                            </div>
+                            <p class="text-xs text-gray-600 text-clamp">有 2 則關於您訂單的最新狀態</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系統通知中心 第二層 (特定保母的訂單通知) -->
+            <div id="view-client-notifications-detail" class="view-section">
+                <div class="flex items-center mb-4">
+                    <button onclick="switchView('view-client-notifications-layer1')" class="text-gray-500 mr-3"><i
+                            class="fa-solid fa-chevron-left text-lg"></i></button>
+                    <h2 class="text-lg font-bold text-gray-800">來自 Will 太太 的通知</h2>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded-xl border-l-4 border-blue-500 shadow-sm relative">
+                        <div class="flex items-start">
+                            <div
+                                class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-file-invoice text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-400 mb-1">2 小時前</p>
+                                <h3 class="text-sm font-bold text-gray-800 mb-1">保母已更新報價</h3>
+                                <p class="text-xs text-gray-600">評估中的訂單 #A1024 保母已修改報價，請點擊訂單進行最終確認。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <div class="flex items-start">
+                            <div
+                                class="w-8 h-8 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
+                                <i class="fa-solid fa-bell-concierge text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-400 mb-1">昨天 17:00</p>
+                                <h3 class="text-sm font-bold text-gray-700 mb-1">工作結束提醒</h3>
+                                <p class="text-xs text-gray-500">訂單 #A1005 保母已結束本日排程，若全數完成請您至進行中清單點擊結案按鈕。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== 新增：客戶的「我的保母」 ==================== -->
+            <div id="view-client-sitters" class="view-section">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">我的保母名單</h2>
+
+                <!-- 新增保母 -->
+                <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm mb-4">
+                    <label class="text-xs font-bold text-gray-700 mb-1 block">透過代碼加入專屬保母</label>
+                    <div class="flex gap-2">
+                        <input type="text" placeholder="輸入保母專屬代碼 (例: will-wife)"
+                            class="flex-1 border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400">
+                        <button onclick="alert('已成功加入保母！');"
+                            class="bg-blue-500 text-white px-4 py-2 rounded text-sm font-bold whitespace-nowrap">加入</button>
+                    </div>
+                </div>
+
+                <!-- 保母列表 -->
+                <div class="space-y-3">
+                    <!-- 保母卡片 1 -->
+                    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm relative overflow-hidden">
+                        <div
+                            class="absolute top-0 right-0 bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">
+                            合作過</div>
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mr-3 overflow-hidden">
+                                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100"
+                                    class="w-full h-full object-cover">
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">Will 太太 <i
+                                        class="fa-solid fa-star text-amber-400 text-xs ml-1"></i><span
+                                        class="text-xs text-gray-500">5.0</span></h3>
+                                <p class="text-xs text-gray-500">新北市新莊區、板橋區</p>
+                            </div>
+                        </div>
+                        <button onclick="switchView('view-client-booking')"
+                            class="w-full bg-blue-50 text-blue-600 border border-blue-200 rounded-lg py-2 text-sm font-bold hover:bg-blue-100 transition">前往專屬網頁預約</button>
+                    </div>
+
+                    <!-- 保母卡片 2 -->
+                    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm relative overflow-hidden">
+                        <div
+                            class="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">
+                            轉單認識</div>
+                        <div class="flex items-center mb-3">
+                            <div
+                                class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg mr-3">
+                                咪
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">咪咪 (Mimi) <i
+                                        class="fa-solid fa-star text-amber-400 text-xs ml-1"></i><span
+                                        class="text-xs text-gray-500">5.0</span></h3>
+                                <p class="text-xs text-gray-500">新北市三重區、蘆洲區</p>
+                            </div>
+                        </div>
+                        <button onclick="switchView('view-client-booking')"
+                            class="w-full bg-blue-50 text-blue-600 border border-blue-200 rounded-lg py-2 text-sm font-bold hover:bg-blue-100 transition">前往專屬網頁預約</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 客戶個人中心 (我的) -->
+            <div id="view-client-profile" class="view-section">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">我的設定</h2>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm mb-5 flex items-center">
+                    <div
+                        class="w-14 h-14 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xl font-bold mr-4">
+                        陳</div>
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-lg">陳先生</h3>
+                        <p class="text-xs text-gray-500 mt-1"><i class="fa-solid fa-phone mr-1"></i> 0912-345-678</p>
+                    </div>
+                    <button class="ml-auto text-blue-500"><i class="fa-solid fa-pen"></i></button>
+                </div>
+
+                <div class="mb-5">
+                    <h3 class="font-bold text-gray-800 mb-3 text-sm"><i class="fa-solid fa-paw mr-1 text-gray-400"></i>
+                        我的毛孩資料卡</h3>
+
+                    <!-- 寵物卡片 1 -->
+                    <div
+                        class="bg-white rounded-lg border border-gray-200 p-3 mb-3 shadow-sm flex justify-between items-center">
+                        <div class="flex items-center">
+                            <div
+                                class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-xl mr-3 border border-amber-200">
+                                🐈</div>
+                            <div>
+                                <h4 class="font-bold text-gray-800 text-sm">橘子 <span
+                                        class="text-[10px] text-gray-400 font-normal ml-1">母 / 已結紮</span></h4>
+                                <p class="text-xs text-gray-500 mt-0.5">5 歲 / 4.2 kg</p>
+                            </div>
+                        </div>
+                        <button onclick="openPetFormModal()" class="text-gray-400 hover:text-blue-500 p-2"><i
+                                class="fa-solid fa-pen text-sm"></i></button>
+                    </div>
+
+                    <!-- 寵物卡片 2 -->
+                    <div
+                        class="bg-white rounded-lg border border-gray-200 p-3 mb-3 shadow-sm flex justify-between items-center">
+                        <div class="flex items-center">
+                            <div
+                                class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-xl mr-3 border border-gray-200">
+                                🐈‍⬛</div>
+                            <div>
+                                <h4 class="font-bold text-gray-800 text-sm">柚子 <span
+                                        class="text-[10px] text-gray-400 font-normal ml-1">公 / 已結紮</span></h4>
+                                <p class="text-xs text-gray-500 mt-0.5">3 歲 / 5.1 kg</p>
+                            </div>
+                        </div>
+                        <button onclick="openPetFormModal()" class="text-gray-400 hover:text-blue-500 p-2"><i
+                                class="fa-solid fa-pen text-sm"></i></button>
+                    </div>
+
+                    <button onclick="openPetFormModal()"
+                        class="w-full border-2 border-dashed border-gray-300 text-blue-500 rounded-lg py-2.5 text-sm font-bold hover:bg-gray-50 flex justify-center items-center">
+                        <i class="fa-solid fa-plus mr-1"></i> 新增寵物卡片
+                    </button>
+                </div>
+
+                <button class="w-full bg-gray-100 text-gray-600 rounded-lg py-3 font-bold text-sm">登出</button>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!--                             共用：客戶預約網頁                            -->
+            <!-- ========================================================================= -->
+            <div id="view-client-booking" class="view-section">
+                <div
+                    class="bg-gray-800 text-white text-xs text-center py-1.5 -mx-4 -mt-4 mb-4 flex justify-between px-4 items-center">
+                    <span><i class="fa-solid fa-globe mr-1"></i> 保母對外預約網頁</span>
+                    <button onclick="switchView(currentRole === 'sitter' ? 'view-my-profile' : 'view-client-sitters')"
+                        class="underline">返回 APP</button>
+                </div>
+
+                <!-- 保母公開首圖與簡介 -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-5">
+                    <div class="h-24 bg-gradient-to-r from-amber-200 to-orange-300"></div>
+                    <div class="px-4 pb-4 relative">
+                        <div
+                            class="w-16 h-16 bg-white rounded-full border-4 border-white absolute -top-8 overflow-hidden shadow-sm">
+                            <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100&h=100"
+                                class="w-full h-full object-cover">
+                        </div>
+                        <div class="mt-10">
+                            <h2 class="text-xl font-bold text-gray-800">Will 太太的貓咪到府</h2>
+                            <div class="bg-gray-50 p-3 rounded-lg read-more-container mt-2">
+                                <p id="client-intro-text"
+                                    class="text-sm text-gray-600 leading-relaxed text-clamp transition-all duration-300">
+                                    您好！我擁有五年的專業貓咪照護經驗，本身也是兩隻貓咪的媽媽。提供細心、耐心的到府陪伴與清潔服務，會用照片記錄寶貝的每個可愛瞬間！如果您有特殊的醫療需求（如餵藥），我也非常樂意協助。期待能為您的寶貝服務，讓您出門在外也能超安心！
+                                </p>
+                                <button onclick="toggleReadMore('client-intro-text', this)"
+                                    class="text-amber-600 text-xs font-bold mt-1 inline-flex items-center">顯示更多 <i
+                                        class="fa-solid fa-chevron-down ml-1"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 1 預約日期與方案 (Grouped Logic) -->
+                <div class="mb-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800"><span
+                                class="bg-amber-500 text-white w-5 h-5 inline-flex justify-center items-center rounded-full text-xs mr-1">1</span>
+                            預約日期與方案設定</h3>
+                    </div>
+
+                    <!-- 預約群組 1 -->
+                    <div class="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden mb-3">
+                        <div class="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                            <span class="font-bold text-gray-800 text-sm"><i
+                                    class="fa-regular fa-calendar-check text-amber-500 mr-1"></i> 日期區間 1</span>
+                            <button class="text-red-400 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                        <div class="p-3 border-b border-dashed border-gray-200">
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <span
+                                    class="bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold px-2 py-1 rounded flex items-center">10/01
+                                    - 10/03 <i class="fa-solid fa-xmark ml-1 cursor-pointer text-amber-500"></i></span>
+                                <span
+                                    class="bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold px-2 py-1 rounded flex items-center">10/05
+                                    <i class="fa-solid fa-xmark ml-1 cursor-pointer text-amber-500"></i></span>
+                                <button
+                                    class="text-gray-500 text-[10px] border border-gray-300 bg-white rounded px-2 py-1 hover:bg-gray-50 flex items-center"><i
+                                        class="fa-solid fa-plus mr-1"></i>選擇單天/區間</button>
+                            </div>
+                            <p class="text-[10px] text-gray-400">共計 4 天</p>
+                        </div>
+                        <div class="p-3 bg-white space-y-2">
+                            <p class="text-xs font-bold text-gray-700 mb-1">每日服務項目 (預設帶入)：</p>
+                            <div class="flex gap-2 items-center">
+                                <div class="flex-1 border border-amber-200 bg-amber-50 rounded p-2 relative">
+                                    <div class="text-xs font-bold text-gray-800">30分鐘方案</div>
+                                    <div class="text-[10px] text-gray-500 font-bold">$450 / 次</div>
+                                    <button onclick="openPlanModal()"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-600 font-bold underline">更換</button>
+                                </div>
+                                <button class="text-red-300 hover:text-red-500 px-1"><i
+                                        class="fa-solid fa-trash-can text-sm"></i></button>
+                            </div>
+                            <button
+                                class="text-amber-600 text-xs font-bold w-full text-left mt-1 inline-flex items-center"><i
+                                    class="fa-solid fa-plus mr-1"></i> 新增當日其他服務</button>
+                        </div>
+                    </div>
+
+                    <!-- 預約群組 2 -->
+                    <div class="border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden mb-3">
+                        <div class="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                            <span class="font-bold text-gray-800 text-sm"><i
+                                    class="fa-regular fa-calendar-check text-amber-500 mr-1"></i> 日期區間 2</span>
+                            <button class="text-red-400 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                        <div class="p-3 border-b border-dashed border-gray-200">
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <span
+                                    class="bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold px-2 py-1 rounded flex items-center">10/04
+                                    <i class="fa-solid fa-xmark ml-1 cursor-pointer text-amber-500"></i></span>
+                                <button
+                                    class="text-gray-500 text-[10px] border border-gray-300 bg-white rounded px-2 py-1 hover:bg-gray-50 flex items-center"><i
+                                        class="fa-solid fa-plus mr-1"></i>選擇單天/區間</button>
+                            </div>
+                            <p class="text-[10px] text-gray-400">共計 1 天</p>
+                        </div>
+                        <div class="p-3 bg-white space-y-2">
+                            <p class="text-xs font-bold text-gray-700 mb-1">每日服務項目：</p>
+                            <div class="flex gap-2 items-center">
+                                <div class="flex-1 border border-amber-200 bg-amber-50 rounded p-2 relative">
+                                    <div class="text-xs font-bold text-gray-800">60分鐘方案</div>
+                                    <div class="text-[10px] text-gray-500 font-bold">$600 / 次</div>
+                                    <button onclick="openPlanModal()"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-600 font-bold underline">更換</button>
+                                </div>
+                                <button class="text-red-300 hover:text-red-500 px-1"><i
+                                        class="fa-solid fa-trash-can text-sm"></i></button>
+                            </div>
+                            <button
+                                class="text-amber-600 text-xs font-bold w-full text-left mt-1 inline-flex items-center"><i
+                                    class="fa-solid fa-plus mr-1"></i> 新增當日其他服務</button>
+                        </div>
+                    </div>
+
+                    <button
+                        class="w-full border-2 border-dashed border-gray-300 text-gray-600 rounded-lg py-3 text-sm font-bold flex justify-center items-center hover:bg-gray-50 transition">
+                        <i class="fa-solid fa-calendar-plus mr-2 text-amber-500"></i> 新增預約日期與方案
+                    </button>
+                </div>
+
+                <!-- STEP 2 填寫問卷 (開放式) -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800"><span
+                                class="bg-amber-500 text-white w-5 h-5 inline-flex justify-center items-center rounded-full text-xs mr-1">2</span>
+                            填寫事前問卷</h3>
+                        <span class="text-[10px] text-gray-400">(保母設定之必填問題)</span>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-xl p-4 space-y-4 shadow-sm">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Q1. 貓咪是否有慢性疾病或需要特殊醫療行為？</label>
+                            <textarea
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-amber-400"
+                                rows="2" placeholder="請簡述..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Q2. 貓咪面對陌生人的反應？會攻擊嗎？</label>
+                            <textarea
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-amber-400"
+                                rows="2" placeholder="請簡述..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Q3. 家中是否有安裝門窗防護網？</label>
+                            <textarea
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-amber-400"
+                                rows="2" placeholder="請簡述..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Q4. 垃圾與貓砂通常希望保母怎麼處理？</label>
+                            <textarea
+                                class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm focus:outline-none focus:border-amber-400"
+                                rows="2" placeholder="請簡述..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: 價格估算 -->
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                    <h4 class="font-bold text-amber-800 mb-2"><i class="fa-solid fa-calculator mr-1"></i> 預估費用總計</h4>
+
+                    <div class="mb-2 pb-2 border-b border-amber-200/50">
+                        <div class="text-xs font-bold text-gray-600 mb-1">10/01 - 10/03, 10/05</div>
+                        <div class="flex justify-between text-sm text-gray-700">
+                            <span class="pl-2">30分鐘方案 ($450) x 4次</span>
+                            <span class="font-bold">$ 1,800</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 pb-2 border-b border-amber-200/50">
+                        <div class="text-xs font-bold text-gray-600 mb-1">10/04</div>
+                        <div class="flex justify-between text-sm text-gray-700">
+                            <span class="pl-2">60分鐘方案 ($600) x 1次</span>
+                            <span class="font-bold">$ 600</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between text-xs text-gray-500 mb-3 border-b border-amber-200 pb-2">
+                        <span>交通費 / 其他特殊加給</span>
+                        <span>待保母評估</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-gray-800">預估金額</span>
+                        <span class="font-bold text-xl text-amber-600">$ 2,400 <span
+                                class="text-sm font-normal text-amber-600/70">起</span></span>
+                    </div>
+                </div>
+
+                <button onclick="submitClientBooking()"
+                    class="btn-primary py-3 text-lg shadow-lg bg-gray-800 hover:bg-gray-700 mb-8">
+                    送出預約申請
+                </button>
+            </div>
+
+        </div> <!-- End Content Area -->
+
+        <!-- ==================== 底部導覽列 (保母版) ==================== -->
+        <div class="bottom-nav" id="bottomNavSitter">
+            <div class="nav-item active" onclick="switchView('view-dashboard', this)">
+                <i class="fa-solid fa-calendar-days"></i>
+                <span>行程</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-orders', this)">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+                <span>訂單</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-trust-circle', this)">
+                <i class="fa-solid fa-users"></i>
+                <span>互助</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-notifications-layer1', this)">
+                <div class="relative">
+                    <i class="fa-solid fa-bell"></i>
+                    <span
+                        class="absolute -top-1 -right-2 bg-red-500 rounded-full h-2.5 w-2.5 border border-white"></span>
+                </div>
+                <span>通知</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-my-profile', this)">
+                <i class="fa-solid fa-user"></i>
+                <span>我的</span>
+            </div>
+        </div>
+
+        <!-- ==================== 底部導覽列 (客戶版) ==================== -->
+        <div class="bottom-nav hidden" id="bottomNavClient">
+            <div class="nav-item client-active" onclick="switchView('view-client-dashboard', this)">
+                <i class="fa-solid fa-calendar-days"></i>
+                <span>行程</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-client-orders', this)">
+                <i class="fa-solid fa-file-invoice-dollar"></i>
+                <span>訂單</span>
+            </div>
+            <!-- 新增客戶專屬：保母區塊 -->
+            <div class="nav-item" onclick="switchView('view-client-sitters', this)">
+                <i class="fa-solid fa-address-book"></i>
+                <span>保母</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-client-notifications-layer1', this)">
+                <div class="relative">
+                    <i class="fa-solid fa-bell"></i>
+                    <span
+                        class="absolute -top-1 -right-2 bg-red-500 rounded-full h-2.5 w-2.5 border border-white"></span>
+                </div>
+                <span>通知</span>
+            </div>
+            <div class="nav-item" onclick="switchView('view-client-profile', this)">
+                <i class="fa-solid fa-user"></i>
+                <span>我的</span>
+            </div>
+        </div>
+
+        <!-- 方案選擇彈出層 (Modal) 具備防呆機制示範 -->
+        <div id="plan-modal" class="modal-overlay">
+            <div class="modal-content relative" onclick="event.stopPropagation()">
+                <button onclick="closePlanModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
+                <h3 class="font-bold text-lg text-gray-800 mb-1">請選擇服務方案</h3>
+                <p class="text-xs text-blue-600 bg-blue-50 p-1.5 rounded mb-4 inline-flex items-center"><i
+                        class="fa-solid fa-filter mr-1"></i> 已依據您選擇的日期過濾可用方案</p>
+
+                <div class="space-y-3 mb-6">
+                    <!-- 選項 1 -->
+                    <label
+                        class="block bg-white border-2 border-amber-500 rounded-xl p-3 cursor-pointer shadow-sm relative overflow-hidden">
+                        <div
+                            class="absolute top-0 right-0 bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold">
+                            熱門選擇</div>
+                        <div class="flex items-start">
+                            <input type="radio" name="modal_plan" class="form-radio text-amber-500 h-5 w-5 mr-3 mt-0.5"
+                                checked>
+                            <div class="flex-1">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="font-bold text-gray-800 text-sm">30分鐘方案</h4>
+                                    <span class="text-amber-600 font-bold">$450</span>
+                                </div>
+                                <div class="flex gap-1 mb-1.5">
+                                    <span
+                                        class="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🐱
+                                        貓</span>
+                                    <span
+                                        class="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🏠
+                                        到府</span>
+                                    <span
+                                        class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold">基礎陪伴</span>
+                                </div>
+                                <div class="read-more-container mt-1">
+                                    <p id="modal-desc-1"
+                                        class="text-xs text-gray-500 text-clamp transition-all duration-300">
+                                        單貓適用，含餵食、清貓砂、基礎陪玩。若為首次預約，需安排一次免費家訪確認環境與貓咪狀況。為維護服務品質，不接受當日急單。</p>
+                                    <button type="button"
+                                        onclick="toggleReadMore('modal-desc-1', this); event.preventDefault();"
+                                        class="text-amber-600 text-[10px] font-bold mt-1 inline-flex items-center">顯示更多
+                                        <i class="fa-solid fa-chevron-down ml-1"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 選項 2 -->
+                    <label
+                        class="block bg-white border border-gray-200 hover:border-amber-300 rounded-xl p-3 cursor-pointer shadow-sm relative overflow-hidden">
+                        <div class="flex items-start">
+                            <input type="radio" name="modal_plan" class="form-radio text-amber-500 h-5 w-5 mr-3 mt-0.5">
+                            <div class="flex-1">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="font-bold text-gray-800 text-sm">60分鐘方案</h4>
+                                    <span class="text-amber-600 font-bold">$600</span>
+                                </div>
+                                <div class="flex gap-1 mb-1.5">
+                                    <span
+                                        class="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🐱
+                                        貓</span>
+                                    <span
+                                        class="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-bold">🏠
+                                        到府</span>
+                                    <span
+                                        class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold">深度陪伴</span>
+                                </div>
+                                <div class="read-more-container mt-1">
+                                    <p id="modal-desc-2"
+                                        class="text-xs text-gray-500 text-clamp transition-all duration-300">
+                                        多貓適用，含深度玩耍、梳毛、剪指甲(限乖貓)等客製化需求。若需代為就醫另計。建議三貓以上家庭選擇此方案，以確保每隻貓咪都能獲得妥善照顧。</p>
+                                    <button type="button"
+                                        onclick="toggleReadMore('modal-desc-2', this); event.preventDefault();"
+                                        class="text-amber-600 text-[10px] font-bold mt-1 inline-flex items-center">顯示更多
+                                        <i class="fa-solid fa-chevron-down ml-1"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+
+                    <!-- 模擬因日期不符而被反灰的選項 -->
+                    <label class="block bg-gray-50 border border-gray-200 rounded-xl p-3 cursor-not-allowed opacity-60">
+                        <div class="flex items-start">
+                            <input type="radio" disabled class="form-radio text-gray-400 h-5 w-5 mr-3 mt-0.5">
+                            <div class="flex-1">
+                                <div class="flex justify-between items-center mb-1">
+                                    <h4 class="font-bold text-gray-500 text-sm">🎄 聖誕限定方案</h4>
+                                    <span class="text-gray-500 font-bold">$800</span>
+                                </div>
+                                <p class="text-xs text-red-500 font-bold mt-1">不適用於當前選擇的日期 (僅限12/20-12/25)</p>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                <button onclick="confirmPlan()" class="btn-primary py-3 w-full shadow-md text-base">確認選擇</button>
+            </div>
+        </div>
+
+        <!-- 協作編輯紀錄彈出層 (Modal) -->
+        <div id="edit-history-modal" class="modal-overlay">
+            <div class="modal-content relative" onclick="event.stopPropagation()">
+                <button onclick="closeHistoryModal()"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
+                <h3 class="font-bold text-lg text-gray-800 mb-4">協作編輯紀錄</h3>
+
+                <div class="relative border-l-2 border-gray-200 ml-3 space-y-4 pb-4">
+                    <!-- Timeline Item 1 -->
+                    <div class="relative pl-4">
+                        <div class="absolute -left-[9px] top-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-white">
+                        </div>
+                        <p class="text-xs text-gray-400 mb-0.5">昨天 14:30</p>
+                        <p class="text-sm font-bold text-gray-800">飼主 林小姐</p>
+                        <p class="text-xs text-gray-600 mt-1">更新了 <span class="font-bold">家訪環境備註</span>：<br><span
+                                class="bg-gray-50 px-1 rounded">逗貓棒改放在電視櫃右側抽屜。</span></p>
+                    </div>
+                    <!-- Timeline Item 2 -->
+                    <div class="relative pl-4">
+                        <div class="absolute -left-[9px] top-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white">
+                        </div>
+                        <p class="text-xs text-gray-400 mb-0.5">2026/02/15 10:00</p>
+                        <p class="text-sm font-bold text-gray-800">保母 Will 太太</p>
+                        <p class="text-xs text-gray-600 mt-1">新增了 <span class="font-bold">醫療與個性雷達</span>：<br><span
+                                class="bg-gray-50 px-1 rounded">橘子有泌尿道病史，需確認水量。</span></p>
+                    </div>
+                </div>
+
+                <button onclick="closeHistoryModal()"
+                    class="mt-2 w-full py-2 bg-gray-100 text-gray-600 font-bold rounded-lg text-sm">關閉</button>
+            </div>
+        </div>
+
+        <!-- 編輯毛孩資料表單 (Modal) -->
+        <div id="pet-form-modal" class="modal-overlay">
+            <div class="modal-content relative" onclick="event.stopPropagation()">
+                <button onclick="closePetFormModal()"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
+                <h3 class="font-bold text-lg text-gray-800 mb-4">編輯毛孩資料</h3>
+
+                <div class="space-y-4 mb-6">
+                    <!-- 上傳照片 -->
+                    <div class="flex justify-center mb-2">
+                        <div
+                            class="w-20 h-20 bg-gray-50 border-2 border-dashed border-gray-300 rounded-full flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-100 transition">
+                            <i class="fa-solid fa-camera text-xl mb-1"></i>
+                            <span class="text-[10px]">上傳照片</span>
+                        </div>
+                    </div>
+
+                    <!-- 名字 -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">名字</label>
+                        <input type="text"
+                            class="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400"
+                            placeholder="例如：橘子" value="橘子">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- 寵物種類 -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">寵物種類</label>
+                            <select
+                                class="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400">
+                                <option selected>🐱 貓</option>
+                                <option>🐶 狗</option>
+                                <option>🐦 鳥</option>
+                                <option>🐹 鼠</option>
+                                <option>🦎 爬蟲</option>
+                                <option>🦗 昆蟲</option>
+                                <option>🐾 其他</option>
+                            </select>
+                        </div>
+                        <!-- 性別 -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">性別</label>
+                            <select
+                                class="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400">
+                                <option>公</option>
+                                <option selected>母</option>
+                                <option>未知</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- 結紮狀況 -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">結紮狀況</label>
+                            <select
+                                class="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400">
+                                <option selected>已結紮</option>
+                                <option>未結紮</option>
+                                <option>未知</option>
+                            </select>
+                        </div>
+                        <!-- 體重 -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">體重 (kg)</label>
+                            <input type="number" step="0.1"
+                                class="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400"
+                                placeholder="例: 4.2" value="4.2">
+                        </div>
+                    </div>
+
+                    <!-- 備註 -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">備註 (健康狀況/個性等)</label>
+                        <textarea
+                            class="w-full border border-gray-300 rounded p-2 text-sm focus:outline-none focus:border-blue-400"
+                            rows="3" placeholder="請填寫其他注意事項...">非常貪吃，但對陌生人稍微警戒，不會咬人。</textarea>
+                    </div>
+                </div>
+
+                <button onclick="closePetFormModal(); alert('寵物資料儲存成功！');"
+                    class="btn-client-primary py-3 w-full shadow-md text-base">儲存資料</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 全局角色狀態：'sitter' 或 'client'
+        let currentRole = 'sitter';
+
+        function toggleRole() {
+            currentRole = currentRole === 'sitter' ? 'client' : 'sitter';
+
+            // 切換底部導覽列顯示
+            if (currentRole === 'sitter') {
+                document.getElementById('bottomNavSitter').classList.remove('hidden');
+                document.getElementById('bottomNavSitter').classList.add('flex');
+                document.getElementById('bottomNavClient').classList.remove('flex');
+                document.getElementById('bottomNavClient').classList.add('hidden');
+                switchView('view-my-profile', document.querySelector('#bottomNavSitter .nav-item:nth-child(5)'));
+            } else {
+                document.getElementById('bottomNavSitter').classList.remove('flex');
+                document.getElementById('bottomNavSitter').classList.add('hidden');
+                document.getElementById('bottomNavClient').classList.remove('hidden');
+                document.getElementById('bottomNavClient').classList.add('flex');
+                switchView('view-client-profile', document.querySelector('#bottomNavClient .nav-item:nth-child(5)')); // 注意這裡是 5
+            }
+        }
+
+        // 自動調整 Textarea
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        // 動態切換日期輸入框狀態 (無限制打勾時反灰並清空)
+        function toggleDateInputs(checkbox, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            if (checkbox.checked) {
+                container.classList.add('opacity-40', 'pointer-events-none');
+                // 清空裡面的日期值
+                const inputs = container.querySelectorAll('input[type="date"]');
+                inputs.forEach(input => input.value = '');
+            } else {
+                container.classList.remove('opacity-40', 'pointer-events-none');
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll('textarea.auto-resize').forEach(autoResize);
+
+            // 點擊 Modal 外部關閉
+            document.getElementById('plan-modal').addEventListener('click', closePlanModal);
+            document.getElementById('edit-history-modal').addEventListener('click', closeHistoryModal);
+            document.getElementById('pet-form-modal').addEventListener('click', closePetFormModal);
+        });
+
+        // 顯示更多
+        function toggleReadMore(textId, btn) {
+            const textElement = document.getElementById(textId);
+            if (textElement.classList.contains('text-clamp')) {
+                textElement.classList.remove('text-clamp');
+                btn.innerHTML = '隱藏內容 <i class="fa-solid fa-chevron-up ml-1"></i>';
+            } else {
+                textElement.classList.add('text-clamp');
+                btn.innerHTML = '顯示更多 <i class="fa-solid fa-chevron-down ml-1"></i>';
+            }
+        }
+
+        // 訂單頁籤切換 (支援保母與客戶版)
+        function toggleOrderTab(tab, role) {
+            const tabs = ['evaluating', 'ongoing', 'history'];
+            const activeColor = role === 'sitter' ? 'text-amber-600 border-amber-500' : 'text-blue-600 border-blue-500';
+
+            tabs.forEach(t => {
+                const btn = document.getElementById(`${role}-tab-${t}`);
+                const content = document.getElementById(`${role}-content-${t}`);
+                if (!btn || !content) return;
+
+                if (t === tab) {
+                    btn.className = `flex-1 pb-2 font-bold ${activeColor} border-b-2 text-sm`;
+                    content.classList.remove('hidden');
+                    content.classList.add('block');
+                } else {
+                    btn.className = `flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent text-sm`;
+                    content.classList.remove('block');
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        // 切換 SOP 頁籤
+        function toggleTab(tab) {
+            const sopBtn = document.getElementById('tab-btn-sop');
+            const mediaBtn = document.getElementById('tab-btn-media');
+            const sopContent = document.getElementById('tab-content-sop');
+            const mediaContent = document.getElementById('tab-content-media');
+
+            if (tab === 'sop') {
+                sopBtn.className = 'flex-1 pb-2 font-bold text-amber-600 border-b-2 border-amber-500';
+                mediaBtn.className = 'flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent';
+                sopContent.classList.remove('hidden');
+            } else {
+                mediaBtn.className = 'flex-1 pb-2 font-bold text-amber-600 border-b-2 border-amber-500';
+                sopBtn.className = 'flex-1 pb-2 font-bold text-gray-500 border-b-2 border-transparent';
+                mediaContent.classList.remove('hidden');
+                sopContent.classList.add('hidden');
+            }
+        }
+
+        function finishService() {
+            alert('任務完成報告已發送給飼主！');
+            switchView('view-dashboard', document.querySelector('#bottomNavSitter .nav-item:nth-child(1)'));
+        }
+
+        // 計算總價
+        function calcTotal() {
+            const baseFeeElement = document.getElementById('base-fee');
+            const baseFee = baseFeeElement ? parseInt(baseFeeElement.getAttribute('data-value')) : 0;
+            const addFee = parseInt(document.getElementById('add-fee')?.value || 0);
+            const discountFee = parseInt(document.getElementById('discount-fee')?.value || 0);
+
+            let total = baseFee + addFee - discountFee;
+            total = total < 0 ? 0 : total;
+
+            const finalTotalElement = document.getElementById('final-total');
+            if (finalTotalElement) finalTotalElement.innerText = '$ ' + total.toLocaleString();
+        }
+
+        // Modal 控制邏輯
+        function openPlanModal() { document.getElementById('plan-modal').classList.add('show'); }
+        function closePlanModal() { document.getElementById('plan-modal').classList.remove('show'); }
+        function confirmPlan() { closePlanModal(); }
+
+        function openHistoryModal() { document.getElementById('edit-history-modal').classList.add('show'); }
+        function closeHistoryModal() { document.getElementById('edit-history-modal').classList.remove('show'); }
+
+        function openPetFormModal() { document.getElementById('pet-form-modal').classList.add('show'); }
+        function closePetFormModal() { document.getElementById('pet-form-modal').classList.remove('show'); }
+
+        // 主視圖切換邏輯
+        function switchView(viewId, navElement = null) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            const targetView = document.getElementById(viewId);
+            if (targetView) {
+                targetView.classList.add('active');
+            }
+
+            // 處理底部導覽列高亮
+            if (navElement) {
+                const currentNavId = currentRole === 'sitter' ? 'bottomNavSitter' : 'bottomNavClient';
+                const activeClass = currentRole === 'sitter' ? 'active' : 'client-active';
+
+                document.querySelectorAll(`#${currentNavId} .nav-item`).forEach(el => {
+                    el.classList.remove('active');
+                    el.classList.remove('client-active');
+                });
+                navElement.classList.add(activeClass);
+
+                // 清除紅點 (保母端或客戶端的通知)
+                if (viewId === 'view-notifications-layer1' || viewId === 'view-client-notifications-layer1') {
+                    const badge = navElement.querySelector('.bg-red-500');
+                    if (badge) badge.style.display = 'none';
+                }
+            }
+
+            // 處理 Header 與佈局
+            const header = document.getElementById('appHeader');
+            const headerTitle = document.getElementById('header-title');
+            const headerRight = document.getElementById('header-right');
+            const bottomNavSitter = document.getElementById('bottomNavSitter');
+            const bottomNavClient = document.getElementById('bottomNavClient');
+            const contentArea = document.getElementById('contentArea');
+
+            // 預設樣式 (保母色)
+            header.style.backgroundColor = '#1e3a8a';
+            header.style.color = 'white';
+            contentArea.style.paddingBottom = '80px';
+
+            // 如果是客戶端視圖，更改 Theme Color 為藍色
+            if (viewId.includes('client') && viewId !== 'view-client-booking') {
+                header.style.backgroundColor = '#1e3a8a';
+            }
+
+            // 動態生成 Header 右側 (切換身份按鈕只在「我的」出現)
+            if (viewId === 'view-my-profile' || viewId === 'view-client-profile') {
+                const toggleText = currentRole === 'sitter' ? '切換為飼主' : '切換為保母';
+                headerRight.innerHTML = `<button onclick="toggleRole()" class="text-xs bg-white/20 px-2.5 py-1.5 rounded-lg border border-white/40 font-bold flex items-center hover:bg-white/30 transition"><i class="fa-solid fa-right-left mr-1.5"></i>${toggleText}</button>`;
+            } else {
+                headerRight.innerHTML = ``;
+            }
+
+            // 設定標題
+            if (viewId === 'view-dashboard') headerTitle.innerHTML = '<span style="color: #fdfbf7;"><i class="fa-solid fa-cat mr-2"></i> WhiskerWatch</span>';
+            else if (viewId === 'view-orders') headerTitle.innerHTML = '<span>訂單中心</span>';
+            else if (viewId === 'view-order-eval') headerTitle.innerHTML = '<span>訂單處理</span>';
+            else if (viewId === 'view-order-task-edit') headerTitle.innerHTML = '<span>編輯任務內容</span>';
+            else if (viewId === 'view-active-service') headerTitle.innerHTML = '<span>執行任務</span>';
+            else if (viewId === 'view-pet-profile' || viewId === 'view-edit-profile') headerTitle.innerHTML = '<span>毛孩資料庫</span>';
+            else if (viewId === 'view-questionnaire') headerTitle.innerHTML = '<span>事前評估</span>';
+            else if (viewId === 'view-trust-circle') headerTitle.innerHTML = '<span>同行互助</span>';
+            else if (viewId === 'view-notifications-layer1') headerTitle.innerHTML = '<span>系統通知</span>';
+            else if (viewId === 'view-notifications-detail') headerTitle.innerHTML = '<span>系統通知</span>';
+            else if (viewId === 'view-my-profile') headerTitle.innerHTML = '<span>保母設定</span>';
+
+            // 客戶端標題
+            else if (viewId === 'view-client-dashboard') headerTitle.innerHTML = '<span style="color: #f59e0b;"><i class="fa-solid fa-house-chimney-user mr-2"></i> WhiskerWatch (客戶端)</span>';
+            else if (viewId === 'view-client-orders') headerTitle.innerHTML = '<span>我的預約紀錄</span>';
+            else if (viewId === 'view-client-sitters') headerTitle.innerHTML = '<span><i class="fa-solid fa-address-book mr-2"></i> 我的保母名單</span>';
+            else if (viewId === 'view-client-eval-detail' || viewId === 'view-client-ongoing-detail') headerTitle.innerHTML = '<span>訂單詳情</span>';
+            else if (viewId === 'view-client-notifications-layer1') headerTitle.innerHTML = '<span>通知中心</span>';
+            else if (viewId === 'view-client-notifications-detail') headerTitle.innerHTML = '<span>通知中心</span>';
+            else if (viewId === 'view-client-profile') headerTitle.innerHTML = '<span>個人與毛孩設定</span>';
+
+            // 預約網頁 (隱藏導覽列)
+            else if (viewId === 'view-client-booking') {
+                headerTitle.innerHTML = '<span class="text-center w-full block">預約到府服務</span>';
+                header.style.backgroundColor = 'white';
+                header.style.color = '#1f2937';
+                headerRight.innerHTML = '';
+                bottomNavSitter.style.display = 'none';
+                bottomNavClient.style.display = 'none';
+                contentArea.style.paddingBottom = '15px';
+                return; // 提早結束，避免下方顯示導覽列
+            }
+
+            // 確保底部導覽列正確顯示
+            if (currentRole === 'sitter') {
+                bottomNavSitter.style.display = 'flex';
+                bottomNavClient.style.display = 'none';
+            } else {
+                bottomNavSitter.style.display = 'none';
+                bottomNavClient.style.display = 'flex';
+            }
+
+            // 若進入需重算的頁面，延遲觸發
+            if (viewId === 'view-my-profile' || viewId === 'view-edit-profile') {
+                setTimeout(() => { document.querySelectorAll('.auto-resize').forEach(autoResize); }, 10);
+            }
+            if (viewId === 'view-order-eval') setTimeout(calcTotal, 10);
+        }
+
+        function submitClientBooking() {
+            alert('✅ 申請已送出！');
+            if (currentRole === 'client') {
+                switchView('view-client-orders', document.querySelector('#bottomNavClient .nav-item:nth-child(2)'));
+            } else {
+                switchView('view-dashboard');
+            }
+        }
+    </script>
+
+</body>
+
+</html>

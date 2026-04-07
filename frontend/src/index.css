@@ -2,14 +2,18 @@
 
 @layer base {
   :root {
-    --background: #f6f7f5;
-    --on-background: #2d2f2e;
+    --background: #ffffff;
+    --on-background: #1a1c1e;
     
-    --surface: #f6f7f5;
-    --on-surface: #2d2f2e;
-    --surface-container-low: #f0f1ef;
+    --surface: #ffffff;
+    --on-surface: #1a1c1e;
+
+    /* Surface Container: 暖色調漸層取代淡灰，在白底上仍有區隔感 */
     --surface-container-lowest: #ffffff;
-    --surface-container-high: #e1e3e1;
+    --surface-container-low: #faf8f5;
+    --surface-container: #f5f2ed;
+    --surface-container-high: #efe9e0;
+    --surface-container-highest: #e8dfd4;
     
     /* Plus Jakarta Sans for Headlines */
     --font-headline: 'Plus Jakarta Sans', sans-serif;
@@ -27,9 +31,12 @@
     --secondary-container: #b3d4ff;
     --on-secondary-container: #004a7e;
 
+    /* Navy Blue — TopBar 用 */
+    --navy: #1e3a8a;
+
     /* Tonal Rules */
-    --outline: #8a8c8a;
-    --outline-variant: #acadac;
+    --outline: #7a7a78;
+    --outline-variant: #c4c0b8;
 
     /* Error */
     --error: #ba1a1a;
@@ -38,8 +45,7 @@
     --on-error-container: #410002;
 
     /* Surface Container (missing mid-level) */
-    --surface-container: #e8eae8;
-    --on-surface-variant: #5a5c5a;
+    --on-surface-variant: #4a4640;
   }
 
   .mode-sitter {
@@ -76,9 +82,11 @@
   --color-on-background: var(--on-background);
   --color-surface: var(--surface);
   --color-on-surface: var(--on-surface);
-  --color-surface-container-low: var(--surface-container-low);
   --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
   --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
 
   --color-primary: var(--primary);
   --color-on-primary: var(--on-primary);
@@ -94,11 +102,13 @@
   --color-error-container: var(--error-container);
   --color-on-error-container: var(--on-error-container);
 
-  --color-surface-container: var(--surface-container);
+  --color-surface-variant: var(--surface-container-high);
   --color-on-surface-variant: var(--on-surface-variant);
 
   --color-secondary: var(--secondary);
   --color-on-secondary: var(--on-secondary);
+
+  --color-navy: var(--navy);
 
   /* Radius Rules from DESIGN.md */
   --radius-default: 1rem;
@@ -107,8 +117,32 @@
 }
 
 @layer components {
+  .bg-surface-container-low {
+    background: linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 100%);
+    border: 1px solid rgba(186, 230, 253, 0.3);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.03);
+  }
+
+  .bg-surface-container {
+    background: linear-gradient(135deg, #e0f2fe 0%, #f3e8ff 100%);
+    border: 1px solid rgba(186, 230, 253, 0.4);
+  }
+
+  .bg-surface-container-high {
+    background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%);
+    border: 1px solid rgba(186, 230, 253, 0.5);
+  }
+
+  .bg-surface-container-highest {
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(30, 58, 138, 0.08);
+  }
+
   .glass-effect {
-    @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 249, 255, 0.8), rgba(245, 243, 255, 0.8));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
   }
 
   .ambient-shadow {

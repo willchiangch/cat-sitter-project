@@ -35,7 +35,7 @@ const PLANS = [
     name: '專業版',
     price: 899,
     period: '/月',
-    color: 'from-primary to-primary/60',
+    color: 'from-[#1e3a8a] to-[#3b82f6]',
     highlight: true,
     features: [
       '接單上限：無限制',
@@ -51,7 +51,7 @@ const PLANS = [
     name: '頂級版',
     price: 1299,
     period: '/月',
-    color: 'from-[#765600] to-[#c69a00]',
+    color: 'from-[#1e3a8a] to-[#7c3aed]',
     highlight: true,
     features: [
       '接單上限：無限制',
@@ -153,7 +153,7 @@ const SubscriptionManagement = () => {
           <button
             onClick={() => setBillingCycle('monthly')}
             className={`flex-1 py-2.5 text-xs font-extrabold uppercase tracking-widest rounded-full transition-all ${
-              billingCycle === 'monthly' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant'
+              billingCycle === 'monthly' ? 'bg-navy text-white shadow-lg shadow-navy/20' : 'text-on-surface-variant'
             }`}
           >
             月繳
@@ -161,7 +161,7 @@ const SubscriptionManagement = () => {
           <button
             onClick={() => setBillingCycle('annual')}
             className={`flex-1 py-2.5 text-xs font-extrabold uppercase tracking-widest rounded-full transition-all relative ${
-              billingCycle === 'annual' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant'
+              billingCycle === 'annual' ? 'bg-navy text-white shadow-lg shadow-navy/20' : 'text-on-surface-variant'
             }`}
           >
             年繳
@@ -182,7 +182,7 @@ const SubscriptionManagement = () => {
                 layout
                 className={`p-6 rounded-[32px] border transition-all ${
                   isCurrent
-                    ? 'bg-primary/5 border-primary/30 ring-2 ring-primary/20'
+                    ? 'bg-navy/5 border-navy/30 ring-2 ring-navy/10'
                     : 'bg-surface-container-low border-outline-variant/10'
                 }`}
               >
@@ -191,11 +191,11 @@ const SubscriptionManagement = () => {
                     <div className="flex items-center gap-2">
                       <h4 className="text-base font-extrabold tracking-tight">{plan.name}</h4>
                       {isCurrent && (
-                        <span className="px-2 py-0.5 bg-primary text-on-primary text-[9px] font-black rounded-full uppercase tracking-widest">目前</span>
+                        <span className="px-2 py-0.5 bg-navy text-white text-[9px] font-black rounded-full uppercase tracking-widest">目前</span>
                       )}
                     </div>
                     <div className="flex items-end gap-1 mt-1">
-                      <span className="text-2xl font-black text-primary">${price}</span>
+                      <span className="text-2xl font-black text-navy">${price}</span>
                       {plan.period && (
                         <span className="text-xs font-bold opacity-40 mb-0.5">
                           {billingCycle === 'annual' ? '/月（年繳）' : plan.period}
@@ -207,7 +207,7 @@ const SubscriptionManagement = () => {
                     <button
                       onClick={() => handleChangePlan(plan.id)}
                       disabled={isChanging === plan.id}
-                      className="px-4 py-2 bg-primary text-on-primary rounded-full text-[10px] font-extrabold uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
+                      className="px-4 py-2 bg-navy text-white rounded-full text-[10px] font-extrabold uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-navy/20"
                     >
                       {isChanging === plan.id ? '切換中...' : '切換'}
                     </button>
@@ -216,7 +216,7 @@ const SubscriptionManagement = () => {
                 <ul className="space-y-1.5">
                   {plan.features.map((f, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs font-bold opacity-60">
-                      <span className="material-symbols-outlined text-sm text-primary">check_circle</span>
+                      <span className="material-symbols-outlined text-sm text-navy">check_circle</span>
                       {f}
                     </li>
                   ))}
