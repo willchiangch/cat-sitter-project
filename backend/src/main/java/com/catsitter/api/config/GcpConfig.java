@@ -13,7 +13,7 @@ import java.io.IOException;
 @Configuration
 public class GcpConfig {
 
-    @Value("${application.storage.gcp.credentials-path:}")
+    @Value("${application.storage.gcp.credentials-path}")
     private String credentialsPath;
 
     @Bean
@@ -21,7 +21,13 @@ public class GcpConfig {
         StorageOptions.Builder optionsBuilder = StorageOptions.newBuilder();
         
         if (credentialsPath != null && !credentialsPath.isEmpty()) {
-            optionsBuilder.setCredentials(GoogleCredentials.fromStream(new FileInputStream(credentialsPath)));
+            java.io.File keyFile = new java.io.File(credentialsPath);
+            if (keyFile.exists()) {
+                optionsBuilder.setCredentials(GoogleCredentials.fromStream(new FileInputStream(credentialsPath)));
+            } else {
+                // 在雲端環境（如 Cloud Run）找不到路徑是正常的，會自動回退到 Default Credentials
+                org.slf4j.LoggerFactory.getLogger(GcpConfig.class).info("GCP Key file not found at {}, using Default Credentials instead.", credentialsPath);
+            }
         }
         
         return optionsBuilder.build().getService();

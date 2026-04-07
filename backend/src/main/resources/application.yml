@@ -60,8 +60,8 @@ application:
     local-path: ./storage/media
     retention-days: 60
     gcp:
-      bucket-name: whiskerwatch-media-uat
-      credentials-path: ${GCP_KEY_PATH:../whiskerwatch-key.json}
+      bucket-name: ${APPLICATION_STORAGE_GCP_BUCKET_NAME:whiskerwatch-media-uat}
+      credentials-path: ${GCP_KEY_PATH:}
 
 springdoc:
   api-docs:
