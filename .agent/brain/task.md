@@ -6,3 +6,15 @@
 - [x] Create `frontend/playwright.cloud.config.ts`
 - [x] Add Cloud Run scripts to `frontend/package.json`
 - [x] Update `README.md` with proxy usage instructions
+- [x] Fix `gcloud` command not found issue
+- [x] Execute E2E tests against Cloud Run (Initial run: 26/30)
+- [x] Enable Mock Auth in `uat` profile and fix UUIDs in `SmokeMockAuthFilter.java` (Partial: Profile enabled)
+- [x] Create `V22__sync_e2e_mock_data.sql` for data seeding (Partial: Schema fixed)
+- [x] Update `playwright.cloud.config.ts` with longer timeouts
+- [x] Finalize progress and ask user to redeploy
+- [x] Execute E2E tests against Cloud Run (Second run: 26/30 - failures found in UUID/Auth mismatch)
+- [x] Universal UUID Alignment: Update `SmokeMockAuthFilter.java` with aliases (SITTER/CLIENT)
+- [x] Universal UUID Alignment: Update `V22__sync_e2e_mock_data.sql` Profile IDs
+- [x] Universal UUID Alignment: Update `AuthPage.js` Mock IDs and Header logic
+- [x] Finalize alignment and ask user for one LAST redeployment
+- [x] Re-run E2E tests (Target: 30/30) - ACHIEVED 100% PASS RATE

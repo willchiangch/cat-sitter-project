@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V21 (新增 Cloud Run Proxy 自動化 E2E 流程 + 修正 visit_services 資料表同步)**
+**目前版本：V22 (實現 Universal UUID 對齊 + Cloud Run Proxy 自動化 E2E 流程 + V22 測試數據同步)**
 
 ---
 
@@ -33,7 +33,7 @@ cat-sitter-project/
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 安全認證 | Spring Security + JWT (Stateless, JJWT) + **X-Smoke-Auth (Mock Auth)** |
-| 資料庫版控| Flyway（Schema V16: 黑名單、訂閱方案代碼 plan_code、服務生效日期 effective_date） |
+| 資料庫版控| Flyway（Schema V22: E2E 測試數據同步、UUID 大統一、白名單預設資料） |
 
 ---
 
@@ -100,8 +100,9 @@ npx playwright test    # 執行所有 POM 化後的 E2E 腳本
 
 #### 4. Cloud Run Proxy 驗證 (UAT)
 若要針對已部署的 Cloud Run 執行 E2E 測試（需身份驗證）：
-1. 確保 `.env` 中的 `GCP_PROJECT_ID` 已填寫正確專案 ID。
-2. 執行：
+1. 確保已安裝 `cloud-run-proxy` 組件 (`gcloud components install cloud-run-proxy`)。
+2. 確保 `.env` 中的 `GCP_PROJECT_ID` 與 `GCLOUD_BIN_PATH` 已填寫正確（參考 `.env.example`）。
+3. 執行：
    ```bash
    cd frontend
    npm run test:e2e:cloud  # 自動啟動 Proxy 並執行測試

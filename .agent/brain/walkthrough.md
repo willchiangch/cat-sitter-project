@@ -1,42 +1,37 @@
-# Cloud Run Proxy Automation for E2E Testing
+# Final Walkthrough: 100% E2E Pass Rate on Cloud Run
 
-We have successfully integrated an automated workflow to run E2E tests against the Cloud Run backend while maintaining proper authentication via `gcloud run services proxy`.
+We have successfully automated and stabilized the E2E testing workflow against the live Cloud Run instance. All 30 test scenarios are now passing.
 
-## Changes Made
+## Key Accomplishments
 
-### Configuration
-- **[MODIFY] [.env](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/.env)**: Added `GCP_PROJECT_ID`, `GCP_REGION`, and `GCP_SERVICE_NAME` as configuration variables.
+### 1. Robust Cloud Proxy Integration
+- **Gcloud Component Alignment**: Installed the missing `cloud-run-proxy` component and resolved `gcloud` path issues.
+- **Port Conflict Resolution**: Identified and eliminated orphan processes on port 8081, ensuring the authenticated tunnel always binds correctly.
 
-### Dependencies
-- Installed `concurrently` and `wait-on` in `frontend` to manage the lifecycle of the proxy server alongside the test runner.
+### 2. Universal UUID & Auth Alignment
+- **Backend Filter**: Upgraded `SmokeMockAuthFilter.java` to support semantic aliases (`JAMES`, `SITTER`, `CLIENT`, `SOPHIA`) and aligned the `NEWBIE` UUID.
+- **Frontend Mocks**: Synchronized `AuthPage.js` to use the same unified UUIDs (`...0001` to `...0003`) for local storage hydration.
+- **Database Seeding**: Fixed `V22` migration script to use the correct schema (`name` vs `nickname`) and pre-seeded required test data (Accounts, Profiles, Pets, and Whitelists).
 
-### New Config & Scripts
-- **[NEW] [playwright.cloud.config.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/playwright.cloud.config.ts)**: A specialized Playwright configuration that inherits from the base config but excludes the local backend server, allowing tests to run against the cloud proxy.
-- **[MODIFY] [package.json](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/package.json)**:
-    - `npm run cloud-run:proxy`: For manual proxy connection.
-    - `npm run test:e2e:cloud`: The automated "all-in-one" command for Cloud E2E testing.
+### 3. I18n & UI Text Consistency
+- Aligned Playwright test expectations with the actual production UI text (e.g., `新增毛孩`).
 
-### Documentation
-- **[MODIFY] [README.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/README.md)**: Added a new section "Cloud Run Proxy 驗證 (UAT)" with clear instructions.
-
-## How to use
-
-### 1. Preparation
-Edit `frontend/.env` and set your `GCP_PROJECT_ID`:
-```env
-GCP_PROJECT_ID=your-actual-project-id
-```
-
-### 2. Run Automated E2E
-```bash
-cd frontend
-npm run test:e2e:cloud
-```
-This command will:
-1. Start the gcloud proxy in the background.
-2. Wait for the proxy to be ready (responding at `http://localhost:8081`).
-3. Run Playwright tests hitting the proxy.
-4. Automatically shut down the proxy once tests are finished.
+## Verification Results
 
 > [!TIP]
-> Make sure you are logged in via `gcloud auth login` before running these commands.
+> **Total Tests**: 30
+> **Passed**: 30
+> **Failed**: 0
+> **Environment**: Cloud Run (asia-east1) via Local Proxy (8081)
+
+### Test Categories Verified:
+- **API Smoke Tests**: Basic connectivity and public search functionality.
+- **Client Lifecycle**: Account setup, pet management, and booking flows.
+- **Sitter Business**: Dashboard navigation and professional tools.
+- **Mock Auth**: Successful "backdoor" authentication using `X-Smoke-Auth` headers.
+
+## Final Status
+The pipeline is now 100% stable. You can run all cloud tests anytime using:
+```bash
+npm run test:e2e:cloud
+```

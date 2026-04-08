@@ -1,40 +1,36 @@
-# Automation of Cloud Run Proxy for E2E Testing
+# Universal UUID Alignment for E2E Pass Rate
 
-This plan adds scripts to automate starting the Google Cloud Run proxy when running E2E tests locally. This ensures that tests run against the live Cloud Run instance while maintaining security (authentication).
+The system currently has major UUID discrepancies between the Frontend test mocks (`AuthPage.js`), the Backend security filter (`SmokeMockAuthFilter.java`), and the Database seed data (`V22`). This causes 401 Unauthorized errors and "data not found" (like missing Fluffy) during E2E runs.
 
 ## Proposed Changes
 
-### Configuration
+### 1. Unified ID Specification
+To ensure absolute alignment, everything will use these exact IDs:
+- **Sophia (SITTER)**: Account `efefefef-...-0001` / Profile `efefefef-...-0001`
+- **James (CLIENT)**: Account `efefefef-...-0002` / Profile `efefefef-...-0002`
+- **Newbie**: Account `efefefef-...-0003`
 
-#### [MODIFY] [.env](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/.env)
-Add a new variable for the GCP Project ID to be used by the scripts.
-- `GCP_PROJECT_ID=your-project-id-here`
+### 2. Backend Logic Update
+#### [MODIFY] [SmokeMockAuthFilter.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/security/SmokeMockAuthFilter.java)
+- Align `NEWBIE` to `...0003`.
+- Add support for `CLIENT` header as an alias for `JAMES`.
+- Add support for `SOPHIA` header as an alias for `SITTER`.
 
-### Dependencies
+### 3. Database Seeding Update
+#### [MODIFY] [V22__sync_e2e_mock_data.sql](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/resources/db/migration/V22__sync_e2e_mock_data.sql)
+- Ensure James Profile uses `...0002`.
+- Ensure Sophia Profile uses `...0001`.
+- Ensure James's pet "Fluffy" is correctly associated with Profile `...0002`.
 
-#### [MODIFY] package.json (frontend)
-Install development dependencies:
-- `npm install -D concurrently wait-on`
-
-### Scripts
-
-#### [MODIFY] [package.json](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/package.json)
-Add the following scripts:
-- `cloud-run:proxy`: Starts the gcloud proxy manually.
-- `test:e2e:cloud`: Automates "Start Proxy -> Wait for Proxy -> Run Playwright -> Stop Proxy".
-
-### Playwright Configuration
-
-#### [NEW] [playwright.cloud.config.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/playwright.cloud.config.ts)
-Create a specialized configuration for Cloud Run testing that:
-- Inherits from the base configuration.
-- Disables the local backend `webServer` to avoid port conflicts and ensure we test against the proxy.
+### 4. Frontend Test Utility Update
+#### [MODIFY] [AuthPage.js](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/tests/pages/AuthPage.js)
+- Update `injectSmokeAuth` to use the unified IDs (`...0001`, `...0002`, `...0003`).
+- Ensure `profiles` arrays in the mock state match the new unified Profile IDs.
+- Ensure `headers['X-Smoke-Auth']` uses values recognized by the backend.
 
 ## Verification Plan
 
 ### Automated Tests
-- Run `npm run test:e2e:cloud` and verify it correctly starts the proxy and tries to run tests.
-- (Manual check) Verify `npm run cloud-run:proxy` starts the proxy as expected.
-
-### Manual Verification
-- User to fill in the `GCP_PROJECT_ID` in `.env` and run the script.
+- Redeploy Backend to Cloud Run.
+- Run `npm run test:e2e:cloud`.
+- Expected: 30/30 passed.
