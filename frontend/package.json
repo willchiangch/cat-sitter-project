@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "cloud-run:proxy": "source .env && ${GCLOUD_BIN_PATH:-gcloud} run services proxy $GCP_SERVICE_NAME --region $GCP_REGION --project $GCP_PROJECT_ID --port 8081",
+    "test:e2e:cloud": "concurrently -k -s first \"npm run cloud-run:proxy\" \"wait-on http://localhost:8081/v3/api-docs && playwright test --config=playwright.cloud.config.ts\"",
     "api:fetch": "curl -sf http://localhost:8081/v3/api-docs -o ../backend/openapi.json",
     "api:generate": "openapi-ts",
     "api:sync": "npm run api:fetch && npm run api:generate"
@@ -38,6 +40,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@hey-api/client-axios": "^0.7.0",
+    "@hey-api/openapi-ts": "^0.73.0",
     "@playwright/browser-chromium": "^1.58.2",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.2.1",
@@ -49,6 +53,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -58,7 +63,6 @@
     "tailwindcss": "^4.2.1",
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0",
-    "@hey-api/openapi-ts": "^0.73.0",
-    "@hey-api/client-axios": "^0.7.0"
+    "wait-on": "^9.0.4"
   }
 }

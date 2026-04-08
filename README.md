@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V16 (Profile 全面重構 + 後端 API 完整同步 — 黑名單 / 訂閱管理 / 服務方案日期欄位)**
+**目前版本：V21 (新增 Cloud Run Proxy 自動化 E2E 流程 + 修正 visit_services 資料表同步)**
 
 ---
 
@@ -98,7 +98,17 @@ cd frontend
 npx playwright test    # 執行所有 POM 化後的 E2E 腳本
 ```
 
-#### 4. 後端單元與冒煙測試
+#### 4. Cloud Run Proxy 驗證 (UAT)
+若要針對已部署的 Cloud Run 執行 E2E 測試（需身份驗證）：
+1. 確保 `.env` 中的 `GCP_PROJECT_ID` 已填寫正確專案 ID。
+2. 執行：
+   ```bash
+   cd frontend
+   npm run test:e2e:cloud  # 自動啟動 Proxy 並執行測試
+   ```
+   *註：此腳本會自動結束 Proxy 進程，無需手動關閉。*
+
+#### 5. 後端單元與冒煙測試
 ```bash
 cd backend
 ./mvnw test            # 全體測試

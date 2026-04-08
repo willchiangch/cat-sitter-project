@@ -23,7 +23,7 @@ import java.util.UUID;
  * if no other authentication is present. This allows E2E tests to bypass registration/login.
  */
 @Component
-@Profile("smoke")
+@Profile({"smoke", "uat"})
 public class SmokeMockAuthFilter extends OncePerRequestFilter {
 
     private final AccountRepository accountRepository;
@@ -45,8 +45,8 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
                 // James Wilson (Client)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000002");
             } else if ("NEWBIE".equalsIgnoreCase(mockUser)) {
-                // New User (No profiles yet) — dedicated account with no profiles and null lastActiveRole
-                accountId = UUID.fromString("efefefef-0000-0000-0000-000000000004");
+                // New User (No profiles yet) — aligned with V14 migration
+                accountId = UUID.fromString("efefefef-0000-0000-0000-000000000003");
             } else if ("SITTER".equalsIgnoreCase(mockUser)) {
                 // Sophia (Sitter)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000001");
