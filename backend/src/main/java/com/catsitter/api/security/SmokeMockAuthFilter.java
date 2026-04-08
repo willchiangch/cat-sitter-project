@@ -41,13 +41,13 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
             UUID accountId;
             
             System.out.println("SmokeMockAuthFilter triggered for user: " + mockUser);
-            if ("JAMES".equalsIgnoreCase(mockUser)) {
+            if ("JAMES".equalsIgnoreCase(mockUser) || "CLIENT".equalsIgnoreCase(mockUser)) {
                 // James Wilson (Client)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000002");
             } else if ("NEWBIE".equalsIgnoreCase(mockUser)) {
                 // New User (No profiles yet) — aligned with V14 migration
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000003");
-            } else if ("SITTER".equalsIgnoreCase(mockUser)) {
+            } else if ("SOPHIA".equalsIgnoreCase(mockUser) || "SITTER".equalsIgnoreCase(mockUser)) {
                 // Sophia (Sitter)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000001");
             } else {

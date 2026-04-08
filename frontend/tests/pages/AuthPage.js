@@ -39,11 +39,11 @@ export class AuthPage {
             isAuthenticated: true,
             user: {
               id: 'efefefef-0000-0000-0000-000000000002',
-              email: 'client_smoke@test.com',
+              email: 'james@example.com',
               role: 'CLIENT',
               lastActiveRole: 'CLIENT',
               profiles: [
-                { id: 'efefefef-0000-0000-0000-000000000012', role: 'CLIENT', name: 'James (Smoke Test)' }
+                { id: 'efefefef-0000-0000-0000-000000000002', role: 'CLIENT', name: 'James Wilson' }
               ]
             }
           },
@@ -60,15 +60,15 @@ export class AuthPage {
             token: 'smoke-test-token',
             isAuthenticated: true,
             user: {
-              id: isNewbie ? 'efefefef-0000-0000-0000-000000000004' : 'efefefef-0000-0000-0000-000000000001',
-              email: isNewbie ? 'newbie_smoke@test.com' : 'sitter_smoke@test.com',
+              id: isNewbie ? 'efefefef-0000-0000-0000-000000000003' : 'efefefef-0000-0000-0000-000000000001',
+              email: isNewbie ? 'newbie@example.com' : 'sophia@example.com',
               role: isNewbie ? 'NEWBIE' : 'SITTER',
               lastActiveRole: isNewbie ? null : 'SITTER',
               profiles: isNewbie ? [] : [
                 {
-                  id: 'efefefef-0000-0000-0000-000000000011',
+                  id: 'efefefef-0000-0000-0000-000000000001',
                   role: 'SITTER',
-                  name: 'Sophia (Smoke Test)'
+                  name: 'Sophia Sitter'
                 }
               ]
             }
@@ -108,10 +108,10 @@ export class AuthPage {
           isAuthenticated: true,
           user: {
             id: 'efefefef-0000-0000-0000-000000000002',
-            email: 'client_smoke@test.com',
+            email: 'james@example.com',
             role: 'CLIENT',
             lastActiveRole: 'CLIENT',
-            profiles: [{ id: 'efefefef-0000-0000-0000-000000000012', role: 'CLIENT', name: 'James (Smoke Test)' }]
+            profiles: [{ id: 'efefefef-0000-0000-0000-000000000002', role: 'CLIENT', name: 'James Wilson' }]
           }
         },
         version: 0
