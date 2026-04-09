@@ -36,6 +36,13 @@ public class AuthController {
     return ResponseEntity.ok(authService.getMe(account));
   }
 
+  @PutMapping("/me/email")
+  public ResponseEntity<AuthMeResponse> updateEmail(
+          @AuthenticationPrincipal Account account,
+          @Valid @RequestBody UpdateEmailRequest request) {
+    return ResponseEntity.ok(authService.updateEmail(account, request.email()));
+  }
+
   @PostMapping("/switch-role")
   public ResponseEntity<AuthMeResponse> switchRole(
           @AuthenticationPrincipal Account account,

@@ -25,6 +25,7 @@ public class AuthService {
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
   private final AuthenticationManager authenticationManager;
+  private final EmailVerificationService emailVerificationService;
 
   @Value("${application.jwt.expiration}")
   private long jwtExpiration;
@@ -34,13 +35,30 @@ public class AuthService {
           ProfileRepository profileRepository,
           PasswordEncoder passwordEncoder,
           JwtService jwtService,
-          AuthenticationManager authenticationManager
+          AuthenticationManager authenticationManager,
+          EmailVerificationService emailVerificationService
   ) {
     this.accountRepository = accountRepository;
     this.profileRepository = profileRepository;
     this.passwordEncoder = passwordEncoder;
     this.jwtService = jwtService;
     this.authenticationManager = authenticationManager;
+    this.emailVerificationService = emailVerificationService;
+  }
+
+  @Transactional
+  public com.catsitter.api.dto.auth.AuthMeResponse updateEmail(Account account, String newEmail) {
+    if (accountRepository.findByEmail(newEmail).isPresent() && !account.getEmail().equals(newEmail)) {
+      throw new RuntimeException("Email is already taken by another account");
+    }
+
+    account.setEmail(newEmail);
+    account.setEmailVerified(false);
+    accountRepository.save(account);
+
+    emailVerificationService.sendVerificationCode(account);
+
+    return getMe(account);
   }
 
   @Transactional

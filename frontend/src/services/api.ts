@@ -152,6 +152,9 @@ export const calendarService = {
 // --- Auth Services ---
 export const authService = {
   getMe: () => api.get('/auth/me').then(res => res.data),
+  register: (data) => api.post('/auth/register', data).then(res => res.data),
+  login: (data) => api.post('/auth/login', data).then(res => res.data),
+  updateEmail: (email) => api.put('/auth/me/email', { email }).then(res => res.data),
   switchRole: (roleType) => api.post('/auth/switch-role', { roleType }).then(res => res.data),
   requestVerification: () => api.post('/auth/request-verification').then(res => res.data),
   verifyEmail: (code) => api.post('/auth/verify-email', { code }).then(res => res.data),

@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
-import { profileService, storageService, calendarService, petService } from '../../services/api'
+import { profileService, storageService, calendarService, petService, authService } from '../../services/api'
 import PetFormModal from '../../components/client/PetFormModal'
+import DevAuthTools from '../../components/DevAuthTools'
 
 const Profile = () => {
   const user = useAuthStore((state) => state.user)
@@ -39,6 +40,11 @@ const Profile = () => {
   const [editSitterName, setEditSitterName] = useState('')
   const [isSavingSitterName, setIsSavingSitterName] = useState(false)
   const [profileSaveError, setProfileSaveError] = useState('')
+  const [showEmailEdit, setShowEmailEdit] = useState(false)
+  const [editEmail, setEditEmail] = useState('')
+  const [isSavingEmail, setIsSavingEmail] = useState(false)
+  const [emailSaveError, setEmailSaveError] = useState('')
+  const [emailSuccessMessage, setEmailSuccessMessage] = useState('')
   
   useEffect(() => {
     const fetchData = async () => {
@@ -191,6 +197,35 @@ const Profile = () => {
     if (ok) setShowSitterNameEdit(false)
   }
 
+  const openEmailEdit = () => {
+    setEditEmail(user?.email || '')
+    setEmailSaveError('')
+    setEmailSuccessMessage('')
+    setShowEmailEdit(true)
+  }
+
+  const handleSaveEmail = async () => {
+    if (!editEmail.trim() || !editEmail.includes('@')) {
+      setEmailSaveError('請輸入有效的電子郵件地址')
+      return
+    }
+    setIsSavingEmail(true)
+    setEmailSaveError('')
+    try {
+      await authService.updateEmail(editEmail.trim())
+      setEmailSuccessMessage('Email 已更新！驗證信已寄出，請檢查您的新信箱。')
+      setTimeout(() => {
+        setShowEmailEdit(false)
+        window.location.reload() // Reload to refresh user info in store
+      }, 3000)
+    } catch (e) {
+      console.error('Save email failed:', e)
+      setEmailSaveError(e.response?.data?.message || '儲存失敗，該 Email 可能已被使用')
+    } finally {
+      setIsSavingEmail(false)
+    }
+  }
+
   const handleConnectCalendar = async () => {
     try {
       const { url } = await calendarService.getAuthUrl()
@@ -270,6 +305,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface pb-32">
+      <DevAuthTools />
 
 
       {/* Header with Avatar */}
@@ -348,9 +384,6 @@ const Profile = () => {
             </div>
           </section>
         )}
-
-        {/* SaaS Tier Card (Sitter only) */}
-
 
         <div className="space-y-8">
           {/* Business Tools — shown for all sitters regardless of sitterData load status */}
@@ -615,6 +648,7 @@ const Profile = () => {
                 icon="alternate_email"
                 label="電子郵件"
                 value={user?.email}
+                onClick={openEmailEdit}
               />
             </SettingsSection>
             </>
@@ -662,7 +696,7 @@ const Profile = () => {
           {isSitter && (
             <SettingsSection title="帳號與安全">
               <SettingsItem icon="person" label="顯示名稱" value={sitterData?.name || user?.profiles?.[0]?.name || user?.name || '未設定'} onClick={openSitterNameEdit} />
-              <SettingsItem icon="alternate_email" label="電子郵件" value={user?.email} />
+              <SettingsItem icon="alternate_email" label="電子郵件" value={user?.email} onClick={openEmailEdit} />
             </SettingsSection>
           )}
 
@@ -791,10 +825,6 @@ const Profile = () => {
                     className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">電子郵件</label>
-                  <p className="px-5 py-3.5 text-sm font-bold text-on-surface-variant/50">{user?.email}</p>
-                </div>
               </div>
               {profileSaveError && <p className="text-xs font-bold text-error">{profileSaveError}</p>}
               <div className="flex gap-3">
@@ -844,6 +874,53 @@ const Profile = () => {
                   {isSavingSitterName ? '儲存中...' : '儲存'}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Email Edit Modal */}
+      <AnimatePresence>
+        {showEmailEdit && (
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { if (!isSavingEmail) setShowEmailEdit(false) }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+              className="relative w-full max-w-lg bg-surface rounded-[40px] p-8 shadow-2xl space-y-6"
+            >
+              <h3 className="text-2xl font-black font-headline tracking-tighter">更改電子郵件</h3>
+              {emailSuccessMessage ? (
+                <div className="p-4 bg-primary/10 rounded-2xl border border-primary/20">
+                  <p className="text-sm font-bold text-primary">{emailSuccessMessage}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">新電子郵件地址</label>
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={e => setEditEmail(e.target.value)}
+                      placeholder="example@mail.com"
+                      className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <p className="text-xs font-bold opacity-40">更改後，系統將寄出驗證信，您需要重新驗證新信箱。</p>
+                </div>
+              )}
+              {emailSaveError && <p className="text-xs font-bold text-error">{emailSaveError}</p>}
+              {!emailSuccessMessage && (
+                <div className="flex gap-3">
+                  <button onClick={() => setShowEmailEdit(false)} className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-bold hover:bg-surface-container transition-colors">取消</button>
+                  <button onClick={handleSaveEmail} disabled={isSavingEmail} className="flex-1 py-4 bg-primary text-on-primary rounded-full font-bold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all">
+                    {isSavingEmail ? '儲存中...' : '儲存'}
+                  </button>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

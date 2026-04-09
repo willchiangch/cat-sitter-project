@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
 import api from '../../services/api'
+import DevAuthTools from '../../components/DevAuthTools'
 
 const Login = () => {
   const { t } = useTranslation()
@@ -45,6 +46,7 @@ const Login = () => {
 
   return (
     <div className={`min-h-screen ${mode === 'SITTER' ? 'mode-sitter' : 'mode-client'} bg-surface flex flex-col items-center justify-center p-6`}>
+      <DevAuthTools />
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -143,45 +145,6 @@ const Login = () => {
               </svg>
               使用 Facebook 繼續
             </button>
-            
-            {/* Demo Login for Testing (Only when password login is disabled to facilitate UAT manual testing) */}
-            {!enablePasswordLogin && (
-              <button 
-                type="button"
-                onClick={async () => {
-                  console.log('Demo Login Clicked');
-                  setLoading(true);
-                  setError('');
-                  try {
-                    const resp = await api.post('/auth/login', { 
-                      email: 'sitter_smoke@test.com', 
-                      password: 'password123' 
-                    });
-                    const { accessToken } = resp.data;
-                    const userRes = await api.get('/auth/me', { 
-                      headers: { Authorization: `Bearer ${accessToken}` } 
-                    });
-                    const rawUser = userRes.data;
-                    const user = {
-                      ...rawUser,
-                      role: rawUser.lastActiveRole,
-                      name: rawUser.profiles?.[0]?.name || 'Demo Sitter'
-                    };
-                    setAuth(user, accessToken);
-                    navigate('/');
-                  } catch (err) {
-                    console.error('Demo Login Error:', err);
-                    setError('Demo Login Failed: ' + (err.response?.data?.message || err.message));
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="mt-8 flex items-center justify-center gap-3 w-full py-4 rounded-full bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/10 active:scale-95 cursor-pointer transition-all text-[11px] font-bold border border-on-surface/10 uppercase tracking-widest"
-              >
-                <span className="material-symbols-outlined text-sm">terminal</span>
-                [開發測試] 快速登入為保母
-              </button>
-            )}
           </div>
         </div>
 
