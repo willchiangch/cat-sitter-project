@@ -62,7 +62,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
       .authorizeHttpRequests(req -> {
-              req.requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+              req.requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/register/", "/api/v1/auth/login/").permitAll()
                        .requestMatchers("/api/v1/sitters/{slug}/availability/public").permitAll()
                        .requestMatchers("/api/v1/sitters/{slug}/booking-preview").permitAll()
                        .requestMatchers("/api/v1/calendar/feed/**").permitAll()
