@@ -17,7 +17,8 @@ const Login = () => {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
   const { mode } = useThemeStore()
-  const enablePasswordLogin = import.meta.env.VITE_ENABLE_PASSWORD_LOGIN !== 'false'
+  // Force enable password login for UAT testing efficiency
+  const enablePasswordLogin = true
 
   const handleLogin = async (e) => {
     e.preventDefault()

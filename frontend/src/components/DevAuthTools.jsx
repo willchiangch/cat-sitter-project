@@ -7,7 +7,7 @@ const DevAuthTools = () => {
   
   const injectAuth = (type) => {
     // These IDs are aligned with SmokeMockAuthFilter.java
-    const id = type === 'SOP' ? '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000002'
+    const id = type === 'SOP' ? 'efefefef-0000-0000-0000-000000000001' : 'efefefef-0000-0000-0000-000000000002'
     localStorage.setItem('whiskerwatch-smoke-auth', type === 'SOP' ? 'SITTER' : 'CLIENT')
     localStorage.setItem('whiskerwatch-auth-storage', JSON.stringify({
       state: {
@@ -21,7 +21,8 @@ const DevAuthTools = () => {
         isAuthenticated: true
       }
     }))
-    window.location.reload()
+    // Redirect to home/dashboard which will then handle route guarding
+    window.location.href = '/'
   }
 
   const registerRandomClient = async () => {
@@ -32,40 +33,27 @@ const DevAuthTools = () => {
     
     try {
       console.log('Dev Registering:', email)
-      const res = await authService.completeOnboarding({
-        email,
-        password,
-        displayName,
-        roleType: 'CLIENT'
-      })
-      // The register/completeOnboarding logic in AuthService returns token or response
-      // But wait, the standard register flow is better here.
-      // Let's use the register endpoint directly via axios mock or api.
-      
-      // I'll call the standard axios instance to be safe
+      // Call register WITHOUT roleType to force onboarding flow
       const regRes = await authService.register({
         email,
         password,
         displayName,
-        roleType: 'CLIENT'
+        roleType: null // No role yet!
       })
       
-      // Save to store and reload
-      // The regRes usually contains { accessToken, refreshToken, expiresIn }
-      // We need to fetch 'me' to get the user object
-      // But for simplicity in DevTools, we can just trigger login with the new credentials
-      // OR manually set the storage. Let's do a real register + reload to the login page with prefill OR auto inject.
+      console.log('Dev Register Success:', regRes)
       
-      // Best way: Register and then inject the new info
-      localStorage.removeItem('whiskerwatch-smoke-auth') // Ensure we use real token
+      // Clear injection flags and set the real session info
+      localStorage.removeItem('whiskerwatch-smoke-auth')
       localStorage.setItem('whiskerwatch-auth-storage', JSON.stringify({
         state: {
-          user: { id: 'temp', email, name: displayName, lastActiveRole: 'CLIENT' },
+          user: { id: 'temp', email, name: displayName, lastActiveRole: null },
           token: regRes.accessToken,
           isAuthenticated: true
         }
       }))
-      window.location.href = '/profile'
+      // Redirect to onboarding specifically
+      window.location.href = '/onboarding'
     } catch (e) {
       console.error('Dev Register Failed:', e)
       alert('註冊失敗：' + (e.response?.data?.message || e.message))
@@ -79,8 +67,8 @@ const DevAuthTools = () => {
       <button onClick={() => injectAuth('JAM')} className="px-3 py-1.5 bg-[#f59e0b] text-white text-[10px] font-bold rounded-lg hover:bg-[#f59e0b]/80 transition-colors">Switch JAMES</button>
       <div className="h-px bg-white/10 my-1" />
       <button onClick={registerRandomClient} className="px-3 py-1.5 bg-green-600 text-white text-[10px] font-bold rounded-lg hover:bg-green-500 transition-colors">
-        + New Client User
-        <br/><span className="opacity-50">(Pass: 1qaz@WSX)</span>
+        + Register New User
+        <br/><span className="opacity-50">(Flow: Onboarding)</span>
       </button>
     </div>
   )

@@ -27,6 +27,7 @@ import QuestionnaireEditor from './pages/Sitter/QuestionnaireEditor'
 import ClientOrders from './pages/Client/Orders'
 import CalendarSyncResult from './pages/Sitter/CalendarSyncResult'
 import SitterPublicPage from './pages/Public/SitterPublicPage'
+import ProtectedRoute from './components/auth/ProtectedRoute'
 import { useLocation } from 'react-router-dom'
 
 const OnboardingRedirect = () => {
@@ -42,24 +43,27 @@ const OnboardingRedirect = () => {
 function App() {
   const { isAuthenticated, user } = useAuthStore()
 
-  // Onboarding awareness: if authenticated but no profiles, redirect to onboarding
+  // Onboarding awareness: if authenticated but no profiles OR no lastActiveRole, redirect to onboarding
   // except if already on onboarding/login/register paths
-  const needsOnboarding = isAuthenticated && (!user?.profiles || user.profiles.length === 0)
+  const needsOnboarding = isAuthenticated && (!user?.profiles || user.profiles.length === 0 || !user?.lastActiveRole)
 
   return (
     <BrowserRouter>
       {needsOnboarding && <OnboardingRedirect />}
       <Routes>
-        {/* Main Application Flow */}
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={isAuthenticated ? <Navigate to="/sitter" replace /> : <Navigate to="/login" replace />} />
+        {/* Main Application Flow - PROTECTED */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={user?.lastActiveRole === 'SITTER' ? <Navigate to="/sitter" replace /> : <Navigate to="/client" replace />} />
           <Route path="sitter" element={<SitterDashboard />} />
           <Route path="sitter/service/:id" element={<ServicePanel />} />
           <Route path="sitter/orders" element={<SitterOrders />} />
           <Route path="sitter/orders/:orderId" element={<SitterOrderDetail />} />
           <Route path="client" element={<ClientDashboard />} />
           <Route path="client/service-log/:id" element={<ServiceLogDetails />} />
-          <Route path="client/cat-passport/:id" element={<CatPassport />} />
           <Route path="client/cat-passport/:id" element={<CatPassport />} />
           <Route path="client/pets" element={<Pets />} />
           <Route path="client/sitters" element={<ClientSitters />} />

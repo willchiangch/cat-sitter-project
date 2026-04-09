@@ -74,14 +74,16 @@ public class AuthService {
     account.setStatus(AccountStatus.ACTIVE);
     account = accountRepository.save(account);
 
-    Profile profile = new Profile();
-    profile.setAccount(account);
-    profile.setName(request.displayName());
-    profile.setRoleType(request.roleType());
-    profileRepository.save(profile);
+    if (request.roleType() != null) {
+      Profile profile = new Profile();
+      profile.setAccount(account);
+      profile.setName(request.displayName());
+      profile.setRoleType(request.roleType());
+      profileRepository.save(profile);
 
-    account.setLastActiveRole(request.roleType());
-    accountRepository.save(account);
+      account.setLastActiveRole(request.roleType());
+      accountRepository.save(account);
+    }
 
     String jwtToken = jwtService.generateToken(account);
     String refreshToken = jwtService.generateRefreshToken(account);
