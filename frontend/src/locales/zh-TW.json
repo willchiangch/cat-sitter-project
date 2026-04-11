@@ -75,12 +75,16 @@
     "upcoming_schedule": "後續行程預覽",
     "view_sop": "查看 SOP/註記",
     "service_panel": "進入服務面板",
-    "status_active_soon": "準備開始"
+    "status_active_soon": "準備開始",
+    "no_visits_today": "今日無預約行程",
+    "loading_greeting": "歡迎回來",
+    "unknown_user": "使用者"
   },
   "client": {
     "greeting": "您好，{{name}}",
+    "greeting_loading": "歡迎回來",
     "today_is": "今天是 {{date}}",
-    "cat_passport": "貓咪護照",
+    "pet_passport": "寵物護照",
     "service_log": "服務日誌",
     "vault": "保險箱",
     "activity": "動態",

@@ -50,10 +50,14 @@ public class JwtService {
           UserDetails userDetails,
           long expiration
   ) {
+    String subject = (userDetails instanceof com.catsitter.api.entity.Account) 
+            ? ((com.catsitter.api.entity.Account) userDetails).getId().toString() 
+            : userDetails.getUsername();
+
     return Jwts
             .builder()
             .claims(extraClaims)
-            .subject(userDetails.getUsername())
+            .subject(subject)
             .issuedAt(new Date(System.currentTimeMillis()))
             .expiration(new Date(System.currentTimeMillis() + expiration))
             .signWith(getSignInKey())
@@ -61,12 +65,36 @@ public class JwtService {
   }
 
   public boolean isTokenValid(String token, UserDetails userDetails) {
-    final String username = extractUsername(token);
-    return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    try {
+      final String subject = extractUsername(token);
+      String userIdentifier = (userDetails instanceof com.catsitter.api.entity.Account)
+              ? ((com.catsitter.api.entity.Account) userDetails).getId().toString()
+              : userDetails.getUsername();
+              
+      boolean isExpired = isTokenExpired(token);
+      boolean matches = subject.equals(userIdentifier);
+      
+      if (!matches || isExpired) {
+        System.out.println("[JWT-DEBUG] Token validation failed!");
+        System.out.println("  - Subject: " + subject);
+        System.out.println("  - UserID : " + userIdentifier);
+        System.out.println("  - Expired: " + isExpired);
+      }
+      
+      return matches && !isExpired;
+    } catch (Exception e) {
+      System.err.println("[JWT-DEBUG] Token validation error: " + e.getMessage());
+      return false;
+    }
   }
 
   private boolean isTokenExpired(String token) {
-    return extractExpiration(token).before(new Date());
+    try {
+      return extractExpiration(token).before(new Date());
+    } catch (Exception e) {
+      System.err.println("[JWT-DEBUG] Expiration check failed: " + e.getMessage());
+      return true;
+    }
   }
 
   private Date extractExpiration(String token) {

@@ -1,37 +1,29 @@
-# Final Walkthrough: 100% E2E Pass Rate on Cloud Run
+# 寵物資料與 UI 優化完成報告
 
-We have successfully automated and stabilized the E2E testing workflow against the live Cloud Run instance. All 30 test scenarios are now passing.
+我已經完成了媒體服務修復、寵物資料擴充以及驗證介面的優化。
 
-## Key Accomplishments
+## 主要變更內容
 
-### 1. Robust Cloud Proxy Integration
-- **Gcloud Component Alignment**: Installed the missing `cloud-run-proxy` component and resolved `gcloud` path issues.
-- **Port Conflict Resolution**: Identified and eliminated orphan processes on port 8081, ensuring the authenticated tunnel always binds correctly.
+### 1. 媒體服務修復 (解決 500/ECONNREFUSED)
+- **修正 Vite Proxy**：將 `vite.config.js` 中的代理連接埠從 `8081` 修正為 `8080`。這解決了圖片載入時發生的「找不到後端」錯誤。
 
-### 2. Universal UUID & Auth Alignment
-- **Backend Filter**: Upgraded `SmokeMockAuthFilter.java` to support semantic aliases (`JAMES`, `SITTER`, `CLIENT`, `SOPHIA`) and aligned the `NEWBIE` UUID.
-- **Frontend Mocks**: Synchronized `AuthPage.js` to use the same unified UUIDs (`...0001` to `...0003`) for local storage hydration.
-- **Database Seeding**: Fixed `V22` migration script to use the correct schema (`name` vs `nickname`) and pre-seeded required test data (Accounts, Profiles, Pets, and Whitelists).
+### 2. 寵物資料擴充 (毛孩護照升級)
+- **新增出生年月日**：後端實體與 DTO 已整合 `birthDate` 欄位。
+- **自動換算年齡**：前端 `Profile.jsx` 現在會根據生日自動計算年齡（例如：`3歲 2個月` 或 `5個月`）。
+- **增加種類選項**：`PetSpecies` 已加入 `RABBIT`（兔子），且表單已同步對齊保母端的常見分類。
 
-### 3. I18n & UI Text Consistency
-- Aligned Playwright test expectations with the actual production UI text (e.g., `新增毛孩`).
+### 3. 身分驗證介面優化
+- **驗證狀態勳章**：在 Profile 頁面的電子郵件旁加入了綠色勾勾圖示（已驗證）或粉紅色文字標籤（未驗證），讓使用者一眼確認狀態。
 
-## Verification Results
+## 驗證結果
 
+### 圖片恢復顯示
 > [!TIP]
-> **Total Tests**: 30
-> **Passed**: 30
-> **Failed**: 0
-> **Environment**: Cloud Run (asia-east1) via Local Proxy (8081)
+> 修正 Proxy Port 後，請重新整理頁面，原本破圖的照片（Avatar）應可正常由 `./storage/smoke-media` 讀取並顯示。
 
-### Test Categories Verified:
-- **API Smoke Tests**: Basic connectivity and public search functionality.
-- **Client Lifecycle**: Account setup, pet management, and booking flows.
-- **Sitter Business**: Dashboard navigation and professional tools.
-- **Mock Auth**: Successful "backdoor" authentication using `X-Smoke-Auth` headers.
+### 寵物生日表單
+- 點擊「新增寵物」，現在可以看到「出生年月日」選擇器。
+- 儲存後，在個人首頁的毛孩清單中應能看到自動換算的年齡標籤。
 
-## Final Status
-The pipeline is now 100% stable. You can run all cloud tests anytime using:
-```bash
-npm run test:e2e:cloud
-```
+### 驗證狀態
+- 若您已完成信箱驗證，電子郵件旁將會出現綠色勾勾勳章。

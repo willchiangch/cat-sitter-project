@@ -12,7 +12,7 @@
     "test:e2e:ui": "playwright test --ui",
     "cloud-run:proxy": "source .env && ${GCLOUD_BIN_PATH:-gcloud} run services proxy $GCP_SERVICE_NAME --region $GCP_REGION --project $GCP_PROJECT_ID --port 8081",
     "test:e2e:cloud": "concurrently -k -s first \"npm run cloud-run:proxy\" \"wait-on http://localhost:8081/v3/api-docs && playwright test --config=playwright.cloud.config.ts\"",
-    "api:fetch": "curl -sf http://localhost:8081/v3/api-docs -o ../backend/openapi.json",
+    "api:fetch": "curl -sf http://localhost:8080/v3/api-docs -o ../backend/openapi.json",
     "api:generate": "openapi-ts",
     "api:sync": "npm run api:fetch && npm run api:generate"
   },

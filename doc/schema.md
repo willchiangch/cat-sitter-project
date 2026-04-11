@@ -61,7 +61,22 @@
 | `question_id` | UUID (FK) | 對應至 `sitter_questions` |
 | `option_text` | VARCHAR | 選項內容 |
 
-### 5. `pets` (服務注意事項表)
+### 5. `pets` (毛孩檔案表)
+| 欄位名稱 | 型態 | 說明 |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | 毛孩專屬 ID |
+| `client_profile_id` | UUID (FK) | 屬於哪位飼主 |
+| `name` | VARCHAR | 名字 |
+| `species` | VARCHAR | `CAT`, `DOG`, `RABBIT`, `BIRD`, `REPTILE`, `OTHER` |
+| `gender` | VARCHAR | `MALE`, `FEMALE`, `UNKNOWN` |
+| `is_neutered` | BOOLEAN | 是否結紮 |
+| `birth_date` | DATE | **[V22]** 出生年月日 |
+| `weight_kg` | DECIMAL | 體重 (kg) |
+| `avatar_url` | VARCHAR | 照片路徑 |
+| `medical_notes` | TEXT | 醫療狀況註記 |
+| `dietary_notes` | TEXT | 飲食習慣註記 |
+| `personality_notes`| TEXT | 性格與行為註記 |
+| `other_notes` | TEXT | 其他補充事項 |
 
 ---
 

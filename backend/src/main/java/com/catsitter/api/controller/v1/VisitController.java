@@ -29,6 +29,12 @@ public class VisitController {
         return ResponseEntity.ok(visitManagementService.listSitterVisits(account, LocalDate.parse(date)));
     }
 
+    @GetMapping("/clients/me/visits")
+    public ResponseEntity<List<VisitSummaryResponse>> listMyClientVisits(
+            @AuthenticationPrincipal Account account) {
+        return ResponseEntity.ok(visitManagementService.listClientVisits(account));
+    }
+
     @GetMapping("/visits/{visitId}")
     public ResponseEntity<VisitDetailResponse> getVisit(
             @AuthenticationPrincipal Account account,

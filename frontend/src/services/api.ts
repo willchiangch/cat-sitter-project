@@ -32,6 +32,19 @@ api.interceptors.request.use(config => {
   return config
 }, error => Promise.reject(error))
 
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout()
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // --- 設定自動生成的 SDK client (獨立設定) ---
 client.setConfig({
   baseURL: import.meta.env.VITE_API_BASE_URL
@@ -46,6 +59,19 @@ client.instance.interceptors.request.use(config => {
   return config
 }, error => Promise.reject(error))
 
+client.instance.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout()
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 // --- 以下為無法自動生成的自訂服務 ---
 
 // Storage Services (GCS 直傳需要繞過 Axios interceptor)
@@ -53,8 +79,7 @@ export const storageService = {
   async uploadFile(file, subFolder = 'pets') {
     const form = new FormData()
     form.append('file', file)
-    form.append('subFolder', subFolder)
-    const { data } = await api.post('/storage/upload', form, {
+    const { data } = await api.post(`/uploads/${subFolder}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     return data.url
@@ -84,6 +109,7 @@ export const orderService = {
 // --- Visit & Service Log Services ---
 export const visitService = {
   listSitterVisits: (date) => api.get('/sitters/me/visits', { params: { date } }).then(res => res.data),
+  listClientVisits: () => api.get('/clients/me/visits').then(res => res.data),
   getDetail: (id) => api.get(`/visits/${id}`).then(res => res.data),
   updateChecklist: (visitId, data) => api.patch(`/visits/${visitId}/checklist`, data).then(res => res.data),
   addMedia: (visitId, data) => api.post(`/visits/${visitId}/media`, data).then(res => res.data),

@@ -15,6 +15,25 @@ const Profile = () => {
   const isSitter = mode === 'SITTER'
   const navigate = useNavigate()
 
+  // Helper: Calculate Age from birthDate (YYYY-MM-01 format)
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null
+    const birth = new Date(birthDate)
+    const now = new Date()
+    
+    let years = now.getFullYear() - birth.getFullYear()
+    let months = now.getMonth() - birth.getMonth()
+    
+    if (months < 0) {
+      years--
+      months += 12
+    }
+    
+    if (years === 0) return `${months}個月`
+    if (months === 0) return `${years}歲`
+    return `${years}歲 ${months}個月`
+  }
+
   const [isUploading, setIsUploading] = useState(false)
   const [uploadingField, setUploadingField] = useState(null)
   const [uploadError, setUploadError] = useState(null)
@@ -175,6 +194,10 @@ const Profile = () => {
         address: clientData?.address || null,
       })
       setClientData(updated)
+      useAuthStore.getState().updateUser({ 
+        name: updated.name,
+        profiles: (user?.profiles || []).map(p => p.id === updated.id ? { ...p, name: updated.name } : p)
+      })
       setShowEditProfile(false)
     } catch (e) {
       console.error('Save client profile failed:', e)
@@ -212,11 +235,12 @@ const Profile = () => {
     setIsSavingEmail(true)
     setEmailSaveError('')
     try {
-      await authService.updateEmail(editEmail.trim())
+      const updatedUser = await authService.updateEmail(editEmail.trim())
+      useAuthStore.getState().updateUser(updatedUser)
       setEmailSuccessMessage('Email 已更新！驗證信已寄出，請檢查您的新信箱。')
       setTimeout(() => {
         setShowEmailEdit(false)
-        window.location.reload() // Reload to refresh user info in store
+        window.location.reload()
       }, 3000)
     } catch (e) {
       console.error('Save email failed:', e)
@@ -266,6 +290,11 @@ const Profile = () => {
       } else {
         const updated = await profileService.updateClientMe({ ...clientData, avatarUrl: url })
         setClientData(updated)
+        // Sync to global store for immediate avatar update in header/sidebar
+        useAuthStore.getState().updateUser({ 
+          avatarUrl: url,
+          profiles: (user?.profiles || []).map(p => p.id === updated.id ? { ...p, avatarUrl: url } : p)
+        })
       }
       setLocalAvatarUrl(url)
     } catch (error) {
@@ -295,7 +324,7 @@ const Profile = () => {
         </div>
         <div className="text-left">
           <p className="text-xs font-bold opacity-40 uppercase tracking-widest leading-none mb-1.5">{label}</p>
-          <p className={`text-sm font-extrabold ${color}`}>{value}</p>
+          <div className={`text-sm font-extrabold ${color}`}>{value}</div>
           {description && <p className="text-[10px] opacity-30 font-bold mt-1 max-w-[200px] truncate">{description}</p>}
         </div>
       </div>
@@ -647,7 +676,21 @@ const Profile = () => {
               <SettingsItem
                 icon="alternate_email"
                 label="電子郵件"
-                value={user?.email}
+                value={
+                  <div className="flex items-center gap-2">
+                    <span>{user?.email}</span>
+                    {user?.emailVerified ? (
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-600 rounded-md">
+                        <span className="material-symbols-outlined text-[10px] font-bold">check_circle</span>
+                        <span className="text-[9px] font-black uppercase">已驗證</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-error/10 text-error rounded-md text-[9px] font-black uppercase">
+                        未驗證
+                      </div>
+                    )}
+                  </div>
+                }
                 onClick={openEmailEdit}
               />
             </SettingsSection>
@@ -659,8 +702,8 @@ const Profile = () => {
               <div className="p-5 space-y-4">
                 {pets.length > 0 && (
                   <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
-                    {pets.map(pet => (
-                      <div key={pet.id} className="flex-shrink-0 flex flex-col items-center gap-1.5">
+                    {pets.map((pet, index) => (
+                      <div key={pet.id || `pet-${index}`} className="flex-shrink-0 flex flex-col items-center gap-1.5">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container ring-2 ring-outline-variant/10">
                           <img
                             src={pet.avatarUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100'}
@@ -669,6 +712,7 @@ const Profile = () => {
                           />
                         </div>
                         <p className="text-[10px] font-bold">{pet.name}</p>
+                        <p className="text-[8px] font-black opacity-30 uppercase tracking-widest">{calculateAge(pet.birthDate) || '年齡不詳'}</p>
                       </div>
                     ))}
                   </div>

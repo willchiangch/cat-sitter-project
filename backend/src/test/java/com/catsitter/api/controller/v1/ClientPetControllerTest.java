@@ -114,6 +114,7 @@ class ClientPetControllerTest {
                 PetGender.FEMALE,
                 true,
                 new BigDecimal("4.5"),
+                null, // birthDate
                 null, null, null, null, null
         );
 
@@ -168,6 +169,7 @@ class ClientPetControllerTest {
                 PetGender.MALE,
                 false,
                 new BigDecimal("5.0"),
+                null, // birthDate
                 null, null, null, null, null
         );
 

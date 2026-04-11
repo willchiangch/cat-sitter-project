@@ -57,16 +57,42 @@ public class VisitManagementService {
         OffsetDateTime end = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
 
         return visitRepository.findBySitterAndDate(sitter, start, end).stream()
-                .map(v -> new VisitSummaryResponse(
-                        v.getId(),
-                        v.getOrder().getId(),
-                        v.getOrder().getClientProfile().getName(),
-                        v.getOrder().getServiceName(),
-                        v.getVisitStartTime(),
-                        v.getVisitEndTime(),
-                        v.getStatus()
-                ))
+                .map(this::mapToSummary)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<VisitSummaryResponse> listClientVisits(Account clientAccount) {
+        Profile client = profileRepository.findByAccountAndRoleType(clientAccount, RoleType.CLIENT)
+                .orElseThrow(() -> new RuntimeException("Client profile not found"));
+
+        return visitRepository.findByOrderClientProfileIdOrderByVisitStartTimeDesc(client.getId()).stream()
+                .map(this::mapToSummary)
+                .collect(Collectors.toList());
+    }
+
+    private VisitSummaryResponse mapToSummary(Visit v) {
+        // Try to find the primary pet from visit services (tasks)
+        List<VisitService> tasks = visitServiceRepository.findByVisitIdOrderBySortOrderAsc(v.getId());
+        String petName = "Cat";
+        String petImageUrl = null;
+        
+        if (!tasks.isEmpty() && tasks.get(0).getPet() != null) {
+            petName = tasks.get(0).getPet().getName();
+            petImageUrl = tasks.get(0).getPet().getAvatarUrl();
+        }
+
+        return new VisitSummaryResponse(
+                v.getId(),
+                v.getOrder().getId(),
+                v.getOrder().getClientProfile().getName(),
+                v.getOrder().getServiceName(),
+                v.getVisitStartTime(),
+                v.getVisitEndTime(),
+                v.getStatus(),
+                petName,
+                petImageUrl
+        );
     }
 
     @Transactional(readOnly = true)

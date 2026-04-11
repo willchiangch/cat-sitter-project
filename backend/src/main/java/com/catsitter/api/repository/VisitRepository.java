@@ -20,6 +20,8 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
     );
 
     List<Visit> findByOrderId(UUID orderId);
+    
+    List<Visit> findByOrderClientProfileIdOrderByVisitStartTimeDesc(UUID clientProfileId);
 
     List<Visit> findByOrderCurrentSitterIdAndOrderOrderStatus(UUID sitterId, com.catsitter.api.entity.enums.OrderStatus status);
 }

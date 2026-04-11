@@ -74,7 +74,7 @@
   "client": {
     "greeting": "Hello, {{name}}",
     "today_is": "Today is {{date}}",
-    "cat_passport": "CAT PASSPORT",
+    "pet_passport": "PET PASSPORT",
     "service_log": "SERVICE LOG",
     "vault": "Vault",
     "activity": "Activity",

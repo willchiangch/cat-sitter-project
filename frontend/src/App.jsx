@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { authService } from './services/api'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import MainLayout from './layouts/MainLayout'
 import { useAuthStore } from './store/authStore'
+import { useThemeStore } from './store/themeStore'
 import Login from './pages/Auth/Login'
 import LoginCallback from './pages/Auth/LoginCallback'
 import Onboarding from './pages/Auth/Onboarding'
@@ -41,7 +43,28 @@ const OnboardingRedirect = () => {
 }
 
 function App() {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, user, updateUser } = useAuthStore()
+  const setMode = useThemeStore((state) => state.setMode)
+
+  // Fetch latest user data on mount to sync persistent store with backend
+  useEffect(() => {
+    if (isAuthenticated) {
+      authService.getMe()
+        .then(updatedUser => {
+          updateUser(updatedUser)
+        })
+        .catch(err => {
+          console.error('Failed to sync user data:', err)
+        })
+    }
+  }, [isAuthenticated, updateUser])
+
+  // Sync theme mode with user lastActiveRole whenever it changes
+  useEffect(() => {
+    if (isAuthenticated && user?.lastActiveRole) {
+      setMode(user.lastActiveRole)
+    }
+  }, [isAuthenticated, user?.lastActiveRole, setMode])
 
   // Onboarding awareness: if authenticated but no profiles OR no lastActiveRole, redirect to onboarding
   // except if already on onboarding/login/register paths

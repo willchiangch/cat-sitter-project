@@ -59,6 +59,7 @@ public class AuthController {
 
   @PostMapping("/request-verification")
   public ResponseEntity<Void> requestVerification(@AuthenticationPrincipal Account account) {
+    System.out.println("[AUTH] Received request-verification for: " + (account != null ? account.getEmail() : "NULL"));
     emailVerificationService.sendVerificationCode(account);
     return ResponseEntity.ok().build();
   }

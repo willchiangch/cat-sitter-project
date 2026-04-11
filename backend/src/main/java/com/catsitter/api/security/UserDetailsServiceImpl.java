@@ -17,7 +17,24 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
   @Override
   public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    // Check if the username is a UUID
+    if (isValidUUID(username)) {
+      return accountRepository.findById(java.util.UUID.fromString(username))
+              .orElseThrow(() -> new UsernameNotFoundException("User not found by ID: " + username));
+    }
+    
+    // Default to email lookup (for login)
     return accountRepository.findByEmail(username)
-            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+            .orElseThrow(() -> new UsernameNotFoundException("User not found by email: " + username));
+  }
+
+  private boolean isValidUUID(String str) {
+    if (str == null || str.length() != 36) return false;
+    try {
+      java.util.UUID.fromString(str);
+      return true;
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
   }
 }

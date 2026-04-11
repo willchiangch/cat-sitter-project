@@ -65,7 +65,7 @@ const CatPassport = () => {
         </button>
         <div className="flex flex-col items-center">
           <span className="text-[10px] font-bold tracking-[0.2em] text-primary/60 uppercase">Digital Vault</span>
-          <h1 className="text-sm font-extrabold font-headline uppercase leading-none mt-1">{t('client.cat_passport')}</h1>
+          <h1 className="text-sm font-extrabold font-headline uppercase leading-none mt-1">{t('client.pet_passport')}</h1>
         </div>
         <div className="w-10"></div>
       </nav>

@@ -20,11 +20,12 @@ public class LocalStorageService implements StorageService {
     private final Path rootPath;
 
     public LocalStorageService(@Value("${application.storage.local-path:./storage/media}") String localPath) {
-        this.rootPath = Paths.get(localPath);
+        this.rootPath = Paths.get(localPath).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.rootPath);
+            System.out.println("[STORAGE] Initialized at: " + this.rootPath);
         } catch (IOException e) {
-            throw new RuntimeException("Could not initialize storage", e);
+            throw new RuntimeException("Could not initialize storage at " + this.rootPath, e);
         }
     }
 
@@ -32,11 +33,16 @@ public class LocalStorageService implements StorageService {
     public String store(MultipartFile file, String subFolder) throws IOException {
         String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
         Path targetDir = rootPath.resolve(subFolder);
-        Files.createDirectories(targetDir);
+        
+        if (!Files.exists(targetDir)) {
+            Files.createDirectories(targetDir);
+            System.out.println("[STORAGE] Created subfolder: " + targetDir);
+        }
         
         Path targetFile = targetDir.resolve(fileName);
         Files.copy(file.getInputStream(), targetFile);
         
+        System.out.println("[STORAGE] Stored file: " + targetFile);
         return subFolder + "/" + fileName;
     }
 
@@ -49,16 +55,20 @@ public class LocalStorageService implements StorageService {
     @Override
     public String getUrl(String filePath) {
         if (filePath == null || filePath.isEmpty()) return null;
+        // 如果已經包含完整前綴或或是完整 URL，則直接回傳避免重複疊加
+        if (filePath.startsWith("/api/v1/media/") || filePath.startsWith("http")) return filePath;
         // Point to the Local Media Controller
         return "/api/v1/media/" + filePath;
     }
 
     @Override
     public Resource load(String filePath) {
-        Path targetFile = rootPath.resolve(filePath);
+        Path targetFile = rootPath.resolve(filePath).normalize();
+        System.out.println("[STORAGE] Loading file: " + targetFile.toAbsolutePath());
         if (Files.exists(targetFile)) {
-            return new FileSystemResource(targetFile);
+            return new org.springframework.core.io.FileSystemResource(targetFile);
         }
+        System.out.println("[STORAGE] File not found at path: " + targetFile.toAbsolutePath());
         return null;
     }
 }

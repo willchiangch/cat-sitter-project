@@ -3,6 +3,7 @@ package com.catsitter.api.dto.client;
 import com.catsitter.api.entity.enums.PetGender;
 import com.catsitter.api.entity.enums.PetSpecies;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public record PetResponse(
@@ -12,6 +13,7 @@ public record PetResponse(
     PetGender gender,
     Boolean isNeutered,
     BigDecimal weightKg,
+    LocalDate birthDate,
     String avatarUrl,
     String medicalNotes,
     String dietaryNotes,

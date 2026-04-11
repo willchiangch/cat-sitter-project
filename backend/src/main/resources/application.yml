@@ -2,7 +2,7 @@ debug: true
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cat_sitter_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    username: ${SPRING_DATASOURCE_USERNAME:sitter_admin}
     password: ${SPRING_DATASOURCE_PASSWORD:dev_password123}
     driver-class-name: org.postgresql.Driver
     # Hikari 連線池優化：針對 Supabase 和 Cloud Run 冷啟動
@@ -64,7 +64,7 @@ application:
     client-secret: ${GOOGLE_CLIENT_SECRET:your_client_secret}
     redirect-uri: ${GOOGLE_REDIRECT_URL:http://localhost:8081/api/v1/sitters/me/calendar/callback}
   storage:
-    type: GCS
+    type: LOCAL
     local-path: ./storage/media
     retention-days: 60
     gcp:

@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -44,6 +45,9 @@ public class Pet extends AuditableEntity {
   @Column(name = "weight_kg", precision = 5, scale = 2)
   private BigDecimal weightKg;
 
+  @Column(name = "birth_date")
+  private LocalDate birthDate;
+
   @Column(name = "avatar_url", length = 1024)
   private String avatarUrl;
 
@@ -73,6 +77,8 @@ public class Pet extends AuditableEntity {
   public void setIsNeutered(Boolean isNeutered) { this.isNeutered = isNeutered; }
   public BigDecimal getWeightKg() { return weightKg; }
   public void setWeightKg(BigDecimal weightKg) { this.weightKg = weightKg; }
+  public LocalDate getBirthDate() { return birthDate; }
+  public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
   public String getAvatarUrl() { return avatarUrl; }
   public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
   public String getMedicalNotes() { return medicalNotes; }

@@ -42,6 +42,7 @@ public class EmailVerificationService {
         verificationCode.setExpiryAt(LocalDateTime.now().plusMinutes(10));
         
         verificationCodeRepository.save(verificationCode);
+        System.out.println("[VERIFY] Generated code " + code + " for email: " + account.getEmail());
 
         // Send Email
         String htmlContent = String.format(

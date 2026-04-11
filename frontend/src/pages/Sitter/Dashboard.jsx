@@ -64,12 +64,14 @@ const Dashboard = () => {
     >
       <section className="space-y-1 px-1">
         <h2 className="text-3xl font-extrabold font-headline tracking-tighter text-on-surface">
-          {t('dashboard.greeting', { name: user?.profiles?.[0]?.name || user?.name || 'Sitter' })}
+          {user?.name 
+            ? t('dashboard.greeting', { name: user.name }) 
+            : t('dashboard.loading_greeting')}
         </h2>
         <p className="text-sm font-body text-on-surface-variant">
           {visits.length > 0 
             ? t('dashboard.sitter_summary', { count: visits.length })
-            : t('dashboard.no_visits_today') || '目前無預約行程'}
+            : t('dashboard.no_visits_today')}
         </p>
       </section>
 

@@ -12,7 +12,7 @@ const BentoShortcuts = () => {
       id: 'passport',
       icon: 'book_5',
       label: t('client.vault'),
-      title: t('client.cat_passport'),
+      title: t('client.pet_passport'),
       iconBg: 'bg-blue-50',
       iconColor: 'text-blue-600'
     },

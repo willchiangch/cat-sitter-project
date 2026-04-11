@@ -89,7 +89,7 @@ const Pets = () => {
                 className="group relative bg-surface-container-low rounded-[40px] p-6 border border-outline-variant/10 flex items-center gap-6 hover:bg-surface-container transition-colors cursor-pointer"
               >
                 <div className="w-24 h-24 rounded-[32px] overflow-hidden shadow-2xl ring-4 ring-surface">
-                  <img src={pet.avatarUrl || 'https://via.placeholder.com/200?text=Cat'} className="w-full h-full object-cover" />
+                  <img src={pet.avatarUrl || 'https://placehold.jp/24/336699/ffffff/200x200.png?text=Cat'} className="w-full h-full object-cover" />
                 </div>
                 
                 <div className="flex-1 space-y-1">

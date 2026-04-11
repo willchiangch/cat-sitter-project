@@ -68,6 +68,7 @@ public class ClientPetService {
         pet.setGender(request.gender());
         pet.setIsNeutered(request.isNeutered());
         pet.setWeightKg(request.weightKg());
+        pet.setBirthDate(request.birthDate());
         pet.setAvatarUrl(request.avatarUrl());
         pet.setMedicalNotes(request.medicalNotes());
         pet.setDietaryNotes(request.dietaryNotes());
@@ -105,6 +106,7 @@ public class ClientPetService {
         pet.setGender(request.gender());
         pet.setIsNeutered(request.isNeutered());
         pet.setWeightKg(request.weightKg());
+        pet.setBirthDate(request.birthDate());
         pet.setAvatarUrl(request.avatarUrl());
         pet.setMedicalNotes(request.medicalNotes());
         pet.setDietaryNotes(request.dietaryNotes());
@@ -150,6 +152,7 @@ public class ClientPetService {
                 pet.getGender(),
                 pet.getIsNeutered(),
                 pet.getWeightKg(),
+                pet.getBirthDate(),
                 storageService.getUrl(pet.getAvatarUrl()),
                 pet.getMedicalNotes(),
                 pet.getDietaryNotes(),

@@ -53,6 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
         UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
         if (jwtService.isTokenValid(jwt, userDetails)) {
+          System.out.println("[JWT] Valid token for user: " + userEmail + " (Path: " + path + ")");
           UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                   userDetails,
                   null,
@@ -62,12 +63,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                   new WebAuthenticationDetailsSource().buildDetails(request)
           );
           SecurityContextHolder.getContext().setAuthentication(authToken);
+        } else {
+          System.out.println("[JWT] Invalid token for user: " + userEmail);
         }
       }
+    } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+       System.out.println("[JWT] User no longer exists in DB (likely email changed): " + e.getMessage());
     } catch (Exception e) {
        // In normal mode, we just let it fall through (authentication continues as null/anonymous)
        // This prevents 500 errors when mock tokens are sent in smoke or dev environments.
-       logger.debug("Failed to extract username from JWT: " + e.getMessage());
+       System.out.println("[JWT] Unexpected error: " + e.getMessage());
     }
     filterChain.doFilter(request, response);
   }

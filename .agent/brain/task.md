@@ -1,20 +1,9 @@
-- [x] Create Flyway migration script `V21__rename_visit_tasks_to_visit_services.sql`
-- [x] Verify SQL syntax and alignment with `VisitService.java`
-- [x] Finalize and provide walkthrough
-- [x] Add `GCP_PROJECT_ID` to `frontend/.env`
-- [x] Install `concurrently` and `wait-on` in `frontend`
-- [x] Create `frontend/playwright.cloud.config.ts`
-- [x] Add Cloud Run scripts to `frontend/package.json`
-- [x] Update `README.md` with proxy usage instructions
-- [x] Fix `gcloud` command not found issue
-- [x] Execute E2E tests against Cloud Run (Initial run: 26/30)
-- [x] Enable Mock Auth in `uat` profile and fix UUIDs in `SmokeMockAuthFilter.java` (Partial: Profile enabled)
-- [x] Create `V22__sync_e2e_mock_data.sql` for data seeding (Partial: Schema fixed)
-- [x] Update `playwright.cloud.config.ts` with longer timeouts
-- [x] Finalize progress and ask user to redeploy
-- [x] Execute E2E tests against Cloud Run (Second run: 26/30 - failures found in UUID/Auth mismatch)
-- [x] Universal UUID Alignment: Update `SmokeMockAuthFilter.java` with aliases (SITTER/CLIENT)
-- [x] Universal UUID Alignment: Update `V22__sync_e2e_mock_data.sql` Profile IDs
-- [x] Universal UUID Alignment: Update `AuthPage.js` Mock IDs and Header logic
-- [x] Finalize alignment and ask user for one LAST redeployment
-- [x] Re-run E2E tests (Target: 30/30) - ACHIEVED 100% PASS RATE
+- [/] 修復媒體代理與擴充寵物資料
+  - [ ] 修改 `vite.config.js` 將代理 port 修正為 8080
+  - [ ] 修改 `PetSpecies.java` 加入 RABBIT
+  - [ ] 修改 `Pet.java` 加入 birthDate 欄位
+  - [ ] 修改 `CreatePetRequest.java` 與 `PetResponse.java`
+  - [ ] 修改 `ClientPetService.java` 映射生日資料
+  - [ ] 修改 `Profile.jsx` 加入驗證狀態 UI (綠勾) 與 寵物年齡顯示
+  - [ ] 修改 `PetFormModal.jsx` 加入生日選擇與種類更新
+  - [ ] 驗證圖片是否恢復正常顯示

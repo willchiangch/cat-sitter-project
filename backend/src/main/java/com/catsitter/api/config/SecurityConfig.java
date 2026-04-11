@@ -1,5 +1,6 @@
 package com.catsitter.api.config;
 
+import com.catsitter.api.security.DebugLoggingFilter;
 import com.catsitter.api.security.JwtAuthenticationFilter;
 import com.catsitter.api.security.MdcLogFilter;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +36,7 @@ public class SecurityConfig {
   private final com.catsitter.api.security.CustomOAuth2UserService customOAuth2UserService;
   private final com.catsitter.api.security.OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
   private final com.catsitter.api.security.SmokeMockAuthFilter smokeMockAuthFilter;
+  private final DebugLoggingFilter debugLoggingFilter;
 
   private final org.springframework.core.env.Environment env;
 
@@ -44,7 +46,8 @@ public class SecurityConfig {
                         org.springframework.core.env.Environment env,
                         com.catsitter.api.security.CustomOAuth2UserService customOAuth2UserService,
                         com.catsitter.api.security.OAuth2AuthenticationSuccessHandler oauth2SuccessHandler,
-                        @org.springframework.beans.factory.annotation.Autowired(required = false) com.catsitter.api.security.SmokeMockAuthFilter smokeMockAuthFilter) {
+                        @org.springframework.beans.factory.annotation.Autowired(required = false) com.catsitter.api.security.SmokeMockAuthFilter smokeMockAuthFilter,
+                        DebugLoggingFilter debugLoggingFilter) {
     this.jwtAuthFilter = jwtAuthFilter;
     this.mdcLogFilter = mdcLogFilter;
     this.userDetailsService = userDetailsService;
@@ -52,6 +55,7 @@ public class SecurityConfig {
     this.customOAuth2UserService = customOAuth2UserService;
     this.oauth2SuccessHandler = oauth2SuccessHandler;
     this.smokeMockAuthFilter = smokeMockAuthFilter;
+    this.debugLoggingFilter = debugLoggingFilter;
   }
 
   @Bean
@@ -70,7 +74,8 @@ public class SecurityConfig {
                        .requestMatchers("/api/v1/media/identity/**").authenticated()
                        .requestMatchers("/api/v1/media/**").permitAll()
                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                       .requestMatchers("/api/v1/auth/me").authenticated()
+                       .requestMatchers("/api/v1/auth/me/**").authenticated()
+                       .requestMatchers("/api/v1/uploads/**").authenticated()
                        .anyRequest().authenticated();
       })
             .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
@@ -90,6 +95,7 @@ public class SecurityConfig {
     if (smokeMockAuthFilter != null) {
         http.addFilterAfter(smokeMockAuthFilter, JwtAuthenticationFilter.class);
     }
+    http.addFilterAfter(debugLoggingFilter, JwtAuthenticationFilter.class);
 
     return http.build();
   }

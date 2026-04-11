@@ -5,10 +5,11 @@ import { petService, storageService } from '../../services/api'
 const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
   const [formData, setFormData] = useState(initialData || {
     name: '',
-    species: 'CAT',
+    species: '',
     gender: 'MALE',
     isNeutered: true,
-    weightKg: 4.0,
+    birthYear: new Date().getFullYear().toString(),
+    birthMonth: '',
     avatarUrl: '',
     medicalNotes: '',
     dietaryNotes: '',
@@ -18,13 +19,15 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
   const [isUploading, setIsUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const years = Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - i).toString())
+  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString())
+
   const handleFileChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
     try {
       setIsUploading(true)
-      // Step 1: Upload to GCS
       const uploadedUrl = await storageService.uploadFile(file, 'pets')
       setFormData(prev => ({ ...prev, avatarUrl: uploadedUrl }))
     } catch (error) {
@@ -36,14 +39,34 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Validation
+    if (!formData.species) {
+      alert('請選擇寵物種類！')
+      return
+    }
+
     try {
       setIsSubmitting(true)
-      if (initialData?.id) {
-        await petService.update(initialData.id, formData)
-      } else {
-        await petService.create(formData)
+      
+      // Combine year and month into YYYY-MM-01
+      const monthStr = formData.birthMonth ? formData.birthMonth.padStart(2, '0') : '01'
+      const combinedDate = `${formData.birthYear}-${monthStr}-01`
+      
+      const submitData = {
+        ...formData,
+        birthDate: combinedDate
       }
-      onSave() // Trigger refresh in parent
+      // Remove local helper fields before sending to API
+      delete submitData.birthYear
+      delete submitData.birthMonth
+
+      if (initialData?.id) {
+        await petService.update(initialData.id, submitData)
+      } else {
+        await petService.create(submitData)
+      }
+      onSave()
       onClose()
     } catch (error) {
       console.error('Save failed:', error)
@@ -80,7 +103,7 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
               {isUploading ? (
                 <div className="absolute inset-0 bg-primary/20 flex items-center justify-center italic text-[10px] font-bold">Uploading...</div>
               ) : (
-                <img src={formData.avatarUrl || 'https://via.placeholder.com/200?text=Upload'} className="w-full h-full object-cover" />
+                <img src={formData.avatarUrl || 'https://placehold.jp/24/336699/ffffff/200x200.png?text=Upload'} className="w-full h-full object-cover" />
               )}
               <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
                 <span className="material-symbols-outlined text-white">photo_camera</span>
@@ -93,7 +116,7 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 ml-2">貓咪姓名</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 ml-2">毛孩姓名</label>
                 <input 
                   required
                   value={formData.name}
@@ -103,7 +126,57 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 ml-2">性別</label>
+                <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 ml-2">寵物種類</label>
+                <div className="relative">
+                  <select 
+                    required
+                    value={formData.species}
+                    onChange={e => setFormData(prev => ({ ...prev, species: e.target.value }))}
+                    className="w-full p-4 bg-surface-container-low border border-outline-variant/10 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors appearance-none"
+                  >
+                    <option value="" disabled>請選擇 (Please selection)</option>
+                    <option value="CAT">貓 (Cat)</option>
+                    <option value="DOG">狗 (Dog)</option>
+                    <option value="RABBIT">兔 (Rabbit)</option>
+                    <option value="BIRD">鳥 (Bird)</option>
+                    <option value="OTHER">其他 (Other)</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-30">expand_more</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 ml-2">出生年/月</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <select 
+                    required
+                    value={formData.birthYear}
+                    onChange={e => setFormData(prev => ({ ...prev, birthYear: e.target.value }))}
+                    className="w-full p-4 bg-surface-container-low border border-outline-variant/10 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors appearance-none"
+                  >
+                    {years.map(y => <option key={y} value={y}>{y} 年</option>)}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-30">calendar_today</span>
+                </div>
+                <div className="relative">
+                  <select 
+                    value={formData.birthMonth}
+                    onChange={e => setFormData(prev => ({ ...prev, birthMonth: e.target.value }))}
+                    className="w-full p-4 bg-surface-container-low border border-outline-variant/10 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors appearance-none"
+                  >
+                    <option value="">月份 (選填)</option>
+                    {months.map(m => <option key={m} value={m}>{m} 月</option>)}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-30">expand_more</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest opacity-40 ml-2">性別</label>
+              <div className="relative">
                 <select 
                   value={formData.gender}
                   onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value }))}
@@ -111,7 +184,9 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
                 >
                   <option value="MALE">公 (Male)</option>
                   <option value="FEMALE">母 (Female)</option>
+                  <option value="UNKNOWN">不詳 (Unknown)</option>
                 </select>
+                <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-30">expand_more</span>
               </div>
             </div>
 

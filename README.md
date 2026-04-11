@@ -116,6 +116,20 @@ cd backend
 ./mvnw test -Dtest=com.catsitter.api.smoke.*  # 業務冒煙測試
 ```
 
+## 本機測試
+### 後端先起docker
+`/usr/local/bin/docker-compose up -d`
+
+### 啟動後端服務
+`cd backend`
+`./mvnw spring-boot:run -Dspring-boot.run.profiles=smoke`
+
+### 啟動前端服務
+`cd frontend`
+`export PATH=$PATH:/usr/local/bin`
+`npm run dev`
+
+
 ---
 
 ## API 端點速查（後端完整實作清單）

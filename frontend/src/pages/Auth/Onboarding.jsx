@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuthStore } from '../../store/authStore'
-import { authService } from '../../services/api'
+import { authService, profileService } from '../../services/api'
+import { useThemeStore } from '../../store/themeStore'
 
 const Onboarding = () => {
   const navigate = useNavigate()
@@ -46,8 +47,13 @@ const Onboarding = () => {
       })
       
       // Update store with new user info (which now has role and profile)
-      const token = localStorage.getItem('token')
-      setAuth(updatedUser, token)
+      const currentToken = useAuthStore.getState().token
+      setAuth(updatedUser, currentToken)
+      
+      // Explicitly sync theme mode immediately after onboarding
+      if (updatedUser.lastActiveRole) {
+        useThemeStore.getState().setMode(updatedUser.lastActiveRole)
+      }
       
       // Navigate to corresponding dashboard
       navigate('/')

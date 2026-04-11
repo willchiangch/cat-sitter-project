@@ -46,35 +46,46 @@ public class MediaController {
 
     /**
      * Serves locally stored media files. 
-     * In production with GCS, this would be replaced by direct GCS URLs.
+     * Uses a robust path extraction to avoid issues with different servlet containers or proxying.
      */
-    @GetMapping("/media/**")
-    public ResponseEntity<Resource> serveFile(@RequestHeader HttpHeaders headers, 
+    @GetMapping("/media/{*path}")
+    public ResponseEntity<Resource> serveFile(@PathVariable String path, 
                                              jakarta.servlet.http.HttpServletRequest request) {
-        String path = request.getRequestURI().split("/api/v1/media/")[1];
-        Resource file = storageService.load(path);
+        // Remove leading slash if any
+        String cleanedPath = (path.startsWith("/")) ? path.substring(1) : path;
         
-        if (file == null || !file.exists()) {
+        try {
+            Resource file = storageService.load(cleanedPath);
+            
+            if (file == null || !file.exists()) {
+                System.out.println("[MEDIA] File not found: " + cleanedPath);
+                return ResponseEntity.notFound().build();
+            }
+
+            System.out.println("[MEDIA] Serving file: " + file.getURI());
+
+            String contentType = "application/octet-stream";
+            try {
+                String fileName = file.getFilename();
+                if (fileName != null) {
+                    contentType = request.getServletContext().getMimeType(fileName);
+                }
+                if (contentType == null) {
+                    if (fileName != null && fileName.toLowerCase().endsWith(".jpg")) contentType = "image/jpeg";
+                    else if (fileName != null && fileName.toLowerCase().endsWith(".png")) contentType = "image/png";
+                }
+            } catch (Exception ex) {
+                // Fallback to default
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getFilename() + "\"")
+                    .body(file);
+        } catch (Exception e) {
+            System.err.println("[MEDIA] Error serving file " + cleanedPath + ": " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.notFound().build();
         }
-
-        String contentType = "application/octet-stream";
-        try {
-            // Use a safer way to get content type that doesn't rely solely on getFile()
-            String fileName = file.getFilename();
-            if (fileName != null) {
-                contentType = request.getServletContext().getMimeType(fileName);
-            }
-            if (contentType == null) {
-                contentType = "application/octet-stream";
-            }
-        } catch (Exception ex) {
-            // Fallback to default
-        }
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getFilename() + "\"")
-                .body(file);
     }
 }

@@ -11,5 +11,7 @@ public record VisitSummaryResponse(
     String serviceName,
     OffsetDateTime visitStartTime,
     OffsetDateTime visitEndTime,
-    VisitStatus status
+    VisitStatus status,
+    String petName,
+    String petImageUrl
 ) {}

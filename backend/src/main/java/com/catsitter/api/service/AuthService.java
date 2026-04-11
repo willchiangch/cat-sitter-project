@@ -26,6 +26,7 @@ public class AuthService {
   private final JwtService jwtService;
   private final AuthenticationManager authenticationManager;
   private final EmailVerificationService emailVerificationService;
+  private final com.catsitter.api.service.storage.StorageService storageService;
 
   @Value("${application.jwt.expiration}")
   private long jwtExpiration;
@@ -36,7 +37,8 @@ public class AuthService {
           PasswordEncoder passwordEncoder,
           JwtService jwtService,
           AuthenticationManager authenticationManager,
-          EmailVerificationService emailVerificationService
+          EmailVerificationService emailVerificationService,
+          com.catsitter.api.service.storage.StorageService storageService
   ) {
     this.accountRepository = accountRepository;
     this.profileRepository = profileRepository;
@@ -44,6 +46,7 @@ public class AuthService {
     this.jwtService = jwtService;
     this.authenticationManager = authenticationManager;
     this.emailVerificationService = emailVerificationService;
+    this.storageService = storageService;
   }
 
   @Transactional
@@ -52,12 +55,20 @@ public class AuthService {
       throw new RuntimeException("Email is already taken by another account");
     }
 
+    String oldEmail = account.getEmail();
+    System.out.println("\n\n>>> AUTH SERVICE: updateEmail START for " + account.getId());
+    System.out.println(">>> FROM: " + oldEmail + " TO: " + newEmail + "\n\n");
+
     account.setEmail(newEmail);
     account.setEmailVerified(false);
-    accountRepository.save(account);
+    accountRepository.saveAndFlush(account);
 
+    System.out.println(">>> AUTH SERVICE: Account saved to DB with NEW email: " + account.getEmail());
+    System.out.println(">>> TRIGGERING emailVerificationService.sendVerificationCode...\n");
+    
     emailVerificationService.sendVerificationCode(account);
 
+    System.out.println(">>> AUTH SERVICE: updateEmail FINISHED for " + account.getId() + "\n\n");
     return getMe(account);
   }
 
@@ -114,7 +125,7 @@ public class AuthService {
                     p.getId(),
                     p.getRoleType(),
                     p.getName(),
-                    null // avatarUrl placeholder
+                    storageService.getUrl(p.getAvatarUrl())
             ))
             .toList();
 

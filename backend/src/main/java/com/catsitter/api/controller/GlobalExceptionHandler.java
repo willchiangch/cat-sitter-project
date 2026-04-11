@@ -51,6 +51,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    @ExceptionHandler(org.springframework.web.client.HttpClientErrorException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpClientError(org.springframework.web.client.HttpClientErrorException ex) {
+        String traceId = MDC.get(TRACE_ID_KEY);
+        logger.error("[TRACE:{}] External API call failed: Status={}, Message={}, Body={}", 
+            traceId, ex.getStatusCode(), ex.getMessage(), ex.getResponseBodyAsString());
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", ex.getStatusCode().value());
+        body.put("error", "External API Error");
+        body.put("message", ex.getMessage());
+        body.put("body", ex.getResponseBodyAsString());
+        body.put("traceId", traceId != null ? traceId : "N/A");
+
+        return ResponseEntity.status(ex.getStatusCode()).body(body);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
         String traceId = MDC.get(TRACE_ID_KEY);

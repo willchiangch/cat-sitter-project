@@ -667,6 +667,20 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Visit"
+  /api/v1/clients/me/visits:
+    get:
+      tags: [Visit]
+      operationId: listClientVisits
+      summary: List own visits as client
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VisitSummaryResponse"
   /api/v1/visits/{visitId}:
     parameters:
       - $ref: "#/components/parameters/VisitId"
@@ -1199,9 +1213,10 @@ components:
       properties:
         petId: { type: string, format: uuid }
         name: { type: string }
-        species: { type: string, enum: [CAT, DOG, OTHER] }
+        species: { type: string, enum: [CAT, DOG, RABBIT, BIRD, REPTILE, OTHER] }
         gender: { type: string, enum: [MALE, FEMALE, UNKNOWN], nullable: true }
         isNeutered: { type: boolean, nullable: true }
+        birthDate: { type: string, format: date, nullable: true, description: "Birth date (stored as YYYY-MM-01 if day is unknown)" }
         medicalNotes: { type: string, nullable: true }
         personalityNotes: { type: string, nullable: true }
         avatarUrl: { type: string, format: uri, nullable: true }
@@ -1210,9 +1225,10 @@ components:
       required: [name, species]
       properties:
         name: { type: string, minLength: 1, maxLength: 255 }
-        species: { type: string, enum: [CAT, DOG, OTHER] }
+        species: { type: string, enum: [CAT, DOG, RABBIT, BIRD, REPTILE, OTHER] }
         gender: { type: string, enum: [MALE, FEMALE, UNKNOWN] }
         isNeutered: { type: boolean }
+        birthDate: { type: string, format: date, description: "Birth date (YYYY-MM-01 format)" }
         medicalNotes: { type: string, maxLength: 4000 }
         personalityNotes: { type: string, maxLength: 4000 }
         avatarUrl: { type: string, format: uri }
@@ -1320,9 +1336,6 @@ components:
       required: [relationId, ownerSitterId, trustedSitterId, status]
       properties:
         relationId: { type: string, format: uuid }
-        ownerSitterId: { type: string, format: uuid }
-        trustedSitterId: { type: string, format: uuid }
-        status: { $ref: "#/components/schemas/TrustCircleStatus" }
     Visit:
       type: object
       required: [visitId, bookingId, status, visitStartTime, visitEndTime]
@@ -1333,6 +1346,19 @@ components:
         visitStartTime: { type: string, format: date-time }
         visitEndTime: { type: string, format: date-time }
         sitterNotes: { type: string, nullable: true }
+    VisitSummaryResponse:
+      type: object
+      required: [id, orderId, clientName, serviceName, visitStartTime, visitEndTime, status]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        clientName: { type: string }
+        serviceName: { type: string }
+        visitStartTime: { type: string, format: date-time }
+        visitEndTime: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/VisitStatus" }
+        petName: { type: string, nullable: true }
+        petImageUrl: { type: string, format: uri, nullable: true }
     VisitChecklistItem:
       type: object
       required: [itemId, itemName, isCustom, isCompleted]
