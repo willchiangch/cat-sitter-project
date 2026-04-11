@@ -1,7 +1,11 @@
 import { create } from 'zustand'
 
+// Allow E2E tests to pre-seed notifications via window.__SMOKE_NOTIFICATIONS__
+const initialNotifications =
+  (typeof window !== 'undefined' && window.__SMOKE_NOTIFICATIONS__) || []
+
 export const useNotificationStore = create((set, get) => ({
-  notifications: [],
+  notifications: initialNotifications,
 
   getUnreadCount: () => {
     return get().notifications.filter(n => !n.read).length

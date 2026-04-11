@@ -10,6 +10,15 @@ test.describe('VIP Client Booking Lifecycle & Quotes', () => {
     authPage = new AuthPage(page)
     bookingPage = new BookingPage(page)
     dashPage = new DashboardPage(page)
+
+    // Clear service workers to avoid PWA cache interference across multi-step flows
+    await page.goto('/')
+    await page.evaluate(async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      for (const registration of registrations) {
+        await registration.unregister()
+      }
+    })
   })
 
   test('should skip questionnaire for whitelisted clients and successfully compute quote surcharge', async ({ page }) => {

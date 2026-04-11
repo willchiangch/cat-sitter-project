@@ -1,15 +1,20 @@
 import { test, expect } from '@playwright/test'
 import { AuthPage } from '../../pages/AuthPage'
 
-// Mock notification data (matches notificationStore.js):
-//   n1: role=CLIENT, title='照片已上傳'
-//   n2: role=SITTER, title='新預約申請'
-//   n3: role=ALL,    title='帳號安全性提醒'
+// Smoke notification seeds (injected via window.__SMOKE_NOTIFICATIONS__ before page load)
+const SMOKE_NOTIFICATIONS = [
+  { id: '1', role: 'CLIENT', title: '照片已上傳',   body: '保母已上傳本次服務照片', read: false, time: '10m ago' },
+  { id: '2', role: 'SITTER', title: '新預約申請',   body: '您有一筆新預約請求', read: false, time: '5m ago' },
+  { id: '3', role: 'ALL',    title: '帳號安全性提醒', body: '您的帳號已從新裝置登入', read: false, time: '1h ago' },
+]
 
 test.describe('Notifications Role Filtering E2E', () => {
   let authPage
 
-  const clearServiceWorkers = async (page) => {
+  const setup = async (page, role, targetUrl) => {
+    authPage = new AuthPage(page)
+
+    // 1. Clear service workers to prevent PWA cache interference
     await page.goto('/')
     await page.evaluate(async () => {
       const registrations = await navigator.serviceWorker.getRegistrations()
@@ -17,12 +22,22 @@ test.describe('Notifications Role Filtering E2E', () => {
         await registration.unregister()
       }
     })
+
+    // 2. Seed notifications before any page script runs
+    await page.addInitScript((notifications) => {
+      window.__SMOKE_NOTIFICATIONS__ = notifications
+    }, SMOKE_NOTIFICATIONS)
+
+    // 3. Inject smoke auth and navigate
+    if (role === 'SITTER') {
+      await authPage.injectSmokeAuth('SITTER')
+    } else {
+      await authPage.injectClientSmokeAuth(targetUrl)
+    }
   }
 
   test('Sitter mode — only SITTER and ALL notifications are shown', async ({ page }) => {
-    authPage = new AuthPage(page)
-    await clearServiceWorkers(page)
-    await authPage.injectSmokeAuth('SITTER')
+    await setup(page, 'SITTER', '/notifications')
 
     await page.goto('/notifications')
     await page.waitForLoadState('networkidle')
@@ -36,9 +51,7 @@ test.describe('Notifications Role Filtering E2E', () => {
   })
 
   test('Client mode — only CLIENT and ALL notifications are shown', async ({ page }) => {
-    authPage = new AuthPage(page)
-    await clearServiceWorkers(page)
-    await authPage.injectClientSmokeAuth('/notifications')
+    await setup(page, 'CLIENT', '/notifications')
     await page.waitForLoadState('networkidle')
 
     // CLIENT notifications visible

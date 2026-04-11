@@ -39,7 +39,37 @@
 
 ---
 
+## 🧪 E2E 測試基礎設施修復 (Phase 13 — 2026-04-11)
+
+本次對 Playwright E2E 測試套件進行全面修復與 V25 功能補測，最終達成 **35/35 全綠**。
+
+### 修復要點
+
+#### Playwright 路由 LIFO 陷阱
+`page.route('**/*', fn)` 由 `injectSmokeAuth` 注入，後來加的 handler 先執行（LIFO）。
+解法：**特定 mock 務必在 `injectSmokeAuth` 之後加**，然後重新 `goto` 觸發。
+
+#### Smoke 測試基礎設施 Bug
+| 檔案 | 問題 | 修復 |
+|------|------|------|
+| `playwright.config.ts` | health check 打 8081（已停用）| → 改 8080 |
+| `SmokeMockAuthFilter.java` | NEWBIE UUID `...003`（Buddy）| → `...004` |
+| `SmokeDataSeeder.java` | 缺 Oliver、Order、Visit、Whitelist | 全部補齊 |
+| `Dashboard.jsx` | `listSitterVisits()` 缺 `date` → 500 | 加 `today` 參數 |
+| `AuthPage.js` | NEWBIE UUID/email 不對、SW ERR_ABORTED、Framer Motion detach | 三項全修 |
+| `notificationStore.js` | 無法從 E2E 注入通知 | 加 `window.__SMOKE_NOTIFICATIONS__` hook |
+
+#### V25 新增測試（`v25-soft-delete-and-pets.spec.js`）
+1. 軟刪除寵物後從列表消失（mock GET + DELETE）
+2. PetFormModal 含 birthDate 年份輸入
+3. PetFormModal 含 RABBIT option
+4. CLIENT Profile 顯示「已驗證」綠色 badge（需 `emailVerified:true` + CLIENT mode）
+5. Email 更換事件驅動彈窗（`CommunicationVerify` 無需 reload）
+
+---
+
 ## 📋 歷史里程碑回顧
 - **Phase 1-7**：前端 UI/UX 重構（Tab 標籤統一、CSS Token 修復）。
 - **Phase 8-10**：安全認證與測試架構建立（Playwright POM, JWT Fix）。
 - **Phase 11-12**：數據完整性與 DX 深度優化（軟刪除, 螢光日誌）。
+- **Phase 13**：E2E 測試基礎設施全面修復，35/35 通過，補齊 V25 驗收測試。

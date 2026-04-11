@@ -18,7 +18,8 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true)
-        const data = await visitService.listSitterVisits()
+        const today = new Date().toISOString().split('T')[0]
+        const data = await visitService.listSitterVisits(today)
         setVisits(data || [])
       } catch (err) {
         console.error('Failed to fetch dashboard visits:', err)

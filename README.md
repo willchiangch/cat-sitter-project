@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V25 (全系統核心實體軟刪除 + 寵物年齡自動換算 + DX 調試級別提升)**
+**目前版本：V25 (全系統核心實體軟刪除 + 寵物年齡自動換算 + DX 調試級別提升 + E2E 35/35 全綠)**
 
 ---
 
@@ -33,7 +33,8 @@ cat-sitter-project/
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 安全認證 | Spring Security + JWT (Stateless, JJWT) + **X-Smoke-Auth (Mock Auth)** |
-| 資料庫版控| Flyway（Schema V22: E2E 測試數據同步、UUID 大統一、白名單預設資料） |
+| 資料庫版控| Flyway（Schema V25: 軟刪除 + birthDate + RABBIT）|
+| E2E 狀態 | **Playwright 35/35 通過**（含 V25 功能驗收、onboarding、booking-lifecycle） |
 
 ---
 
@@ -92,11 +93,19 @@ npm run api:generate   # 僅重新生成 SDK（使用現有 backend/openapi.json
 - `api:sync`：以上兩步合一
 
 #### 3. 前端 E2E 流程測試 (Playwright)
-需啟動後端 `smoke` profile (Port 8081) 後執行：
+需啟動後端 `smoke` profile (Port **8080**) 後執行：
 ```bash
 cd frontend
-npx playwright test    # 執行所有 POM 化後的 E2E 腳本
+npx playwright test    # 執行所有 POM 化後的 E2E 腳本（目前 35/35 通過）
 ```
+
+> **E2E 測試覆蓋範圍（V25）**：
+> - Auth 流程（登入、Onboarding、角色切換）
+> - 預約生命週期（建立 → 確認 → 完工）
+> - 保母業務（儀表板、服務方案、信任圈）
+> - Client 寵物管理（新增、軟刪除、birthDate、RABBIT 物種）
+> - V25 功能驗收（Email 驗證 badge、Email 更換事件驅動彈窗）
+> - 通知中心（SITTER/CLIENT 分類顯示）
 
 #### 4. Cloud Run Proxy 驗證 (UAT)
 若要針對已部署的 Cloud Run 執行 E2E 測試（需身份驗證）：
@@ -170,6 +179,18 @@ cd backend
 
 更完整的架構與開發守則見：
 - [後端開發規範 (TDD & 測試策略)](backend/DEVELOPMENT_GUIDELINES.md)
+
+---
+
+## ⚠️ E2E 測試常見陷阱 (Phase 13 整理)
+
+| 問題 | 根因 | 解法 |
+|------|------|------|
+| 特定 mock 未生效 | Playwright 路由 LIFO：先加的後執行 | **在 `injectSmokeAuth` 之後**加 mock，再重新 `goto` |
+| `completeOnboarding` 第二次執行失敗 | H2 DB 殘留上次 run 的 profile | Mock `**/auth/me` 永遠回傳 NEWBIE，mock `complete-onboarding` 避免真實寫入 |
+| 角色按鈕 `click({force:true})` 無效 | Framer Motion AnimatePresence 不斷 detach/re-attach | `waitForLoadState('networkidle')` 後用 `dispatchEvent('click')` |
+| 多步驟導航後 `ERR_ABORTED` | Service Worker 在導航間重新註冊 | `injectSmokeAuth` 內 `goto` 前先清除所有 SW |
+| `listSitterVisits()` 後端 500 | 未傳 `date` 參數 | 必須帶 `today = new Date().toISOString().split('T')[0]` |
 
 ---
 

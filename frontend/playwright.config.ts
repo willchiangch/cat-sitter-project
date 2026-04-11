@@ -22,7 +22,7 @@ export default defineConfig({
     },
     {
       command: 'cd ../backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=smoke',
-      url: 'http://localhost:8081/api/v1/auth/me',
+      url: 'http://localhost:8080/api/v1/auth/me',
       reuseExistingServer: !process.env.CI,
       stdout: 'ignore',
       stderr: 'pipe',

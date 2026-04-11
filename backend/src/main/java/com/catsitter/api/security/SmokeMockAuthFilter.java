@@ -45,8 +45,8 @@ public class SmokeMockAuthFilter extends OncePerRequestFilter {
                 // James Wilson (Client)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000002");
             } else if ("NEWBIE".equalsIgnoreCase(mockUser)) {
-                // New User (No profiles yet) — aligned with V14 migration
-                accountId = UUID.fromString("efefefef-0000-0000-0000-000000000003");
+                // New User (No profiles yet) — matches SmokeDataSeeder newbieAccId
+                accountId = UUID.fromString("efefefef-0000-0000-0000-000000000004");
             } else if ("SOPHIA".equalsIgnoreCase(mockUser) || "SITTER".equalsIgnoreCase(mockUser)) {
                 // Sophia (Sitter)
                 accountId = UUID.fromString("efefefef-0000-0000-0000-000000000001");

@@ -60,8 +60,8 @@ export class AuthPage {
             token: 'smoke-test-token',
             isAuthenticated: true,
             user: {
-              id: isNewbie ? 'efefefef-0000-0000-0000-000000000003' : 'efefefef-0000-0000-0000-000000000001',
-              email: isNewbie ? 'newbie@example.com' : 'sophia@example.com',
+              id: isNewbie ? 'efefefef-0000-0000-0000-000000000004' : 'efefefef-0000-0000-0000-000000000001',
+              email: isNewbie ? 'newbie_smoke@test.com' : 'sophia@example.com',
               role: isNewbie ? 'NEWBIE' : 'SITTER',
               lastActiveRole: isNewbie ? null : 'SITTER',
               profiles: isNewbie ? [] : [
@@ -83,7 +83,20 @@ export class AuthPage {
       window.localStorage.setItem('token', 'smoke-test-token')
     }, role)
 
-    // 3. Navigate to a page to trigger the init script (hard navigation required)
+    // 3. Unregister any service workers that may have re-registered during the test
+    //    (PWA can re-register SWs after multi-step navigation, causing ERR_ABORTED on subsequent goto)
+    try {
+      await this.page.evaluate(async () => {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations()
+          for (const reg of registrations) await reg.unregister()
+        }
+      })
+    } catch {
+      // Page may not be in an evaluable state (first navigation); safe to ignore
+    }
+
+    // 4. Navigate to a page to trigger the init script (hard navigation required)
     const targetUrl = role === 'JAMES' ? '/client' : '/profile'
     await this.page.goto(targetUrl)
     await this.page.waitForLoadState('load')
@@ -127,16 +140,20 @@ export class AuthPage {
   }
 
   async completeOnboarding(displayName, roleType) {
-    // Wait for App.jsx full interception redirect to complete
-    await this.page.waitForURL(/\/onboarding$/, { timeout: 10000 })
-
-    // Step 1: Select role — use force:true because Framer Motion AnimatePresence
-    // briefly detaches elements during enter/exit animations
-    if (roleType === 'SITTER') {
-      await this.page.getByRole('button', { name: /冒險者/i }).click({ force: true })
-    } else {
-      await this.page.getByRole('button', { name: /召喚師/i }).click({ force: true })
+    // Wait for App.jsx interception redirect only if not already on /onboarding
+    if (!this.page.url().includes('/onboarding')) {
+      await this.page.waitForURL(/\/onboarding$/, { timeout: 10000 })
     }
+
+    // Step 1: Select role
+    // Use waitForLoadState + dispatchEvent because Framer Motion AnimatePresence
+    // repeatedly detaches/re-attaches elements during enter animations,
+    // causing force:true clicks to fail with "element was detached from DOM".
+    await this.page.waitForLoadState('networkidle')
+    const roleName = roleType === 'SITTER' ? /冒險者/i : /召喚師/i
+    const roleBtn = this.page.getByRole('button', { name: roleName })
+    await roleBtn.waitFor({ state: 'attached', timeout: 10000 })
+    await roleBtn.dispatchEvent('click')
 
     // Step 2: Fill display name (input appears after role selection)
     const input = this.page.getByPlaceholder(/貓咪守護者|顯示名稱/i)
