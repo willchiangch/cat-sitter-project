@@ -269,7 +269,7 @@ const QuestionnaireEditor = () => {
                 <div className="space-y-6">
                   {/* Type Selection */}
                   <div className="space-y-3">
-                    <label className="text-xs font-black uppercase tracking-widest opacity-40 ml-4">問題類型</label>
+                    <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60 ml-4">問題類型</label>
                     <div className="grid grid-cols-3 gap-3">
                       {[
                         { id: 'TEXT', label: '簡答', icon: 'notes', color: 'blue' },
@@ -294,7 +294,7 @@ const QuestionnaireEditor = () => {
 
                   {/* Question Text */}
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest opacity-40 ml-4">問題內容</label>
+                    <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60 ml-4">問題內容</label>
                     <textarea 
                       value={formData.questionText}
                       onChange={(e) => setFormData({ ...formData, questionText: e.target.value })}
@@ -308,7 +308,7 @@ const QuestionnaireEditor = () => {
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
                       <label className="text-xs font-black uppercase tracking-widest opacity-40 ml-4 line-through hidden">Choices</label>
                       <div className="flex items-center justify-between px-4">
-                        <span className="text-xs font-black uppercase tracking-widest opacity-40">選項清單</span>
+                        <span className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">選項清單</span>
                         <span className="text-[10px] font-bold opacity-30 italic">{formData.options.length} 個已設定</span>
                       </div>
                       <div className="space-y-3">
@@ -327,7 +327,7 @@ const QuestionnaireEditor = () => {
                         ))}
                         <button 
                           onClick={addOption}
-                          className="w-full py-4 rounded-2xl border-2 border-dashed border-outline-variant/20 text-xs font-black text-primary hover:bg-primary/5 hover:border-primary/40 transition-all active:scale-[0.99]"
+                          className="w-full py-4 rounded-2xl border-2 border-dashed border-outline-variant/20 text-sm font-black text-primary hover:bg-primary/5 hover:border-primary/40 transition-all active:scale-[0.99]"
                         >
                           + 新增選項
                         </button>
@@ -342,8 +342,8 @@ const QuestionnaireEditor = () => {
                         <span className="material-symbols-outlined text-xl">{formData.required ? 'notification_important' : 'question_mark'}</span>
                       </div>
                       <div>
-                        <p className="text-sm font-black">必填問題</p>
-                        <p className="text-[10px] opacity-40 font-bold uppercase tracking-tight">Requirement Status</p>
+                        <p className="text-sm font-black text-on-surface-variant/80">必填問題</p>
+                        <p className="text-xs font-black opacity-30 uppercase tracking-widest">Requirement Status</p>
                       </div>
                     </div>
                     <button 

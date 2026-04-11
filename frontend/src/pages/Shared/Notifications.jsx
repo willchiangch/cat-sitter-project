@@ -31,10 +31,10 @@ const Notifications = () => {
     <div className="min-h-screen bg-surface text-on-surface pb-32">
       {/* Header */}
       <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-outline-variant/5">
-        <h1 className="text-sm font-extrabold font-headline uppercase tracking-widest">{t('common.alerts')}</h1>
+        <h1 className="text-sm font-black font-headline uppercase tracking-widest">{t('common.alerts')}</h1>
         <button
           onClick={markAllAsRead}
-          className="text-[10px] font-bold text-primary uppercase tracking-widest hover:opacity-70 transition-opacity"
+          className="text-sm font-black text-primary uppercase tracking-widest hover:opacity-70 transition-opacity"
         >
           {t('notifications.read_all', '全部已讀')}
         </button>
@@ -46,7 +46,7 @@ const Notifications = () => {
         className="px-5 pt-8 space-y-8 max-w-xl mx-auto"
       >
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-extrabold tracking-[0.2em] text-on-surface-variant/40 uppercase">最新通知</h2>
+          <h2 className="text-sm font-black tracking-widest text-on-surface-variant/60 uppercase">最新通知</h2>
           <span className="text-[10px] font-bold opacity-20">{filtered.length} 則</span>
         </div>
 
@@ -74,12 +74,12 @@ const Notifications = () => {
                   {/* Message Content */}
                   <div className="flex-1 space-y-1 pt-1">
                     <div className="flex justify-between items-start">
-                      <h3 className={`text-sm font-extrabold tracking-tight ${notif.read ? 'text-on-surface' : 'text-primary'}`}>
+                      <h3 className={`text-sm font-black tracking-tight ${notif.read ? 'text-on-surface' : 'text-primary'}`}>
                         {notif.title}
                       </h3>
                       <span className="text-[10px] font-bold opacity-30 uppercase tracking-tighter">{notif.time}</span>
                     </div>
-                    <p className="text-xs font-medium leading-relaxed text-on-surface-variant opacity-80">
+                    <p className="text-sm font-medium leading-relaxed text-on-surface-variant/80">
                       {notif.message}
                     </p>
                   </div>

@@ -4,12 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { sitterService } from '../../services/api'
 
 const SPECIES_OPTIONS = [
+  { value: 'DOG', label: '犬' },
   { value: 'CAT', label: '貓' },
-  { value: 'DOG', label: '狗' },
-  { value: 'BIRD', label: '鳥' },
   { value: 'HAMSTER', label: '鼠' },
   { value: 'RABBIT', label: '兔' },
-  { value: 'REPTILE', label: '爬蟲' },
+  { value: 'BIRD', label: '鳥' },
   { value: 'OTHER', label: '其他' },
 ]
 
@@ -322,7 +321,7 @@ const ServicePackages = () => {
 
               {/* 方案名稱 */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">方案名稱 *</label>
+                <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">方案名稱*</label>
                 <input
                   type="text"
                   value={form.name}
@@ -334,7 +333,7 @@ const ServicePackages = () => {
 
               {/* 種類（多選） */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">適用種類（可複選）</label>
+                <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">適用種類（可複選）</label>
                 <div className="flex flex-wrap gap-2">
                   {SPECIES_OPTIONS.map(opt => (
                     <button
@@ -356,7 +355,7 @@ const ServicePackages = () => {
               {/* 基本價格 + 時間長度 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">基本價格 (元)</label>
+                  <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">基本價格 (元)*</label>
                   <input
                     type="number"
                     value={form.basePrice}
@@ -366,7 +365,7 @@ const ServicePackages = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">時間長度 (分鐘)</label>
+                  <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">時間長度 (分鐘)*</label>
                   <input
                     type="number"
                     value={form.durationMinutes}
@@ -380,7 +379,7 @@ const ServicePackages = () => {
               {/* 生效日期區間 */}
               <div className="space-y-3">
                 <div>
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">生效日期區間（選填）</label>
+                  <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">生效日期區間（選填）</label>
                   <p className="text-[10px] font-bold opacity-30 mt-1">設定後系統將依日期自動開關此方案；兩個日期必須同時填寫或同時留空</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -440,7 +439,7 @@ const ServicePackages = () => {
 
               {/* 可接單日期區間 */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">可接單日期區間（選填）</label>
+                <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">可接單日期區間（選填）</label>
                 <p className="text-[10px] font-bold opacity-30">超出此區間的預約日期將顯示「此日期未提供服務」</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -472,14 +471,14 @@ const ServicePackages = () => {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setIsEditing(false)}
-                  className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-bold hover:bg-surface-container transition-colors"
+                  className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-black hover:bg-surface-container transition-colors"
                 >
                   取消
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="flex-1 py-4 bg-primary text-on-primary rounded-full font-bold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all"
+                  className="flex-1 py-4 bg-primary text-on-primary rounded-full text-sm font-black shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all"
                 >
                   {isSaving ? '儲存中...' : '儲存方案'}
                 </button>

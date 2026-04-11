@@ -7,6 +7,7 @@ import { useThemeStore } from '../../store/themeStore'
 import { profileService, storageService, calendarService, petService, authService } from '../../services/api'
 import PetFormModal from '../../components/client/PetFormModal'
 import DevAuthTools from '../../components/DevAuthTools'
+import { calculateAge } from '../../utils/dateUtils'
 
 const Profile = () => {
   const user = useAuthStore((state) => state.user)
@@ -15,24 +16,7 @@ const Profile = () => {
   const isSitter = mode === 'SITTER'
   const navigate = useNavigate()
 
-  // Helper: Calculate Age from birthDate (YYYY-MM-01 format)
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return null
-    const birth = new Date(birthDate)
-    const now = new Date()
-    
-    let years = now.getFullYear() - birth.getFullYear()
-    let months = now.getMonth() - birth.getMonth()
-    
-    if (months < 0) {
-      years--
-      months += 12
-    }
-    
-    if (years === 0) return `${months}個月`
-    if (months === 0) return `${years}歲`
-    return `${years}歲 ${months}個月`
-  }
+  const genderMap = { 'MALE': '公', 'FEMALE': '母', 'UNKNOWN': '不詳' }
 
   const [isUploading, setIsUploading] = useState(false)
   const [uploadingField, setUploadingField] = useState(null)
@@ -309,7 +293,7 @@ const Profile = () => {
 
   const SettingsSection = ({ title, children }) => (
     <div className="space-y-4">
-      <h3 className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/40 uppercase px-1">{title}</h3>
+      <h3 className="text-sm font-black tracking-[0.2em] text-on-surface-variant/50 uppercase px-2">{title}</h3>
       <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 overflow-hidden">
         {children}
       </div>
@@ -319,19 +303,19 @@ const Profile = () => {
   const SettingsItem = ({ icon, label, value, onClick, color = "text-on-surface", description }) => (
     <button 
       onClick={onClick}
-      className={`w-full px-6 py-5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors border-b border-outline-variant/5 last:border-0 ${!onClick ? 'cursor-default group' : ''}`}
+      className={`w-full px-6 py-6 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors border-b border-outline-variant/5 last:border-0 ${!onClick ? 'cursor-default group' : ''}`}
     >
-      <div className="flex items-center gap-4">
-        <div className={`w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center ${color === "text-error" ? "text-error" : "text-primary"}`}>
-          <span className="material-symbols-outlined text-xl">{icon}</span>
+      <div className="flex items-center gap-5">
+        <div className={`w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center ${color === "text-error" ? "text-error" : "text-primary"}`}>
+          <span className="material-symbols-outlined text-2xl">{icon}</span>
         </div>
         <div className="text-left">
-          <p className="text-xs font-bold opacity-40 uppercase tracking-widest leading-none mb-1.5">{label}</p>
+          <p className="text-sm font-black opacity-40 uppercase tracking-widest leading-none mb-2">{label}</p>
           <div className={`text-sm font-extrabold ${color}`}>{value}</div>
-          {description && <p className="text-[10px] opacity-30 font-bold mt-1 max-w-[200px] truncate">{description}</p>}
+          {description && <p className="text-xs opacity-30 font-bold mt-1.5 max-w-[240px] truncate">{description}</p>}
         </div>
       </div>
-      {onClick && <span className="material-symbols-outlined text-lg opacity-20 group-hover:opacity-100 transition-opacity">chevron_right</span>}
+      {onClick && <span className="material-symbols-outlined text-xl opacity-20 group-hover:opacity-100 transition-opacity">chevron_right</span>}
     </button>
   )
 
@@ -371,7 +355,7 @@ const Profile = () => {
         <div>
           <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.profiles?.[0]?.name || user?.name}</h2>
           <div className="mt-2 flex items-center justify-center gap-2">
-            <span className="px-3 py-1 bg-gradient-to-r from-[#e0f2fe] to-[#f3e8ff] text-navy text-[10px] font-black rounded-full border border-blue-200/50 uppercase tracking-widest shadow-sm">
+            <span className="px-4 py-1.5 bg-gradient-to-r from-[#e0f2fe] to-[#f3e8ff] text-navy text-xs font-black rounded-full border border-blue-200/50 uppercase tracking-widest shadow-sm">
               {(isSitter) ? 'Professional Sitter' : 'Elite Owner'}
             </span>
           </div>
@@ -386,7 +370,7 @@ const Profile = () => {
         {/* Booking URL (Sitter only) */}
         {isSitter && (
           <section className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-6 space-y-4">
-            <p className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/40 uppercase">接單專屬網址</p>
+            <p className="text-xs font-black tracking-[0.2em] text-on-surface-variant/50 uppercase">接單專屬網址</p>
             {sitterData?.slug ? (
               <p className="text-xs font-bold text-on-surface-variant break-all">
                 {`${window.location.origin}/s/${sitterData.slug}`}
@@ -401,17 +385,17 @@ const Profile = () => {
                   navigator.clipboard.writeText(`${window.location.origin}/s/${sitterData.slug}`)
                   alert('已複製接單網址')
                 }}
-                className="flex-1 py-3 bg-surface-container rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 hover:bg-surface-container-high transition-colors active:scale-95"
+                className="flex-1 py-4 bg-surface-container rounded-full text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors active:scale-95"
               >
-                <span className="material-symbols-outlined text-base">content_copy</span>
+                <span className="material-symbols-outlined text-lg">content_copy</span>
                 複製網址
               </button>
               <button
                 onClick={() => sitterData?.slug && navigate(`/s/${sitterData.slug}`)}
-                className="flex-1 py-3 bg-surface-container rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 hover:bg-surface-container-high transition-colors active:scale-95"
+                className="flex-1 py-4 bg-surface-container rounded-full text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors active:scale-95"
               >
-                <span className="material-symbols-outlined text-base">north_east</span>
-                預覽對外網頁
+                <span className="material-symbols-outlined text-lg">north_east</span>
+                預覽頁面
               </button>
             </div>
           </section>
@@ -683,12 +667,12 @@ const Profile = () => {
                   <div className="flex items-center gap-2">
                     <span>{user?.email}</span>
                     {user?.emailVerified ? (
-                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-600 rounded-md">
-                        <span className="material-symbols-outlined text-[10px] font-bold">check_circle</span>
-                        <span className="text-[9px] font-black uppercase">已驗證</span>
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-600 rounded-md">
+                        <span className="material-symbols-outlined text-xs font-bold">check_circle</span>
+                        <span className="text-[10px] font-black uppercase">已驗證</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-error/10 text-error rounded-md text-[9px] font-black uppercase">
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-error/10 text-error rounded-md text-[10px] font-black uppercase">
                         未驗證
                       </div>
                     )}
@@ -707,15 +691,17 @@ const Profile = () => {
                   <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
                     {pets.map((pet, index) => (
                       <div key={pet.petId || `pet-${index}`} className="flex-shrink-0 flex flex-col items-center gap-1.5">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container ring-2 ring-outline-variant/10">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-surface-container ring-2 ring-outline-variant/10 shadow-lg">
                           <img
                             src={pet.avatarUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100'}
                             alt={pet.name}
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <p className="text-[10px] font-bold">{pet.name}</p>
-                        <p className="text-[8px] font-black opacity-30 uppercase tracking-widest">{calculateAge(pet.birthDate) || '年齡不詳'}</p>
+                        <p className="text-xs font-black">{pet.name}</p>
+                        <p className="text-[10px] font-black opacity-30 uppercase tracking-widest">
+                          {genderMap[pet.gender] || pet.gender} • {calculateAge(pet.birthDate) || '年齡不詳'}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -723,16 +709,16 @@ const Profile = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowPetModal(true)}
-                    className="flex-1 py-3 bg-navy text-white rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-lg shadow-navy/20"
+                    className="flex-1 py-4 bg-navy text-white rounded-full text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl shadow-navy/20"
                   >
-                    <span className="material-symbols-outlined text-base">add</span>
+                    <span className="material-symbols-outlined text-lg">add</span>
                     新增寵物
                   </button>
                   <button
                     onClick={() => { navigate('/client/pets'); document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' }) }}
-                    className="flex-1 py-3 bg-surface-container rounded-full text-[10px] font-extrabold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-95 transition-colors hover:bg-surface-container-high"
+                    className="flex-1 py-4 bg-surface-container rounded-full text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-colors hover:bg-surface-container-high"
                   >
-                    <span className="material-symbols-outlined text-base">pets</span>
+                    <span className="material-symbols-outlined text-lg">pets</span>
                     管理全部
                   </button>
                 </div>
@@ -806,29 +792,29 @@ const Profile = () => {
               <p className="text-xs font-bold opacity-40">僅用於款項撥付，資料加密儲存。</p>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">銀行代碼</label>
+                  <label className="text-xs font-black tracking-[0.2em] text-on-surface-variant/50 uppercase ml-1">銀行代碼</label>
                   <input
                     type="text"
                     value={editBankCode}
                     onChange={e => setEditBankCode(e.target.value)}
                     placeholder="例：004"
-                    className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                    className="w-full px-5 py-4 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-base font-bold outline-none focus:border-primary transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">匯款帳號</label>
+                  <label className="text-xs font-black tracking-[0.2em] text-on-surface-variant/50 uppercase ml-1">匯款帳號</label>
                   <input
                     type="text"
                     value={editBankAccount}
                     onChange={e => setEditBankAccount(e.target.value)}
                     placeholder="完整銀行帳號"
-                    className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                    className="w-full px-5 py-4 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-base font-bold outline-none focus:border-primary transition-colors"
                   />
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowBankEdit(false)} className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-bold hover:bg-surface-container transition-colors">取消</button>
-                <button onClick={handleSaveBankInfo} disabled={isSavingBank} className="flex-1 py-4 bg-primary text-on-primary rounded-full font-bold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all">
+                <button onClick={() => setShowBankEdit(false)} className="flex-1 py-5 bg-surface-container-low border border-outline-variant/20 rounded-full text-base font-black hover:bg-surface-container transition-colors">取消</button>
+                <button onClick={handleSaveBankInfo} disabled={isSavingBank} className="flex-1 py-5 bg-primary text-on-primary rounded-full font-extrabold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all text-base">
                   {isSavingBank ? '儲存中...' : '儲存'}
                 </button>
               </div>
@@ -853,38 +839,38 @@ const Profile = () => {
               <h3 className="text-2xl font-black font-headline tracking-tighter">編輯基本資料</h3>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">顯示名稱</label>
+                  <label className="text-xs font-black tracking-[0.2em] text-on-surface-variant/50 uppercase ml-1">顯示名稱</label>
                   <input
                     type="text"
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
                     placeholder="您的名稱"
-                    className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                    className="w-full px-5 py-4 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-base font-bold outline-none focus:border-primary transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">聯絡電話</label>
+                  <label className="text-xs font-black tracking-[0.2em] text-on-surface-variant/50 uppercase ml-1">聯絡電話</label>
                   <input
                     type="tel"
                     value={editPhone}
                     onChange={e => setEditPhone(e.target.value)}
                     placeholder="09xx-xxx-xxx"
-                    className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                    className="w-full px-5 py-4 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-base font-bold outline-none focus:border-primary transition-colors"
                   />
                 </div>
               </div>
-              {profileSaveError && <p className="text-xs font-bold text-error">{profileSaveError}</p>}
+              {profileSaveError && <p className="text-sm font-bold text-error px-1">{profileSaveError}</p>}
               <div className="flex gap-3">
                 <button
                   onClick={() => { setShowEditProfile(false); setProfileSaveError('') }}
-                  className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-bold hover:bg-surface-container transition-colors"
+                  className="flex-1 py-5 bg-surface-container-low border border-outline-variant/20 rounded-full text-base font-black hover:bg-surface-container transition-colors"
                 >
                   取消
                 </button>
                 <button
                   onClick={handleSaveClientProfile}
                   disabled={isSavingProfile}
-                  className="flex-1 py-4 bg-primary text-on-primary rounded-full font-bold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all"
+                  className="flex-1 py-5 bg-primary text-on-primary rounded-full font-extrabold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all text-base"
                 >
                   {isSavingProfile ? '儲存中...' : '儲存'}
                 </button>
@@ -913,11 +899,11 @@ const Profile = () => {
                 value={editSitterName}
                 onChange={e => setEditSitterName(e.target.value)}
                 placeholder="您的名稱"
-                className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                className="w-full px-5 py-4 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-base font-bold outline-none focus:border-primary transition-colors"
               />
               <div className="flex gap-3">
-                <button onClick={() => setShowSitterNameEdit(false)} className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-bold hover:bg-surface-container transition-colors">取消</button>
-                <button onClick={handleSaveSitterName} disabled={isSavingSitterName} className="flex-1 py-4 bg-primary text-on-primary rounded-full font-bold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all">
+                <button onClick={() => setShowSitterNameEdit(false)} className="flex-1 py-5 bg-surface-container-low border border-outline-variant/20 rounded-full text-base font-black hover:bg-surface-container transition-colors">取消</button>
+                <button onClick={handleSaveSitterName} disabled={isSavingSitterName} className="flex-1 py-5 bg-primary text-on-primary rounded-full font-extrabold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all text-base">
                   {isSavingSitterName ? '儲存中...' : '儲存'}
                 </button>
               </div>
@@ -945,28 +931,28 @@ const Profile = () => {
                   <p className="text-sm font-bold text-primary">{emailSuccessMessage}</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/50 uppercase">新電子郵件地址</label>
-                    <input
-                      type="email"
-                      value={editEmail}
-                      onChange={e => setEditEmail(e.target.value)}
-                      placeholder="example@mail.com"
-                      className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
-                    />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black tracking-[0.2em] text-on-surface-variant/50 uppercase ml-1">新電子郵件地址</label>
+                      <input
+                        type="email"
+                        value={editEmail}
+                        onChange={e => setEditEmail(e.target.value)}
+                        placeholder="example@mail.com"
+                        className="w-full px-5 py-4 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-base font-bold outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+                    <p className="text-sm font-bold opacity-40 leading-relaxed px-1">更改後，系統將寄出驗證信，您需要重新驗證新信箱。</p>
                   </div>
-                  <p className="text-xs font-bold opacity-40">更改後，系統將寄出驗證信，您需要重新驗證新信箱。</p>
-                </div>
-              )}
-              {emailSaveError && <p className="text-xs font-bold text-error">{emailSaveError}</p>}
-              {!emailSuccessMessage && (
-                <div className="flex gap-3">
-                  <button onClick={() => setShowEmailEdit(false)} className="flex-1 py-4 bg-surface-container-low border border-outline-variant/20 rounded-full text-sm font-bold hover:bg-surface-container transition-colors">取消</button>
-                  <button onClick={handleSaveEmail} disabled={isSavingEmail} className="flex-1 py-4 bg-primary text-on-primary rounded-full font-bold shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all">
-                    {isSavingEmail ? '儲存中...' : '儲存'}
-                  </button>
-                </div>
+                )}
+                {emailSaveError && <p className="text-sm font-bold text-error px-1">{emailSaveError}</p>}
+                {!emailSuccessMessage && (
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowEmailEdit(false)} className="flex-1 py-5 bg-surface-container-low border border-outline-variant/20 rounded-full text-base font-black hover:bg-surface-container transition-colors">取消</button>
+                    <button onClick={handleSaveEmail} disabled={isSavingEmail} className="flex-1 py-5 bg-primary text-on-primary rounded-full font-black shadow-xl shadow-primary/20 disabled:opacity-50 active:scale-95 transition-all text-base">
+                      {isSavingEmail ? '儲存中...' : '儲存'}
+                    </button>
+                  </div>
               )}
             </motion.div>
           </div>

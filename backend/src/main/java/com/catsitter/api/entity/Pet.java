@@ -2,6 +2,7 @@ package com.catsitter.api.entity;
 
 import com.catsitter.api.entity.common.AuditableEntity;
 import com.catsitter.api.entity.enums.PetGender;
+import com.catsitter.api.entity.enums.PetHealthStatus;
 import com.catsitter.api.entity.enums.PetSpecies;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -36,12 +37,25 @@ public class Pet extends AuditableEntity {
   @Column(nullable = false, length = 50)
   private PetSpecies species;
 
+  @NotNull
   @Enumerated(EnumType.STRING)
-  @Column(length = 10)
+  @Column(nullable = false, length = 10)
   private PetGender gender;
+  
+  @NotNull
+  @Enumerated(EnumType.STRING)
+  @Column(name = "neutered_status", nullable = false, length = 20)
+  private PetHealthStatus neuteredStatus;
 
-  @Column(name = "is_neutered")
-  private Boolean isNeutered;
+  @NotNull
+  @Enumerated(EnumType.STRING)
+  @Column(name = "vaccination_status", nullable = false, length = 20)
+  private PetHealthStatus vaccinationStatus;
+
+  @NotNull
+  @Enumerated(EnumType.STRING)
+  @Column(name = "deworming_status", nullable = false, length = 20)
+  private PetHealthStatus dewormingStatus;
 
   @PositiveOrZero
   @Column(name = "weight_kg", precision = 5, scale = 2)
@@ -75,8 +89,12 @@ public class Pet extends AuditableEntity {
   public void setSpecies(PetSpecies species) { this.species = species; }
   public PetGender getGender() { return gender; }
   public void setGender(PetGender gender) { this.gender = gender; }
-  public Boolean getIsNeutered() { return isNeutered; }
-  public void setIsNeutered(Boolean isNeutered) { this.isNeutered = isNeutered; }
+  public PetHealthStatus getNeuteredStatus() { return neuteredStatus; }
+  public void setNeuteredStatus(PetHealthStatus neuteredStatus) { this.neuteredStatus = neuteredStatus; }
+  public PetHealthStatus getVaccinationStatus() { return vaccinationStatus; }
+  public void setVaccinationStatus(PetHealthStatus vaccinationStatus) { this.vaccinationStatus = vaccinationStatus; }
+  public PetHealthStatus getDewormingStatus() { return dewormingStatus; }
+  public void setDewormingStatus(PetHealthStatus dewormingStatus) { this.dewormingStatus = dewormingStatus; }
   public BigDecimal getWeightKg() { return weightKg; }
   public void setWeightKg(BigDecimal weightKg) { this.weightKg = weightKg; }
   public LocalDate getBirthDate() { return birthDate; }

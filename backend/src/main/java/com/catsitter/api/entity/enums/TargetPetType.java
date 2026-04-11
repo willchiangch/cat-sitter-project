@@ -1,3 +1,3 @@
 package com.catsitter.api.entity.enums;
 
-public enum TargetPetType { CAT, DOG, BIRD, REPTILE, ALL }
+public enum TargetPetType { DOG, CAT, HAMSTER, RABBIT, BIRD, OTHER, ALL }

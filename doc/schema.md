@@ -1,4 +1,4 @@
-# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V9)
+# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V26)
 
 ## 全域稽核欄位 (Audit Columns) 約定
 所有資料表皆包含以下標準稽核欄位：
@@ -47,7 +47,7 @@
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 題目 ID |
 | `sitter_profile_id` | UUID (FK) | 屬於哪位保母 |
-| `target_pet_type` | VARCHAR | `CAT`, `DOG`, `ALL` |
+| `target_pet_type` | VARCHAR | `DOG`, `CAT`, `HAMSTER`, `RABBIT`, `BIRD`, `OTHER`, `ALL` |
 | `question_text` | TEXT | 題目內容 |
 | `type` | VARCHAR | `TEXT`, `SINGLE_CHOICE`, `MULTIPLE_CHOICE` |
 | `required` | BOOLEAN | 是否必填 |
@@ -67,9 +67,11 @@
 | `id` | UUID (PK) | 毛孩專屬 ID |
 | `client_profile_id` | UUID (FK) | 屬於哪位飼主 |
 | `name` | VARCHAR | 名字 |
-| `species` | VARCHAR | `CAT`, `DOG`, `RABBIT`, `BIRD`, `REPTILE`, `OTHER` |
-| `gender` | VARCHAR | `MALE`, `FEMALE`, `UNKNOWN` |
-| `is_neutered` | BOOLEAN | 是否結紮 |
+| `species` | VARCHAR | `DOG`, `CAT`, `HAMSTER`, `RABBIT`, `BIRD`, `OTHER` |
+| `gender` | VARCHAR | `MALE`, `FEMALE`, `UNKNOWN` (NOT NULL) |
+| `neutered_status` | VARCHAR | **[V26]** `YES`, `NO`, `NOT_REQUIRED` |
+| `vaccination_status`| VARCHAR | **[V26]** `YES`, `NO`, `NOT_REQUIRED` |
+| `deworming_status` | VARCHAR | **[V26]** `YES`, `NO`, `NOT_REQUIRED` |
 | `birth_date` | DATE | **[V22]** 出生年月日 |
 | `weight_kg` | DECIMAL | 體重 (kg) |
 | `avatar_url` | VARCHAR | 照片路徑 |

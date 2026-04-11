@@ -76,14 +76,15 @@ public class SmokeDataSeeder implements CommandLineRunner {
             clientProfileId, clientAccId, "CLIENT", "James Wilson (Smoke)", "james-smoke", false, now, now);
 
         // 4. Pet — named "Fluffy" to match E2E spec selector /Fluffy|貓咪/
+        // V26: is_neutered dropped; replaced with neutered_status/vaccination_status/deworming_status (NOT NULL)
         UUID petId = UUID.fromString("efefefef-0000-0000-0000-000000000021");
-        jdbcTemplate.update("INSERT INTO PETS (ID, CLIENT_PROFILE_ID, NAME, SPECIES, GENDER, WEIGHT_KG, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            petId, clientProfileId, "Fluffy", "CAT", "MALE", 5.5, now, now);
+        jdbcTemplate.update("INSERT INTO PETS (ID, CLIENT_PROFILE_ID, NAME, SPECIES, GENDER, WEIGHT_KG, NEUTERED_STATUS, VACCINATION_STATUS, DEWORMING_STATUS, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            petId, clientProfileId, "Fluffy", "CAT", "MALE", 5.5, "YES", "YES", "NO", now, now);
 
         // 4b. Oliver — matches sitter dashboard E2E test
         UUID oliverId = UUID.fromString("efefefef-0000-0000-0000-000000000022");
-        jdbcTemplate.update("INSERT INTO PETS (ID, CLIENT_PROFILE_ID, NAME, SPECIES, GENDER, WEIGHT_KG, IS_NEUTERED, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            oliverId, clientProfileId, "Oliver", "CAT", "MALE", 5.0, true, now, now);
+        jdbcTemplate.update("INSERT INTO PETS (ID, CLIENT_PROFILE_ID, NAME, SPECIES, GENDER, WEIGHT_KG, NEUTERED_STATUS, VACCINATION_STATUS, DEWORMING_STATUS, CREATED_AT, UPDATED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            oliverId, clientProfileId, "Oliver", "CAT", "MALE", 5.0, "YES", "YES", "NO", now, now);
 
         // 5. Service — fixed UUID to match BookingFlow.jsx hardcoded serviceId for STANDARD plan
         UUID serviceId = UUID.fromString("68511200-0045-6120-0000-000000000001");

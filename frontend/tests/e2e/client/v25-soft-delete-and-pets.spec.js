@@ -38,7 +38,9 @@ test.describe('V25: Soft Delete & Pet Form', () => {
       species: 'CAT',
       gender: 'FEMALE',
       weightKg: 3.5,
-      isNeutered: true,
+      neuteredStatus: 'YES',      // V26: replaced isNeutered boolean
+      vaccinationStatus: 'YES',
+      dewormingStatus: 'NO',
       birthDate: null,
       avatarUrl: null,
     }

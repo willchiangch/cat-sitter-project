@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { petService } from '../../services/api'
 import PetFormModal from '../../components/client/PetFormModal'
+import { calculateAge } from '../../utils/dateUtils'
 
 // scroll to top on mount
 const useScrollToTop = () => useEffect(() => { document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' }) }, [])
@@ -13,6 +14,7 @@ const Pets = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPet, setEditingPet] = useState(null)
   const navigate = useNavigate()
+  const genderMap = { 'MALE': '公', 'FEMALE': '母', 'UNKNOWN': '不詳' }
   useScrollToTop()
 
   useEffect(() => {
@@ -77,7 +79,7 @@ const Pets = () => {
         ) : pets.length === 0 ? (
           <div className="py-20 text-center space-y-4 opacity-40">
             <span className="material-symbols-outlined text-6xl">pets</span>
-            <p className="text-sm font-bold uppercase tracking-widest">您的保險箱目前空空如也</p>
+            <p className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">您的保險箱目前空空如也</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6">
@@ -95,9 +97,11 @@ const Pets = () => {
                 <div className="flex-1 space-y-1">
                   <h3 className="text-2xl font-extrabold font-headline tracking-tighter">{pet.name}</h3>
                   <div className="flex gap-3">
-                    <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">{pet.species}</span>
-                    <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">•</span>
-                    <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest">{pet.gender}</span>
+                    <span className="text-xs font-black opacity-40 uppercase tracking-widest">{pet.species}</span>
+                    <span className="text-xs font-black opacity-30 uppercase tracking-widest">•</span>
+                    <span className="text-xs font-black opacity-40 uppercase tracking-widest">{genderMap[pet.gender] || pet.gender}</span>
+                    <span className="text-xs font-black opacity-30 uppercase tracking-widest">•</span>
+                    <span className="text-xs font-black opacity-40 uppercase tracking-widest">{calculateAge(pet.birthDate) || '年齡不詳'}</span>
                   </div>
                 </div>
 

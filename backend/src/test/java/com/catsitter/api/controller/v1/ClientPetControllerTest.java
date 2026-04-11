@@ -112,7 +112,9 @@ class ClientPetControllerTest {
                 "Mimi",
                 PetSpecies.CAT,
                 PetGender.FEMALE,
-                true,
+                PetHealthStatus.YES,        // V26: neuteredStatus
+                PetHealthStatus.YES,        // V26: vaccinationStatus
+                PetHealthStatus.NO,         // V26: dewormingStatus
                 new BigDecimal("4.5"),
                 null, // birthDate
                 null, null, null, null, null
@@ -132,6 +134,10 @@ class ClientPetControllerTest {
         pet.setClientProfile(clientProfile);
         pet.setName("Lucky");
         pet.setSpecies(PetSpecies.DOG);
+        pet.setGender(PetGender.MALE);
+        pet.setNeuteredStatus(PetHealthStatus.NO);
+        pet.setVaccinationStatus(PetHealthStatus.YES);
+        pet.setDewormingStatus(PetHealthStatus.NO);
         petRepository.save(pet);
 
         mockMvc.perform(get("/api/v1/clients/me/pets")
@@ -147,6 +153,10 @@ class ClientPetControllerTest {
         pet.setClientProfile(clientProfile);
         pet.setName("Individual Pet");
         pet.setSpecies(PetSpecies.CAT);
+        pet.setGender(PetGender.UNKNOWN);
+        pet.setNeuteredStatus(PetHealthStatus.NOT_REQUIRED);
+        pet.setVaccinationStatus(PetHealthStatus.YES);
+        pet.setDewormingStatus(PetHealthStatus.NO);
         pet = petRepository.save(pet);
 
         mockMvc.perform(get("/api/v1/clients/me/pets/" + pet.getId())
@@ -161,13 +171,19 @@ class ClientPetControllerTest {
         pet.setClientProfile(clientProfile);
         pet.setName("Old Name");
         pet.setSpecies(PetSpecies.CAT);
+        pet.setGender(PetGender.MALE);
+        pet.setNeuteredStatus(PetHealthStatus.NO);
+        pet.setVaccinationStatus(PetHealthStatus.NO);
+        pet.setDewormingStatus(PetHealthStatus.NO);
         pet = petRepository.save(pet);
 
         var request = new CreatePetRequest(
                 "New Name",
                 PetSpecies.CAT,
                 PetGender.MALE,
-                false,
+                PetHealthStatus.YES,        // V26: neuteredStatus
+                PetHealthStatus.YES,        // V26: vaccinationStatus
+                PetHealthStatus.NO,         // V26: dewormingStatus
                 new BigDecimal("5.0"),
                 null, // birthDate
                 null, null, null, null, null
@@ -187,6 +203,10 @@ class ClientPetControllerTest {
         pet.setClientProfile(clientProfile);
         pet.setName("To Delete");
         pet.setSpecies(PetSpecies.CAT);
+        pet.setGender(PetGender.UNKNOWN);
+        pet.setNeuteredStatus(PetHealthStatus.NO);
+        pet.setVaccinationStatus(PetHealthStatus.NO);
+        pet.setDewormingStatus(PetHealthStatus.NO);
         pet = petRepository.save(pet);
 
         mockMvc.perform(delete("/api/v1/clients/me/pets/" + pet.getId())

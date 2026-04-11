@@ -55,7 +55,7 @@ const ClientDashboard = () => {
     >
       {/* Welcome Section */}
       <section className="mt-4 px-1">
-        <h2 className="font-headline font-extrabold text-3xl tracking-tight text-on-surface">
+        <h2 className="font-headline font-black text-3xl tracking-tight text-on-surface">
           {user?.name 
             ? t('client.greeting', { name: user.name }) 
             : t('client.greeting_loading')}
@@ -74,7 +74,7 @@ const ClientDashboard = () => {
       ) : (
         <div className="py-16 text-center space-y-3 opacity-40">
           <span className="material-symbols-outlined text-5xl">event_available</span>
-          <p className="text-sm font-bold uppercase tracking-widest">{t('dashboard.no_visits_today')}</p>
+          <p className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">{t('dashboard.no_visits_today')}</p>
         </div>
       )}
     </motion.div>

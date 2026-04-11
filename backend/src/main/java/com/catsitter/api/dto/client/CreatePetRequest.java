@@ -1,6 +1,7 @@
 package com.catsitter.api.dto.client;
 
 import com.catsitter.api.entity.enums.PetGender;
+import com.catsitter.api.entity.enums.PetHealthStatus;
 import com.catsitter.api.entity.enums.PetSpecies;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -11,8 +12,10 @@ import java.time.LocalDate;
 public record CreatePetRequest(
     @NotBlank String name,
     @NotNull PetSpecies species,
-    PetGender gender,
-    Boolean isNeutered,
+    @NotNull PetGender gender,
+    @NotNull PetHealthStatus neuteredStatus,
+    @NotNull PetHealthStatus vaccinationStatus,
+    @NotNull PetHealthStatus dewormingStatus,
     @PositiveOrZero BigDecimal weightKg,
     LocalDate birthDate,
     String avatarUrl,

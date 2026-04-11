@@ -1,75 +1,66 @@
-# WhiskerWatch 進度開發與優化導覽 (V25)
+# 毛孩與服務方案數據結構擴充 (V26) 成果回顧
 
-本文件摘要記錄了近期針對核心系統穩定性、數據完整性與開發者體驗 (DX) 的重大更新，供交接參考。
+本次更新全面優化了毛孩的基本資訊與健康追蹤，並同步了保母服務方案的配置。
 
-## 🌟 核心變更總結
+## 變更亮點
 
-### 1. 全系統軟刪除機制 (Soft Delete)
-為了解決刪除資料（如寵物、帳號）導致歷史訂單斷鏈報錯的問題，我們導入了基於 Hibernate 註解的軟刪除方案。
-- **影響範圍**：`Account`, `Profile`, `Pet`, `Service`, `Order`, `Visit`。
-- **實作技術**：使用 `@SQLDelete` 攔截刪除行為，配合 `@SQLRestriction` 自動過濾已刪除紀錄。
-- **資源釋放**：採用 Postgres 部分唯一索引 (`WHERE deleted_at IS NULL`)，讓已刪除的 Email 或 Slug 資源可被重新註冊。
+### 1. 毛孩資料全面擴充
+- **必填驗證**：性別、結紮、打疫苗、打驅蟲藥現在皆為必填項。
+- **健康追蹤**：新增「有/沒有/不需要」三個狀態，精確記錄毛孩的照護狀況。
+- **性別預設值**：前端預設為「請選擇」，強制使用者進行輸入。
 
-### 2. 寵物護照與 UI 優化
-- **精確年齡換算**：新增 `birthDate` 持久化，並在 Profile 頁面實作自動年齡計算（動態顯示 `x歲 y個月`）。
-- **身分驗證勳章**：Email 旁加入綠色勾勾勳章，即時呈現電子郵件驗證狀態。
-- **媒體服務修復**：修正 Vite Proxy 設置 (8081 -> 8080)，修復頭像與寵物照片顯示異常。
+### 2. 動物種類一致性
+- **更新清單**：統一為「犬、貓、鼠、兔、鳥、其他」。
+- **同步保母端**：保母在建立服務方案時，適用種類清單已同步更新（加入鼠、移除爬蟲）。
 
-### 3. 開發者體驗 (DX) 升級
-- **螢光 Console 日誌**：在 `smoke` 測試環境下，前端攔截器會自動將驗證碼以顯眼的螢光噴漆樣式輸出至瀏覽器 Console，大幅提升調試速度。
-- **驗證流程自動化**：更新 Email 後，系統會透過自定義事件觸發 `CommunicationVerify` 組件直接進入驗證碼輸入狀態，無需手動重新整理頁面。
+### 3. 架構與文檔同步
+- **資料庫遷移**：透過 `V26__expand_pet_details.sql` 將舊有的 `is_neutered` (布林值) 平滑遷移至新的 `neutered_status`。
+- **API 規格**：`openapi.yaml` 已同步更新新屬性與 `HealthStatus` Schema。
+
+## 變更檔案清單
+
+### 後端實作 (Java)
+- [Pet.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/entity/Pet.java): 新增狀態屬性與驗證。
+- [PetSpecies.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/entity/enums/PetSpecies.java): 更新枚舉清單。
+- [PetHealthStatus.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/entity/enums/PetHealthStatus.java): **[新檔案]** 定义健康狀態枚舉。
+- [TargetPetType.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/entity/enums/TargetPetType.java): 同步種類清單。
+- [CreatePetRequest.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/dto/client/CreatePetRequest.java) & [PetResponse.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/dto/client/PetResponse.java): 擴充資料傳輸格式。
+- [ClientPetService.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/catsitter/api/service/ClientPetService.java): 更新實體與 DTO 的映射邏輯。
+
+### 資料庫與文檔
+- [V26__expand_pet_details.sql](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/resources/db/migration/V26__expand_pet_details.sql): 資料遷移。
+- [openapi.yaml](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/openapi/openapi.yaml): 更新 API 規格。
+- [README.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/README.md): 更新版本至 V26。
+- [schema.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/doc/schema.md): 更新資料庫規格。
+
+### 前端實作 (React)
+- [PetFormModal.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/components/client/PetFormModal.jsx): 優化增修 UI 與驗證。
+- [ServicePackages.jsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/Sitter/ServicePackages.jsx): 同步保母方案的種類清單。
+
+## 驗證結果
+- **後端編譯**：`BUILD SUCCESS` (Java 21)。
+- **資料遷移**：Flyway 邏輯已就緒，下次啟動時會自動處理。
+
+> [!IMPORTANT]
+> 由於資料結構有變動，若現有前端代碼有緩存舊的資料結構，建議重新整理頁面以確保欄位正確映射。
 
 ---
 
-## 🔍 驗證與調試指引
+## 🧪 V26 E2E 測試補齊 (Phase 14 — 2026-04-11)
 
-### 圖片恢復顯示
-> [!TIP]
-> 確保後端環境已正確載入 `smoke` profile。修正 Proxy Port 後，原本破圖的照片應可正常由 `./storage/smoke-media` 讀取。
-
-### 軟刪除驗證
-1. 刪除一隻寵物。
-2. 該寵物會從前端列表中消失。
-3. 執行資料庫查詢：`SELECT name, deleted_at FROM pets WHERE name = '寵物名';` 可確認資料仍保留但已標記時間。
-
-### 快速獲取驗證碼
-1. 在前端進行信箱驗證操作。
-2. 直接開啟瀏覽器 F12 -> Console。
-3. 尋找 `🔑 [DEBUG] Verification Code: XXXXXX` 字樣。
-
----
-
-## 🧪 E2E 測試基礎設施修復 (Phase 13 — 2026-04-11)
-
-本次對 Playwright E2E 測試套件進行全面修復與 V25 功能補測，最終達成 **35/35 全綠**。
+**Playwright 40/40 全綠**（前次 35 + V26 新增 5）
 
 ### 修復要點
 
-#### Playwright 路由 LIFO 陷阱
-`page.route('**/*', fn)` 由 `injectSmokeAuth` 注入，後來加的 handler 先執行（LIFO）。
-解法：**特定 mock 務必在 `injectSmokeAuth` 之後加**，然後重新 `goto` 觸發。
-
-#### Smoke 測試基礎設施 Bug
 | 檔案 | 問題 | 修復 |
 |------|------|------|
-| `playwright.config.ts` | health check 打 8081（已停用）| → 改 8080 |
-| `SmokeMockAuthFilter.java` | NEWBIE UUID `...003`（Buddy）| → `...004` |
-| `SmokeDataSeeder.java` | 缺 Oliver、Order、Visit、Whitelist | 全部補齊 |
-| `Dashboard.jsx` | `listSitterVisits()` 缺 `date` → 500 | 加 `today` 參數 |
-| `AuthPage.js` | NEWBIE UUID/email 不對、SW ERR_ABORTED、Framer Motion detach | 三項全修 |
-| `notificationStore.js` | 無法從 E2E 注入通知 | 加 `window.__SMOKE_NOTIFICATIONS__` hook |
+| `SmokeDataSeeder.java` | Fluffy/Oliver INSERT 仍含 `IS_NEUTERED` 欄位，V26 已刪除 | 改為三欄 `NEUTERED/VACCINATION/DEWORMING_STATUS = 'YES'/'NO'` |
+| `ClientPetControllerTest.java` | 5 個 JUnit 測試用舊建構子 `(boolean isNeutered)` | 全部改為 `PetHealthStatus` enum；Pet 實體也補上三個 NOT NULL 欄位 |
+| `v25-soft-delete-and-pets.spec.js` | mock MOCK_PET 含 `isNeutered: true` | 改為 `neuteredStatus/vaccinationStatus/dewormingStatus` |
 
-#### V25 新增測試（`v25-soft-delete-and-pets.spec.js`）
-1. 軟刪除寵物後從列表消失（mock GET + DELETE）
-2. PetFormModal 含 birthDate 年份輸入
-3. PetFormModal 含 RABBIT option
-4. CLIENT Profile 顯示「已驗證」綠色 badge（需 `emailVerified:true` + CLIENT mode）
-5. Email 更換事件驅動彈窗（`CommunicationVerify` 無需 reload）
-
----
-
-## 📋 歷史里程碑回顧
-- **Phase 1-7**：前端 UI/UX 重構（Tab 標籤統一、CSS Token 修復）。
-- **Phase 8-10**：安全認證與測試架構建立（Playwright POM, JWT Fix）。
-- **Phase 11-12**：數據完整性與 DX 深度優化（軟刪除, 螢光日誌）。
-- **Phase 13**：E2E 測試基礎設施全面修復，35/35 通過，補齊 V25 驗收測試。
+### 新增測試（`v26-pet-health-status.spec.js`）
+1. PetFormModal 結紮三選一按鈕（有/沒有/不需要）
+2. 三組健康狀態標籤全可見（結紮/疫苗/驅蟲）
+3. 性別含「不詳 (Unknown)」選項
+4. Pets 列表 `calculateAge` 年齡顯示（birthDate 有值時）
+5. ServicePackages 編輯介面含 RABBIT 物種

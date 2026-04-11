@@ -32,7 +32,7 @@ const Finance = () => {
 
   const StatCard = ({ label, value, suffix = "" }) => (
     <div className="bg-surface-container-low p-5 rounded-[32px] border border-outline-variant/10 space-y-1">
-      <p className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/40 uppercase">{label}</p>
+      <p className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">{label}</p>
       <div className="flex items-baseline gap-1">
         <span className="text-2xl font-extrabold font-headline">{value.toLocaleString()}</span>
         <span className="text-xs font-bold opacity-40">{suffix}</span>
@@ -93,7 +93,7 @@ const Finance = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 px-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+              className={`flex-1 py-3 px-2 rounded-full text-sm font-black uppercase tracking-widest transition-all ${
                 activeTab === tab.id ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant/40'
               }`}
             >
@@ -114,7 +114,7 @@ const Finance = () => {
             <section className="relative overflow-hidden rounded-[40px] p-8 bg-on-surface text-surface shadow-2xl">
               <div className="relative z-10 space-y-6">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-40">可提領餘額</p>
+                  <p className="text-sm font-black tracking-widest uppercase text-surface/60">可提領餘額</p>
                   <h2 className="text-5xl font-extrabold font-headline tracking-tighter">
                     ${data.withdrawableBalance.toLocaleString()}
                   </h2>
@@ -124,7 +124,7 @@ const Finance = () => {
                     setPayoutAmount(data.withdrawableBalance)
                     setShowPayoutModal(true)
                   }}
-                  className="w-full py-4 bg-primary text-on-primary rounded-full text-sm font-extrabold hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-primary/20"
+                  className="w-full py-4 bg-primary text-on-primary rounded-full text-sm font-black hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-primary/20"
                 >
                   申請提款
                 </button>
@@ -136,7 +136,7 @@ const Finance = () => {
 
             {/* Performance Stats */}
             <section className="space-y-4">
-              <h3 className="text-[10px] font-bold tracking-[0.2em] text-on-surface-variant/40 uppercase px-1">收益總覽</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60 px-1">收益總覽</h3>
               <div className="grid grid-cols-2 gap-3">
                 <StatCard label="總收益" value={data.totalRevenue} suffix="TWD" />
                 <StatCard label="進行訂單" value={data.activeOrderCount} suffix="筆" />
@@ -148,7 +148,7 @@ const Finance = () => {
 
             {/* Pending Transactions */}
             <section className="space-y-4">
-              <h3 className="text-[10px] font-bold tracking-[0.3em] text-on-surface-variant/40 uppercase px-1">待確認款項</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60 px-1">待確認款項</h3>
               {pendingTransactions.length > 0 ? (
                 <div className="space-y-3">
                   {pendingTransactions.map((tx) => (
@@ -167,7 +167,7 @@ const Finance = () => {
 
         {activeTab === 'HISTORY' && (
           <section className="space-y-4">
-            <h3 className="text-[10px] font-bold tracking-[0.3em] text-on-surface-variant/40 uppercase px-1">已完成收款</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60 px-1">已完成收款</h3>
             {completedTransactions.length > 0 ? (
               <div className="space-y-3">
                 {completedTransactions.map((tx) => (
@@ -213,7 +213,7 @@ const Finance = () => {
 
                   <div className="space-y-4">
                     <div className="bg-surface-container-low p-6 rounded-3xl border border-outline-variant/5">
-                      <p className="text-[10px] font-bold tracking-widest text-primary uppercase mb-2">提款金額</p>
+                      <p className="text-sm font-black tracking-widest text-primary uppercase mb-2">提款金額</p>
                       <div className="flex items-baseline gap-2">
                         <span className="text-2xl font-extrabold opacity-40">$</span>
                         <input
@@ -257,7 +257,7 @@ const Finance = () => {
                         }, 2000)
                       }}
                       disabled={isSubmitting || payoutAmount <= 0}
-                      className="flex-[2] py-4 bg-on-surface text-surface rounded-full text-sm font-extrabold shadow-lg flex items-center justify-center gap-2"
+                      className="flex-[2] py-4 bg-on-surface text-surface rounded-full text-sm font-black shadow-lg flex items-center justify-center gap-2"
                     >
                       {isSubmitting ? (
                         <>

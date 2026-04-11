@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V25 (全系統核心實體軟刪除 + 寵物年齡自動換算 + DX 調試級別提升 + E2E 35/35 全綠)**
+**目前版本：V26 (毛孩健康資料擴充 + 必填驗證強化 + 物種清單同步 + OpenAPI 同步 + E2E 40/40 全綠)**
 
 ---
 
@@ -33,8 +33,8 @@ cat-sitter-project/
 | 後端     | Java 21、Spring Boot 3.4.3、Spring Data JPA |
 | 資料庫   | PostgreSQL 15+（本地 Docker Compose，正式 Cloud SQL） |
 | 安全認證 | Spring Security + JWT (Stateless, JJWT) + **X-Smoke-Auth (Mock Auth)** |
-| 資料庫版控| Flyway（Schema V25: 軟刪除 + birthDate + RABBIT）|
-| E2E 狀態 | **Playwright 35/35 通過**（含 V25 功能驗收、onboarding、booking-lifecycle） |
+| 資料庫版控| Flyway（Schema V26: 毛孩健康狀態擴充）|
+| E2E 狀態 | **Playwright 40/40 通過**（含 V26 寵物資料欄位驗證） |
 
 ---
 
@@ -46,7 +46,7 @@ cat-sitter-project/
 - **訂閱方案管理**：保母可在 `/sitter/subscription` 內切換 FREE / STANDARD / PRO / PREMIUM 四個等級，後端 `GET/PUT/DELETE /sitters/me/subscription` 完整實作，月繳/年繳切換附 -15% 折扣顯示。
 - **自動化 Onboarding**：全新社交登入使用者自動偵測並強制導航至身分設定流程。
 - **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼；Finance 頁分為「待付款」與「收款紀錄」雙 tab。
-- **服務方案完整表單**：ServicePackages 支援物種多選（貓/狗/鳥/鼠/兔/爬蟲/其他）、名稱、啟用切換 + 生效日期、可預約日期區間、服務時長；後端 DTO 已同步 `bookableStartDate`、`bookableEndDate`、`effectiveDate` 三個日期欄位。
+- **服務方案完整表單**：ServicePackages 支援物種多選（犬/貓/鼠/兔/鳥/其他）、名稱、啟用切換 + 生效日期、可預約日期區間、服務時長；後端 DTO 已同步 `bookableStartDate`、`bookableEndDate`、`effectiveDate` 三個日期欄位。
 - **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統；人臉辨識自拍取代身分證背面上傳；身分驗證照片上傳後縮圖即時顯示；**大頭照上傳限制已放寬至 10MB**。
 - **接單專屬網址**：保母 Profile 提供可複製的個人預約連結（`/booking/sitter/{id}`）供對外推廣，「預覽」按鈕導向站內路由而非外部 URL。
 - **Client 寵物管理**：飼主 Profile 整合寵物列表卡片，可快速新增或進入完整管理頁；Client 基本資料（姓名/電話）可透過 `PUT /clients/me/profile` 編輯。
@@ -96,16 +96,17 @@ npm run api:generate   # 僅重新生成 SDK（使用現有 backend/openapi.json
 需啟動後端 `smoke` profile (Port **8080**) 後執行：
 ```bash
 cd frontend
-npx playwright test    # 執行所有 POM 化後的 E2E 腳本（目前 35/35 通過）
+npx playwright test    # 執行所有 POM 化後的 E2E 腳本（目前 40/40 通過）
 ```
 
-> **E2E 測試覆蓋範圍（V25）**：
+> **E2E 測試覆蓋範圍（V25 + V26）**：
 > - Auth 流程（登入、Onboarding、角色切換）
 > - 預約生命週期（建立 → 確認 → 完工）
 > - 保母業務（儀表板、服務方案、信任圈）
 > - Client 寵物管理（新增、軟刪除、birthDate、RABBIT 物種）
 > - V25 功能驗收（Email 驗證 badge、Email 更換事件驅動彈窗）
 > - 通知中心（SITTER/CLIENT 分類顯示）
+> - V26 功能驗收（健康狀態三選一按鈕、gender UNKNOWN、calculateAge 年齡顯示、ServicePackages RABBIT）
 
 #### 4. Cloud Run Proxy 驗證 (UAT)
 若要針對已部署的 Cloud Run 執行 E2E 測試（需身份驗證）：
@@ -194,7 +195,7 @@ cd backend
 
 ---
 
-## 🛠 開發調試提示 (Developer Tips - V25)
+## 🛠 開發調試提示 (Developer Tips - V26)
 > [!TIP]
 > **快速獲取驗證碼 (Smoke Mode)**：
 > 1. 確保後端使用 `-Dspring-boot.run.profiles=smoke` 啟動。

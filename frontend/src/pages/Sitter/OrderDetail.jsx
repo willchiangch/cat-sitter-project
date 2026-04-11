@@ -65,8 +65,8 @@ const OrderDetail = () => {
           <span className="material-symbols-outlined text-2xl">arrow_back</span>
         </button>
         <div className="text-center">
-            <h1 className="text-sm font-extrabold font-headline uppercase tracking-[0.2em]">訂單詳情</h1>
-            <p className="text-[10px] font-bold opacity-30 uppercase tracking-tighter mt-1">{order.orderStatus} • {order.id}</p>
+            <h1 className="text-sm font-black font-headline uppercase tracking-widest">訂單詳情</h1>
+            <p className="text-xs font-black opacity-30 uppercase tracking-widest mt-1">{order.orderStatus} • {order.id}</p>
         </div>
         <button className="p-2 -mr-2 text-on-surface-variant">
           <span className="material-symbols-outlined text-2xl">more_vert</span>
@@ -90,18 +90,18 @@ const OrderDetail = () => {
                  </div>
               </div>
               <div className="space-y-1">
-                 <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{order.clientName}</h2>
-                 <p className="text-xs font-bold opacity-40 uppercase tracking-widest">{order.serviceType}</p>
+                 <h2 className="text-3xl font-black font-headline tracking-tighter">{order.clientName}</h2>
+                 <p className="text-sm font-black opacity-30 uppercase tracking-widest">{order.serviceType}</p>
               </div>
            </div>
 
            <div className="grid grid-cols-2 gap-4">
               <div className="bg-surface-container-low p-5 rounded-[32px] border border-outline-variant/10">
-                 <p className="text-[10px] font-bold opacity-30 uppercase tracking-[0.2em] mb-1">Service Date</p>
+                 <p className="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest mb-1">Service Date</p>
                  <p className="text-sm font-bold">{order.date}</p>
               </div>
               <div className="bg-surface-container-low p-5 rounded-[32px] border border-outline-variant/10">
-                 <p className="text-[10px] font-bold opacity-30 uppercase tracking-[0.2em] mb-1">Base Fee</p>
+                 <p className="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest mb-1">Base Fee</p>
                  <p className="text-sm font-bold text-primary">${order.baseAmount}</p>
               </div>
            </div>
@@ -109,11 +109,11 @@ const OrderDetail = () => {
 
         {/* Questionnaire Answers Section (Spec 5.1) */}
         <section className="space-y-6">
-           <h3 className="text-[10px] font-bold tracking-[0.3em] text-on-surface-variant/40 uppercase px-1">事前問護問卷評估</h3>
+           <h3 className="text-sm font-black tracking-widest text-on-surface-variant/60 uppercase px-1">事前問護問卷評估</h3>
            <div className="space-y-8">
               {order.answers.map((ans, idx) => (
                 <div key={idx} className="space-y-2 relative pl-6 border-l-2 border-primary/10">
-                   <p className="text-xs font-bold text-primary opacity-60 uppercase tracking-tight">{ans.question}</p>
+                   <p className="text-sm font-black text-primary/60 uppercase tracking-tight">{ans.question}</p>
                    <p className="text-sm font-medium leading-relaxed italic">{ans.answer}</p>
                 </div>
               ))}
@@ -122,10 +122,10 @@ const OrderDetail = () => {
 
         {/* Support Section */}
         <div className="p-8 bg-surface-container-highest rounded-[40px] text-center space-y-4">
-          <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-relaxed">
+          <p className="text-xs font-black opacity-30 uppercase tracking-widest leading-relaxed">
             如對問卷回答有疑慮，可先透過對話功能與家長進一步確認環境細節。
           </p>
-          <button className="text-xs font-extrabold text-primary border-b border-primary/20 pb-0.5">
+          <button className="text-sm font-black text-primary border-b border-primary/20 pb-0.5">
             於問卷下方發起討論
           </button>
         </div>
@@ -144,7 +144,7 @@ const OrderDetail = () => {
                </button>
                <button
                  onClick={() => setShowQuote(true)}
-                 className="flex-1 py-5 bg-on-surface text-surface rounded-full text-sm font-extrabold tracking-widest uppercase shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
+                 className="flex-1 py-5 bg-on-surface text-surface rounded-full text-sm font-black tracking-widest uppercase shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
                >
                  專業報價
                </button>

@@ -64,7 +64,7 @@ const Dashboard = () => {
       className="space-y-8"
     >
       <section className="space-y-1 px-1">
-        <h2 className="text-3xl font-extrabold font-headline tracking-tighter text-on-surface">
+        <h2 className="text-3xl font-black font-headline tracking-tighter text-on-surface">
           {user?.name 
             ? t('dashboard.greeting', { name: user.name }) 
             : t('dashboard.loading_greeting')}
@@ -85,8 +85,8 @@ const Dashboard = () => {
             <span className="material-symbols-outlined text-on-secondary text-xl">assignment_turned_in</span>
           </div>
           <div className="space-y-0.5 flex-1">
-            <p className="font-headline font-bold text-sm tracking-tight">{t('dashboard.action_required')}</p>
-            <p className="font-body text-[11px] opacity-80 leading-snug">{t('dashboard.action_subtitle')}</p>
+            <p className="font-headline font-black text-sm tracking-tight">{t('dashboard.action_required')}</p>
+            <p className="font-body text-xs opacity-80 leading-snug">{t('dashboard.action_subtitle')}</p>
           </div>
           <button className="opacity-60 hover:opacity-100 transition-opacity">
             <span className="material-symbols-outlined text-xs">close</span>
@@ -106,7 +106,7 @@ const Dashboard = () => {
             <span className="material-symbols-outlined text-3xl">calendar_today</span>
           </div>
           <div className="space-y-1">
-            <h3 className="font-headline font-bold text-on-surface-variant">今日無預約行程</h3>
+            <h3 className="font-headline font-black text-on-surface-variant">今日無預約行程</h3>
             <p className="text-xs text-on-surface-variant/60">好好放鬆一下，或者去探索新的保母機會！</p>
           </div>
         </div>

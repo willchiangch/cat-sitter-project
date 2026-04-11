@@ -1,52 +1,36 @@
-# 專案進度清單 (V25)
+# 任務清單 - 毛孩數據結構擴充 (V26)
 
-## 核心功能優化 (Completed)
-- [x] 修復媒體代理與擴充寵物資料 (Phase 11)
-  - [x] 修改 `vite.config.js` 將代理 port 修正為 8080
-  - [x] 修改 `PetSpecies.java` 加入 RABBIT
-  - [x] 修改 `Pet.java` 加入 birthDate 欄位
-  - [x] 修改 `CreatePetRequest.java` 與 `PetResponse.java`
-  - [x] 修改 `ClientPetService.java` 映射生日資料
-  - [x] 修改 `Profile.jsx` 加入驗證狀態 UI (綠勾) 與 寵物年齡顯示
-  - [x] 修改 `PetFormModal.jsx` 加入生日選擇與種類更新
-  - [x] 驗證圖片是否恢復正常顯示
+## 後端實作 [x]
+- [x] 更新 `PetSpecies` 加入 `HAMSTER`
+- [x] 建立 `PetHealthStatus` 枚舉
+- [x] 更新 `Pet` 實體與相關屬性
+- [x] 更新 `CreatePetRequest` 與 `PetResponse` DTO
+- [x] 更新 `ClientPetService` 映射邏輯
+- [x] 更新 `TargetPetType` 枚舉
+- [x] 實作資料庫遷移腳本 `V26__expand_pet_details.sql`
 
-## 數據完整性與 DX 強化 (Completed)
-- [x] 實作全系統軟刪除機制 (Phase 12)
-  - [x] 資料庫遷移 V25：新增 `deleted_at` 欄位
-  - [x] 資料庫遷移 V25：唯一索引改為部分索引 (Partial Index)
-  - [x] 實體層級：JPA `@SQLDelete` 與 `@SQLRestriction` 整合
-- [x] 開發者體驗 (DX) 升級
-  - [x] 實現 `smoke` 模式下 Console 螢光色驗證碼輸出
-  - [x] 優化信箱更換流程：事件驅動自動跳轉，移除 page reload
-  - [x] 提升檔案上傳限制至 10MB 並修正路徑疊加 Bug
+## API 文件 [x]
+- [x] 更新 `backend/openapi/openapi.yaml`
+- [x] 更新 `doc/schema.md`
+- [x] 更新 `README.md`
 
-## E2E 測試基礎設施修復與補齊 (Completed — 2026-04-11)
-- [x] 修正 `playwright.config.ts` backend health check URL：8081 → 8080
-- [x] 修正 `SmokeMockAuthFilter.java` NEWBIE UUID 對應錯誤（`...003` → `...004`）
-- [x] 補齊 `SmokeDataSeeder.java`：
-  - [x] 新增 Oliver pet（UUID `...0022`）
-  - [x] 新增 Order（UUID `...0030`，含 `SURCHARGE_AMOUNT`/`DISCOUNT_AMOUNT` 欄位）
-  - [x] 新增 Visit（UUID `...0040`，Status 改為 `SCHEDULED`）
-  - [x] 新增 VisitService（UUID `...0050`，含 `SORT_ORDER`）
-  - [x] 新增 James → Sophia 白名單（`SKIP_QUESTIONNAIRE=true`）
-- [x] 修正 `Dashboard.jsx` `listSitterVisits()` 缺少 `date` 參數（→ 後端 500）
-- [x] 修正 `AuthPage.js` NEWBIE UUID / email（對齊 seeder）
-- [x] 修正 `AuthPage.js` `completeOnboarding()`：
-  - [x] `waitForURL` 加 URL 判斷防止重複等待
-  - [x] 角色按鈕改用 `dispatchEvent('click')`（Framer Motion DOM detach 問題）
-  - [x] `injectSmokeAuth` 加入 SW 清除（防 ERR_ABORTED）
-- [x] 修正 `notificationStore.js`：加入 `window.__SMOKE_NOTIFICATIONS__` hook 供 E2E 注入
-- [x] 全面改寫 `notifications.spec.js`（改用 `addInitScript` 注入通知資料）
-- [x] 全面改寫 `onboarding.spec.js`（LIFO 路由順序修正 + 冪等性保證）
-- [x] 新增 `v25-soft-delete-and-pets.spec.js`（5 個 V25 新功能 E2E 測試）
-  - [x] 軟刪除寵物後從列表消失
-  - [x] PetFormModal 包含 birthDate 年份選擇器
-  - [x] PetFormModal 包含 RABBIT 物種選項
-  - [x] 已驗證 CLIENT 在 Profile 顯示「已驗證」綠色 badge
-  - [x] 儲存新信箱後事件驅動彈窗（無需重整）
-- [x] **最終測試結果：35/35 通過**（原 30 + 新增 5）
+## 前端實作 [x]
+- [x] 更新 `PetFormModal.jsx` (性別必填、新增健康狀態欄位、物種清單同步)
+- [x] 更新 `ServicePackages.jsx` (同步動物種類清單)
 
-## 待核對清單 (Upcoming)
-- [ ] 考慮將 GCS 公開 URL 欄位改為後端 Proxy / Pre-signed URL
-- [ ] 完整 UAT 雙權限流程走測
+## 驗證 [x]
+- [x] 重新編譯後端並驗證 Flyway 遷移
+- [x] 手動測試毛孩與方案建立流程 (前端 UI 與後端 DTO 驗證)
+- [x] 同步專案大腦文檔 (.agent/brain)
+
+## E2E 測試補齊與基礎設施修復 (Completed — 2026-04-11)
+- [x] 修正 `SmokeDataSeeder.java`：Fluffy/Oliver 兩隻寵物的 INSERT 從舊 `IS_NEUTERED` 欄位改為新的 `NEUTERED_STATUS`/`VACCINATION_STATUS`/`DEWORMING_STATUS` 欄位（V26 遷移後必須）
+- [x] 修正 `ClientPetControllerTest.java`：5 個 JUnit 測試用舊建構子 / 缺 NOT NULL 欄位，全部更新至 V26 格式
+- [x] 更新 `v25-soft-delete-and-pets.spec.js`：mock PetResponse 由 `isNeutered: true` 改為 `neuteredStatus/vaccinationStatus/dewormingStatus`
+- [x] 新增 `v26-pet-health-status.spec.js`（5 個 V26 功能 E2E 測試）
+  - [x] PetFormModal 顯示「結紮」三選一按鈕（有/沒有/不需要）
+  - [x] PetFormModal 包含三組健康狀態標籤（結紮/疫苗/驅蟲）
+  - [x] PetFormModal 性別含「不詳 (Unknown)」選項
+  - [x] Pets 列表顯示 `calculateAge` 年齡字串（birthDate 有值時）
+  - [x] ServicePackages 服務方案編輯介面含 RABBIT 物種
+- [x] **最終測試結果：40/40 通過**（前次 35 + V26 新增 5）

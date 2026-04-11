@@ -47,7 +47,7 @@ const Orders = () => {
     <div className="min-h-screen bg-surface text-on-surface pb-32">
       {/* Header */}
       <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-outline-variant/10">
-        <h1 className="text-base font-extrabold font-headline uppercase tracking-tighter">{t('common.orders')}</h1>
+        <h1 className="text-sm font-black font-headline uppercase tracking-widest">{t('common.orders')}</h1>
         <div className="w-10"></div>
       </nav>
 
@@ -58,7 +58,7 @@ const Orders = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 px-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${
+              className={`flex-1 py-3 px-2 rounded-full text-sm font-black uppercase tracking-widest transition-all ${
                 activeTab === tab.id ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant/40'
               }`}
             >
@@ -95,7 +95,7 @@ const Orders = () => {
               className="text-center py-20 space-y-4 opacity-30"
             >
               <span className="material-symbols-outlined text-6xl">inventory_2</span>
-              <p className="text-xs font-bold tracking-widest uppercase">{emptyLabels[activeTab]}</p>
+              <p className="text-sm font-black tracking-widest uppercase">{emptyLabels[activeTab]}</p>
             </motion.div>
           )}
         </AnimatePresence>
