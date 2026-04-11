@@ -15,10 +15,15 @@ public class AuthController {
 
   private final AuthService authService;
   private final com.catsitter.api.service.EmailVerificationService emailVerificationService;
+  private final org.springframework.core.env.Environment env;
 
-  public AuthController(AuthService authService, com.catsitter.api.service.EmailVerificationService emailVerificationService) {
+  public AuthController(
+      AuthService authService, 
+      com.catsitter.api.service.EmailVerificationService emailVerificationService,
+      org.springframework.core.env.Environment env) {
     this.authService = authService;
     this.emailVerificationService = emailVerificationService;
+    this.env = env;
   }
 
   @PostMapping("/register")
@@ -40,6 +45,7 @@ public class AuthController {
   public ResponseEntity<AuthMeResponse> updateEmail(
           @AuthenticationPrincipal Account account,
           @Valid @RequestBody UpdateEmailRequest request) {
+    System.err.println("\n[!] CONTROLLER: Received updateEmail request for email: " + request.email());
     return ResponseEntity.ok(authService.updateEmail(account, request.email()));
   }
 
@@ -58,9 +64,15 @@ public class AuthController {
   }
 
   @PostMapping("/request-verification")
-  public ResponseEntity<Void> requestVerification(@AuthenticationPrincipal Account account) {
+  public ResponseEntity<?> requestVerification(@AuthenticationPrincipal Account account) {
     System.out.println("[AUTH] Received request-verification for: " + (account != null ? account.getEmail() : "NULL"));
-    emailVerificationService.sendVerificationCode(account);
+    String code = emailVerificationService.sendVerificationCode(account);
+    
+    // In smoke profile, return the code in body for frontend console logging
+    if (java.util.Arrays.asList(env.getActiveProfiles()).contains("smoke")) {
+        return ResponseEntity.ok(java.util.Map.of("debugCode", code));
+    }
+    
     return ResponseEntity.ok().build();
   }
 

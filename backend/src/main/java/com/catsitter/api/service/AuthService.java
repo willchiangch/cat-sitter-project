@@ -64,12 +64,12 @@ public class AuthService {
     accountRepository.saveAndFlush(account);
 
     System.out.println(">>> AUTH SERVICE: Account saved to DB with NEW email: " + account.getEmail());
-    System.out.println(">>> TRIGGERING emailVerificationService.sendVerificationCode...\n");
+    System.err.println(">>> TRIGGERING emailVerificationService.sendVerificationCode...\n");
     
-    emailVerificationService.sendVerificationCode(account);
+    String code = emailVerificationService.sendVerificationCode(account);
 
     System.out.println(">>> AUTH SERVICE: updateEmail FINISHED for " + account.getId() + "\n\n");
-    return getMe(account);
+    return getMe(account, code);
   }
 
   @Transactional
@@ -119,6 +119,10 @@ public class AuthService {
   }
 
   public com.catsitter.api.dto.auth.AuthMeResponse getMe(Account account) {
+    return getMe(account, null);
+  }
+
+  public com.catsitter.api.dto.auth.AuthMeResponse getMe(Account account, String debugCode) {
     java.util.List<Profile> profiles = profileRepository.findByAccount(account);
     java.util.List<com.catsitter.api.dto.auth.AuthMeResponse.ProfileSummary> summaries = profiles.stream()
             .map(p -> new com.catsitter.api.dto.auth.AuthMeResponse.ProfileSummary(
@@ -134,7 +138,8 @@ public class AuthService {
             account.getEmail(),
             account.getLastActiveRole(),
             account.isEmailVerified(),
-            summaries
+            summaries,
+            debugCode
     );
   }
 

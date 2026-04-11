@@ -33,7 +33,12 @@ api.interceptors.request.use(config => {
 }, error => Promise.reject(error))
 
 api.interceptors.response.use(
-  response => response,
+  response => {
+    if (response.data && response.data.debugCode) {
+      console.log('%c[DEBUG] 驗證碼: ' + response.data.debugCode, 'background: #000; color: #0f0; font-size: 16px; font-family: monospace; padding: 4px; border-radius: 4px; border: 1px solid #0f0;');
+    }
+    return response
+  },
   error => {
     if (error.response?.status === 401) {
       useAuthStore.getState().logout()
@@ -60,7 +65,12 @@ client.instance.interceptors.request.use(config => {
 }, error => Promise.reject(error))
 
 client.instance.interceptors.response.use(
-  response => response,
+  response => {
+    if (response.data && response.data.debugCode) {
+      console.log('%c[DEBUG] 驗證碼: ' + response.data.debugCode, 'background: #000; color: #0f0; font-size: 16px; font-family: monospace; padding: 4px; border-radius: 4px; border: 1px solid #0f0;');
+    }
+    return response
+  },
   error => {
     if (error.response?.status === 401) {
       useAuthStore.getState().logout()

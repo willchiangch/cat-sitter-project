@@ -29,7 +29,7 @@ public class EmailVerificationService {
     }
 
     @Transactional
-    public void sendVerificationCode(Account account) {
+    public String sendVerificationCode(Account account) {
         // Cleanup old codes
         verificationCodeRepository.deleteByAccount(account);
 
@@ -58,6 +58,7 @@ public class EmailVerificationService {
         );
 
         emailService.sendEmail(account.getEmail(), "WhiskerWatch 通訊信箱驗證碼", htmlContent);
+        return code;
     }
 
     @Transactional

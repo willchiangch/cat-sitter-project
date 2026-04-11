@@ -237,11 +237,14 @@ const Profile = () => {
     try {
       const updatedUser = await authService.updateEmail(editEmail.trim())
       useAuthStore.getState().updateUser(updatedUser)
+      // Signal for CommunicationVerify component
+      sessionStorage.setItem('pending_verification', 'true')
+      window.dispatchEvent(new Event('pending_verification_changed'))
       setEmailSuccessMessage('Email 已更新！驗證信已寄出，請檢查您的新信箱。')
       setTimeout(() => {
         setShowEmailEdit(false)
-        window.location.reload()
-      }, 3000)
+        // No reload to keep console logs
+      }, 2000)
     } catch (e) {
       console.error('Save email failed:', e)
       setEmailSaveError(e.response?.data?.message || '儲存失敗，該 Email 可能已被使用')
@@ -703,7 +706,7 @@ const Profile = () => {
                 {pets.length > 0 && (
                   <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
                     {pets.map((pet, index) => (
-                      <div key={pet.id || `pet-${index}`} className="flex-shrink-0 flex flex-col items-center gap-1.5">
+                      <div key={pet.petId || `pet-${index}`} className="flex-shrink-0 flex flex-col items-center gap-1.5">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden bg-surface-container ring-2 ring-outline-variant/10">
                           <img
                             src={pet.avatarUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100'}

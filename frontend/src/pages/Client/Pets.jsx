@@ -36,7 +36,7 @@ const Pets = () => {
     if (window.confirm('確定要移除這隻貓咪嗎？這將無法復原。')) {
       try {
         await petService.delete(id)
-        setPets(prev => prev.filter(p => p.id !== id))
+        setPets(prev => prev.filter(p => p.petId !== id))
       } catch (error) {
         console.error('Delete failed:', error)
       }
@@ -83,9 +83,9 @@ const Pets = () => {
           <div className="grid grid-cols-1 gap-6">
             {pets.map(pet => (
               <motion.div 
-                key={pet.id}
-                layoutId={pet.id}
-                onClick={() => navigate(`/client/cat-passport/${pet.id}`)}
+                key={pet.petId}
+                layoutId={pet.petId}
+                onClick={() => navigate(`/client/cat-passport/${pet.petId}`)}
                 className="group relative bg-surface-container-low rounded-[40px] p-6 border border-outline-variant/10 flex items-center gap-6 hover:bg-surface-container transition-colors cursor-pointer"
               >
                 <div className="w-24 h-24 rounded-[32px] overflow-hidden shadow-2xl ring-4 ring-surface">
@@ -105,7 +105,7 @@ const Pets = () => {
                   <button onClick={(e) => handleEdit(pet, e)} className="p-2 text-on-surface-variant/40 hover:text-primary transition-colors">
                     <span className="material-symbols-outlined text-xl">edit</span>
                   </button>
-                  <button onClick={(e) => handleDelete(pet.id, e)} className="p-2 text-on-surface-variant/40 hover:text-error transition-colors">
+                  <button onClick={(e) => handleDelete(pet.petId, e)} className="p-2 text-on-surface-variant/40 hover:text-error transition-colors">
                     <span className="material-symbols-outlined text-xl">delete</span>
                   </button>
                 </div>

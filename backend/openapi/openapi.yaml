@@ -650,8 +650,6 @@ paths:
     get:
       tags: [Visit]
       operationId: listSitterVisitsByDate
-      summary: List visits by date
-      parameters:
         - name: date
           in: query
           required: true
@@ -819,6 +817,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Booking"
+
+  /api/v1/auth/request-verification:
+    post:
+      tags: [Auth]
+      operationId: requestVerification
+      summary: Request email verification code
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  debugCode: { type: string, description: "Verification code (only returned in smoke profile)" }
 
   /api/v1/sitters/me/payouts:
     get:
@@ -1083,6 +1096,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UserProfileSummary"
+        debugCode:
+          type: string
+          description: "Verification code (only returned in smoke profile for easier debugging)"
+          nullable: true
+        deletedAt: { type: string, format: date-time, nullable: true }
     UserProfileSummary:
       type: object
       required: [profileId, role]
@@ -1106,6 +1124,7 @@ components:
         isVerified: { type: boolean }
         idCardFrontUrl: { type: string, format: uri, nullable: true }
         facePhotoUrl: { type: string, format: uri, nullable: true }
+        deletedAt: { type: string, format: date-time, nullable: true }
         professionalLabels:
           type: array
           items: { type: string }
@@ -1201,6 +1220,7 @@ components:
         name: { type: string }
         avatarUrl: { type: string, format: uri, nullable: true }
         phone: { type: string, nullable: true }
+        deletedAt: { type: string, format: date-time, nullable: true }
     UpdateClientProfileRequest:
       type: object
       properties:
@@ -1216,10 +1236,11 @@ components:
         species: { type: string, enum: [CAT, DOG, RABBIT, BIRD, REPTILE, OTHER] }
         gender: { type: string, enum: [MALE, FEMALE, UNKNOWN], nullable: true }
         isNeutered: { type: boolean, nullable: true }
-        birthDate: { type: string, format: date, nullable: true, description: "Birth date (stored as YYYY-MM-01 if day is unknown)" }
+        birthDate: { type: string, format: date, nullable: true, description: "Pet's birth date. Convention: 'YYYY-MM-01' (Day is ignored/stored as 01 for logic)" }
         medicalNotes: { type: string, nullable: true }
         personalityNotes: { type: string, nullable: true }
         avatarUrl: { type: string, format: uri, nullable: true }
+        deletedAt: { type: string, format: date-time, nullable: true }
     CreatePetRequest:
       type: object
       required: [name, species]
@@ -1228,7 +1249,7 @@ components:
         species: { type: string, enum: [CAT, DOG, RABBIT, BIRD, REPTILE, OTHER] }
         gender: { type: string, enum: [MALE, FEMALE, UNKNOWN] }
         isNeutered: { type: boolean }
-        birthDate: { type: string, format: date, description: "Birth date (YYYY-MM-01 format)" }
+        birthDate: { type: string, format: date, description: "Birth date (Convention: 'YYYY-MM-01')" }
         medicalNotes: { type: string, maxLength: 4000 }
         personalityNotes: { type: string, maxLength: 4000 }
         avatarUrl: { type: string, format: uri }

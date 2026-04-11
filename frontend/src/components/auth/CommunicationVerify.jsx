@@ -11,6 +11,20 @@ const CommunicationVerify = () => {
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    const checkPending = () => {
+      const isPending = sessionStorage.getItem('pending_verification')
+      if (isPending === 'true') {
+        setShowModal(true)
+        setSent(true)
+      }
+    }
+
+    checkPending()
+    window.addEventListener('pending_verification_changed', checkPending)
+    return () => window.removeEventListener('pending_verification_changed', checkPending)
+  }, [])
+
   if (!user || user.emailVerified) return null
 
   const handleRequestCode = async () => {
@@ -33,6 +47,7 @@ const CommunicationVerify = () => {
     try {
       const updatedUser = await authService.verifyEmail(code)
       setEmailVerified(true)
+      sessionStorage.removeItem('pending_verification')
       setShowModal(false)
       // Show success toast here if available
     } catch (err) {

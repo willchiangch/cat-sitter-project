@@ -19,6 +19,47 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
   const [isUploading, setIsUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Sync stage with initialData when modal opens or initialData changes
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Parse birthDate (YYYY-MM-DD) into year and month
+        let year = new Date().getFullYear().toString()
+        let month = ''
+        if (initialData.birthDate) {
+          const parts = initialData.birthDate.split('-')
+          year = parts[0]
+          month = parseInt(parts[1], 10).toString()
+        }
+
+        setFormData({
+          name: initialData.name || '',
+          species: initialData.species || '',
+          gender: initialData.gender || 'MALE',
+          isNeutered: initialData.isNeutered ?? true,
+          birthYear: year,
+          birthMonth: month,
+          avatarUrl: initialData.avatarUrl || '',
+          medicalNotes: initialData.medicalNotes || '',
+          personalityNotes: initialData.personalityNotes || '',
+        })
+      } else {
+        // Reset for new pet
+        setFormData({
+          name: '',
+          species: '',
+          gender: 'MALE',
+          isNeutered: true,
+          birthYear: new Date().getFullYear().toString(),
+          birthMonth: '',
+          avatarUrl: '',
+          medicalNotes: '',
+          personalityNotes: '',
+        })
+      }
+    }
+  }, [isOpen, initialData])
+
   const years = Array.from({ length: 30 }, (_, i) => (new Date().getFullYear() - i).toString())
   const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString())
 
@@ -61,8 +102,8 @@ const PetFormModal = ({ isOpen, onClose, initialData, onSave }) => {
       delete submitData.birthYear
       delete submitData.birthMonth
 
-      if (initialData?.id) {
-        await petService.update(initialData.id, submitData)
+      if (initialData?.petId) {
+        await petService.update(initialData.petId, submitData)
       } else {
         await petService.create(submitData)
       }

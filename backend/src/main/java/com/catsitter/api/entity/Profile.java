@@ -14,6 +14,8 @@ import jakarta.validation.constraints.NotNull;
 
 @Entity
 @Table(name = "profiles")
+@org.hibernate.annotations.SQLDelete(sql = "UPDATE profiles SET deleted_at = NOW() WHERE id = ?")
+@org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Profile extends AuditableEntity {
 

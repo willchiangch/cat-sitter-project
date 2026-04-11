@@ -29,19 +29,19 @@ public class EmailService {
 
     public void sendEmail(String to, String subject, String htmlContent) {
         if (apiKey == null || apiKey.equals("mock_key") || apiKey.isEmpty() || apiKey.equals("re_default_key")) {
-            System.out.println("\n\n");
-            System.out.println("************************************************************");
-            System.out.println("**********        [MOCK EMAIL DISPATCH]         **********");
-            System.out.println("************************************************************");
-            System.out.println("** TO:      " + to);
-            System.out.println("** SUBJECT: " + subject);
-            System.out.println("** CONTENT:");
-            System.out.println(htmlContent);
-            System.out.println("************************************************************");
-            System.out.println("**********        [END OF MOCK EMAIL]           **********");
-            System.out.println("************************************************************");
-            System.out.println("\n\n");
-            System.out.flush();
+            System.err.println("\n\n");
+            System.err.println("************************************************************");
+            System.err.println("**********        [MOCK EMAIL DISPATCH]         **********");
+            System.err.println("************************************************************");
+            System.err.println("** TO:      " + to);
+            System.err.println("** SUBJECT: " + subject);
+            System.err.println("** CONTENT:");
+            System.err.println(htmlContent);
+            System.err.println("************************************************************");
+            System.err.println("**********        [END OF MOCK EMAIL]           **********");
+            System.err.println("************************************************************");
+            System.err.println("\n\n");
+            System.err.flush();
             return;
         }
 

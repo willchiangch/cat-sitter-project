@@ -2,7 +2,7 @@
 
 為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統，採前後端分離 Monorepo，部署於 GCP。
 
-**目前版本：V22 (實現 Universal UUID 對齊 + Cloud Run Proxy 自動化 E2E 流程 + V22 測試數據同步)**
+**目前版本：V25 (全系統核心實體軟刪除 + 寵物年齡自動換算 + DX 調試級別提升)**
 
 ---
 
@@ -46,7 +46,7 @@ cat-sitter-project/
 - **自動化 Onboarding**：全新社交登入使用者自動偵測並強制導航至身分設定流程。
 - **財務與訂閱**：整合 PAYUNi 金流，支援保母訂閱方案與促銷折扣碼；Finance 頁分為「待付款」與「收款紀錄」雙 tab。
 - **服務方案完整表單**：ServicePackages 支援物種多選（貓/狗/鳥/鼠/兔/爬蟲/其他）、名稱、啟用切換 + 生效日期、可預約日期區間、服務時長；後端 DTO 已同步 `bookableStartDate`、`bookableEndDate`、`effectiveDate` 三個日期欄位。
-- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統；人臉辨識自拍取代身分證背面上傳；身分驗證照片上傳後縮圖即時顯示。
+- **多媒體管理**：具備 60 天自動保留政策 (Retention Policy) 的媒體存儲系統；人臉辨識自拍取代身分證背面上傳；身分驗證照片上傳後縮圖即時顯示；**大頭照上傳限制已放寬至 10MB**。
 - **接單專屬網址**：保母 Profile 提供可複製的個人預約連結（`/booking/sitter/{id}`）供對外推廣，「預覽」按鈕導向站內路由而非外部 URL。
 - **Client 寵物管理**：飼主 Profile 整合寵物列表卡片，可快速新增或進入完整管理頁；Client 基本資料（姓名/電話）可透過 `PUT /clients/me/profile` 編輯。
 - **信任圈（Trust Circle）**：保母間可互相加入信任圈，支援查看、新增、移除夥伴，並提供介紹文字與區塊標題中文化。
@@ -114,6 +114,9 @@ npx playwright test    # 執行所有 POM 化後的 E2E 腳本
 cd backend
 ./mvnw test            # 全體測試
 ./mvnw test -Dtest=com.catsitter.api.smoke.*  # 業務冒煙測試
+
+> [!TIP]
+> **開發者小秘訣**：當你在 `smoke` 模式下進行 Email 驗證時，驗證碼會自動輸出在瀏覽器的 **Console (F12)**，不需要切換到後端終端機尋找。
 ```
 
 ## 本機測試
@@ -167,5 +170,17 @@ cd backend
 
 更完整的架構與開發守則見：
 - [後端開發規範 (TDD & 測試策略)](backend/DEVELOPMENT_GUIDELINES.md)
-- [核心資料庫規格書 (Schema V9)](doc/schema.md)
+
+---
+
+## 🛠 開發調試提示 (Developer Tips - V25)
+> [!TIP]
+> **快速獲取驗證碼 (Smoke Mode)**：
+> 1. 確保後端使用 `-Dspring-boot.run.profiles=smoke` 啟動。
+> 2. 開啟瀏覽器 F12 Console，系統會自動輸出 `🔑 [DEBUG] Verification Code`。
+> 3. 信箱更換流程：儲存後組件會偵測到 `pending_verification` 並自動彈出驗證框，無需重整。
+> 
+> **檔案上傳**：
+> - 單一檔案限制為 **10MB**。
+> - 軟刪除實體驗證：執行 `SELECT * FROM table WHERE deleted_at IS NOT NULL;` 即可確認遺留紀錄。
 

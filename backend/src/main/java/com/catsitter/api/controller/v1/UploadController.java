@@ -27,19 +27,26 @@ public class UploadController {
             @PathVariable String folder,
             @RequestParam("file") MultipartFile file) {
         
+        System.err.println("\n[!] UPLOAD: Received upload request for folder: " + folder);
+        System.err.println("[!] UPLOAD: File name: " + file.getOriginalFilename() + " (" + file.getSize() + " bytes)");
+
         try {
             // Basic validation for folder names to prevent path traversal
             if (folder.contains("..") || folder.contains("/") || folder.contains("\\")) {
+                System.err.println("[!] UPLOAD ERROR: Invalid folder name prohibited");
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid folder name"));
             }
 
             String filePath = storageService.store(file, folder);
+            String fileUrl = storageService.getUrl(filePath);
+            System.err.println("[!] UPLOAD SUCCESS: " + filePath + " -> " + fileUrl);
             
             return ResponseEntity.ok(Map.of(
-                "url", "/api/v1/media/" + filePath,
+                "url", fileUrl,
                 "path", filePath
             ));
         } catch (IOException e) {
+            System.err.println("[!] UPLOAD CRITICAL ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", "Upload failed: " + e.getMessage()));
         }

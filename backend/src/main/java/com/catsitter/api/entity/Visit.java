@@ -10,6 +10,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "visits")
+@org.hibernate.annotations.SQLDelete(sql = "UPDATE visits SET deleted_at = NOW() WHERE id = ?")
+@org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
 public class Visit extends AuditableEntity {
 
   @Id
