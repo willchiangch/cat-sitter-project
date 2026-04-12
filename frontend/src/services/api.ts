@@ -175,7 +175,10 @@ export const questionnaireService = {
 export const subscriptionService = {
   getCurrent: () => api.get('/sitters/me/subscription').then(res => res.data),
   cancel: () => api.delete('/sitters/me/subscription').then(res => res.data),
-  changePlan: (planId) => api.put('/sitters/me/subscription', { planId }).then(res => res.data),
+  changePlan: (planId: string, promoCode?: string) =>
+    api.put('/sitters/me/subscription', { planId, promoCode }).then(res => res.data),
+  validatePromo: (planId: string, promoCode: string) =>
+    api.post('/sitters/me/subscription/validate-promo', { planId, promoCode }).then(res => res.data),
 }
 
 export const calendarService = {

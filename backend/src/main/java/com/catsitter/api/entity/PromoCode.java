@@ -28,6 +28,15 @@ public class PromoCode extends AuditableEntity {
     @Column(name = "expiry_date")
     private Instant expiryDate;
 
+    /**
+     * FIXED = 固定金額折扣, PERCENT = 百分比折扣 (0-100)
+     */
+    @Column(name = "discount_type", nullable = false, length = 20)
+    private String discountType = "FIXED";
+
+    @Column(name = "discount_percent")
+    private BigDecimal discountPercent;
+
     public UUID getId() { return this.id; }
     public void setId(UUID id) { this.id = id; }
     public String getCode() { return this.code; }
@@ -40,4 +49,8 @@ public class PromoCode extends AuditableEntity {
     public void setUsedCount(Integer usedCount) { this.usedCount = usedCount; }
     public Instant getExpiryDate() { return this.expiryDate; }
     public void setExpiryDate(Instant expiryDate) { this.expiryDate = expiryDate; }
+    public String getDiscountType() { return this.discountType; }
+    public void setDiscountType(String discountType) { this.discountType = discountType; }
+    public BigDecimal getDiscountPercent() { return this.discountPercent; }
+    public void setDiscountPercent(BigDecimal discountPercent) { this.discountPercent = discountPercent; }
 }

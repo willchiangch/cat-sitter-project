@@ -134,9 +134,27 @@
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 折扣碼 ID |
 | `code` | VARCHAR | 折扣代碼 (UNIQUE) |
-| `discount_amount`| DECIMAL | 折扣金額 |
+| `discount_amount`| DECIMAL | 固定折扣金額 |
+| `discount_type` | VARCHAR | **[V27]** `FIXED`（固定金額）/ `PERCENT`（百分比） |
+| `discount_percent` | DECIMAL | **[V27]** 百分比折扣值（0–100），discount_type=PERCENT 時使用 |
 | `max_uses` | INT | 最大使用次數 |
 | `used_count` | INT | 已使用次數 |
+| `expiry_date` | TIMESTAMPTZ | 過期時間（NULL = 永不過期）|
+
+### 16-A. `subscription_change_logs` (訂閱方案變更歷程) - **[V27 NEW]**
+| 欄位名稱 | 型態 | 說明 |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | 紀錄 ID |
+| `sitter_profile_id` | UUID (FK) | 操作保母 |
+| `from_plan_code` | VARCHAR | 變更前方案代碼（NULL = 全新訂閱）|
+| `to_plan_code` | VARCHAR | 變更後方案代碼 |
+| `change_type` | VARCHAR | `SUBSCRIBE` / `UPGRADE` / `DOWNGRADE` / `CANCEL` / `FREE_REDEMPTION` |
+| `promo_code_id` | UUID (FK) | 使用的折扣碼（nullable）|
+| `promo_code_used` | VARCHAR | 折扣碼文字冗余備份（防止碼被刪除後歷史丟失）|
+| `original_amount` | DECIMAL | 原始金額 |
+| `discount_amount` | DECIMAL | 實際折扣金額 |
+| `final_amount` | DECIMAL | 最終實付金額（0 = 免費啟用）|
+| `note` | TEXT | 備註（如「折扣碼使金額歸零，直接免費啟用」）|
 
 ### 17. `payment_transactions` (支付交易紀錄)
 | 欄位名稱 | 型態 | 說明 |

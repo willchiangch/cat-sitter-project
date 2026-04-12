@@ -54,44 +54,69 @@ public class FinanceService {
 
     @Transactional(readOnly = true)
     public SitterFinanceResponse getSitterFinanceSummary(Account account) {
-        Profile sitterProfile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
-                .orElseThrow(() -> new RuntimeException("Sitter profile not found"));
+        try {
+            if (account == null) {
+                logger.error("[FINANCE] Account is null in getSitterFinanceSummary");
+                throw new RuntimeException("無法識別使用者，請重新登入");
+            }
 
-        UUID sitterId = sitterProfile.getId();
+            Profile sitterProfile = profileRepository.findByAccountIdAndRoleType(account.getId(), RoleType.SITTER)
+                    .orElseThrow(() -> new RuntimeException("找不到保母檔案，請確認登入身分"));
 
-        // 1. Aggregations
-        BigDecimal totalRevenue = orderRepository.sumTotalAmountBySitterAndStatus(sitterId, OrderStatus.COMPLETED);
-        if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
+            UUID sitterId = sitterProfile.getId();
+            logger.info("[FINANCE] Processing summary for Sitter ID: {}", sitterId);
 
-        BigDecimal pendingBalance = orderRepository.sumTotalAmountBySitterAndStatus(sitterId, OrderStatus.CONFIRMED);
-        if (pendingBalance == null) pendingBalance = BigDecimal.ZERO;
+            // 1. Aggregations
+            BigDecimal totalRevenue = orderRepository.sumTotalAmountBySitterAndStatus(sitterId, OrderStatus.COMPLETED);
+            if (totalRevenue == null) totalRevenue = BigDecimal.ZERO;
 
-        long totalCompleted = orderRepository.countBySitterAndStatus(sitterId, OrderStatus.COMPLETED);
-        BigDecimal avgOrderValue = totalCompleted > 0 
-                ? totalRevenue.divide(BigDecimal.valueOf(totalCompleted), 2, RoundingMode.HALF_UP) 
-                : BigDecimal.ZERO;
+            BigDecimal pendingBalance = orderRepository.sumTotalAmountBySitterAndStatus(sitterId, OrderStatus.CONFIRMED);
+            if (pendingBalance == null) pendingBalance = BigDecimal.ZERO;
 
-        // 2. Recent Transactions (Top 10)
-        List<Order> recentOrders = orderRepository.findRecentBySitter(sitterId, PageRequest.of(0, 10));
-        List<SitterFinanceResponse.TransactionItem> ledger = recentOrders.stream()
-                .map(o -> new SitterFinanceResponse.TransactionItem(
-                        o.getId(),
-                        LocalDate.ofInstant(o.getCreatedAt(), ZoneId.systemDefault()),
-                        o.getClientProfile().getName(),
-                        o.getServiceName(), // Assuming service name represents cat names in localized DTO context
-                        o.getTotalAmount(),
-                        o.getOrderStatus(),
-                        o.getPricingNotes()
-                )).collect(Collectors.toList());
+            long totalCompleted = orderRepository.countBySitterAndStatus(sitterId, OrderStatus.COMPLETED);
+            BigDecimal avgOrderValue = totalCompleted > 0 
+                    ? totalRevenue.divide(BigDecimal.valueOf(totalCompleted), 2, RoundingMode.HALF_UP) 
+                    : BigDecimal.ZERO;
 
-        return new SitterFinanceResponse(
-                totalRevenue,
-                pendingBalance,
-                totalRevenue, // Monthly logic could be added with additional date-bounded queries
-                (int)orderRepository.countBySitterAndStatus(sitterId, OrderStatus.CONFIRMED),
-                avgOrderValue,
-                ledger
-        );
+            logger.info("[FINANCE] Stats: Revenue={}, Pending={}, Avg={}", totalRevenue, pendingBalance, avgOrderValue);
+
+            // 2. Recent Transactions (Top 10)
+            List<Order> recentOrders = orderRepository.findRecentBySitter(sitterId, PageRequest.of(0, 10));
+            List<SitterFinanceResponse.TransactionItem> ledger = recentOrders.stream()
+                    .map(o -> {
+                        try {
+                            return new SitterFinanceResponse.TransactionItem(
+                                o.getId(),
+                                LocalDate.ofInstant(o.getCreatedAt() != null ? o.getCreatedAt() : Instant.now(), ZoneId.systemDefault()),
+                                o.getClientProfile() != null ? o.getClientProfile().getName() : "已刪除的使用者",
+                                o.getServiceName() != null ? o.getServiceName() : "未知服務", 
+                                o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO,
+                                o.getOrderStatus(),
+                                o.getPricingNotes()
+                            );
+                        } catch (Exception ex) {
+                            logger.error("[FINANCE] Error mapping order {}: {}", o.getId(), ex.getMessage());
+                            return null;
+                        }
+                    })
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            return new SitterFinanceResponse(
+                    totalRevenue,
+                    pendingBalance,
+                    totalRevenue, 
+                    (int)orderRepository.countBySitterAndStatus(sitterId, OrderStatus.CONFIRMED),
+                    avgOrderValue,
+                    ledger
+            );
+        } catch (Throwable t) {
+            logger.error("[FINANCE CRITICAL] Failed to generate summary: {}", t.getMessage(), t);
+            System.err.println("\n[!] FINANCE STACK TRACE:");
+            t.printStackTrace();
+            if (t instanceof RuntimeException) throw (RuntimeException) t;
+            throw new RuntimeException("財務摘要生成失敗 (Diagnostic ID: " + UUID.randomUUID().toString().substring(0, 8) + ")");
+        }
     }
 
     @Transactional

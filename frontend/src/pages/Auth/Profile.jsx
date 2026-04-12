@@ -540,7 +540,11 @@ const Profile = () => {
                    <div className="p-5 bg-surface-container-low text-left relative overflow-hidden h-36">
                       <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2 z-10 relative">證件正面</p>
                       {sitterData?.idCardFrontUrl ? (
-                        <img src={sitterData.idCardFrontUrl} alt="Front" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                        <img 
+                          src={sitterData.idCardFrontUrl.startsWith('/') ? sitterData.idCardFrontUrl : `/api/v1/media/${sitterData.idCardFrontUrl}`} 
+                          alt="證件正面" 
+                          className="absolute inset-0 w-full h-full object-cover opacity-60" 
+                        />
                       ) : (
                         <span className="material-symbols-outlined text-primary relative z-10 text-3xl">upload_file</span>
                       )}
@@ -565,7 +569,11 @@ const Profile = () => {
                    <div className="p-5 bg-surface-container-low text-left relative overflow-hidden h-36">
                       <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-2 z-10 relative">人臉辨識(自拍)</p>
                       {sitterData?.facePhotoUrl ? (
-                        <img src={sitterData.facePhotoUrl} alt="Face Photo" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                        <img 
+                          src={sitterData.facePhotoUrl.startsWith('/') ? sitterData.facePhotoUrl : `/api/v1/media/${sitterData.facePhotoUrl}`} 
+                          alt="人臉辨識自拍" 
+                          className="absolute inset-0 w-full h-full object-cover opacity-60" 
+                        />
                       ) : (
                         <span className="material-symbols-outlined text-primary relative z-10 text-3xl">face</span>
                       )}

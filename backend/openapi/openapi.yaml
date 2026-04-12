@@ -867,7 +867,7 @@ paths:
     put:
       tags: [Billing]
       operationId: changeSubscriptionPlan
-      summary: Upgrade or change subscription plan (Simulated Payment)
+      summary: Upgrade or change subscription plan. If promoCode makes finalAmount <= 0, plan is activated immediately without payment.
       requestBody:
         required: true
         content:
@@ -876,7 +876,13 @@ paths:
               type: object
               required: [planId]
               properties:
-                planId: { type: string, description: "plan_code e.g. PRO" }
+                planId:
+                  type: string
+                  description: "plan_code e.g. PRO"
+                promoCode:
+                  type: string
+                  nullable: true
+                  description: "Optional promo code. Applied server-side after validation."
       responses:
         "200":
           description: OK
@@ -884,6 +890,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Subscription"
+  /api/v1/sitters/me/subscription/validate-promo:
+    post:
+      tags: [Billing]
+      operationId: validateSubscriptionPromo
+      summary: Validate a promo code for a specific plan and return discounted amounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId, promoCode]
+              properties:
+                planId: { type: string, description: "plan_code e.g. PRO" }
+                promoCode: { type: string, description: "The promo code to validate" }
+      responses:
+        "200":
+          description: Validation result (always 200; check `valid` field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromoValidationResponse"
   /api/v1/sitters/me/subscription/checkout:
     post:
       tags: [Billing]
@@ -1493,6 +1521,31 @@ components:
         monthlyOrderLimit: { type: integer, minimum: 1 }
         startedAt: { type: string, format: date-time, nullable: true }
         expiredAt: { type: string, format: date-time, nullable: true }
+    PromoValidationResponse:
+      type: object
+      required: [valid, message, originalAmount, discountAmount, finalAmount]
+      properties:
+        valid: { type: boolean }
+        message: { type: string }
+        originalAmount: { type: number, format: double }
+        discountAmount: { type: number, format: double }
+        finalAmount: { type: number, format: double }
+    SubscriptionChangeLog:
+      type: object
+      required: [id, toPlanCode, changeType, originalAmount, discountAmount, finalAmount, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fromPlanCode: { type: string, nullable: true }
+        toPlanCode: { type: string }
+        changeType:
+          type: string
+          enum: [SUBSCRIBE, UPGRADE, DOWNGRADE, CANCEL, FREE_REDEMPTION]
+        promoCodeUsed: { type: string, nullable: true }
+        originalAmount: { type: number, format: double }
+        discountAmount: { type: number, format: double }
+        finalAmount: { type: number, format: double }
+        note: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
     CreateSubscriptionCheckoutRequest:
       type: object
       required: [planCode]

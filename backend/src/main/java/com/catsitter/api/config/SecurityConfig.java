@@ -71,7 +71,6 @@ public class SecurityConfig {
                        .requestMatchers("/api/v1/sitters/{slug}/booking-preview").permitAll()
                        .requestMatchers("/api/v1/calendar/feed/**").permitAll()
                        .requestMatchers("/api/v1/payments/payuni/webhook").permitAll()
-                       .requestMatchers("/api/v1/media/identity/**").authenticated()
                        .requestMatchers("/api/v1/media/**").permitAll()
                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                        .requestMatchers("/api/v1/auth/me/**").authenticated()

@@ -76,6 +76,9 @@ const SubscriptionManagement = () => {
   const [showAgreement, setShowAgreement] = useState(false)
   const [selectedPlanId, setSelectedPlanId] = useState(null)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
+  const [promoResult, setPromoResult] = useState(null) // { valid, message, originalAmount, discountAmount, finalAmount }
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false)
 
   useEffect(() => {
     subscriptionService.getCurrent()
@@ -87,27 +90,57 @@ const SubscriptionManagement = () => {
   const initiateChangePlan = (planId) => {
     if (planId === currentSub?.planId) return
     setSelectedPlanId(planId)
+    setPromoCode('')
+    setPromoResult(null)
     setShowAgreement(true)
+  }
+
+  const handleValidatePromo = async () => {
+    if (!promoCode.trim() || !selectedPlanId) return
+    setIsValidatingPromo(true)
+    try {
+      const result = await subscriptionService.validatePromo(selectedPlanId, promoCode.trim())
+      setPromoResult(result)
+    } catch {
+      setPromoResult({ valid: false, message: '驗證失敗，請稍後再試' })
+    } finally {
+      setIsValidatingPromo(false)
+    }
+  }
+
+  const isFreeRedemption = promoResult?.valid && promoResult?.finalAmount <= 0
+
+  const getDisplayPrice = () => {
+    if (promoResult?.valid) return promoResult.finalAmount
+    return PLANS.find(p => p.id === selectedPlanId)?.price ?? 0
   }
 
   const handleConfirmAndPay = async () => {
     setShowAgreement(false)
     setIsProcessingPayment(true)
-    
-    // Simulate payment processing time
-    await new Promise(resolve => setTimeout(resolve, 2500))
-    
+
+    if (!isFreeRedemption) {
+      // Simulate payment processing time for paid plans
+      await new Promise(resolve => setTimeout(resolve, 2500))
+    }
+
     try {
-      const updated = await subscriptionService.changePlan(selectedPlanId)
-      
-      // Show success state briefly
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      const updated = await subscriptionService.changePlan(
+        selectedPlanId,
+        promoResult?.valid ? promoCode.trim() : undefined
+      )
+
+      if (!isFreeRedemption) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+
       setCurrentSub(updated)
       setSelectedPlanId(null)
+      setPromoCode('')
+      setPromoResult(null)
     } catch (e) {
       console.error('Plan change failed:', e)
-      alert('付費處理發生錯誤，請稍後再試。')
+      alert('處理發生錯誤，請稍後再試。')
     } finally {
       setIsProcessingPayment(false)
     }
@@ -325,12 +358,76 @@ const SubscriptionManagement = () => {
                 </div>
               </div>
 
+              {/* Promo Code Input */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest opacity-40">折扣碼（選填）</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={e => {
+                      setPromoCode(e.target.value.toUpperCase())
+                      setPromoResult(null)
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && handleValidatePromo()}
+                    placeholder="輸入折扣碼"
+                    className="flex-1 px-4 py-3 bg-surface-container-low rounded-2xl text-sm font-bold border border-outline-variant/20 focus:outline-none focus:border-navy/40 placeholder:opacity-30 uppercase"
+                  />
+                  <button
+                    onClick={handleValidatePromo}
+                    disabled={!promoCode.trim() || isValidatingPromo}
+                    className="px-5 py-3 bg-navy text-white rounded-2xl text-xs font-black uppercase tracking-widest disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                  >
+                    {isValidatingPromo ? '...' : '套用'}
+                  </button>
+                </div>
+                {promoResult && (
+                  <div className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold ${
+                    promoResult.valid
+                      ? 'bg-[#dcfce7] text-[#16a34a]'
+                      : 'bg-error/10 text-error'
+                  }`}>
+                    <span className="material-symbols-outlined text-sm">
+                      {promoResult.valid ? 'check_circle' : 'cancel'}
+                    </span>
+                    {promoResult.valid
+                      ? `折扣 $${promoResult.discountAmount}，實付 $${promoResult.finalAmount}`
+                      : promoResult.message}
+                  </div>
+                )}
+              </div>
+
+              {/* Price Summary */}
+              {promoResult?.valid && (
+                <div className="bg-surface-container-low rounded-3xl p-4 flex justify-between items-center">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">原價</p>
+                    <p className="text-sm font-bold line-through opacity-40">${promoResult.originalAmount}</p>
+                  </div>
+                  <span className="material-symbols-outlined text-navy opacity-40">arrow_forward</span>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest opacity-40">
+                      {isFreeRedemption ? '免費啟用' : '實付金額'}
+                    </p>
+                    <p className={`text-2xl font-black ${isFreeRedemption ? 'text-[#16a34a]' : 'text-navy'}`}>
+                      ${promoResult.finalAmount}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-3">
                 <button
                   onClick={handleConfirmAndPay}
-                  className="w-full py-5 bg-navy text-white rounded-full text-sm font-black uppercase tracking-widest shadow-xl shadow-navy/20 active:scale-95 transition-all"
+                  className={`w-full py-5 rounded-full text-sm font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${
+                    isFreeRedemption
+                      ? 'bg-[#16a34a] text-white shadow-green-900/20'
+                      : 'bg-navy text-white shadow-navy/20'
+                  }`}
                 >
-                  同意並立即支付 ${PLANS.find(p => p.id === selectedPlanId)?.price}
+                  {isFreeRedemption
+                    ? '免費啟用方案'
+                    : `同意並立即支付 $${getDisplayPrice()}`}
                 </button>
                 <button
                   onClick={() => setShowAgreement(false)}
