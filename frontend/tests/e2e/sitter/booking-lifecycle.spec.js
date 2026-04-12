@@ -47,6 +47,12 @@ test.describe('VIP Client Booking Lifecycle & Quotes', () => {
 
     // Stage 3: Sitter processes quote with Surcharge
     await test.step('Sitter processes and surcharges order', async () => {
+      // Multi-step flows re-register SW; force stable base page before injectSmokeAuth
+      await page.goto('/')
+      await page.evaluate(async () => {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        for (const r of registrations) await r.unregister()
+      })
       await authPage.injectSmokeAuth('SITTER')
       await dashPage.navigateToInboxOrOrders()
       await dashPage.openFirstPendingOrder()

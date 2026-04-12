@@ -148,10 +148,16 @@ const Profile = () => {
   }
 
   const handleSaveBankInfo = async () => {
+    if (!isSitter || !sitterData) return
     setIsSavingBank(true)
     try {
-      await handleUpdate('bankCode', editBankCode)
-      await handleUpdate('bankAccount', editBankAccount)
+      // Merge updates to avoid race condition / stale closure
+      const updated = await profileService.updateSitterMe({
+        ...sitterData,
+        bankCode: editBankCode,
+        bankAccount: editBankAccount
+      })
+      setSitterData(updated)
       setShowBankEdit(false)
     } catch (e) {
       console.error('Save bank info failed:', e)
@@ -353,11 +359,23 @@ const Profile = () => {
         </div>
 
         <div>
-          <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{user?.profiles?.[0]?.name || user?.name}</h2>
-          <div className="mt-2 flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-1.5">
+            <h2 className="text-3xl font-extrabold font-headline tracking-tighter">{sitterData?.name || user?.profiles?.[0]?.name || user?.name}</h2>
+            {isSitter && (
+              <span className={`material-symbols-outlined text-2xl ${sitterData?.isVerified ? 'text-[#3b82f6] font-bold' : 'text-on-surface-variant/20'}`} title={sitterData?.isVerified ? "已認證" : "未認證"}>
+                verified
+              </span>
+            )}
+          </div>
+          <div className="mt-4 flex flex-col items-center justify-center gap-3">
             <span className="px-4 py-1.5 bg-gradient-to-r from-[#e0f2fe] to-[#f3e8ff] text-navy text-xs font-black rounded-full border border-blue-200/50 uppercase tracking-widest shadow-sm">
               {(isSitter) ? 'Professional Sitter' : 'Elite Owner'}
             </span>
+            {isSitter && (
+              <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${sitterData?.isVerified ? 'text-[#3b82f6]' : (sitterData?.idCardFrontUrl ? 'text-[#f59e0b]' : 'text-on-surface-variant/40')}`}>
+                {sitterData?.isVerified ? '● 已認證保母' : (sitterData?.idCardFrontUrl ? '● 審核中' : '○ 未認證')}
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -511,10 +529,11 @@ const Profile = () => {
               {/* Identity Verification Section */}
               <SettingsSection title="身份驗證狀態">
                 <SettingsItem
-                  icon={sitterData?.isVerified ? "verified_user" : "pending_actions"}
+                  icon={sitterData?.isVerified ? "verified_user" : (sitterData?.idCardFrontUrl ? "history_edu" : "pending_actions")}
                   label="審核狀態"
-                  value={sitterData?.isVerified ? "已通過專業認證" : "審核中"}
-                  color={sitterData?.isVerified ? "text-primary" : "text-on-surface-variant/40"}
+                  value={sitterData?.isVerified ? "已通過專業認證" : (sitterData?.idCardFrontUrl ? "審核中" : "未審核")}
+                  color={sitterData?.isVerified ? "text-primary" : (sitterData?.idCardFrontUrl ? "text-[#f59e0b]" : "text-on-surface-variant/40")}
+                  description={sitterData?.isVerified ? "您的身份已完成驗證，擁有認證標誌。" : (sitterData?.idCardFrontUrl ? "我們正在人工核對您的資料，預計 1-3 個工作天。" : "請上傳證件與自拍照以開通預約功能。")}
                 />
                 <div className="grid grid-cols-2 gap-px bg-outline-variant/10">
                    {/* 證件正面 */}

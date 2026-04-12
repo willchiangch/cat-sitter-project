@@ -1,4 +1,4 @@
-# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V26)
+# 寵物到府保母系統 (SaaS) - 核心資料庫 Schema 規格書 (V30)
 
 ## 全域稽核欄位 (Audit Columns) 約定
 所有資料表皆包含以下標準稽核欄位：
@@ -29,6 +29,14 @@
 | `name` | VARCHAR | 姓名 / 品牌名 |
 | `booking_open_start` | DATE | **[SITTER]** 開放預約起始日 |
 | `booking_open_end` | DATE | **[SITTER]** 開放預約結束日 |
+| `avatar_url` | VARCHAR | 頭像路徑 |
+| `is_verified` | BOOLEAN | **[V30]** 是否通過身分驗證 |
+| `id_card_front_url` | VARCHAR | **[V30]** 身分證件正面照片 |
+| `face_photo_url` | VARCHAR | **[V30]** 人臉辨識自拍照 |
+| `bank_code` | VARCHAR | **[V30]** 銀行代碼 (3碼) |
+| `bank_account` | VARCHAR | **[V30]** 銀行帳號 |
+| `bio_summary` | TEXT | **[V30]** 保母自我介紹 |
+| `professional_labels`| JSONB | **[V15]** 專業標籤列表 |
 
 ---
 
@@ -107,6 +115,7 @@
 | `id` | UUID (PK) | 方案 ID |
 | `name` | VARCHAR | 方案名稱 (Standard, Pro, Premium) |
 | `order_limit` | INT | 每月接單上限 |
+| `plan_code` | VARCHAR | **[V16]** 內部方案代碼 (FREE, PRO...) |
 | `monthly_price` | DECIMAL | 月繳金額 |
 | `yearly_price` | DECIMAL | 年繳金額 |
 

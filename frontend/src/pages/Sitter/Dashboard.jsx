@@ -13,16 +13,23 @@ const Dashboard = () => {
   const user = useAuthStore((state) => state.user)
   const [loading, setLoading] = useState(true)
   const [visits, setVisits] = useState([])
+  const [sitterProfile, setSitterProfile] = useState(null)
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true)
         const today = new Date().toISOString().split('T')[0]
-        const data = await visitService.listSitterVisits(today)
-        setVisits(data || [])
+        const [visitsData, profileData] = await Promise.all([
+          visitService.listSitterVisits(today),
+          useAuthStore.getState().user?.profiles?.find(p => p.roleType === 'SITTER')?.id 
+            ? Promise.resolve(useAuthStore.getState().user.profiles.find(p => p.roleType === 'SITTER'))
+            : import('../../services/api').then(m => m.profileService.getSitterMe())
+        ])
+        setVisits(visitsData || [])
+        setSitterProfile(profileData)
       } catch (err) {
-        console.error('Failed to fetch dashboard visits:', err)
+        console.error('Failed to fetch dashboard data:', err)
       } finally {
         setLoading(false)
       }

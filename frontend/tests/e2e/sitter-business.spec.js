@@ -32,7 +32,7 @@ test.describe('Sitter Professional Tools E2E Verification', () => {
     const section = await profilePage.getBookingUrlSection()
     await expect(section).toBeVisible({ timeout: 15000 })
     await expect(section.getByRole('button', { name: '複製網址' })).toBeVisible()
-    await expect(section.getByRole('button', { name: '預覽對外網頁' })).toBeVisible()
+    await expect(section.getByRole('button', { name: '預覽頁面' })).toBeVisible()
   })
 
   test('Sitter Dashboard shows today schedule without tool tab bar', async ({ page }) => {

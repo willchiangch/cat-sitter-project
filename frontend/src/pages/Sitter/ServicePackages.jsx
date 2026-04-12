@@ -196,8 +196,8 @@ const ServicePackages = () => {
           <div className="space-y-1.5 flex-1 min-w-0">
             <h4 className="text-lg font-extrabold tracking-tight">{pkg.name}</h4>
             <div className="flex flex-wrap items-center gap-2">
-              {(pkg.supportedPetTypes || []).map(s => (
-                <span key={s} className="px-2 py-0.5 bg-primary/5 text-primary text-[9px] font-bold rounded-md border border-primary/10 uppercase">
+              {(pkg.supportedPetTypes || []).map((s, idx) => (
+                <span key={`${pkg.id}-${s}-${idx}`} className="px-2 py-0.5 bg-primary/5 text-primary text-[9px] font-bold rounded-md border border-primary/10 uppercase">
                   {SPECIES_OPTIONS.find(o => o.value === s)?.label || s}
                 </span>
               ))}

@@ -11,13 +11,13 @@ const BottomNavBar = () => {
   const unreadCount = getUnreadCountForRole(mode)
   
   const navItems = mode === 'SITTER' ? [
-    { icon: 'dashboard', label: t('common.tab_itinerary'), path: '/sitter' },
+    { icon: 'dashboard', label: t('common.tab_itinerary'), path: '/sitter', end: true },
     { icon: 'receipt_long', label: t('common.tab_orders'), path: '/sitter/orders' },
     { icon: 'payments', label: t('common.tab_finance'), path: '/sitter/finance' },
     { icon: 'notifications', label: t('common.tab_notifications'), path: '/notifications', badge: true },
     { icon: 'person', label: t('common.tab_profile'), path: '/profile' },
   ] : [
-    { icon: 'dashboard', label: t('common.tab_itinerary'), path: '/client' },
+    { icon: 'dashboard', label: t('common.tab_itinerary'), path: '/client', end: true },
     { icon: 'pets', label: t('common.tab_orders'), path: '/client/orders' },
     { icon: 'search', label: t('common.tab_sitters'), path: '/client/sitters' },
     { icon: 'notifications', label: t('common.tab_notifications'), path: '/notifications' },
@@ -30,6 +30,7 @@ const BottomNavBar = () => {
         <NavLink
           key={item.path}
           to={item.path}
+          end={item.end}
           className="flex flex-col items-center justify-center px-3 py-1.5 transition-all duration-200 active:scale-95 relative"
         >
           {({ isActive }) => (

@@ -73,6 +73,9 @@ const SubscriptionManagement = () => {
   const [isCancelling, setIsCancelling] = useState(false)
   const [isChanging, setIsChanging] = useState(null)
   const [billingCycle, setBillingCycle] = useState('monthly')
+  const [showAgreement, setShowAgreement] = useState(false)
+  const [selectedPlanId, setSelectedPlanId] = useState(null)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
 
   useEffect(() => {
     subscriptionService.getCurrent()
@@ -81,18 +84,36 @@ const SubscriptionManagement = () => {
       .finally(() => setIsLoading(false))
   }, [])
 
-  const handleChangePlan = async (planId) => {
+  const initiateChangePlan = (planId) => {
     if (planId === currentSub?.planId) return
-    setIsChanging(planId)
+    setSelectedPlanId(planId)
+    setShowAgreement(true)
+  }
+
+  const handleConfirmAndPay = async () => {
+    setShowAgreement(false)
+    setIsProcessingPayment(true)
+    
+    // Simulate payment processing time
+    await new Promise(resolve => setTimeout(resolve, 2500))
+    
     try {
-      const updated = await subscriptionService.changePlan(planId)
+      const updated = await subscriptionService.changePlan(selectedPlanId)
+      
+      // Show success state briefly
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       setCurrentSub(updated)
+      setSelectedPlanId(null)
     } catch (e) {
       console.error('Plan change failed:', e)
+      alert('付費處理發生錯誤，請稍後再試。')
     } finally {
-      setIsChanging(null)
+      setIsProcessingPayment(false)
     }
   }
+
+  const handleChangePlan = initiateChangePlan
 
   const handleCancel = async () => {
     setIsCancelling(true)
@@ -139,10 +160,16 @@ const SubscriptionManagement = () => {
                 <span className="text-sm font-bold opacity-70 mb-0.5">{currentPlan.period}</span>
               </div>
               {currentSub.renewsAt && (
-                <p className="text-xs font-bold opacity-70">
-                  {currentSub.status === 'CANCELLED' ? '✕ 已取消，有效至 ' : '下次續費：'}
-                  {currentSub.renewsAt}
-                </p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-bold opacity-70">
+                    {currentSub.status === 'CANCELLED' ? '✕ 已取消，有效至 ' : '下次續費：'}
+                    {currentSub.renewsAt}
+                  </p>
+                  <div className="inline-flex items-center gap-1 opacity-40">
+                    <span className="material-symbols-outlined text-[10px]">gavel</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest">已同意服務協議</span>
+                  </div>
+                </div>
               )}
             </div>
           </section>
@@ -238,6 +265,84 @@ const SubscriptionManagement = () => {
           </section>
         )}
       </motion.main>
+
+      {/* Payment Processing Overlay */}
+      <AnimatePresence>
+        {isProcessingPayment && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-navy/90 backdrop-blur-md">
+            <div className="text-center space-y-6">
+              <div className="relative w-24 h-24 mx-auto">
+                <div className="absolute inset-0 border-4 border-white/20 rounded-full" />
+                <motion.div
+                  className="absolute inset-0 border-4 border-t-white rounded-full"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-extrabold text-white font-headline italic tracking-tighter">付費處理中...</h3>
+                <p className="text-xs font-bold text-white/40 uppercase tracking-widest">Securely processing your transaction</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Subscription Agreement Modal */}
+      <AnimatePresence>
+        {showAgreement && selectedPlanId && (
+          <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowAgreement(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+              className="relative w-full max-w-lg bg-surface rounded-[40px] p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black font-headline tracking-tighter">服務合約與訂閱協議</h3>
+                <p className="text-xs font-bold opacity-30 uppercase tracking-widest">Terms of Service & Subscription Agreement</p>
+              </div>
+              
+              <div className="bg-surface-container-low rounded-3xl p-6 space-y-4 text-sm font-medium leading-relaxed opacity-80">
+                <div className="flex gap-3">
+                  <span className="w-5 h-5 bg-navy text-white text-[10px] font-black rounded-lg flex items-center justify-center shrink-0 mt-0.5">1</span>
+                  <p>本方案採自動續約機制，系統將於每個月到期前自動寄發續約通知與刷卡連結。</p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-5 h-5 bg-navy text-white text-[10px] font-black rounded-lg flex items-center justify-center shrink-0 mt-0.5">2</span>
+                  <p>若於扣款失敗或未於期限內完成付費，帳號功能將自動降級回「免費方案」。</p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-5 h-5 bg-navy text-white text-[10px] font-black rounded-lg flex items-center justify-center shrink-0 mt-0.5">3</span>
+                  <p>訂閱方案一經啟用受法律效力保護，恕不接受中途退費或取消當月合約。</p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="w-5 h-5 bg-navy text-white text-[10px] font-black rounded-lg flex items-center justify-center shrink-0 mt-0.5">4</span>
+                  <p>本系統僅支援「升級方案」（需依剩餘天數比例補差價），生效截止時間維持原合約日期；目前暫不支援降級服務。</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleConfirmAndPay}
+                  className="w-full py-5 bg-navy text-white rounded-full text-sm font-black uppercase tracking-widest shadow-xl shadow-navy/20 active:scale-95 transition-all"
+                >
+                  同意並立即支付 ${PLANS.find(p => p.id === selectedPlanId)?.price}
+                </button>
+                <button
+                  onClick={() => setShowAgreement(false)}
+                  className="w-full py-4 text-xs font-bold opacity-30 uppercase tracking-widest hover:opacity-60 transition-opacity"
+                >
+                   我再考慮一下
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Cancel Confirm Dialog */}
       <AnimatePresence>

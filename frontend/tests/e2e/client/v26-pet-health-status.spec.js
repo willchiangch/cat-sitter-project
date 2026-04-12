@@ -58,8 +58,9 @@ test.describe('V26: PetFormModal Health Status Fields', () => {
     await expect(page.getByText('定期點驅蟲藥')).toBeVisible()
   })
 
-  test('[V26 性別] PetFormModal 性別包含「不詳」選項', async ({ page }) => {
-    await expect(page.locator('option[value="UNKNOWN"]')).toBeAttached({ timeout: 5000 })
+  test('[V26 性別] PetFormModal 性別包含「不清楚」按鈕', async ({ page }) => {
+    // gender 欄位為自定義按鈕組（非 <select>），UNKNOWN 對應「不清楚」
+    await expect(page.getByRole('button', { name: '不清楚' })).toBeVisible({ timeout: 5000 })
   })
 })
 

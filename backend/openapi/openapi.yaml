@@ -864,6 +864,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Subscription"
+    put:
+      tags: [Billing]
+      operationId: changeSubscriptionPlan
+      summary: Upgrade or change subscription plan (Simulated Payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId]
+              properties:
+                planId: { type: string, description: "plan_code e.g. PRO" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
   /api/v1/sitters/me/subscription/checkout:
     post:
       tags: [Billing]

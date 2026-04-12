@@ -43,6 +43,6 @@ test.describe('Client Profile E2E', () => {
     // PetFormModal renders h3 '新增毛孩' when isOpen=true and no initialData
     await expect(page.getByText('新增毛孩')).toBeVisible({ timeout: 5000 })
     // Modal has a Cancel button to close
-    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '取消' })).toBeVisible()
   })
 })

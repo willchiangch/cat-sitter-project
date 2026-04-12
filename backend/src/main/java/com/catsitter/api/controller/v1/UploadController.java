@@ -22,22 +22,27 @@ public class UploadController {
      * Generic upload endpoint for profile pictures, pet photos, etc.
      * folder should be something like 'profiles' or 'pets'.
      */
-    @PostMapping("/{folder}")
+    @PostMapping("/{folder}/**")
     public ResponseEntity<Map<String, Object>> uploadFile(
             @PathVariable String folder,
+            jakarta.servlet.http.HttpServletRequest request,
             @RequestParam("file") MultipartFile file) {
         
-        System.err.println("\n[!] UPLOAD: Received upload request for folder: " + folder);
+        // Extract the full path from the request URI to identify subfolders
+        String fullPath = (String) request.getAttribute(org.springframework.web.servlet.HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+        String folderPath = fullPath.substring(fullPath.indexOf("/uploads/") + 9); // +9 for "/uploads/"
+        
+        System.err.println("\n[!] UPLOAD: Received upload request for folder path: " + folderPath);
         System.err.println("[!] UPLOAD: File name: " + file.getOriginalFilename() + " (" + file.getSize() + " bytes)");
 
         try {
             // Basic validation for folder names to prevent path traversal
-            if (folder.contains("..") || folder.contains("/") || folder.contains("\\")) {
+            if (folderPath.contains("..") || folderPath.contains("\\")) {
                 System.err.println("[!] UPLOAD ERROR: Invalid folder name prohibited");
                 return ResponseEntity.badRequest().body(Map.of("error", "Invalid folder name"));
             }
 
-            String filePath = storageService.store(file, folder);
+            String filePath = storageService.store(file, folderPath);
             String fileUrl = storageService.getUrl(filePath);
             System.err.println("[!] UPLOAD SUCCESS: " + filePath + " -> " + fileUrl);
             

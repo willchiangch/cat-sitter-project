@@ -157,7 +157,7 @@ const SitterPublicPage = () => {
                       <div className="flex gap-1 flex-wrap pt-1">
                         {service.supportedPetTypes.map(type => (
                           <span key={type} className="text-[10px] font-bold px-2 py-0.5 bg-surface-container-high rounded-full opacity-60">
-                            {type}
+                            {SPECIES_MAP[type] || type}
                           </span>
                         ))}
                       </div>
