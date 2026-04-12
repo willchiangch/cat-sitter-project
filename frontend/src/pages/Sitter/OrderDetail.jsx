@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import { QuoteModal, ReferralModal } from '../../components/sitter/DecisionModals'
 import { orderService } from '../../services/api'
@@ -8,17 +7,12 @@ import { orderService } from '../../services/api'
 const OrderDetail = () => {
   const { orderId } = useParams()
   const navigate = useNavigate()
-  const { t } = useTranslation()
   const [showQuote, setShowQuote] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
   const [order, setOrder] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    fetchOrderDetail()
-  }, [orderId])
-
-  const fetchOrderDetail = async () => {
+  const fetchOrderDetail = useCallback(async () => {
     try {
       setIsLoading(true)
       const data = await orderService.getDetail(orderId)
@@ -28,7 +22,11 @@ const OrderDetail = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [orderId])
+
+  useEffect(() => {
+    fetchOrderDetail()
+  }, [fetchOrderDetail])
 
   const handleQuoteConfirm = async (data) => {
     try {
@@ -42,7 +40,7 @@ const OrderDetail = () => {
       await orderService.submitQuote(orderId, quoteRequest)
       await fetchOrderDetail() // Refresh status
       setShowQuote(false)
-    } catch (error) {
+    } catch (_error) {
       alert('報價送出失敗，請檢查網路狀態。')
     } finally {
       setIsLoading(false)

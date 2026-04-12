@@ -4,6 +4,13 @@ import { motion } from 'framer-motion'
 import { trustCircleService } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 
+const SPECIES_MAP = {
+  'CAT': '貓咪',
+  'DOG': '狗狗',
+  'BIRD': '鳥類',
+  'OTHER': '其他'
+}
+
 const SitterPublicPage = () => {
   const { slug } = useParams()
   const navigate = useNavigate()

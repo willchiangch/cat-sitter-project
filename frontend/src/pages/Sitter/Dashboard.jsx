@@ -13,7 +13,6 @@ const Dashboard = () => {
   const user = useAuthStore((state) => state.user)
   const [loading, setLoading] = useState(true)
   const [visits, setVisits] = useState([])
-  const [sitterProfile, setSitterProfile] = useState(null)
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -27,7 +26,6 @@ const Dashboard = () => {
             : import('../../services/api').then(m => m.profileService.getSitterMe())
         ])
         setVisits(visitsData || [])
-        setSitterProfile(profileData)
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err)
       } finally {

@@ -1,0 +1,94 @@
+# UI Screenshot Report
+# Push 到 main/develop 且 frontend/src 有變動時自動觸發
+# 產生 screenshot-report/index.html（自包含 HTML，可直接分享）
+#
+# 結果在哪看：
+#   GitHub Actions > 該次 run > Artifacts > ui-screenshot-report
+#   下載 zip 後用瀏覽器直接開 index.html
+#
+# (選用) 啟用 GitHub Pages 永久 URL：
+#   1. repo Settings > Pages > Source 選「GitHub Actions」
+#   2. 把下方 deploy-pages job 的 if: false 刪掉
+
+name: UI Screenshot Report
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "frontend/src/**"
+      - ".github/workflows/ui-screenshots.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ui-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Run screenshot tests
+        working-directory: frontend
+        run: npx playwright test --config=playwright.screenshot.config.ts
+        env:
+          CI: true
+
+      - name: Generate HTML report
+        working-directory: frontend
+        run: node scripts/generate-ui-report.mjs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshot-report
+          path: frontend/screenshot-report/
+          retention-days: 30
+
+      # 啟用 GitHub Pages 時使用
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/screenshot-report/
+
+  # 取消 if: false 並在 repo Settings > Pages > Source 選「GitHub Actions」即可啟用
+  deploy-pages:
+    needs: screenshot
+    runs-on: ubuntu-latest
+    if: false
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

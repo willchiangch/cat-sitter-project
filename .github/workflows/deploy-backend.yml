@@ -43,6 +43,7 @@ jobs:
             mvn -B test
           else
             echo "No pom.xml found in backend/, skip tests."
+          fi
 
       - name: 登入 GCP
         uses: google-github-actions/auth@v2

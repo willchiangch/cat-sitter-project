@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# UI screenshot report (generated, do not commit)
+screenshot-report/

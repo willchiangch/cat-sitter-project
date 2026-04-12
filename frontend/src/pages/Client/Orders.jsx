@@ -9,18 +9,14 @@ const ClientOrders = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('EVALUATING')
   const [orders, setOrders] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        setIsLoading(true)
         const data = await orderService.list()
         setOrders(data)
       } catch (error) {
         console.error('Failed to fetch orders:', error)
-      } finally {
-        setIsLoading(false)
       }
     }
     fetchOrders()
