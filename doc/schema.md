@@ -47,8 +47,18 @@
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | 方案 ID |
 | `sitter_profile_id` | UUID (FK) | 屬於哪位保母 |
+| `name` | VARCHAR | 方案名稱 |
 | `base_price` | DECIMAL | 基礎定價 |
+| `duration_minutes` | INT | 服務時長 (分鐘) |
+| `supported_pet_types`| JSONB | 支援的寵物類型 (如 ["CAT", "DOG"]) |
+| `bookable_start_date`| DATE | 可預約開始日期 |
+| `bookable_end_date` | DATE | 可預約結束日期 |
+| `effective_start_date`| DATE | 方案生效開始日期 |
+| `effective_end_date` | DATE | 方案生效結束日期 |
+| `description` | TEXT | **[NEW]** 服務詳細描述 (含顯示更多按鈕) |
+| `sort_order` | INT | 顯示排序 |
 | `is_active` | BOOLEAN | 是否上架 |
+| `is_whitelist_only` | BOOLEAN | **[NEW]** 是否僅限白名單可見 (PREMIUM) |
 
 ### 4. `sitter_questions` (保母自訂問卷表)
 | 欄位名稱 | 型態 | 說明 |

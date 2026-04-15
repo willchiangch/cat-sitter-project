@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { sitterService } from '../../services/api'
+import { sitterService, subscriptionService } from '../../services/api'
 
 const SPECIES_OPTIONS = [
   { value: 'DOG', label: '犬' },
@@ -22,6 +22,8 @@ const DEFAULT_FORM = {
   effectiveEnd: '',
   bookableStartDate: '',
   bookableEndDate: '',
+  description: '',
+  isWhitelistOnly: false,
 }
 
 // Compute isActive from effective date range. Returns null if no range set (use stored isActive).
@@ -40,11 +42,22 @@ const ServicePackages = () => {
   const [form, setForm] = useState(DEFAULT_FORM)
   const [isSaving, setIsSaving] = useState(false)
   const [validationError, setValidationError] = useState('')
+  const [currentSub, setCurrentSub] = useState(null)
 
   useEffect(() => {
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
     fetchPackages()
+    fetchSubscription()
   }, [])
+
+  const fetchSubscription = async () => {
+    try {
+      const data = await subscriptionService.getCurrent()
+      setCurrentSub(data)
+    } catch (e) {
+      console.error('Failed to fetch subscription:', e)
+    }
+  }
 
   const fetchPackages = async () => {
     try {
@@ -76,6 +89,8 @@ const ServicePackages = () => {
         effectiveEnd: pkg.effectiveEndDate || '',
         bookableStartDate: pkg.bookableStartDate || '',
         bookableEndDate: pkg.bookableEndDate || '',
+        description: pkg.description || '',
+        isWhitelistOnly: pkg.isWhitelistOnly || false,
       })
     } else {
       setForm(DEFAULT_FORM)
@@ -128,11 +143,13 @@ const ServicePackages = () => {
         effectiveEndDate: form.effectiveEnd || null,
         bookableStartDate: form.bookableStartDate || null,
         bookableEndDate: form.bookableEndDate || null,
+        description: form.description.trim() || null,
+        isWhitelistOnly: form.isWhitelistOnly,
       }
 
       if (currentPkg) {
-        const updated = await sitterService.update(currentPkg.id, payload)
-        setPackages(prev => prev.map(p => p.id === currentPkg.id ? updated : p))
+        const updated = await sitterService.update(currentPkg.serviceId, payload)
+        setPackages(prev => prev.map(p => p.serviceId === currentPkg.serviceId ? updated : p))
       } else {
         const created = await sitterService.create(payload)
         setPackages(prev => [...prev, created])
@@ -150,7 +167,7 @@ const ServicePackages = () => {
     // If package has an effective date range, direct toggle is not allowed
     if (pkg.effectiveStartDate && pkg.effectiveEndDate) return
     try {
-      const updated = await sitterService.update(pkg.id, {
+      const updated = await sitterService.update(pkg.serviceId, {
         name: pkg.name,
         supportedPetTypes: pkg.supportedPetTypes,
         basePrice: pkg.basePrice,
@@ -160,8 +177,10 @@ const ServicePackages = () => {
         effectiveEndDate: null,
         bookableStartDate: pkg.bookableStartDate || null,
         bookableEndDate: pkg.bookableEndDate || null,
+        description: pkg.description || null,
+        isWhitelistOnly: pkg.isWhitelistOnly || false,
       })
-      setPackages(prev => prev.map(p => p.id === pkg.id ? updated : p))
+      setPackages(prev => prev.map(p => p.serviceId === pkg.serviceId ? updated : p))
     } catch (e) {
       console.error('Toggle active failed:', e)
     }
@@ -170,18 +189,21 @@ const ServicePackages = () => {
   const handleDelete = async (pkg) => {
     if (!window.confirm(`確定要刪除方案「${pkg.name}」？`)) return
     try {
-      await sitterService.delete(pkg.id)
-      setPackages(prev => prev.filter(p => p.id !== pkg.id))
+      await sitterService.delete(pkg.serviceId)
+      setPackages(prev => prev.filter(p => p.serviceId !== pkg.serviceId))
     } catch (e) {
       console.error('Delete failed:', e)
     }
   }
 
   const PackageCard = ({ pkg }) => {
+    const [isExpanded, setIsExpanded] = useState(false)
     const hasEffectiveRange = pkg.effectiveStartDate && pkg.effectiveEndDate
     const today = new Date().toISOString().slice(0, 10)
     const isScheduled = hasEffectiveRange && today < pkg.effectiveStartDate
     const isExpired = hasEffectiveRange && today > pkg.effectiveEndDate
+
+    const isLongDescription = pkg.description && (pkg.description.split('\n').length > 3 || pkg.description.length > 80)
 
     return (
       <motion.div
@@ -197,7 +219,7 @@ const ServicePackages = () => {
             <h4 className="text-lg font-extrabold tracking-tight">{pkg.name}</h4>
             <div className="flex flex-wrap items-center gap-2">
               {(pkg.supportedPetTypes || []).map((s, idx) => (
-                <span key={`${pkg.id}-${s}-${idx}`} className="px-2 py-0.5 bg-primary/5 text-primary text-[9px] font-bold rounded-md border border-primary/10 uppercase">
+                <span key={`${pkg.serviceId}-${s}-${idx}`} className="px-2 py-0.5 bg-primary/5 text-primary text-[9px] font-bold rounded-md border border-primary/10 uppercase">
                   {SPECIES_OPTIONS.find(o => o.value === s)?.label || s}
                 </span>
               ))}
@@ -206,7 +228,31 @@ const ServicePackages = () => {
                   {pkg.durationMinutes} 分鐘
                 </span>
               )}
+              {pkg.isWhitelistOnly && (
+                <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 text-[9px] font-bold rounded-md border border-amber-500/20 uppercase flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[11px]">lock</span>
+                  僅白名單
+                </span>
+              )}
             </div>
+            {pkg.description && (
+              <div className="space-y-1 mt-1">
+                <p className={`text-[11px] font-medium opacity-50 leading-relaxed whitespace-pre-wrap break-words ${!isExpanded ? 'line-clamp-2' : ''}`}>
+                  {pkg.description}
+                </p>
+                {isLongDescription && (
+                  <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="text-[9px] font-black text-primary uppercase tracking-widest hover:opacity-70 transition-opacity flex items-center gap-1"
+                  >
+                    {isExpanded ? '收回全文' : '顯示更多'}
+                    <span className="material-symbols-outlined text-[10px]">
+                      {isExpanded ? 'expand_less' : 'expand_more'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
             {hasEffectiveRange && (
               <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold border ${
                 isScheduled ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
@@ -293,7 +339,7 @@ const ServicePackages = () => {
         className="px-5 pt-8 space-y-4 max-w-xl mx-auto"
       >
         {packages.map(pkg => (
-          <PackageCard key={pkg.id} pkg={pkg} />
+          <PackageCard key={pkg.serviceId} pkg={pkg} />
         ))}
         {packages.length === 0 && !isLoading && (
           <div className="p-20 text-center border-2 border-dashed border-outline-variant/10 rounded-[40px] opacity-20 italic">
@@ -328,6 +374,18 @@ const ServicePackages = () => {
                   onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="例：30 分鐘到府照護"
                   className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* 方案內容 */}
+              <div className="space-y-2">
+                <label className="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">方案內容</label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                  placeholder="請輸入方案詳細內容，例如服務細項或注意事項..."
+                  rows={4}
+                  className="w-full px-5 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-2xl text-sm font-bold outline-none focus:border-primary transition-colors resize-none"
                 />
               </div>
 
@@ -462,6 +520,37 @@ const ServicePackages = () => {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* 指定名單限定 (1299方案功能) */}
+              <div className="flex items-center justify-between p-4 bg-surface-container-low border border-outline-variant/10 rounded-3xl">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-extrabold">僅限白名單預約</p>
+                    <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[8px] font-black rounded uppercase tracking-tighter">1299 方案功能</span>
+                  </div>
+                  <p className="text-[10px] font-bold opacity-40">開啟後僅有在您白名單中的客戶才能看到此方案</p>
+                </div>
+                {currentSub?.planId !== 'PREMIUM' ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/sitter/subscription')}
+                    className="px-3 py-1.5 bg-surface-container-high text-on-surface-variant text-[10px] font-black rounded-xl hover:bg-primary/20 hover:text-primary transition-all"
+                  >
+                    升級啟用
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, isWhitelistOnly: !p.isWhitelistOnly }))}
+                    className={`w-12 h-6 rounded-full transition-all relative ${form.isWhitelistOnly ? 'bg-primary' : 'bg-surface-container-high'}`}
+                  >
+                    <motion.div
+                      animate={{ x: form.isWhitelistOnly ? 26 : 4 }}
+                      className="absolute top-1 left-0 w-4 h-4 rounded-full bg-white shadow-sm"
+                    />
+                  </button>
+                )}
               </div>
 
               {validationError && (

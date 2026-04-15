@@ -1,23 +1,52 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-// Mock data — replace with API call when clientSitterService is available
-const MOCK_SITTERS = []
+import { useNavigate } from 'react-router-dom'
+import { trustCircleService } from '../../services/api'
 
 const Sitters = () => {
-  const [sitters, setSitters] = useState(MOCK_SITTERS)
+  const navigate = useNavigate()
+  const [sitters, setSitters] = useState(() => {
+    const saved = localStorage.getItem('whiskerwatch_my_sitters')
+    return saved ? JSON.parse(saved) : []
+  })
   const [searchCode, setSearchCode] = useState('')
   const [isSearching, setIsSearching] = useState(false)
+  const [error, setError] = useState('')
+
+  // Persist sitters list to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('whiskerwatch_my_sitters', JSON.stringify(sitters))
+  }, [sitters])
 
   const handleSearch = async (e) => {
     e.preventDefault()
     if (!searchCode.trim()) return
+    
     setIsSearching(true)
-    // TODO: replace with API call: clientSitterService.search(searchCode)
-    setTimeout(() => {
-      setIsSearching(false)
+    setError('')
+    
+    try {
+      const data = await trustCircleService.searchBySlug(searchCode.trim())
+      const sitterInfo = data.sitterProfile
+      
+      // Add to list if not already present
+      setSitters(prev => {
+        if (prev.find(s => s.id === sitterInfo.profileId)) return prev
+        return [{
+          id: sitterInfo.profileId,
+          name: sitterInfo.name,
+          code: sitterInfo.slug, // Now correctly populated from backend
+          avatarUrl: sitterInfo.avatarUrl // Consistent with DTO
+        }, ...prev]
+      })
+      
       setSearchCode('')
-    }, 800)
+    } catch (err) {
+      console.error('Search failed:', err)
+      setError('找不到該保母代碼，請確認後再試')
+    } finally {
+      setIsSearching(false)
+    }
   }
 
   const handleRemove = (id, e) => {
@@ -36,29 +65,32 @@ const Sitters = () => {
 
       <main className="px-6 space-y-6">
         {/* Search Bar */}
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <input
-            type="text"
-            value={searchCode}
-            onChange={e => setSearchCode(e.target.value)}
-            placeholder="輸入保母代碼"
-            className="flex-1 bg-surface-container-low rounded-2xl px-4 py-3 text-sm font-medium outline-none border border-outline-variant/20 focus:border-primary/40 transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={isSearching || !searchCode.trim()}
-            className="bg-primary text-on-primary rounded-2xl px-5 py-3 text-sm font-bold disabled:opacity-40 transition-opacity active:scale-95"
-          >
-            {isSearching ? (
-              <span className="material-symbols-outlined text-xl animate-spin">progress_activity</span>
-            ) : (
-              <span className="material-symbols-outlined text-xl">search</span>
-            )}
-          </button>
-        </form>
+        <div className="space-y-2">
+          <form onSubmit={handleSearch} className="flex gap-3">
+            <input
+              type="text"
+              value={searchCode}
+              onChange={e => setSearchCode(e.target.value)}
+              placeholder="輸入保母代碼 (如: 35c6a634)"
+              className="flex-1 bg-surface-container-low rounded-2xl px-4 py-3 text-sm font-medium outline-none border border-outline-variant/20 focus:border-primary/40 transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={isSearching || !searchCode.trim()}
+              className="bg-primary text-on-primary rounded-2xl px-5 py-3 text-sm font-bold disabled:opacity-40 transition-opacity active:scale-95"
+            >
+              {isSearching ? (
+                <span className="material-symbols-outlined text-xl animate-spin">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-xl">search</span>
+              )}
+            </button>
+          </form>
+          {error && <p className="text-[10px] font-bold text-error px-2">{error}</p>}
+        </div>
 
         {/* Sitter List */}
-        <AnimatePresence>
+        <AnimatePresence mode="popLayout">
           {sitters.length === 0 ? (
             <div className="py-20 text-center space-y-4 opacity-40">
               <span className="material-symbols-outlined text-6xl">person_search</span>
@@ -71,14 +103,15 @@ const Sitters = () => {
                 <motion.div
                   key={sitter.id}
                   layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="bg-surface-container-low rounded-[32px] p-5 border border-outline-variant/10 flex items-center gap-5"
+                  onClick={() => navigate(`/s/${sitter.code}`)}
+                  className="bg-surface-container-low rounded-[32px] p-5 border border-outline-variant/10 flex items-center gap-5 cursor-pointer hover:bg-surface-container transition-colors active:scale-[0.98]"
                 >
                   <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg ring-2 ring-surface flex-shrink-0">
                     <img
-                      src={sitter.avatarUrl || 'https://via.placeholder.com/128?text=S'}
+                      src={sitter.avatarUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=200'}
                       className="w-full h-full object-cover"
                       alt={sitter.name}
                     />

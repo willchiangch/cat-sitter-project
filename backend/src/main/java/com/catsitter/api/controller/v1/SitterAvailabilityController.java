@@ -41,7 +41,9 @@ public class SitterAvailabilityController {
     }
 
     @GetMapping("/{sitterSlug}/booking-preview")
-    public ResponseEntity<BookingPreviewResponse> getBookingPreview(@PathVariable String sitterSlug) {
-        return ResponseEntity.ok(bookingPreviewService.getBookingPreview(sitterSlug));
+    public ResponseEntity<BookingPreviewResponse> getBookingPreview(
+            @PathVariable String sitterSlug,
+            @AuthenticationPrincipal Account account) {
+        return ResponseEntity.ok(bookingPreviewService.getBookingPreview(sitterSlug, account));
     }
 }

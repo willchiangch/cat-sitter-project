@@ -1,10 +1,25 @@
 import React from 'react'
-import { authService } from '../services/api'
+import { authService, devService } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 
 const DevAuthTools = () => {
+  const { user, updateUser } = useAuthStore()
   if (!import.meta.env.DEV) return null
   
+  const isSitter = user?.lastActiveRole === 'SITTER'
+
+  const handleVerify = async (verified) => {
+    try {
+      await devService.verifySitter(verified)
+      // Update local state and reload to see the blue checkmark
+      updateUser({ isVerified: verified })
+      window.location.reload()
+    } catch (e) {
+      console.error('Failed to update verification:', e)
+      alert('更新失敗')
+    }
+  }
+
   const injectAuth = (type) => {
     // These IDs are aligned with SmokeMockAuthFilter.java
     const id = type === 'SOP' ? 'efefefef-0000-0000-0000-000000000001' : 'efefefef-0000-0000-0000-000000000002'
@@ -15,7 +30,8 @@ const DevAuthTools = () => {
           id, 
           email: type === 'SOP' ? 'sophia@example.com' : 'james@example.com', 
           name: type === 'SOP' ? 'Sophia' : 'James',
-          lastActiveRole: type === 'SOP' ? 'SITTER' : 'CLIENT'
+          lastActiveRole: type === 'SOP' ? 'SITTER' : 'CLIENT',
+          isVerified: type === 'SOP' // Sophia is verified by default in some mocks, but let's be explicit
         },
         token: 'dev-token',
         isAuthenticated: true
@@ -65,6 +81,20 @@ const DevAuthTools = () => {
       <p className="text-[9px] font-black text-white/40 uppercase tracking-widest text-center">Dev Identity</p>
       <button onClick={() => injectAuth('SOP')} className="px-3 py-1.5 bg-primary text-white text-[10px] font-bold rounded-lg hover:bg-primary/80 transition-colors">Switch SOPHIA</button>
       <button onClick={() => injectAuth('JAM')} className="px-3 py-1.5 bg-[#f59e0b] text-white text-[10px] font-bold rounded-lg hover:bg-[#f59e0b]/80 transition-colors">Switch JAMES</button>
+      
+      {isSitter && (
+        <>
+          <div className="h-px bg-white/10 my-1" />
+          <p className="text-[8px] font-bold text-white/30 uppercase text-center">Identity Override</p>
+          <button onClick={() => handleVerify(true)} className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-500 transition-colors flex items-center justify-center gap-1">
+            <span className="text-[12px]">✅</span> 認證通過
+          </button>
+          <button onClick={() => handleVerify(false)} className="px-3 py-1.5 bg-red-600/50 text-white text-[10px] font-bold rounded-lg hover:bg-red-500 transition-colors flex items-center justify-center gap-1">
+            <span className="text-[12px]">❌</span> 取消認證
+          </button>
+        </>
+      )}
+
       <div className="h-px bg-white/10 my-1" />
       <button onClick={registerRandomClient} className="px-3 py-1.5 bg-green-600 text-white text-[10px] font-bold rounded-lg hover:bg-green-500 transition-colors">
         + Register New User

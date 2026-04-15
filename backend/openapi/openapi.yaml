@@ -1184,6 +1184,21 @@ components:
         bankAccount: { type: string, nullable: true }
         bankAccountHolder: { type: string, nullable: true }
         notificationDaysBefore: { type: integer, nullable: true }
+    SitterPublicProfile:
+      type: object
+      required: [profileId, name, slug]
+      properties:
+        profileId: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        bioSummary: { type: string, nullable: true }
+        serviceAreas:
+          type: array
+          items: { type: string }
+        professionalLabels:
+          type: array
+          items: { type: string }
     UpdateSitterProfileRequest:
       type: object
       properties:
@@ -1211,6 +1226,15 @@ components:
         basePrice: { type: number }
         durationMinutes: { type: integer, minimum: 1 }
         isActive: { type: boolean }
+        supportedPetTypes:
+          type: array
+          items: { type: string }
+        bookableStartDate: { type: string, format: date, nullable: true }
+        bookableEndDate: { type: string, format: date, nullable: true }
+        effectiveStartDate: { type: string, format: date, nullable: true }
+        effectiveEndDate: { type: string, format: date, nullable: true }
+        description: { type: string, nullable: true }
+        isWhitelistOnly: { type: boolean }
     CreateServiceRequest:
       type: object
       required: [name, basePrice, durationMinutes]
@@ -1218,9 +1242,21 @@ components:
         name: { type: string, minLength: 1, maxLength: 255 }
         basePrice: { type: number, minimum: 0 }
         durationMinutes: { type: integer, minimum: 1 }
+        supportedPetTypes:
+          type: array
+          items: { type: string }
+        bookableStartDate: { type: string, format: date }
+        bookableEndDate: { type: string, format: date }
+        effectiveStartDate: { type: string, format: date }
+        effectiveEndDate: { type: string, format: date }
+        description: { type: string }
+        isWhitelistOnly: { type: boolean }
     UpdateServiceRequest:
       allOf:
         - $ref: "#/components/schemas/CreateServiceRequest"
+        - type: object
+          properties:
+            isActive: { type: boolean }
     QuestionItem:
       type: object
       required: [questionId, questionText, sortOrder, isActive]
@@ -1247,13 +1283,13 @@ components:
           items: { type: string, format: uuid }
     BookingPreview:
       type: object
-      required: [sitterName, services, questions]
+      required: [sitterProfile, services, questionnaire]
       properties:
-        sitterName: { type: string }
+        sitterProfile: { $ref: "#/components/schemas/SitterPublicProfile" }
         services:
           type: array
           items: { $ref: "#/components/schemas/ServicePlan" }
-        questions:
+        questionnaire:
           type: array
           items: { $ref: "#/components/schemas/QuestionItem" }
     PublicAvailability:

@@ -101,7 +101,9 @@ class SitterServiceControllerTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                "Test Description",
+                false
         );
 
         mockMvc.perform(post("/api/v1/sitters/me/services")
@@ -149,7 +151,9 @@ class SitterServiceControllerTest {
                 null,
                 null,
                 null,
-                null
+                null,
+                "New Description",
+                false
         );
 
         mockMvc.perform(put("/api/v1/sitters/me/services/" + service.getId())

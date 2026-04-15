@@ -11,6 +11,7 @@ public record BookingPreviewResponse(
     public record SitterPublicProfile(
         UUID profileId,
         String name,
+        String slug,
         String avatarUrl,
         String bioSummary,
         java.util.List<String> serviceAreas,

@@ -8,6 +8,7 @@ import com.catsitter.api.entity.Profile;
 import com.catsitter.api.entity.enums.RoleType;
 import com.catsitter.api.repository.ProfileRepository;
 import com.catsitter.api.repository.ServiceRepository;
+import com.catsitter.api.repository.SitterSubscriptionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +21,14 @@ public class SitterServiceService {
 
     private final ServiceRepository serviceRepository;
     private final ProfileRepository profileRepository;
+    private final SitterSubscriptionRepository subscriptionRepository;
 
-    public SitterServiceService(ServiceRepository serviceRepository, ProfileRepository profileRepository) {
+    public SitterServiceService(ServiceRepository serviceRepository, 
+                               ProfileRepository profileRepository,
+                               SitterSubscriptionRepository subscriptionRepository) {
         this.serviceRepository = serviceRepository;
         this.profileRepository = profileRepository;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -39,6 +44,11 @@ public class SitterServiceService {
     public ServicePlanResponse createService(Account account, CreateServiceRequest request) {
         Profile profile = getSitterProfile(account);
         
+        // Check PREMIUM plan for Whitelist feature
+        if (Boolean.TRUE.equals(request.isWhitelistOnly())) {
+            validatePremiumPlan(profile.getId());
+        }
+
         com.catsitter.api.entity.Service service = new com.catsitter.api.entity.Service();
         service.setSitterProfile(profile);
         service.setName(request.name());
@@ -51,6 +61,8 @@ public class SitterServiceService {
         service.setBookableEndDate(request.bookableEndDate());
         service.setEffectiveStartDate(request.effectiveStartDate());
         service.setEffectiveEndDate(request.effectiveEndDate());
+        service.setDescription(request.description());
+        service.setIsWhitelistOnly(request.isWhitelistOnly() != null && request.isWhitelistOnly());
 
         return mapToResponse(serviceRepository.save(service));
     }
@@ -65,6 +77,11 @@ public class SitterServiceService {
             throw new RuntimeException("Unauthorized to update this service");
         }
 
+        // Check PREMIUM plan for Whitelist feature
+        if (Boolean.TRUE.equals(request.isWhitelistOnly())) {
+            validatePremiumPlan(profile.getId());
+        }
+
         service.setName(request.name());
         service.setBasePrice(request.basePrice());
         service.setDurationMinutes(request.durationMinutes());
@@ -74,8 +91,18 @@ public class SitterServiceService {
         service.setBookableEndDate(request.bookableEndDate());
         service.setEffectiveStartDate(request.effectiveStartDate());
         service.setEffectiveEndDate(request.effectiveEndDate());
+        service.setDescription(request.description());
+        service.setIsWhitelistOnly(request.isWhitelistOnly() != null && request.isWhitelistOnly());
 
         return mapToResponse(serviceRepository.save(service));
+    }
+
+    private void validatePremiumPlan(UUID profileId) {
+        var sub = subscriptionRepository.findTopBySitterProfileIdOrderByCreatedAtDesc(profileId)
+                .orElseThrow(() -> new RuntimeException("Subscription not found"));
+        if (!"PREMIUM".equals(sub.getPlan().getPlanCode()) || !"ACTIVE".equals(sub.getStatus())) {
+            throw new RuntimeException("只有 1299 頂級方案用戶可使用白名單限定功能");
+        }
     }
 
     @Transactional
@@ -107,7 +134,9 @@ public class SitterServiceService {
                 service.getBookableStartDate(),
                 service.getBookableEndDate(),
                 service.getEffectiveStartDate(),
-                service.getEffectiveEndDate()
+                service.getEffectiveEndDate(),
+                service.getDescription(),
+                service.getIsWhitelistOnly()
         );
     }
 }

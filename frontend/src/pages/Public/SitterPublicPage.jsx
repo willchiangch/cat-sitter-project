@@ -8,16 +8,100 @@ const SPECIES_MAP = {
   'CAT': '貓咪',
   'DOG': '狗狗',
   'BIRD': '鳥類',
+  'HAMSTER': '倉鼠',
+  'RABBIT': '兔子',
   'OTHER': '其他'
+}
+
+const ServiceCard = ({ service, index, isSelf, handleBook }) => {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasDescription = !!service.description
+
+  return (
+    <motion.div
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ delay: 0.1 + index * 0.05 }}
+      className="bg-surface-container-low rounded-[32px] p-6 border border-outline-variant/10 space-y-4"
+    >
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <h3 className="text-lg font-extrabold font-headline tracking-tight leading-snug break-words">
+            {service.name}
+          </h3>
+          <p className="text-2xl font-extrabold font-headline tracking-tighter text-primary shrink-0">
+            ${service.basePrice?.toLocaleString()}
+          </p>
+        </div>
+
+        {/* Pet Types Tags (Now under Title) */}
+        {service.supportedPetTypes?.length > 0 && (
+          <div className="flex gap-1 flex-wrap">
+            {service.supportedPetTypes.map(type => (
+              <span key={type} className="text-[10px] font-bold px-2 py-0.5 bg-surface-container-high rounded-full opacity-60">
+                {SPECIES_MAP[type] || type}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Line 2: Duration (Right aligned) */}
+        {service.durationMinutes && (
+          <div className="text-right">
+            <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
+              {service.durationMinutes} 分鐘
+            </p>
+          </div>
+        )}
+
+        {/* Line 3: Description (Left aligned, with Show More) */}
+        {hasDescription && (
+          <div className="space-y-2">
+            <div className={`text-sm font-medium opacity-60 leading-relaxed whitespace-pre-wrap break-words text-left ${!isExpanded ? 'line-clamp-3' : ''}`}>
+              {service.description}
+            </div>
+            {(service.description.split('\n').length > 3 || service.description.length > 80) && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-[10px] font-black text-primary uppercase tracking-widest hover:opacity-70 transition-opacity flex items-center gap-1"
+              >
+                {isExpanded ? '收回全文' : '顯示更多'}
+                <span className="material-symbols-outlined text-xs">
+                  {isExpanded ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={() => handleBook(service.serviceId)}
+        disabled={isSelf}
+        className={`w-full py-4 rounded-full text-xs font-extrabold uppercase tracking-widest transition-all ${
+          isSelf 
+            ? 'bg-outline-variant/20 text-on-surface/40 cursor-not-allowed shadow-none' 
+            : 'bg-on-surface text-surface shadow-xl shadow-on-surface/10 hover:scale-[1.01] active:scale-95'
+        }`}
+      >
+        {isSelf ? '預覽模式 (無法預約)' : '立即預約'}
+      </button>
+    </motion.div>
+  )
 }
 
 const SitterPublicPage = () => {
   const { slug } = useParams()
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
   const [data, setData] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isBioExpanded, setIsBioExpanded] = useState(false)
+
+  // Determine if viewing self
+  const currentProfileId = user?.profiles?.find(p => p.role === user.lastActiveRole)?.profileId
+  const isSelf = data?.sitterProfile?.profileId === currentProfileId
 
   useEffect(() => {
     window.scrollTo({ top: 0 })
@@ -28,6 +112,7 @@ const SitterPublicPage = () => {
   }, [slug])
 
   const handleBook = (serviceId) => {
+    if (isSelf) return // Safety check
     if (!isAuthenticated) {
       navigate(`/login?redirect=/s/${slug}`)
       return
@@ -59,6 +144,16 @@ const SitterPublicPage = () => {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface">
+      {/* Navigation */}
+      <div className="fixed top-6 left-6 z-[50]">
+        <button
+          onClick={() => navigate(-1)}
+          className="w-10 h-10 rounded-full bg-surface/80 backdrop-blur border border-outline-variant/10 shadow-lg flex items-center justify-center text-on-surface/60 hover:text-on-surface hover:scale-105 active:scale-95 transition-all"
+        >
+          <span className="material-symbols-outlined !text-[20px]">arrow_back</span>
+        </button>
+      </div>
+
       {/* Hero */}
       <div className="relative bg-surface-container-low overflow-hidden">
         <div className="absolute inset-0 opacity-5">
@@ -118,14 +213,31 @@ const SitterPublicPage = () => {
 
           {/* Bio */}
           {sitterProfile.bioSummary && (
-            <motion.p
+            <motion.div
               initial={{ y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="text-sm font-medium opacity-60 leading-relaxed max-w-md"
+              className="w-full max-w-md space-y-2"
             >
-              {sitterProfile.bioSummary}
-            </motion.p>
+              <div
+                className={`text-sm font-medium opacity-60 leading-relaxed whitespace-pre-wrap break-words text-left ${
+                  !isBioExpanded ? 'line-clamp-3' : ''
+                }`}
+              >
+                {sitterProfile.bioSummary}
+              </div>
+              {(sitterProfile.bioSummary.split('\n').length > 3 || sitterProfile.bioSummary.length > 100) && (
+                <button
+                  onClick={() => setIsBioExpanded(!isBioExpanded)}
+                  className="text-xs font-black text-primary uppercase tracking-widest hover:opacity-70 transition-opacity flex items-center gap-1 mt-1"
+                >
+                  {isBioExpanded ? '收回全文' : '顯示更多'}
+                  <span className="material-symbols-outlined text-sm">
+                    {isBioExpanded ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
+              )}
+            </motion.div>
           )}
         </div>
       </div>
@@ -145,46 +257,13 @@ const SitterPublicPage = () => {
         ) : (
           <div className="space-y-4">
             {services.map((service, i) => (
-              <motion.div
-                key={service.serviceId}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.1 + i * 0.05 }}
-                className="bg-surface-container-low rounded-[32px] p-6 border border-outline-variant/10 space-y-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-extrabold font-headline tracking-tight">{service.name}</h3>
-                    {service.durationMinutes && (
-                      <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">
-                        {service.durationMinutes} 分鐘
-                      </p>
-                    )}
-                    {service.supportedPetTypes?.length > 0 && (
-                      <div className="flex gap-1 flex-wrap pt-1">
-                        {service.supportedPetTypes.map(type => (
-                          <span key={type} className="text-[10px] font-bold px-2 py-0.5 bg-surface-container-high rounded-full opacity-60">
-                            {SPECIES_MAP[type] || type}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-2xl font-extrabold font-headline tracking-tighter text-primary">
-                      ${service.basePrice?.toLocaleString()}
-                    </p>
-                    <p className="text-[10px] font-bold opacity-30 uppercase">/ 次</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleBook(service.serviceId)}
-                  className="w-full py-4 bg-on-surface text-surface rounded-full text-xs font-extrabold uppercase tracking-widest shadow-xl shadow-on-surface/10 hover:scale-[1.01] active:scale-95 transition-all"
-                >
-                  立即預約
-                </button>
-              </motion.div>
+              <ServiceCard 
+                key={service.serviceId} 
+                service={service} 
+                index={i} 
+                isSelf={isSelf} 
+                handleBook={handleBook} 
+              />
             ))}
           </div>
         )}

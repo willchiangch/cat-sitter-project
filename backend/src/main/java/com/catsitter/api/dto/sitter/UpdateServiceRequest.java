@@ -17,5 +17,7 @@ public record UpdateServiceRequest(
     LocalDate bookableStartDate,
     LocalDate bookableEndDate,
     LocalDate effectiveStartDate,
-    LocalDate effectiveEndDate
+    LocalDate effectiveEndDate,
+    String description,
+    Boolean isWhitelistOnly
 ) {}

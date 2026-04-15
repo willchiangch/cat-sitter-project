@@ -204,6 +204,11 @@ export const authService = {
   }
 }
 
+// --- Dev Tools Services (Dev/Smoke only) ---
+export const devService = {
+  verifySitter: (verified) => api.post('/dev/sitters/me/verify', { verified }).then(res => res.data)
+}
+
 // Auth Helpers (backward compat alias)
 export const authHelpers = {
   getOAuthUrl: authService.getOAuthUrl

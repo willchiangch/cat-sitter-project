@@ -68,6 +68,12 @@ public class Service extends AuditableEntity {
   @Column(name = "is_active", nullable = false)
   private Boolean isActive = true;
 
+  @Column(name = "is_whitelist_only", nullable = false)
+  private Boolean isWhitelistOnly = false;
+
+  @Column(columnDefinition = "TEXT")
+  private String description;
+
   public UUID getId() { return id; }
   public void setId(UUID id) { this.id = id; }
   public Profile getSitterProfile() { return sitterProfile; }
@@ -94,4 +100,8 @@ public class Service extends AuditableEntity {
   public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
   public Boolean getIsActive() { return isActive; }
   public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+  public Boolean getIsWhitelistOnly() { return isWhitelistOnly; }
+  public void setIsWhitelistOnly(Boolean isWhitelistOnly) { this.isWhitelistOnly = isWhitelistOnly; }
+  public String getDescription() { return description; }
+  public void setDescription(String description) { this.description = description; }
 }
