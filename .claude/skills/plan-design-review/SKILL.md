@@ -1,1 +1,0 @@
-/Users/will_chiang/Widget_home/cat-sitter-project/.agents/skills/gstack/plan-design-review/SKILL.md
