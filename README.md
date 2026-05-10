@@ -1,46 +1,64 @@
-# 貓咪到府保母 (Cat Sitter)
+# Cat Sitter PWA (Core Engine)
 
-為專職貓咪保母打造的雙角色（**保母 / 飼主**）預約與照護管理系統。
+這是貓保姆預約系統的 Monorepo 專案，包含 PWA 前端與 Java Spring Boot 後端核心引擎。
 
-本專案目前已清除所有技術債，正處於**全新重構與架構設計階段**。
+## 🚀 技術棧 (Tech Stack)
+
+### 後端 (Backend)
+- **Framework**: Spring Boot 4.0.6 (Java 21)
+- **Database**: PostgreSQL 16
+- **Migration**: Flyway 11.x
+- **ORM**: Hibernate 7.x (Jakarta Persistence 3.2)
+- **Auth**: Spring Security (規劃中)
+
+### 前端 (Frontend)
+- **Framework**: React (Next.js / Vite 規劃中)
+- **Style**: Vanilla CSS / UI-UX Pro Max
+- **Testing**: Playwright / Vitest
 
 ---
 
-## 系統架構規劃
-
-本系統採前後端分離 (Monorepo) 架構：
-
-- **前端 (Frontend)**：預計使用 React 建置，未來將支援 PWA (Progressive Web App)，提供離線快取與桌面安裝體驗。
-- **後端 (Backend)**：預計使用 Java 提供 RESTful API 服務。
-- **資料庫 (Database)**：PostgreSQL (本地開發統一使用 Docker Compose 啟動)。
-
----
-
-## 專案目錄結構
+## 📂 專案結構
 
 ```text
-cat-sitter-project/
-├── frontend/          # (規劃中) React 前端應用程式
-├── backend/           # (規劃中) Java 後端 API 服務
-├── docs/              # 專案文件、系統設計 (SD) 與系統分析 (SA) 文件
-├── docker-compose.yml # 本地 PostgreSQL 資料庫環境設定
-└── README.md          # 專案說明文件
+.
+├── backend/            # Java Spring Boot 核心引擎
+│   ├── src/main/java   # 業務邏輯 (Domain Model, Service, API)
+│   └── src/main/resources/db/migration # Flyway SQL 遷移腳本
+├── frontend/           # React PWA 前端專案 (開發中)
+├── docs/               # 專案文件、系統設計 (SD) 與系統分析 (SA)
+├── .agent/brain/       # AI 助理開發進度持久化目錄 (task.md, walkthrough.md)
+├── docker-compose.yml  # 本地 PostgreSQL 16 環境設定
+└── README.md           # 專案說明文件
 ```
-
-> **備註**：專案根目錄下可能包含設定檔或 CI/CD 配置（如 `.github/`、`.gitignore` 等），此處僅列出核心業務目錄。
 
 ---
 
-## 本地開發環境
+## 🛠️ 本地開發環境啟動
 
-### 1. 啟動資料庫
-
-本地端依賴 Docker 啟動 PostgreSQL 15+：
-
+### 1. 啟動資料庫 (Docker)
+確保已安裝 Docker 並啟動 PostgreSQL 16：
 ```bash
 docker-compose up -d
 ```
 
-### 2. 前後端服務 (建置中)
+### 2. 啟動後端服務
+進入 `backend` 目錄並使用 Maven 啟動：
+```bash
+cd backend
+export JAVA_HOME=<path_to_java_21>
+mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
+```
+*後端啟動後會自動執行 Flyway 遷移，初始化 Schema。*
 
-前端與後端的專案初始化將在系統分析 (SA) 與系統設計 (SD) 完成後，透過腳手架 (如 `create-vite`, Spring Initializr) 重新建立。
+### 3. 開發進度追蹤
+本專案使用 AI 助理協同開發，詳細進度與待辦事項請參考：
+- [最新進度總結](file:///.agent/brain/walkthrough.md)
+- [待辦清單 (Task List)](file:///.agent/brain/task.md)
+
+---
+
+## 📜 開發規範
+- 時區統一使用 `UTC`。
+- 金額統一使用 `INT` (最小單位，如分) 儲存，嚴禁使用 Float/Double。
+- 遵循 `BaseEntity` 規範，包含 `UUID` 主鍵與自動審計欄位 (`created_at`, `updated_at`, `version`)。

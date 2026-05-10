@@ -1,16 +1,12 @@
-version: '3.8'
-
 services:
   db:
-    # M2 晶片跑 alpine 版本非常輕量順暢
-    image: postgres:15-alpine
-    container_name: cat-sitter-postgres
-    restart: always
+    image: postgres:16-alpine
+    container_name: pet-sitter-db
     environment:
-      POSTGRES_USER: sitter_admin
-      POSTGRES_PASSWORD: dev_password123
-      POSTGRES_DB: cat_sitter_db
-      TZ: Asia/Taipei
+      POSTGRES_USER: petsitter_user
+      POSTGRES_PASSWORD: petsitter_password
+      POSTGRES_DB: petsitter_db
+      TZ: UTC
     ports:
       - "5432:5432"
     volumes:

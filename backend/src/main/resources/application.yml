@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: pet-sitter-backend
+  profiles:
+    active: local # 預設啟動本地配置
+  jpa:
+    open-in-view: false
+  jackson:
+    default-property-inclusion: non-null

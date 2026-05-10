@@ -6,7 +6,7 @@
 | 建立日期 | YYYY-MM-DD |
 | 狀態 | Draft |
 | 影響模組 | frontend / backend / both |
-| 相關 DB 表 | （列出主要的 table 名稱，如 `tb_member`, `list_code`） |
+| 影響實體 (Entities) | （列出主要的業務實體，例如：會員、訂單、保母方案等） |
 | 相依共用設計 | （如 [RBAC 權限設計](../design/shared/permission-rbac.md)、[代碼表設計](../design/shared/code-table.md)） |
 | 對應 SD | SD-XXX |
 | 對應測試情境 | TS-XXX |
@@ -58,7 +58,7 @@
 
 | 面向 | 說明 |
 |------|------|
-| DB schema 變更 | 是 / 否。若是，列出新增/修改的 table |
+| 資料模型變更 | 是 / 否。若是，列出新增/修改的資料實體或結構 |
 | API 新增/修改 | 是 / 否。若是，列出 endpoint |
 | 前端頁面 | 是 / 否。若是，列出頁面路徑 |
 | 通知/郵件 | 是 / 否 |
