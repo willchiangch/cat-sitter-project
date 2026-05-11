@@ -1,0 +1,58 @@
+package com.petsitter.application.exception;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Map;
+
+@Slf4j
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        String msg = ex.getMessage() != null ? ex.getMessage() : "";
+        if (msg.contains("orders_idempotency_key_key") || msg.contains("idempotency_key")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "DUPLICATE_REQUEST", "message", "系統已受理此請求，請勿重複送單"));
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "DATA_ERROR", "message", "資料處理異常"));
+    }
+
+    @ExceptionHandler(CapacityFullException.class)
+    public ResponseEntity<Map<String, String>> handleCapacityFull(CapacityFullException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "CAPACITY_FULL", "message", ex.getMessage()));
+    }
+
+    // --- SD-006 SaaS Gating ---
+    @ExceptionHandler(AuthPlanLimitException.class)
+    public ResponseEntity<Map<String, String>> handleAuthPlanLimit(AuthPlanLimitException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "AUTH_PLAN_LIMIT", "message", ex.getMessage()));
+    }
+
+    // --- SD-006 Zero-Trust Pricing ---
+    @ExceptionHandler(PricingMismatchException.class)
+    public ResponseEntity<Map<String, String>> handlePricingMismatch(PricingMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "PRICING_MISMATCH", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "INVALID_PARAMETER", "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "STATE_CONFLICT", "message", ex.getMessage()));
+    }
+}

@@ -21,6 +21,6 @@
 ## 驗證矩陣
 | 步驟 | 動作 | 預期功能結果 | 技術校驗 (DB/NFR) |
 | :--- | :--- | :--- | :--- |
-| 1 | 保母送出報價 | 狀態轉為 `PENDING_PAYMENT` | **Snapshot**: `order_snapshots` 紀錄媒體保留天數。 |
-| 2 | 修改原始方案價 | 訂單總額不變 | DB `orders.total_amount` 依然等於快照單價 + 加價。 |
-| 3 | 樂觀鎖測試 | 保母報價時飼主撤單 | 拋出 `OptimisticLockException` (409 Conflict)。 |
+| 1 | 保母送出報價 | 狀態轉為 `PENDING_PAYMENT` | **Snapshot**: 存入 `unit_price`, `plan_title` 與媒體保留天數。 |
+| 2 | 修改原始方案價 | 訂單總額不變 | DB `order_snapshots.snapshot_unit_price` 依然保持報價當時數值。 |
+| 3 | 樂觀鎖測試 | 保母報價時飼主撤單 | 拋出 `STATE_CONFLICT` (409) 或樂觀鎖異常。 |

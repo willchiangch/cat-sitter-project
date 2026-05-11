@@ -5,22 +5,35 @@
 | **對應需求** | PRD-005 / SD-005 |
 | **測試類型** | ✅ 功能測試 / ✅ 併發測試 |
 | **優先級** | P0 (Critical) |
+| **自動化狀態** | 🟢 已實作 (2/2 Scenarios) |
 
 ---
 
-## Scenario 1: 高併發搶訂與配額鎖定
+## Scenario 1: 多人同時送單 (媒合式模型)
 * **Given**: 保母 A 的方案「專業餵食」在 2026-06-01 僅剩 1 個名額。
-* **When**: 飼主甲與飼主乙同時在 100ms 內送出該日期的預約申請（帶入不同 Idempotency-Key）。
-* **Then**: 系統僅允許一筆訂單建立成功，另一筆回傳 `ORDER_SITTER_CAPACITY_FULL`。
+* **When**: 飼主甲與飼主乙同時送出該日期的預約申請（帶入不同 Idempotency-Key）。
+* **Then**: 系統應允許兩張訂單皆成功建立，狀態皆為 `PENDING`。
+* **自動化對應**: `BookingServiceTest.ts005_01_should_AllowMultiplePendingOrders_When_ConcurrentSubmission()`
 
-## Scenario 2: 零信任金額校驗
-* **Given**: 系統內方案單價已由 500 元調整為 600 元。
-* **When**: 飼主的前端頁面尚未重整，帶入舊的試算總額 (`clientCalculatedTotal`=500) 提交預約。
-* **Then**: 後端偵測到金額不符，回傳 400 `ORDER_PRICING_OUTDATED` 並拒絕建單。
+## Scenario 2: 保母併發接單 (配額鎖定)
+* **Given**: 存在兩筆對應同一日期、同一保母的 `PENDING` 訂單。
+* **When**: 保母嘗試同時確認這兩筆訂單。
+* **Then**: 系統應利用 Advisory Lock 確保僅有一筆能成功變更為 `PENDING_PAYMENT`，另一筆應拋出 `CapacityFullException`。
+* **自動化對應**: `BookingServiceTest.ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm()`
+
+---
 
 ## 驗證矩陣
 | 步驟 | 動作 | 預期功能結果 | 技術校驗 (DB/NFR) |
 | :--- | :--- | :--- | :--- |
-| 1 | 併發送出預約 | 僅一勝，其餘敗 | **Advisory Lock**: 檢查 `pg_advisory_xact_lock` 成功攔截。 |
-| 2 | 檢查成功訂單 | 狀態為 `PENDING` | DB `orders.idempotency_key` 唯一性校驗。 |
-| 3 | 檢查審計日誌 | 紀錄建單詳細參數 | `order_logs` 紀錄 IP, UA 與初始 Items。 |
+| 1 | 併發送出預約 | 多筆 PENDING 成功 | 檢查 `orders` 記錄是否存在多筆且 ID 不同。 |
+| 2 | 併發確認接單 | 僅一勝，其餘敗 | **Advisory Lock**: 檢查接單時是否成功攔截。 |
+| 3 | 檢查狀態變更 | 成功者轉為 `PENDING_PAYMENT` | 狀態機轉換正確性驗證。 |
+
+---
+
+## 自動化實作追溯 (Traceability)
+- **測試專案**: `backend`
+- **測試類別**: [BookingServiceTest](file:///d:/myproject/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/BookingServiceTest.java)
+- **執行指令**: `mvn test -Dgroups="TS-005"`
+- **最後驗證日期**: 2026-05-11

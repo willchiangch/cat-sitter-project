@@ -20,6 +20,22 @@ CREATE TABLE users (
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- 1.1 服務方案表 (SERVICE_PLANS - SD-005 關鍵)
+CREATE TABLE service_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sitter_id UUID NOT NULL REFERENCES users(id),
+    name VARCHAR(100) NOT NULL,
+    daily_capacity INT NOT NULL DEFAULT 1,
+    price BIGINT NOT NULL DEFAULT 0,
+    
+    version INT NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by UUID,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by UUID,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 -- 2. 訂單主表 (ORDERS)
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -134,3 +150,4 @@ CREATE INDEX idx_orders_sitter ON orders(sitter_id);
 CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_visits_order ON visits(order_id);
 CREATE INDEX idx_visits_status_scheduled ON visits(status, scheduled_at);
+CREATE INDEX idx_service_plans_sitter ON service_plans(sitter_id);

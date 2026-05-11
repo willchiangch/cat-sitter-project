@@ -1,0 +1,63 @@
+package com.petsitter.interfaces.controller;
+
+import com.petsitter.application.dto.BookingRequest;
+import com.petsitter.application.dto.QuoteRequest;
+import com.petsitter.application.service.BookingService;
+import com.petsitter.application.service.ConfirmOrderService;
+import com.petsitter.application.service.EvaluationService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/orders")
+@RequiredArgsConstructor
+public class OrderController {
+
+    private final BookingService bookingService;
+    private final ConfirmOrderService confirmOrderService;
+    private final EvaluationService evaluationService;
+
+    /**
+     * 飼主送出預約申請
+     */
+    @PostMapping("/booking")
+    public ResponseEntity<Map<String, UUID>> createBooking(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody BookingRequest request) {
+        
+        request.setIdempotencyKey(idempotencyKey);
+        UUID orderId = bookingService.createBooking(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("orderId", orderId));
+    }
+
+    /**
+     * 保母確認接單 (僅狀態轉換)
+     */
+    @PostMapping("/{orderId}/confirm")
+    public ResponseEntity<Map<String, String>> confirmOrder(
+            @RequestParam UUID sitterId,
+            @PathVariable UUID orderId) {
+        
+        confirmOrderService.confirmOrder(sitterId, orderId);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "訂單已確認"));
+    }
+
+    /**
+     * 保母送出報價與調價 (SD-006)
+     */
+    @PostMapping("/{orderId}/quote")
+    public ResponseEntity<Map<String, String>> sendQuote(
+            @RequestParam UUID sitterId,
+            @PathVariable UUID orderId,
+            @Valid @RequestBody QuoteRequest request) {
+        
+        evaluationService.sendQuote(sitterId, orderId, request);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "報價已送出"));
+    }
+}
