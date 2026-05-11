@@ -20,6 +20,6 @@
 | TS-000-07 | Token 偽造/無效 | 1. 攜帶隨意竄改的 JWT 呼叫 API | 回傳 401 Unauthorized |
 
 ## 4. 自動化追溯 (Automation Trace)
-- **單元測試**: `JwtUtilsTest.java` (待補)
+- **單元測試**: `JwtUtilsTest.java`
 - **整合測試**: `AuthControllerTest.java`
-- **測試指令**: `mvn test -Dtest=AuthControllerTest`
+- **測試指令**: `mvn test -Dtest=AuthControllerTest,JwtUtilsTest`

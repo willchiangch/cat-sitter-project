@@ -8,19 +8,22 @@
 
 ---
 
-## Scenario 1: 自動結案與殭屍行程清理
-* **Given**: 訂單中最後一筆正常完成的行程已過 48 小時，且其中一筆未打卡的 PENDING 行程，其 scheduled_at 已超過 72 小時。
-* **When**: CronJob 執行。
-* **Then**: 系統自動將該行程標記為 `CLOSED_BY_SYSTEM`，並將訂單轉為 `COMPLETED`。
+## 3. 測試場景與驗證
 
-## Scenario 2: 管理員爭議裁決
-* **Given**: 訂單狀態為 `DISPUTED`。
-* **When**: 管理員輸入二次驗證密碼，調整最終總額並上傳 `gs://` 憑證結案。
-* **Then**: 系統產生 `LEDGER_ENTRY` 紀錄差額，訂單轉為 `COMPLETED`，寫入 `payout_at`。
-
-## 驗證矩陣
-| 步驟 | 動作 | 預期功能結果 | 技術校驗 (DB/NFR) |
+| 編號 | 標題 | 測試步驟 | 預期結果 |
 | :--- | :--- | :--- | :--- |
-| 1 | 排程執行 | 狀態自動跳轉 | **Cron Transaction**: 確保每筆訂單獨立 Commit。 |
-| 2 | 管理員結案 | 財務紀錄產生 | **Payout_at**: 線上支付需為 `completed_at + 3 days`。 |
-| 3 | 檢查審計日誌 | 紀錄二次驗證與差額 | `order_logs` 紀錄狀態變遷 (`DISPUTED` -> `COMPLETED`)。 |
+| TS-009-01 | 殭屍行程自動清理 | 1. 建立一個 72 小時前 PENDING 的行程<br>2. 執行自動結案排程 | 該行程狀態轉為 `CLOSED_BY_SYSTEM` |
+| TS-009-02 | 無異議自動結案 | 1. 訂單所有行程已結束且最後行程過 48 小時<br>2. 執行自動結案排程 | 訂單轉為 `COMPLETED`，計算 `payout_at` |
+| TS-009-03 | 飼主手動結案 | 1. 飼主對已結束行程的訂單呼叫 `/complete` | 訂單轉為 `COMPLETED`，進入財務撥款隊列 |
+| TS-009-04 | 管理員爭議裁決 | 1. 訂單狀態為 `DISPUTED`<br>2. 管理員呼叫 `/resolve` 並調整金額 | 狀態轉為 `COMPLETED`，金額變更，寫入審計日誌 |
+| TS-009-05 | 結案權限檢查 | 1. 使用 A 飼主帳號嘗試結案 B 飼主的訂單 | 回傳 403 Forbidden 或 400 Bad Request |
+
+## 4. 自動化追溯 (Automation Trace)
+- **單元測試**: `CompletionService.java`
+- **整合測試**: `CompletionServiceTest.java`
+- **測試指令**: `mvn test -Dtest=CompletionServiceTest`
+
+## 5. 技術校驗 (DB/NFR)
+- **Cron Transaction**: 確保每筆訂單在結案時獨立 Commit，避免批次失敗。
+- **Payout Punctuality**: 驗證 `payout_at` 必須嚴格等於 `completed_at + 3 days`。
+- **Audit Compliance**: `order_logs` 必須完整記錄操作者、變動內容與時間。

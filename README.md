@@ -9,7 +9,7 @@
 - **Database**: PostgreSQL 16
 - **Migration**: Flyway 11.x
 - **ORM**: Hibernate 7.x (Jakarta Persistence 3.2)
-- **Auth**: Spring Security (規劃中)
+- **Auth**: Spring Security 6 + JJWT 0.12.6 (Stateless JWT)
 
 ### 前端 (Frontend)
 - **Framework**: React (Next.js / Vite 規劃中)
@@ -22,14 +22,14 @@
 
 ```text
 .
-├── backend/            # Java Spring Boot 核心引擎
-│   ├── src/main/java   # 業務邏輯 (Domain Model, Service, API)
-│   └── src/main/resources/db/migration # Flyway SQL 遷移腳本
-├── frontend/           # React PWA 前端專案 (開發中)
-├── docs/               # 專案文件、系統設計 (SD) 與系統分析 (SA)
-├── .agent/brain/       # AI 助理開發進度持久化目錄 (task.md, walkthrough.md)
-├── docker-compose.yml  # 本地 PostgreSQL 16 環境設定
-└── README.md           # 專案說明文件
+  ├── backend/            # Java Spring Boot 核心引擎
+  │   ├── src/main/java   # 業務邏輯 (Domain Model, Service, API)
+  │   └── src/main/resources/db/migration # Flyway SQL 遷移腳本
+  ├── frontend/           # React PWA 前端專案 (開發中)
+  ├── docs/               # 專案文件、系統設計 (SD) 與系統分析 (SA)
+  ├── .agent/brain/       # AI 助理開發進度持久化目錄 (task.md, walkthrough.md)
+  ├── docker-compose.yml  # 本地 PostgreSQL 16 環境設定
+  └── README.md           # 專案說明文件
 ```
 
 ---
@@ -38,10 +38,10 @@
 
 | 模組 | SD 設計 | Backend 實作 | 測試狀態 | 備註 |
 | :--- | :---: | :---: | :---: | :--- |
+| **SD-000 身分驗證** | ✅ | ✅ | ✅ TS-000 | JWT 無狀態認證與 RBAC 權限控管 |
 | **SD-005 預約申請** | ✅ | ✅ | ✅ TS-005 | 支援 Advisory Lock 併發控制 |
 | **SD-006 報價快照** | ✅ | ✅ | ✅ TS-006 | 支援 SaaS Gating 與零信任校驗 |
-| **SD-015 金流支付** | ✅ | 🏗️ | - | 規劃中 |
-| **SD-016 變更退款** | ✅ | 📝 | - | 設計已鎖定 |
+| **SD-009 訂單結案** | ✅ | ✅ | ✅ TS-009 | 支援 72hr 殭屍清理與 48hr 自動結案 |
 
 ---
 
