@@ -1,19 +1,22 @@
-# 實作進度追蹤 (SD Implementation)
+# SD-009 Order Completion Task List
 
-- [x] **SD-000 (Auth)**: 實作身分驗證基礎建設
-    - [x] 配置 Spring Security 與 JWT 依賴 (JJWT 0.12.6, HS512)
-    - [x] 實作 `JwtUtils` 與 `JwtAuthenticationFilter` (Access 15m)
-    - [x] 實作 **Refresh Token 機制** (7d, DB 儲存與撤銷支援)
-    - [x] 實作 `AuthService` 與 `AuthController` (雙 Token 回傳與 /refresh 接口)
-    - [x] **安全加固**: 開啟 CORS、放行 OPTIONS 預檢、強制無狀態與關閉 CSRF
-    - [x] 整合 `GlobalExceptionHandler` 處理認證異常 (401 映射)
-    - [x] 驗證並修復現有整合測試 (`OrderControllerTest` @WithMockUser)
-- [x] **SD-009 (Completion)**: 結案評價與服務流程結束
-    - [x] 實作 `InternalCronController` 與 `X-Internal-Secret` 防護
+- [x] **API 驅動排程架構** (CompletionService & OrderController)
+- [x] **管理員裁決功能** (resolveDisputedOrder API & Record DTO)
+- [x] **型別安全強化** (Order.items -> List<OrderItem>)
+- [x] **基礎設施修復** (解決 Lombok 衝突與 Repository 語法錯誤)
+- [x] **測試驗證** (CompletionServiceTest 全數通過)
+- [x] **持久化同步** (執行 /persist-progress)
+
+## 詳細子任務
+- [x] **核心邏輯**
     - [x] 實作 `CompletionService` (72hr 殭屍清理 + 48hr 自動結案)
     - [x] 實作手動結案 API 與權限檢查
-    - [x] 實作 `LocalCronSimulator` 模擬外部觸發
-    - [ ] 實作評價模型與 API (PRD-020)
-- [ ] **SD-016 (Refund/Dispute)**: 退款與爭議管理
-    - [ ] 實作取消退款策略 AOP
-    - [ ] 實作爭議回報流程
+    - [x] 實作管理員強制裁決 API (包含財務撥款日期計算)
+- [x] **資料安全性**
+    - [x] 重構 `Order` 與 `OrderSnapshot` 的 `items` 欄位為 `List<OrderItem>`
+    - [x] 修正 `BookingService` 與 `EvaluationService` 的 JSONB 反序列化邏輯
+- [x] **系統除錯**
+    - [x] 修復 `VisitRepository` 與 `OrderRepository` 的重複方法宣告
+    - [x] 還原 `pom.xml` 至穩定版並解決 Lombok 編譯中斷問題
+- [x] **驗證**
+    - [x] 實作 `CompletionServiceTest` 並通過 3/3 測試案例

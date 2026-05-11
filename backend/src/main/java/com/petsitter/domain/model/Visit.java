@@ -2,6 +2,7 @@ package com.petsitter.domain.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.OffsetDateTime;
 
@@ -9,7 +10,7 @@ import java.time.OffsetDateTime;
 @Table(name = "visits")
 @Getter
 @Setter
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Visit extends BaseEntity {

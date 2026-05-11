@@ -21,5 +21,5 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
            "AND o.isDeleted = false")
     long countBookedVisitsBySitterIdAndDate(@Param("sitterId") UUID sitterId, @Param("date") OffsetDateTime date);
 
-    List<Visit> findByStatusAndScheduledAtBefore(String status, OffsetDateTime threshold);
+    List<Visit> findByStatusAndScheduledAtBefore(String status, OffsetDateTime time);
 }

@@ -7,7 +7,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -29,7 +29,7 @@ public class Order extends BaseEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
-    private java.util.List<OrderItem> items; // 存放原始預約內容 JSON
+    private List<OrderItem> items; // 存放原始預約內容 JSON
 
     @Column(nullable = false)
     private String status;

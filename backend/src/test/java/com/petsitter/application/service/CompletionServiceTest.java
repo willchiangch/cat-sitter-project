@@ -61,6 +61,7 @@ class CompletionServiceTest {
 
     @BeforeEach
     void setUp() {
+        orderLogRepository.deleteAll();
         visitRepository.deleteAll();
         orderRepository.deleteAll();
         userRepository.deleteAll();
