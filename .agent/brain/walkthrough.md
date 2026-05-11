@@ -1,56 +1,40 @@
-# 核心引擎系統設計 (SD) 完成報告
+# SD-000: 身分驗證與授權 (Authentication & Authorization) 實作回顧
 
-## 1. 執行摘要
-本階段已完成貓咪保母 PWA 最關鍵的「核心引擎」設計。透過與 NFR (非功能性需求) 的深度對齊與顧問回覆的多次迭代，目前已產出具備生產等級 (Production-ready) 的四大模組設計文件。
+## 實作亮點
+1. **無狀態 JWT 架構**: 使用 Spring Security 6 結合 JJWT 0.12.6，實作 Stateless 認證流，確保系統可水平擴展。
+2. **Security-First 整合**: 在進入核心業務（SD-009）前先行部署安全防護網，確保所有 API 預設受保護。
+3. **RBAC 權限控管**: 整合 `OWNER`, `SITTER`, `ADMIN` 角色權限，並與現有 SaaS Gating AOP 完美相容。
+4. **全域異常映射**: 透過 `GlobalExceptionHandler` 將 `BadCredentialsException` 正確映射為 401，提升 API 易用性。
 
-## 2. 完成項目與技術重點
+## 變動檔案
+- `pom.xml`: 加入 `spring-boot-starter-security` 與 JWT 相關依賴。
+- `SecurityConfig.java`: 核心安全配置，定義過濾器鏈與密碼編碼器。
+- `JwtAuthenticationFilter.java`: 請求攔截器，解析 Token 並填充 SecurityContext。
+- `JwtUtils.java`: JWT 生成、解析與驗證工具類。
+- `AuthService.java` & `AuthController.java`: 使用者註冊與登入入口。
+- `GlobalExceptionHandler.java`: 整合安全異常處理。
 
-### [SD-005] 預約送單 (Public Booking)
-- **技術點**：實作 **Sorted Advisory Locks**，從資料庫層級根除高併發下的死結與超賣風險。
-- **安全性**：引入 **Zero-Trust Pricing** 校驗機制。
+## 測試驗證
+- **AuthControllerTest**: 
+    - 註冊流程：成功建立使用者並取得 Token。
+    - 登入流程：驗證憑證並回傳正確 Token 與角色。
+    - 異常流程：密碼錯誤回傳 401。
+- **OrderControllerTest**:
+    - 驗證 `@WithMockUser` 與手動 User 注入在 Security Filter 下的運作。
+    - 確保受保護 API（如調價）在無 Token 時回傳 403，有 Token 時正常運作。
 
-### [SD-006] 報價審核 (Order Evaluation)
-- **技術點**：實作 **Full-Contract Snapshotting** (JSONB)，鎖定合約金額與媒體保留規則。
-- **權限**：整合 SaaS 方案等級檢查 (SaaS Gating)。
+## 基礎設施加固 (Infrastructure Hardening)
+- **多階段構建 Dockerfile**: 實作了符合 `SD-GLOBAL-SPEC` 的 Production-ready Dockerfile，確保最小化鏡像體積並強制時區為 UTC。
+- **單元測試覆蓋**: 補齊 `JwtUtilsTest`，確保加密簽名與過期邏輯的底層穩定性。
+- **全域審計通過**: 經 `project-auditor` 掃描，系統在時區、精度與併發控制上已達到 100% 合規。
 
-### [SD-009] 結案與爭議 (Completion & Dispute)
-- **技術點**：設計 **殭屍行程自動清理機制** 與 48h 自動結案 CronJob。
-- **審計**：實作管理員強制結案的證據快照與二次驗證。
+## SD-009: 訂單結案與排程觸發 (Order Completion & Cron Trigger)
+- **API-Driven Cron**: 為解決 Cloud Run 縮容至 0 導致排程失效的問題，改採 `POST /api/internal/cron/...` 觸發模式，由外部 GCP Cloud Scheduler 驅動。
+- **內部安全防護**: 透過 `InternalSecretFilter` 校驗自定義 Header，確保內部 API 不被外網非法呼叫。
+- **結案邏輯實作**:
+    - **殭屍行程清理**: 自動標記 72hr 未打卡行程。
+    - **48hr 緩衝結案**: 行程結束後 48 小時自動完成訂單，並預設 D+3 財務撥款基準。
+- **驗證**: 通過 `CompletionServiceTest` 與 `InternalCronControllerTest`。
 
-### [SD-016] 變更與退款 (Modification & Cancellation)
-- **技術點**：實作 **快照依賴試算 (Snapshot Recalc)**，確保變更單價與原合約一致。
-- **一致性**：引入線上退款 Webhook 最終一致性機制。
-
-## 3. NFR 對齊成果
-- **效能**：所有寫入操作均設計為可於 2 秒內完成回應。
-- **精確度**：全系統統一採用 `BigDecimal` 計算，入庫前執行 `HALF_UP` 轉 `INT`。
-- **安全性**：所有 POST 操作皆具備 `Idempotency-Key` 與 BOLA 水平越權防護。
-
-### [TS] 測試案例標準化拆分
-- **成果**：將 `TS-CORE-001` 拆分為 `TS-005`, `TS-006`, `TS-009`, `TS-016`。
-- **效益**：實現 PRD 與 TS 的 1:1 可追溯性，便於後端開發與測試管理。
-
-### [DB] 資料庫地基與防禦性優化
-- **容器環境**：建立 `docker-compose.yml` (PostgreSQL 16, UTC)，移除初始化掛載以支援 Flyway。
-- **Schema 實作**：完成 `V1__init_core_engine.sql`，實作了 `orders`, `visits`, `snapshots`, `logs`, `modification_requests` 等表。
-- **防禦性設計**：
-  - **Partial Index**：限制一單同時僅能有一個活動中的變更請求。
-  - **Unique Constraint**：強制一單一快照。
-  - **Decoupled Logs**：支持 `SYSTEM_CRON` 操作者紀錄。
-  - **Composite Index**：優化 `(status, scheduled_at)` 行程清理效能。
-
-## 4. 後續計畫
-- 啟動 **TS (Test Scenario)** 編寫，針對狀態機進行全路徑覆蓋。
-- 進行前端畫面的詳細設計 (SD-UI)。
-
----
-
-## 5. 當前實作里程碑 (Implementation Progress)
-### 已完成實作項目
-- [x] **SaaS Gating AOP (SD-006)**: 實作 `@RequirePlan` 註解與 `PlanGatingAspect` 切面，實現 Service 與 Controller 的雙層防禦。
-- [x] **Advisory Lock (SD-005)**: 實作 PostgreSQL 交易級鎖定 `pg_advisory_xact_lock`，於 `BookingService.confirmBooking` 階段精確卡控每日名額。
-- [x] **Snapshot & Optimistic Lock**: 完成報價時的方案快照儲存與併發修改的樂觀鎖防護。
-
-### 驗證成果
-- **自動化測試**: `BookingServiceTest`, `OrderEvaluationTest`, `OrderControllerTest` 全數通過（7/7）。
-- **結構優化**: 完成 Flyway `V4` 遷移，補齊 `plan_id` 欄位並優化 `VisitRepository` 查詢效率。
+## 下一步
+- 進入 **SD-016 (Refund/Dispute)**: 實作退款策略 AOP 與爭議回報流程。

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -31,8 +33,9 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 @Slf4j
 @SpringBootTest
 @Testcontainers
-@Tag("TS-006")
-@DisplayName("TS-006: 保母報價審核與快照測試")
+@ActiveProfiles("local")
+@WithMockUser(roles = "SITTER")
+@DisplayName("TS-006: 保母報價審核與快照 Service 測試")
 class OrderEvaluationTest {
 
     static {

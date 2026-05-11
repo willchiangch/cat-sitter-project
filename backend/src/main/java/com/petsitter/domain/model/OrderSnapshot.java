@@ -47,5 +47,5 @@ public class OrderSnapshot extends BaseEntity {
     // --- 完整內容快照 (JSONB) ---
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
-    private Map<String, Object> snapshotData;
+    private java.util.List<OrderItem> snapshotData;
 }

@@ -9,6 +9,13 @@
 
 ---
 
+## 0. 前置條件 (Prerequisites)
+- **身分驗證**：保母與飼主皆須已登入。
+- **認證 Header**：API 請求須包含 `Authorization: Bearer <Token>`。
+- **角色權限**：
+    - 送出報價僅限 `ROLE_SITTER`。
+    - 方案調價限制檢查依據保母的 `subscriptions` 等級。
+
 ## Scenario 1: 報價金額快照與不回溯性
 * **Given**: 訂單處於 `PENDING` 狀態。
 * **When**: 保母送出報價，調增 200 元。隨後保母至後台修改其「專業餵食」方案的原始單價。

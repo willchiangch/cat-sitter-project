@@ -3,6 +3,7 @@ package com.petsitter.application.service;
 import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.exception.CapacityFullException;
 import com.petsitter.domain.model.Order;
+import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.repository.OrderRepository;
@@ -16,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,13 +35,10 @@ public class BookingService {
     public UUID createBooking(BookingRequest request) {
         log.info("[BookingService] Creating PENDING order for sitter: {}, plan: {}", request.getSitterId(), request.getPlanId());
 
-        // 1. 驗證方案是否存在 (基本的資料完整性檢查)
         if (!servicePlanRepository.existsById(request.getPlanId())) {
             throw new IllegalArgumentException("找不到指定的服務方案: " + request.getPlanId());
         }
 
-        // 2. 建立訂單 (初始狀態為 PENDING)
-        // 根據 PRD-005: 檔期不在送單時鎖定，多人可同時送單。
         List<String> dateStrings = request.getDates().stream()
                 .map(LocalDate::toString)
                 .collect(Collectors.toList());
@@ -51,13 +48,12 @@ public class BookingService {
                 .sitter(userRepository.findById(request.getSitterId()).orElseThrow())
                 .planId(request.getPlanId())
                 .status("PENDING")
-                .items(Collections.singletonMap("dates", dateStrings))
+                .items(List.of(new OrderItem("BOOKING", "Dates: " + String.join(", ", dateStrings), 0, dateStrings.size())))
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
         
         Order savedOrder = orderRepository.save(order);
 
-        // 3. 建立關聯行程
         List<Visit> visits = request.getDates().stream()
                 .map(date -> Visit.builder()
                         .order(savedOrder)
@@ -88,36 +84,23 @@ public class BookingService {
         ServicePlan plan = servicePlanRepository.findById(order.getPlanId())
                 .orElseThrow(() -> new IllegalStateException("找不到對應的服務方案"));
 
-        // 1. 取得關聯行程的所有日期
         List<Visit> visits = visitRepository.findByOrderId(orderId);
 
-        // 2. 針對每個預約日期加鎖並檢查容量
         for (Visit visit : visits) {
             String dateStr = visit.getScheduledAt().toLocalDate().toString();
-            
-            // PostgreSQL Advisory Lock (Transaction-bound)
-            log.debug("[AdvisoryLock] Acquiring lock for sitter {} on date {}", sitterId, dateStr);
             orderRepository.acquireAdvisoryLock(sitterId.toString(), dateStr);
 
-            // 檢查該日期已佔用的名額
             long bookedCount = visitRepository.countBookedVisitsBySitterIdAndDate(sitterId, visit.getScheduledAt());
             
             if (bookedCount >= plan.getDailyCapacity()) {
-                log.warn("[CapacityFull] Sitter {} is full on {}. Capacity: {}, Booked: {}", 
-                        sitterId, dateStr, plan.getDailyCapacity(), bookedCount);
                 throw new CapacityFullException("日期 " + dateStr + " 的名額已滿，無法接單");
             }
         }
 
-        // 3. 更新訂單狀態為 PENDING_PAYMENT (等待保母後續報價，或直接進入支付流程)
-        // 根據 SD，確認接單後會進入報價流程，所以狀態先轉為 PENDING_PAYMENT
         order.setStatus("PENDING_PAYMENT");
         orderRepository.save(order);
 
-        // 4. 更新行程狀態
         visits.forEach(v -> v.setStatus("CONFIRMED"));
         visitRepository.saveAll(visits);
-
-        log.info("[BookingService] Order {} confirmed successfully", orderId);
     }
 }

@@ -7,3 +7,7 @@ spring:
     open-in-view: false
   jackson:
     default-property-inclusion: non-null
+
+app:
+  security:
+    internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}

@@ -14,8 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -33,7 +32,6 @@ public class EvaluationService {
     public void sendQuote(UUID sitterId, UUID orderId, QuoteRequest request) {
         log.info("[EvaluationService] Sitter {} quoting for order {}", sitterId, orderId);
 
-        // 1. 獲取訂單與 BOLA / 狀態檢查
         Order order = orderRepository.findByIdAndSitterId(orderId, sitterId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到該保母的指定訂單: " + orderId));
 
@@ -41,13 +39,10 @@ public class EvaluationService {
             throw new IllegalStateException("只有 PENDING 狀態的訂單可以報價");
         }
 
-        // 2. 樂觀鎖檢查
         if (!order.getVersion().equals(request.getVersion())) {
             throw new ObjectOptimisticLockingFailureException(Order.class, orderId);
         }
 
-        // 3. Zero-Trust: 重新計算金額
-        // 取得該保母目前的方案單價 (簡化版：取保母第一個方案)
         ServicePlan plan = servicePlanRepository.findAll().stream()
                 .filter(p -> p.getSitter().getId().equals(sitterId))
                 .findFirst()
@@ -68,13 +63,10 @@ public class EvaluationService {
             throw new PricingMismatchException("報價金額校驗失敗，可能方案價格已變更");
         }
 
-        // 4. SaaS Gating 已透過 AOP @RequirePlan 於介面層處理
-
-        // 5. 建立 Snapshot (SD-006)
-        Map<String, Object> snapshotData = new HashMap<>();
-        snapshotData.put("planName", plan.getName());
-        snapshotData.put("unitPrice", plan.getPrice());
-        snapshotData.put("visitCount", visitCount);
+        // --- 建立 Snapshot (SD-006) ---
+        List<OrderItem> items = List.of(
+                new OrderItem("SERVICE", plan.getName(), plan.getPrice().intValue(), (int) visitCount)
+        );
 
         OrderSnapshot snapshot = OrderSnapshot.builder()
                 .order(order)
@@ -85,17 +77,17 @@ public class EvaluationService {
                 .mediaRetentionDays(plan.getMediaRetentionDays())
                 .maxPhotos(plan.getMaxPhotos())
                 .maxVideoSeconds(plan.getMaxVideoSeconds())
-                .snapshotData(snapshotData)
+                .snapshotData(items)
                 .build();
         
         orderSnapshotRepository.save(snapshot);
 
-        // 6. 更新訂單狀態與清理 Flag
         order.setStatus("PENDING_PAYMENT");
         order.setTotalAmount(serverFinalTotal);
         order.setAdjustmentAmount(request.getAdjustmentAmount());
         order.setAdjustmentReason(request.getAdjustmentReason());
         order.setWaitingForOwnerAction(false);
+        order.setItems(items); // 同步更新訂單項目
         
         orderRepository.save(order);
 

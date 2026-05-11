@@ -20,4 +20,6 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
            "AND o.status IN ('CONFIRMED', 'PENDING_PAYMENT', 'IN_PROGRESS', 'COMPLETED') " +
            "AND o.isDeleted = false")
     long countBookedVisitsBySitterIdAndDate(@Param("sitterId") UUID sitterId, @Param("date") OffsetDateTime date);
+
+    List<Visit> findByStatusAndScheduledAtBefore(String status, OffsetDateTime threshold);
 }

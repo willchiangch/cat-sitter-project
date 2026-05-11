@@ -42,10 +42,6 @@
 - **Request Body**: `{ "category": "ENUM", "description": "...", "version": 1 }`
 
 ### 2.3 管理員強制結案 (Admin Resolve)
-- **Endpoint**: `POST /api/admin/orders/{orderId}/resolve`
-- **Auth**: `ROLE_ADMIN`
-- **Headers**: `Idempotency-Key: UUID` (必填，[NFR-003] 交易去重)
-- **Request Body**: 
 ```json
 {
   "finalTotalAmount": 900,
@@ -56,6 +52,11 @@
 }
 ```
 
+### 2.4 內部觸發端點 (Internal Cron Trigger)
+- **Endpoint**: `POST /api/internal/cron/orders/auto-complete`
+- **Auth**: `INTERNAL_ONLY` (由 SecurityConfig 控制)
+- **說明**: 供外部排程器（如 GCP Cloud Scheduler）呼叫，觸發自動結案邏輯。
+
 ---
 
 ## 3. 詳細邏輯與序列圖 (Sequence Diagram)
@@ -64,11 +65,13 @@
 
 ```mermaid
 sequenceDiagram
-    participant Cron as CronJob (1hr)
+    participant Scheduler as GCP Cloud Scheduler
+    participant API as InternalCronController
     participant SVC as CompletionService
     participant DB as PostgreSQL
 
-    Cron->>SVC: triggerAutoCompletion()
+    Scheduler->>API: POST /api/internal/cron/orders/auto-complete (with Secret Header)
+    API->>SVC: triggerAutoCompletion()
     activate SVC
     
     Note over SVC, DB: [Pre-step] 1. 清理過期未打卡的殭屍行程
@@ -90,9 +93,9 @@ sequenceDiagram
 
 > [!IMPORTANT]
 > **開發實作提醒 (Transaction Boundary)**:
-> 在實作 `triggerAutoCompletion` 時，`loop For each Order` 內部的處理邏輯必須標註為 `@Transactional(propagation = Propagation.REQUIRES_NEW)`。這能確保：
-> 1. 每筆訂單的結案為獨立事務，互不干擾。
-> 2. 若單一訂單結案失敗 (如 OptimisticLockException)，系統能繼續處理下一筆，不會導致全域 Rollback。
+> 1. **獨立事務**: 在實作 `triggerAutoCompletion` 時，`loop For each Order` 內部的處理邏輯必須標註為 `@Transactional(propagation = Propagation.REQUIRES_NEW)`。
+> 2. **Cloud Run 相容性**: 由於 `min-instances: 0`，內部 `@Scheduled` 在生產環境無效。必須確保上述 API 可被外部觸發。
+> 3. **本地開發模擬**: 可在 `src/main/java/com/petsitter/infrastructure/cron` 建立一個僅在 `local` profile 啟動的 `@Scheduled` 元件，每小時呼叫此 Internal API 以模擬生產環境行為。
 ```
 
 ---

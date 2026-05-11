@@ -3,6 +3,7 @@ package com.petsitter.interfaces.controller;
 import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.service.BookingService;
+import com.petsitter.application.service.CompletionService;
 import com.petsitter.application.service.ConfirmOrderService;
 import com.petsitter.application.service.EvaluationService;
 import com.petsitter.infrastructure.security.gating.PlanTier;
@@ -24,6 +25,7 @@ public class OrderController {
     private final BookingService bookingService;
     private final ConfirmOrderService confirmOrderService;
     private final EvaluationService evaluationService;
+    private final CompletionService completionService;
 
     /**
      * 飼主送出預約申請
@@ -62,5 +64,17 @@ public class OrderController {
         
         evaluationService.sendQuote(sitterId, orderId, request);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "報價已送出"));
+    }
+
+    /**
+     * 飼主手動結案 (SD-009)
+     */
+    @PostMapping("/{orderId}/complete")
+    public ResponseEntity<Map<String, String>> completeOrder(
+            @RequestParam UUID ownerId,
+            @PathVariable UUID orderId) {
+        
+        completionService.manualComplete(orderId, ownerId);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "訂單已成功結案"));
     }
 }

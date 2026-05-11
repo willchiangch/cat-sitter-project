@@ -1,14 +1,19 @@
-- [x] **Phase 1: 核心業務與帳號管理**
-    - [x] 修改 `PRD-018`: 增加隱藏狀態與呈現邏輯
-    - [x] 產出 `PRD-019`: 飼主我的最愛功能
-    - [x] 修改 `PRD-000`: 帳號註銷(軟刪除)與 AC 重編
-- [x] **Phase 2: 訂單生命週期補強**
-    - [x] 修改 `PRD-016`: 增加保母發起變更流程
-    - [x] 修改 `PRD-009`: 增加雙軌爭議回報流程
-- [x] **Phase 3: 金流與權限邏輯校對**
-    - [x] 修改 `PRD-015`: 增加銀行帳戶綁定與路徑釐清
-    - [x] 修改 `PRD-008`: 校對 Free/Basic 多媒體數量限制
-    - [x] 修改 `PRD-012`: 定義每月接單上限之計算基準
-- [ ] **Phase 4: 總表重構與最終校對**
-    - [ ] 重寫 `00-PRD-PLAN.md`: 修正編號、描述與檔期控制/白名單連動
-    - [ ] 全域掃描所有文件，確保相依性與專有名詞一致
+# 實作進度追蹤 (SD Implementation)
+
+- [x] **SD-000 (Auth)**: 實作身分驗證基礎建設
+    - [x] 配置 Spring Security 與 JWT 依賴 (JJWT 0.12.6, HS512)
+    - [x] 實作 `JwtUtils` 與 `JwtAuthenticationFilter` (Access 15m)
+    - [x] 實作 **Refresh Token 機制** (7d, DB 儲存與撤銷支援)
+    - [x] 實作 `AuthService` 與 `AuthController` (雙 Token 回傳與 /refresh 接口)
+    - [x] **安全加固**: 開啟 CORS、放行 OPTIONS 預檢、強制無狀態與關閉 CSRF
+    - [x] 整合 `GlobalExceptionHandler` 處理認證異常 (401 映射)
+    - [x] 驗證並修復現有整合測試 (`OrderControllerTest` @WithMockUser)
+- [x] **SD-009 (Completion)**: 結案評價與服務流程結束
+    - [x] 實作 `InternalCronController` 與 `X-Internal-Secret` 防護
+    - [x] 實作 `CompletionService` (72hr 殭屍清理 + 48hr 自動結案)
+    - [x] 實作手動結案 API 與權限檢查
+    - [x] 實作 `LocalCronSimulator` 模擬外部觸發
+    - [ ] 實作評價模型與 API (PRD-020)
+- [ ] **SD-016 (Refund/Dispute)**: 退款與爭議管理
+    - [ ] 實作取消退款策略 AOP
+    - [ ] 實作爭議回報流程

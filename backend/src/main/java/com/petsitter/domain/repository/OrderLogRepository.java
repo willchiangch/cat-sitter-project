@@ -8,4 +8,5 @@ import java.util.UUID;
 
 @Repository
 public interface OrderLogRepository extends JpaRepository<OrderLog, UUID> {
+    long countByOrderIdAndActionType(UUID orderId, String actionType);
 }

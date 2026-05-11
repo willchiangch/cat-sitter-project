@@ -9,6 +9,11 @@
 
 ---
 
+## 0. 前置條件 (Prerequisites)
+- **認證狀態**：所有參與測試之使用者（Owner/Sitter）皆須已登入。
+- **認證 Header**：API 請求須包含 `Authorization: Bearer <Token>`。
+- **基礎資料**：保母已建立至少一個服務方案。
+
 ## Scenario 1: 多人同時送單 (媒合式模型)
 * **Given**: 保母 A 的方案「專業餵食」在 2026-06-01 僅剩 1 個名額。
 * **When**: 飼主甲與飼主乙同時送出該日期的預約申請（帶入不同 Idempotency-Key）。

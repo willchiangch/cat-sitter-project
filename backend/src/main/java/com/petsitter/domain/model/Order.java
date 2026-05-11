@@ -29,7 +29,7 @@ public class Order extends BaseEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
-    private Map<String, Object> items; // 存放原始預約內容 JSON
+    private java.util.List<OrderItem> items; // 存放原始預約內容 JSON
 
     @Column(nullable = false)
     private String status;
