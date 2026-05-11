@@ -34,6 +34,6 @@
 
 ## 自動化實作追溯 (Traceability)
 - **測試專案**: `backend`
-- **測試類別**: [BookingServiceTest](file:///d:/myproject/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/BookingServiceTest.java)
-- **執行指令**: `mvn test -Dgroups="TS-005"`
+- **測試類別**: [BookingServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/BookingServiceTest.java)
+- **執行指令**: `mvn test -Dtest=BookingServiceTest`
 - **最後驗證日期**: 2026-05-11

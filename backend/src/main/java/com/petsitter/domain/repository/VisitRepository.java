@@ -7,10 +7,13 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface VisitRepository extends JpaRepository<Visit, UUID> {
+
+    List<Visit> findByOrderId(UUID orderId);
 
     @Query("SELECT COUNT(v) FROM Visit v JOIN v.order o " +
            "WHERE o.sitter.id = :sitterId AND v.scheduledAt = :date " +

@@ -5,6 +5,8 @@ import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.service.BookingService;
 import com.petsitter.application.service.ConfirmOrderService;
 import com.petsitter.application.service.EvaluationService;
+import com.petsitter.infrastructure.security.gating.PlanTier;
+import com.petsitter.infrastructure.security.gating.RequirePlan;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -51,6 +53,7 @@ public class OrderController {
     /**
      * 保母送出報價與調價 (SD-006)
      */
+    @RequirePlan(PlanTier.FREE)
     @PostMapping("/{orderId}/quote")
     public ResponseEntity<Map<String, String>> sendQuote(
             @RequestParam UUID sitterId,

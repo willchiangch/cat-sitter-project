@@ -62,6 +62,9 @@ public class Order extends BaseEntity {
     @Column(name = "is_disputed", nullable = false)
     private boolean isDisputed = false;
 
+    @Column(name = "plan_id", nullable = false)
+    private UUID planId;
+
     @Column(name = "idempotency_key", unique = true)
     private String idempotencyKey;
 }

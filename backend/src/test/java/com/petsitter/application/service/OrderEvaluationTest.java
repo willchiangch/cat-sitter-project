@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @Slf4j
 @SpringBootTest
@@ -51,6 +52,9 @@ class OrderEvaluationTest {
     private EvaluationService evaluationService;
 
     @Autowired
+    private OrderSnapshotRepository orderSnapshotRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -72,6 +76,7 @@ class OrderEvaluationTest {
     @BeforeEach
     void setUp() {
         visitRepository.deleteAll();
+        orderSnapshotRepository.deleteAll();
         orderRepository.deleteAll();
         subscriptionRepository.deleteAll();
         servicePlanRepository.deleteAll();
@@ -124,27 +129,60 @@ class OrderEvaluationTest {
     }
 
     @Test
-    @DisplayName("TS-006-02: SaaS 方案等級調價限制 (FREE 方案不准加價)")
-    void ts006_02_should_ThrowException_When_FreeSitterTriesToAdjustPrice() {
-        // 1. Given: 保母等級為 FREE
-        subscriptionRepository.save(Subscription.builder().sitter(userRepository.findById(sitterId).orElseThrow()).planTier("FREE").build());
-
+    @DisplayName("TS-006-02: SaaS 方案等級調價限制 (FREE 方案禁止加價)")
+    void ts006_02_should_ThrowAuthPlanLimitException_When_FreePlanTriesToAdjustPrice() {
+        // 1. Given: 建立預約，並將保母設為 FREE 方案
+        subscriptionRepository.save(Subscription.builder()
+                .sitter(userRepository.findById(sitterId).orElseThrow())
+                .planTier("FREE").build());
+                
         UUID orderId = bookingService.createBooking(BookingRequest.builder()
                 .sitterId(sitterId).ownerId(ownerId).planId(planId)
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
                 .idempotencyKey("quote-test-2").build());
         Order order = orderRepository.findById(orderId).orElseThrow();
 
-        // 2. When: 嘗試調價 100 元
+        // 2. When: 保母嘗試調增 100 元
         QuoteRequest quoteReq = QuoteRequest.builder()
                 .adjustmentAmount(100)
                 .expectedTotalAmount(600)
                 .version(order.getVersion())
                 .build();
 
-        // 3. Then: 應拋出 AUTH_PLAN_LIMIT 異常
+        // 3. Then: 預期系統拋出 SaaS 權限不足的自訂例外
         assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq))
                 .isInstanceOf(AuthPlanLimitException.class)
-                .hasMessageContaining("非 PRO 或 ULTIMATE 方案保母不可進行手動調價");
+                .hasMessageContaining("當前方案不支援自訂報價");
+    }
+
+    @Test
+    @DisplayName("TS-006-03: 樂觀鎖攔截 (保母報價時飼主同時撤單)")
+    void ts006_03_should_ThrowOptimisticLockException_When_ConcurrentModification() {
+        // 1. Given: 建立預約，保母升級為 PRO
+        subscriptionRepository.save(Subscription.builder()
+                .sitter(userRepository.findById(sitterId).orElseThrow())
+                .planTier("PRO").build());
+        
+        UUID orderId = bookingService.createBooking(BookingRequest.builder()
+                .sitterId(sitterId).ownerId(ownerId).planId(planId)
+                .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .idempotencyKey("quote-test-3").build());
+                
+        Order orderForSitter = orderRepository.findById(orderId).orElseThrow();
+        
+        // 2. 模擬併發：飼主（或系統）先一步更新了訂單（例如標註為爭議或更新備註）
+        Order orderForOther = orderRepository.findById(orderId).orElseThrow();
+        orderForOther.setAdjustmentReason("Concurrent Update");
+        orderRepository.saveAndFlush(orderForOther); // 寫入 DB，此時 Version 遞增
+
+        // 3. When & Then: 保母用舊的 Version 試圖送出報價，預期拋出樂觀鎖例外
+        QuoteRequest quoteReq = QuoteRequest.builder()
+                .adjustmentAmount(0)
+                .expectedTotalAmount(500)
+                .version(orderForSitter.getVersion()) // 帶入過期的 version
+                .build();
+
+        assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 }

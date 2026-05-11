@@ -1,12 +1,14 @@
 package com.petsitter.application.service;
 
 import com.petsitter.application.dto.QuoteRequest;
-import com.petsitter.application.exception.AuthPlanLimitException;
 import com.petsitter.application.exception.PricingMismatchException;
 import com.petsitter.domain.model.*;
 import com.petsitter.domain.repository.*;
+import com.petsitter.infrastructure.security.gating.PlanTier;
+import com.petsitter.infrastructure.security.gating.RequirePlan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +25,10 @@ public class EvaluationService {
 
     private final OrderRepository orderRepository;
     private final OrderSnapshotRepository orderSnapshotRepository;
-    private final SubscriptionRepository subscriptionRepository;
     private final ServicePlanRepository servicePlanRepository;
     private final VisitRepository visitRepository;
 
+    @RequirePlan(PlanTier.FREE)
     @Transactional
     public void sendQuote(UUID sitterId, UUID orderId, QuoteRequest request) {
         log.info("[EvaluationService] Sitter {} quoting for order {}", sitterId, orderId);
@@ -41,7 +43,7 @@ public class EvaluationService {
 
         // 2. 樂觀鎖檢查
         if (!order.getVersion().equals(request.getVersion())) {
-            throw new IllegalStateException("訂單資料已被更新，請重新整理頁面後再報價 (Optimistic Lock Exception)");
+            throw new ObjectOptimisticLockingFailureException(Order.class, orderId);
         }
 
         // 3. Zero-Trust: 重新計算金額
@@ -66,16 +68,7 @@ public class EvaluationService {
             throw new PricingMismatchException("報價金額校驗失敗，可能方案價格已變更");
         }
 
-        // 4. SaaS Gating: 只有 PRO 以上可以調價
-        if (request.getAdjustmentAmount() != 0) {
-            Subscription sub = subscriptionRepository.findBySitterId(sitterId)
-                    .orElseThrow(() -> new AuthPlanLimitException("找不到保母訂閱資訊"));
-            
-            String tier = sub.getPlanTier().toUpperCase();
-            if (!"PRO".equals(tier) && !"ULTIMATE".equals(tier)) {
-                throw new AuthPlanLimitException("非 PRO 或 ULTIMATE 方案保母不可進行手動調價 (目前方案: " + tier + ")");
-            }
-        }
+        // 4. SaaS Gating 已透過 AOP @RequirePlan 於介面層處理
 
         // 5. 建立 Snapshot (SD-006)
         Map<String, Object> snapshotData = new HashMap<>();

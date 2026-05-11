@@ -22,10 +22,9 @@
 ### 3. Concurrency & Security
 - [x] **Advisory Locks**: **PASS**
 - [x] **Optimistic Locking**: **PASS**
-- [ ] **SaaS Gating**: **WARNING**
-  - **Evidence**: `EvaluationService.java:85`
-  - **Details**: Logic is solid but still resides in the Service layer. To follow best practices, this should be an AOP annotation on the Controller.
-  - **Remediation**: Plan for `@RequirePlan` AOP implementation in the next milestone.
+- [x] **SaaS Gating**: **PASS**
+  - **Evidence**: `PlanGatingAspect.java`, `OrderController.java:53`
+  - **Details**: 已實作 AOP 攔截器，透過 `@RequirePlan` 註解標註於 Controller 層。具備動態權限偵測功能（如偵測 QuoteRequest 的調價欄位）。
 
 ### 4. Timezone
 - [x] **ISO 8601 Compliance**: **PASS**
