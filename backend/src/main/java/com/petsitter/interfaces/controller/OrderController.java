@@ -1,11 +1,9 @@
 package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.dto.BookingRequest;
+import com.petsitter.application.dto.ModificationPayloadDto;
 import com.petsitter.application.dto.QuoteRequest;
-import com.petsitter.application.service.BookingService;
-import com.petsitter.application.service.CompletionService;
-import com.petsitter.application.service.ConfirmOrderService;
-import com.petsitter.application.service.EvaluationService;
+import com.petsitter.application.service.*;
 import com.petsitter.infrastructure.security.gating.PlanTier;
 import com.petsitter.infrastructure.security.gating.RequirePlan;
 import jakarta.validation.Valid;
@@ -26,6 +24,7 @@ public class OrderController {
     private final ConfirmOrderService confirmOrderService;
     private final EvaluationService evaluationService;
     private final CompletionService completionService;
+    private final ModificationService modificationService;
 
     /**
      * 飼主送出預約申請
@@ -38,6 +37,34 @@ public class OrderController {
         request.setIdempotencyKey(idempotencyKey);
         UUID orderId = bookingService.createBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("orderId", orderId));
+    }
+
+    /**
+     * 發起變更請求 (SD-016)
+     */
+    @PostMapping("/{orderId}/modify")
+    public ResponseEntity<Map<String, String>> modifyOrder(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @PathVariable UUID orderId,
+            @RequestParam String requestedBy,
+            @Valid @RequestBody ModificationPayloadDto request) {
+        
+        modificationService.proposeModification(orderId, request, requestedBy);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "變更請求已提交"));
+    }
+
+    /**
+     * 確認同意變更 (SD-016)
+     */
+    @PostMapping("/{orderId}/modification/confirm")
+    public ResponseEntity<Map<String, String>> confirmModification(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @PathVariable UUID orderId,
+            @RequestParam UUID modRequestId,
+            @Valid @RequestBody ModificationPayloadDto request) {
+        
+        modificationService.confirmModification(orderId, modRequestId, request.getDates());
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "變更已生效"));
     }
 
     /**

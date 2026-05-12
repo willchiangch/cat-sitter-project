@@ -21,5 +21,21 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
            "AND o.isDeleted = false")
     long countBookedVisitsBySitterIdAndDate(@Param("sitterId") UUID sitterId, @Param("date") OffsetDateTime date);
 
+    @Query("""
+        SELECT COUNT(v) FROM Visit v 
+        JOIN v.order o 
+        WHERE o.sitter.id = :sitterId 
+          AND v.scheduledAt BETWEEN :startOfDay AND :endOfDay 
+          AND v.status IN ('PENDING', 'DONE') 
+          AND o.id != :excludeOrderId
+          AND o.isDeleted = false
+    """)
+    int countOccupiedCapacityWithSelfExclusion(
+        @Param("sitterId") UUID sitterId, 
+        @Param("startOfDay") OffsetDateTime startOfDay, 
+        @Param("endOfDay") OffsetDateTime endOfDay,
+        @Param("excludeOrderId") UUID excludeOrderId
+    );
+
     List<Visit> findByStatusAndScheduledAtBefore(String status, OffsetDateTime time);
 }

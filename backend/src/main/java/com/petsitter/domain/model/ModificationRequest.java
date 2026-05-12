@@ -5,7 +5,7 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import java.util.Map;
+import java.util.List;
 
 @Entity
 @Table(name = "modification_requests")
@@ -32,5 +32,8 @@ public class ModificationRequest extends BaseEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private Map<String, Object> payload;
+    private List<OrderItem> payload;
+
+    @Column(name = "refund_proof_url")
+    private String refundProofUrl;
 }
