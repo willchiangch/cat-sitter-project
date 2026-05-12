@@ -11,11 +11,12 @@ description: 根據系統設計 (SD) 與非功能性需求 (NFR) 檢查當前程
 
 1.  **基準載入**：
     - 讀取 `docs/sd/SD-GLOBAL-SPEC.md` 獲取技術底座標準。
+    - 讀取 `docs/sd/SD-FRONTEND-SPEC.md` 獲取前端架構規範。
     - 讀取 `docs/sa/nfr/00-NFR-OVERVIEW.md` 獲取全域非功能性約束。
     - 針對特定模組，讀取對應的 `SD-xxx.md` (如 `SD-005` 針對預約流程)。
 
 2.  **靜態掃描**：
-    - 檢查程式碼結構、設定檔 (`application.yml`)、Dockerfile 與資料庫遷移腳本 (`V__xxx.sql`)。
+    - 檢查程式碼結構、設定檔 (`application.yml`, `vite.config.ts`, `tsconfig.json`)、Dockerfile 與資料庫遷移腳本 (`V__xxx.sql`)。
 
 3.  **合規性驗證**：
     - 比對下列核心指標 (Core Indicators)。
@@ -41,13 +42,30 @@ description: 根據系統設計 (SD) 與非功能性需求 (NFR) 檢查當前程
 - **分散式鎖**：排隊或佔用類業務是否使用 `PostgreSQL Advisory Locks`？
 - **冪等性**：API 是否有 `idempotency_key` 機制？
 
-### 4. SaaS Gating & 安全 (Security)
+### 4. 前端韌性與 PWA (Frontend Resilience)
+- **Axios 攔截器**：`axiosClient.ts` 必須實作 401 併發鎖與 Request Queue，防禦 Refresh Token 風暴。
+- **PWA 快取**：`vite.config.ts` 的 Workbox 配置必須排除 `/api/*` 請求，API 僅能透過 React Query 快取。
+- **主題變數**：禁止寫死顏色。必須使用 CSS Variables 並配合 `data-theme` (Amber/Blue) 切換。
+- **TS 嚴格模式**：`tsconfig.json` 必須開啟 `strict: true`。
+
+### 5. 前端設計系統與 UX (Design System)
+- **無框線原則**：嚴禁使用 1px 實線邊框。檢查是否誤用 `border` 而非背景色偏移 (Background Shifts)。
+- **玻璃擬態**：導航欄與 Bottom Sheets 是否有 `backdrop-blur: 12px`？
+- **字體規範**：檢查是否正確引入 `Plus Jakarta Sans` (標題) 與 `Manrope` (內文)。
+- **Tailwind 禁令**：檢查是否誤用 Tailwind 類名。
+
+### 6. 前端狀態管理與品質 (Frontend Quality)
+- **狀態隔離**：API 資料禁止存入 Context。Context 僅限 UI 狀態（角色、Modal）。
+- **測試標記**：具備互動邏輯的元素是否遵循 `[role]-[screen]-[element/action]` 格式的 `data-testid`？
+- **API 管理**：是否全數透過 React Query (TanStack Query) 管理非同步資料？
+
+### 7. SaaS Gating & 安全 (Security)
 - **權限攔截**：`@RequirePlan` 註解是否正確放在 Controller？
 - **JWT**：Token 是否只存放 `accountId` 與 `currentRole`？(嚴禁存放 `planType`)。
 - **Actuator**：`health` 是否僅暴露有限資訊？
 
-### 5. 基礎設施合規 (Infrastructure)
-- **鏡像**：是否使用 `eclipse-temurin:21`？
+### 8. 基礎設施合規 (Infrastructure)
+- **鏡像**：是否使用 `eclipse-temurin:21` (Backend) 與 `nginx:alpine` (Frontend)？
 - **遷移**：異動是否透過 Flyway `V__xxx.sql`？
 - **日誌**：是否使用 SLF4J 輸出至 Console？
 
@@ -63,11 +81,11 @@ description: 根據系統設計 (SD) 與非功能性需求 (NFR) 檢查當前程
 
 ## 🔍 Detailed Findings
 
-### [Category: e.g., Persistence]
+### [Category: e.g., Persistence or Frontend Resilience]
 - [ ] **[Indicator Name]**: [STATUS: PASS/FAIL/WARNING]
-  - **Evidence**: `Path/To/File.java:L123`
-  - **Details**: 發現使用 Double 處理金額，違反 SD-GLOBAL-SPEC 2.2。
-  - **Remediation**: 改為 Integer 儲存，計算時轉 BigDecimal。
+  - **Evidence**: `Path/To/File.java:L123` 或 `Path/To/Component.tsx:L45`
+  - **Details**: 發現使用 Double 處理金額，違反 SD-GLOBAL-SPEC 2.2；或發現使用 1px 實線邊框，違反 SD-FRONTEND-SPEC 6.2。
+  - **Remediation**: 改為 Integer 儲存，計算時轉 BigDecimal；或改用背景色偏移界定區塊。
 
 ## 🚀 Action Items
 1. [High Priority] 修復 X...

@@ -106,6 +106,14 @@ class ModificationServiceTest {
         // Then
         assertThat(order.getStatus()).isEqualTo("REFUND_VERIFY");
         assertThat(order.getTotalAmount()).isEqualTo(500);
+
+        // ✅ 驗證確實呼叫了自我排除的配額檢查
+        verify(visitRepository, times(1)).countOccupiedCapacityWithSelfExclusion(
+                eq(order.getSitter().getId()),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class),
+                eq(orderId) 
+        );
     }
 
     @Test

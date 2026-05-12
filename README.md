@@ -12,9 +12,10 @@
 - **Auth**: Spring Security 6 + JJWT 0.12.6 (Stateless JWT)
 
 ### 前端 (Frontend)
-- **Framework**: React (Next.js / Vite 規劃中)
-- **Style**: Vanilla CSS / UI-UX Pro Max
-- **Testing**: Playwright / Vitest
+- **Framework**: React 19 + Vite 8
+- **Design System**: Stitch "The Intuitive Concierge" (Editorial Aesthetic)
+- **Style**: Vanilla CSS + CSS Variables (No-Line Philosophy)
+- **Testing**: Playwright (E2E) + TS Strict Mode Enabled
 
 ---
 
@@ -42,6 +43,8 @@
 | **SD-005 預約申請** | ✅ | ✅ | ✅ TS-005 | 支援 Advisory Lock 併發控制 |
 | **SD-006 報價快照** | ✅ | ✅ | ✅ TS-006 | 支援 SaaS Gating 與零信任校驗 |
 | **SD-009 訂單結案** | ✅ | ✅ | ✅ TS-009 | 支援 72hr 殭屍清理與 48hr 自動結案 |
+| **SD-016 訂單變更** | ✅ | ✅ | ✅ TS-016 | 支援跨日容量校驗與加減價差額試算 |
+| **SD-FRONTEND-SPEC**| ✅ | ✅ | ✅ E2E | Stitch 設計系統重構與 TS 嚴格模式審計通過 |
 
 ---
 
