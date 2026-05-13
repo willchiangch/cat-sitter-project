@@ -22,6 +22,12 @@ public class Visit extends BaseEntity {
     @Column(nullable = false)
     private String status; // PENDING, DONE, CLOSED_BY_SYSTEM
 
+    @Column(name = "plan_id", nullable = false)
+    private java.util.UUID planId;
+
+    @Column(name = "snapshot_plan_title", nullable = false)
+    private String snapshotPlanTitle;
+
     @Column(name = "scheduled_at", nullable = false)
     private OffsetDateTime scheduledAt;
 

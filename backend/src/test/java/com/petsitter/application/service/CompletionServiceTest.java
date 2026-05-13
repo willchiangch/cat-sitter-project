@@ -73,22 +73,20 @@ class CompletionServiceTest {
     @Test
     @DisplayName("應該正確清理 72 小時未打卡的殭屍行程")
     void should_CloseZombieVisits_Successfully() {
-        // Given: 一個 80 小時前的 PENDING 行程
         Order order = createOrder("IN_PROGRESS");
         Visit zombieVisit = visitRepository.save(Visit.builder()
                 .order(order)
                 .status("PENDING")
+                .planId(UUID.randomUUID())
+                .snapshotPlanTitle("Zombie Plan")
                 .scheduledAt(OffsetDateTime.now().minusHours(80))
                 .build());
 
-        // When
         completionService.triggerAutoCompletion();
 
-        // Then
         Visit updatedVisit = visitRepository.findById(zombieVisit.getId()).orElseThrow();
         assertThat(updatedVisit.getStatus()).isEqualTo("CLOSED_BY_SYSTEM");
 
-        // [Fix] 驗證連鎖反應：如果行程全清了且符合時間條件，Order 應該也要轉 COMPLETED
         Order updatedOrder = orderRepository.findById(order.getId()).orElseThrow();
         assertThat(updatedOrder.getStatus()).isEqualTo("COMPLETED");
     }
@@ -96,18 +94,17 @@ class CompletionServiceTest {
     @Test
     @DisplayName("應該自動結案最後行程結束過 48 小時的訂單")
     void should_AutoCompleteOrders_After48Hours() {
-        // Given: 一個所有行程皆已 DONE 且最後行程是 50 小時前的訂單
         Order order = createOrder("IN_PROGRESS");
         visitRepository.save(Visit.builder()
                 .order(order)
                 .status("DONE")
+                .planId(UUID.randomUUID())
+                .snapshotPlanTitle("Done Plan")
                 .scheduledAt(OffsetDateTime.now().minusHours(50))
                 .build());
 
-        // When
         completionService.triggerAutoCompletion();
 
-        // Then
         Order updatedOrder = orderRepository.findById(order.getId()).orElseThrow();
         assertThat(updatedOrder.getStatus()).isEqualTo("COMPLETED");
         assertThat(updatedOrder.getCompletedAt()).isNotNull();
@@ -118,13 +115,11 @@ class CompletionServiceTest {
     @DisplayName("管理員強制結案：應紀錄差額、寫入財務時間並轉為 COMPLETED")
     @WithMockUser(username = "admin_user", roles = "ADMIN")
     void should_ResolveDisputedOrder_ByAdmin() {
-        // Given: 一張爭議中的訂單
         Order order = createOrder("DISPUTED");
         order.setTotalAmount(1500);
         order.setDisputed(true);
         orderRepository.save(order);
 
-        // When: 管理員裁決
         com.petsitter.application.dto.AdminResolveRequest req = new com.petsitter.application.dto.AdminResolveRequest(
                 1000, 
                 "gs://bucket/receipt.jpg", 
@@ -132,24 +127,28 @@ class CompletionServiceTest {
         );
         completionService.resolveDisputedOrder(order.getId(), req);
 
-        // Then
         Order resolvedOrder = orderRepository.findById(order.getId()).orElseThrow();
         assertThat(resolvedOrder.getStatus()).isEqualTo("COMPLETED");
         assertThat(resolvedOrder.getTotalAmount()).isEqualTo(1000);
         assertThat(resolvedOrder.isDisputed()).isFalse();
         
-        // 驗證審計日誌
         long logCount = orderLogRepository.countByOrderIdAndActionType(order.getId(), "ADMIN_RESOLVED");
         assertThat(logCount).isEqualTo(1);
     }
 
     private Order createOrder(String status) {
+        com.petsitter.domain.model.OrderItem orderItem = new com.petsitter.domain.model.OrderItem();
+        orderItem.setCategory("CAT_SITTING");
+        orderItem.setServiceName("Standard");
+        orderItem.setUnitPrice(500);
+        orderItem.setQuantity(1);
+
         return orderRepository.save(Order.builder()
                 .owner(owner)
                 .sitter(sitter)
                 .planId(UUID.randomUUID())
                 .status(status)
-                .items(java.util.List.of(new com.petsitter.domain.model.OrderItem("CAT_SITTING", "Standard", 500, 1)))
+                .items(java.util.List.of(orderItem))
                 .build());
     }
 }

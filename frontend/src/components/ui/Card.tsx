@@ -1,13 +1,13 @@
 import React from 'react';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
   style?: React.CSSProperties;
 }
 
-const Card: React.FC<CardProps> = ({ children, onClick, style, className }) => {
+const Card: React.FC<CardProps> = ({ children, onClick, style, className, ...props }) => {
   return (
     <div 
       className={`card-layered ${className || ''}`}
@@ -18,6 +18,7 @@ const Card: React.FC<CardProps> = ({ children, onClick, style, className }) => {
         ...style
       }} 
       onClick={onClick}
+      {...props}
     >
       {children}
     </div>

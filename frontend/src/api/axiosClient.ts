@@ -1,4 +1,5 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const axiosClient = axios.create({
   baseURL: '/api',

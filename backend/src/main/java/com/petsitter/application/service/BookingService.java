@@ -33,36 +33,59 @@ public class BookingService {
 
     @Transactional
     public UUID createBooking(BookingRequest request) {
-        log.info("[BookingService] Creating PENDING order for sitter: {}, plan: {}", request.getSitterId(), request.getPlanId());
+        log.info("[BookingService] Creating PENDING order for sitter: {}", request.getSitterId());
 
-        if (!servicePlanRepository.existsById(request.getPlanId())) {
-            throw new IllegalArgumentException("找不到指定的服務方案: " + request.getPlanId());
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new IllegalArgumentException("預約項目不得為空");
         }
 
-        List<String> dateStrings = request.getDates().stream()
-                .map(LocalDate::toString)
-                .collect(Collectors.toList());
+        java.util.List<OrderItem> orderItems = new java.util.ArrayList<>();
+        
+        for (com.petsitter.application.dto.BookingItemRequest itemReq : request.getItems()) {
+            ServicePlan plan = servicePlanRepository.findById(itemReq.getPlanId())
+                    .orElseThrow(() -> new IllegalArgumentException("找不到指定的服務方案: " + itemReq.getPlanId()));
+
+            OrderItem orderItem = new OrderItem();
+            orderItem.setCategory("BOOKING");
+            orderItem.setServiceName(plan.getName());
+            orderItem.setUnitPrice(plan.getPrice().intValue());
+            orderItem.setQuantity(itemReq.getDates().size() * itemReq.getTimesPerDay());
+            orderItem.setPlanId(plan.getId());
+            orderItem.setDates(itemReq.getDates().stream().map(java.time.LocalDate::toString).collect(java.util.stream.Collectors.toList()));
+            orderItem.setTimesPerDay(itemReq.getTimesPerDay());
+            orderItem.setPetIds(itemReq.getPetIds());
+            orderItems.add(orderItem);
+        }
 
         Order order = Order.builder()
                 .owner(userRepository.findById(request.getOwnerId()).orElseThrow())
                 .sitter(userRepository.findById(request.getSitterId()).orElseThrow())
-                .planId(request.getPlanId())
+                .planId(request.getItems().get(0).getPlanId()) // 保留首個方案作為主要方案
                 .status("PENDING")
-                .items(List.of(new OrderItem("BOOKING", "Dates: " + String.join(", ", dateStrings), 0, dateStrings.size())))
+                .items(orderItems)
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
         
         Order savedOrder = orderRepository.save(order);
 
-        List<Visit> visits = request.getDates().stream()
-                .map(date -> Visit.builder()
-                        .order(savedOrder)
-                        .status("PENDING")
-                        .scheduledAt(date.atStartOfDay().atOffset(ZoneOffset.UTC))
-                        .build())
-                .collect(Collectors.toList());
+        java.util.List<Visit> visitsToSave = new java.util.ArrayList<>();
+
+        for (com.petsitter.application.dto.BookingItemRequest itemReq : request.getItems()) {
+            ServicePlan plan = servicePlanRepository.findById(itemReq.getPlanId()).orElseThrow();
+            for (LocalDate date : itemReq.getDates()) {
+                for (int i = 0; i < itemReq.getTimesPerDay(); i++) {
+                    visitsToSave.add(Visit.builder()
+                            .order(savedOrder)
+                            .planId(plan.getId())
+                            .snapshotPlanTitle(plan.getName())
+                            .status("PENDING")
+                            .scheduledAt(date.atStartOfDay().atOffset(ZoneOffset.UTC))
+                            .build());
+                }
+            }
+        }
         
-        visitRepository.saveAll(visits);
+        visitRepository.saveAll(visitsToSave);
         visitRepository.flush();
 
         log.info("[BookingService] Successfully created PENDING order ID: {}", savedOrder.getId());
@@ -81,14 +104,14 @@ public class BookingService {
         }
 
         UUID sitterId = order.getSitter().getId();
-        ServicePlan plan = servicePlanRepository.findById(order.getPlanId())
-                .orElseThrow(() -> new IllegalStateException("找不到對應的服務方案"));
-
         List<Visit> visits = visitRepository.findByOrderId(orderId);
 
         for (Visit visit : visits) {
             String dateStr = visit.getScheduledAt().toLocalDate().toString();
             orderRepository.acquireAdvisoryLock(sitterId.toString(), dateStr);
+
+            ServicePlan plan = servicePlanRepository.findById(visit.getPlanId())
+                    .orElseThrow(() -> new IllegalStateException("找不到對應的服務方案: " + visit.getPlanId()));
 
             long bookedCount = visitRepository.countBookedVisitsBySitterIdAndDate(sitterId, visit.getScheduledAt());
             

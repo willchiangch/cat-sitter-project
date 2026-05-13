@@ -13,9 +13,9 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BookingRequest {
-    private UUID ownerId;
-    private UUID sitterId;
-    private List<BookingItemRequest> items;
-    private String idempotencyKey;
+public class BookingItemRequest {
+    private UUID planId;
+    private List<LocalDate> dates;
+    private Integer timesPerDay;
+    private List<UUID> petIds;
 }

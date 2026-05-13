@@ -1,0 +1,84 @@
+
+Running 2 tests using 2 workers
+
+[1A[2K[1/2] [chromium] › e2e/client-booking.spec.ts:19:3 › Client Booking Wizard Flow › should complete the 3-step booking wizard with screenshots
+[1A[2K[2/2] [chromium] › e2e/client-booking.spec.ts:75:3 › Client Booking Wizard Flow › should verify back navigation functionality
+[1A[2K  1) [chromium] › e2e/client-booking.spec.ts:19:3 › Client Booking Wizard Flow › should complete the 3-step booking wizard with screenshots 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveCSS[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('h1')
+    Expected: [32m"rgb(118, 86, 0)"[39m
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toHaveCSS" with timeout 5000ms[22m
+    [2m  - waiting for locator('h1')[22m
+
+
+      23 |     
+      24 |     // 初始應為保母色 (Stitch Amber)
+    > 25 |     await expect(title).toHaveCSS('color', 'rgb(118, 86, 0)');
+         |                         ^
+      26 |     
+      27 |     // 切換至飼主角色
+      28 |     await toggleBtn.click();
+        at /Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/client-booking.spec.ts:25:25
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  2) [chromium] › e2e/client-booking.spec.ts:75:3 › Client Booking Wizard Flow › should verify back navigation functionality 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByTestId('btn-role-toggle')[22m
+
+
+      74 |
+      75 |   test('should verify back navigation functionality', async ({ page }) => {
+    > 76 |     await page.getByTestId('btn-role-toggle').click();
+         |                                               ^
+      77 |     await page.getByRole('button', { name: /進入預約精靈/ }).click();
+      78 |     
+      79 |     // Step 1 -> 2
+        at /Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/client-booking.spec.ts:76:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/client-booking-Client-Book-7c596-ck-navigation-functionality-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/client-booking-Client-Book-7c596-ck-navigation-functionality-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/client-booking-Client-Book-7c596-ck-navigation-functionality-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/client-booking-Client-Book-7c596-ck-navigation-functionality-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[1A[2K  2 failed
+    [chromium] › e2e/client-booking.spec.ts:19:3 › Client Booking Wizard Flow › should complete the 3-step booking wizard with screenshots 
+    [chromium] › e2e/client-booking.spec.ts:75:3 › Client Booking Wizard Flow › should verify back navigation functionality 
+
+To open last HTML report run:
+
+  npx playwright show-report report
+

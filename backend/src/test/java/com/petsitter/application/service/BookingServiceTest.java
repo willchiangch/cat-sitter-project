@@ -96,14 +96,19 @@ class BookingServiceTest {
         int concurrentCount = 5;
         List<CompletableFuture<UUID>> futures = new ArrayList<>();
         
+        com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId)
+                .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .timesPerDay(1)
+                .build();
+
         for (int i = 0; i < concurrentCount; i++) {
             final int index = i;
             futures.add(CompletableFuture.supplyAsync(() -> {
                 return bookingService.createBooking(BookingRequest.builder()
                         .ownerId(ownerId)
                         .sitterId(sitterId)
-                        .planId(planId)
-                        .dates(List.of(LocalDate.of(2026, 6, 1)))
+                        .items(List.of(item))
                         .idempotencyKey("concurrent-key-" + index)
                         .build());
             }));
@@ -121,18 +126,20 @@ class BookingServiceTest {
     @Test
     @DisplayName("TS-005-02: 併發確認接單 (Advisory Lock) - 應防止超賣，僅有一筆成功轉為 PENDING_PAYMENT")
     void ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm() {
-        // 1. Given: 針對同一日期建立兩筆 PENDING 訂單
-        UUID order1 = bookingService.createBooking(BookingRequest.builder()
-                .ownerId(ownerId).sitterId(sitterId).planId(planId)
+        com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId)
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .timesPerDay(1)
+                .build();
+
+        UUID order1 = bookingService.createBooking(BookingRequest.builder()
+                .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
                 .idempotencyKey("order-1").build());
 
         UUID order2 = bookingService.createBooking(BookingRequest.builder()
-                .ownerId(ownerId).sitterId(sitterId).planId(planId)
-                .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
                 .idempotencyKey("order-2").build());
 
-        // 2. When: 保母同時確認這兩筆訂單
         ExecutorService executor = Executors.newFixedThreadPool(2);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failureCount = new AtomicInteger(0);
@@ -158,7 +165,6 @@ class BookingServiceTest {
         CompletableFuture.allOf(f1, f2).join();
         executor.shutdown();
 
-        // 3. Then: 應該只有一筆成功，另一筆因為 CapacityFullException 失敗
         assertThat(successCount.get()).isEqualTo(1);
         assertThat(failureCount.get()).isEqualTo(1);
 
@@ -166,5 +172,47 @@ class BookingServiceTest {
                 .filter(o -> "PENDING_PAYMENT".equals(o.getStatus()))
                 .count();
         assertThat(confirmedCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("TS-005-03: 複合方案預約驗證 (Multi-Plan / Multi-Visit) - 驗證趟次正確建立")
+    void ts005_03_should_CalculateTotalCorrectly_When_MultiPlanSubmitted() {
+        ServicePlan planB = servicePlanRepository.save(ServicePlan.builder()
+                .sitter(userRepository.findById(sitterId).orElseThrow())
+                .name("基礎餵食")
+                .dailyCapacity(5)
+                .price(800L)
+                .build());
+
+        com.petsitter.application.dto.BookingItemRequest item1 = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId) // Plan A ($500)
+                .dates(List.of(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 2)))
+                .timesPerDay(2)
+                .build();
+
+        com.petsitter.application.dto.BookingItemRequest item2 = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planB.getId()) // Plan B ($800)
+                .dates(List.of(LocalDate.of(2026, 1, 3)))
+                .timesPerDay(1)
+                .build();
+
+        UUID orderId = bookingService.createBooking(BookingRequest.builder()
+                .ownerId(ownerId)
+                .sitterId(sitterId)
+                .items(List.of(item1, item2))
+                .idempotencyKey("multi-plan-order")
+                .build());
+
+        Order savedOrder = orderRepository.findById(orderId).orElseThrow();
+        assertThat(savedOrder.getItems()).hasSize(2);
+        
+        List<com.petsitter.domain.model.Visit> visits = visitRepository.findByOrderId(orderId);
+        // (1/1 x2) + (1/2 x2) + (1/3 x1) = 5 visits
+        assertThat(visits).hasSize(5);
+
+        long planAVisits = visits.stream().filter(v -> v.getPlanId().equals(planId)).count();
+        long planBVisits = visits.stream().filter(v -> v.getPlanId().equals(planB.getId())).count();
+        assertThat(planAVisits).isEqualTo(4);
+        assertThat(planBVisits).isEqualTo(1);
     }
 }

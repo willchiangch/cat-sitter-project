@@ -101,9 +101,14 @@ class OrderEvaluationTest {
     @DisplayName("TS-006-01: 報價金額快照與不回溯性")
     void ts006_01_should_KeepPriceConsistent_When_PlanPriceChangesAfterQuote() {
         // 1. Given: 建立一筆預約 (1 天, 500元)
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId).planId(planId)
+        com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId)
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .timesPerDay(1)
+                .build();
+        UUID orderId = bookingService.createBooking(BookingRequest.builder()
+                .sitterId(sitterId).ownerId(ownerId)
+                .items(List.of(item))
                 .idempotencyKey("quote-test-1").build());
 
         Order order = orderRepository.findById(orderId).orElseThrow();
@@ -139,9 +144,14 @@ class OrderEvaluationTest {
                 .sitter(userRepository.findById(sitterId).orElseThrow())
                 .planTier("FREE").build());
                 
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId).planId(planId)
+        com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId)
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .timesPerDay(1)
+                .build();
+        UUID orderId = bookingService.createBooking(BookingRequest.builder()
+                .sitterId(sitterId).ownerId(ownerId)
+                .items(List.of(item))
                 .idempotencyKey("quote-test-2").build());
         Order order = orderRepository.findById(orderId).orElseThrow();
 
@@ -166,9 +176,14 @@ class OrderEvaluationTest {
                 .sitter(userRepository.findById(sitterId).orElseThrow())
                 .planTier("PRO").build());
         
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId).planId(planId)
+        com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId)
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .timesPerDay(1)
+                .build();
+        UUID orderId = bookingService.createBooking(BookingRequest.builder()
+                .sitterId(sitterId).ownerId(ownerId)
+                .items(List.of(item))
                 .idempotencyKey("quote-test-3").build());
                 
         Order orderForSitter = orderRepository.findById(orderId).orElseThrow();

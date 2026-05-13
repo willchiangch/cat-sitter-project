@@ -12,4 +12,9 @@ public class OrderItem {
     private String serviceName;
     private Integer unitPrice;
     private Integer quantity;
+    // 新增排程相關欄位
+    private java.util.UUID planId;
+    private java.util.List<String> dates;
+    private Integer timesPerDay;
+    private java.util.List<java.util.UUID> petIds;
 }

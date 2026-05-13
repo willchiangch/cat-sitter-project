@@ -18,10 +18,10 @@
     - [x] E2E 測試驗證通過
 
 ## Phase 2: 飼主端核心流程 (Next Up)
-- [ ] **2.1 預約精靈 (PublicBookingPage)**
-    - [ ] Step 1: 日期選擇與檔期預檢
-    - [ ] Step 2: 方案選擇與毛孩護照關聯
-    - [ ] Step 3: 總額試算與送出預約
+- [x] **2.1 預約精靈 (PublicBookingPage)** ✅
+    - [x] Step 1: 日期選擇與檔期預檢
+    - [x] Step 2: 方案選擇與毛孩護照關聯
+    - [x] Step 3: 總額試算與送出預約
 - [ ] **2.2 飼主訂單管理 (ClientOrders)**
     - [ ] 訂單狀態時間軸呈現
     - [ ] 付款憑證上傳介面 (Stitch 質感)

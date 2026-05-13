@@ -26,6 +26,12 @@
 * **Then**: 系統應利用 Advisory Lock 確保僅有一筆能成功變更為 `PENDING_PAYMENT`，另一筆應拋出 `CapacityFullException`。
 * **自動化對應**: `BookingServiceTest.ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm()`
 
+## Scenario 3: 複合方案預約驗證 (Multi-Plan / Multi-Visit)
+* **Given**: 保母有方案 A ($500) 與方案 B ($800)。
+* **When**: 飼主送出預約申請，包含 Item 1 (方案 A, 1/1-1/2, 每日 2 次) 與 Item 2 (方案 B, 1/3, 每日 1 次)。
+* **Then**: 總額應正確計算為 `(500 * 2 * 2) + (800 * 1 * 1) = 2800`，且資料庫應產生 5 筆對應的 `Visit` 記錄（每筆皆帶有正確的 `plan_id` 與日期）。
+* **自動化對應**: `BookingServiceTest.ts005_03_should_CalculateTotalCorrectly_When_MultiPlanSubmitted()`
+
 ---
 
 ## 驗證矩陣

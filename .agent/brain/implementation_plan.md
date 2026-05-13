@@ -1,35 +1,34 @@
-# 重構前端以對齊 Stitch 設計系統 (實作計畫)
+# Phase 2: 飼主端核心流程 - 預約精靈 (Public Booking Wizard)
 
-當前前端使用的是通用樣式與顏色。我們將重構程式碼，使其嚴格遵循 Stitch 的 **"The Intuitive Concierge" (直覺管家)** 設計系統。該系統強調社論感美學、分層堆疊（無框線原則）以及高端字體。
+實作飼主預約流程，採用 3-Step Wizard 設計，並嚴格遵循 Stitch "The Intuitive Concierge" 的高端社論感美學。
+
+## 使用者評論與回饋 (User Review Required)
+- **Step 1 交互**: 採用點擊選取日期範圍，或是單日選取？預計先實作多日點選。
+- **Step 2 配置**: 方案與毛孩的關聯性。
 
 ## 擬議變更
 
-### [修改] [global.css](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/styles/global.css)
-- 導入 Google Fonts：`Plus Jakarta Sans` (標題) 與 `Manrope` (內文)。
-- 定義所有 Stitch 設計標記的 CSS 變數：
-  - 分層 (Surfaces)：`surface`, `surface-low`, `surface-lowest` 等。
-  - 保母主題 (琥珀色)：`primary`, `primary-container`, `on-primary`。
-  - 飼主主題 (藍色)：`primary`, `primary-container`, `on-primary`。
-- 落實 **「無框線原則 (No-Line Rule)」**：
-  - 移除通用邊框。
-  - 使用背景色位移（例如在 `surface` 上疊加 `surface-low`）來呈現層次感。
-- 落實 **環境光發光 (Ambient Glow)**：
-  - 使用擴散陰影：`0 8px 24px rgba(45, 47, 46, 0.04)`。
-- 落實 **玻璃擬態 (Glassmorphism)**：
-  - 針對導航欄與 Bottom Sheets：`backdrop-blur: 12px` 與 `rgba(246, 247, 245, 0.8)`。
+### [NEW] [PublicBookingPage.tsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/client/PublicBookingPage.tsx)
+- 實作分步導引（Stepper）：
+    - **Step 1 (Dates)**: 日曆選擇器，使用 Tonal Layering 標示選中日期。
+    - **Step 2 (Plan & Pets)**: 
+        - 方案卡片（使用 `card-layered`）。
+        - 毛孩選擇（多選圓框）。
+    - **Step 3 (Review)**: 總結試算與備註，使用 Signature CTA (Gradient) 送出。
+- 狀態管理：使用本地 `useState` 暫存預約資訊，最後透過 `idempotency_key` 送出。
 
-### [修改] [AppShell.tsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/components/layout/AppShell.tsx)
-- 更新外殼組件以使用新的 Surface 標記。
-- 確保最大寬度與置中對齊符合社論感外觀。
+### [MODIFY] [App.tsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/App.tsx)
+- 加入 `booking` 路由視圖切換。
+
+### [NEW] [booking.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/types/booking.ts)
+- 定義預約相關 Interface。
 
 ## 驗證計畫
 
 ### 自動化測試
-- 執行現有的 E2E 測試，確保樣式變更未破壞功能。
-- `cd frontend && npx playwright test`
+- 新增 `booking-wizard.spec.ts` 驗證三步驟流程。
+- 驗證 `Idempotency-Key` 是否隨 Request 發送。
 
 ### 手動驗證
-- 驗證字體渲染效果。
-*   切換角色時驗證顏色切換是否精準。
-- 確認邊框是否已被色調過渡取代。
-- 驗證底部導覽（若適用）的玻璃擬態效果。
+- 檢查三步驟切換的動畫與呼吸感（留白比例）。
+- 確認在 Client (Blue) 主題下的視覺正確性。

@@ -3,10 +3,11 @@ import AppShell from './components/layout/AppShell';
 import { useRole } from './contexts/RoleContext';
 import SitterOrders from './pages/sitter/SitterOrders';
 import OrderEvalView from './pages/sitter/OrderEvalView';
+import PublicBookingPage from './pages/client/PublicBookingPage';
 
 function App() {
   const { currentRole, toggleRole } = useRole();
-  const [view, setView] = useState<'demo' | 'orders' | 'eval'>('demo');
+  const [view, setView] = useState<'demo' | 'orders' | 'eval' | 'booking'>('demo');
 
   const renderView = () => {
     switch (view) {
@@ -14,6 +15,8 @@ function App() {
         return <SitterOrders />;
       case 'eval':
         return <OrderEvalView />;
+      case 'booking':
+        return <PublicBookingPage />;
       default:
         return (
           <div style={{ padding: '2rem 0', textAlign: 'center' }}>
@@ -25,11 +28,14 @@ function App() {
               <button className="btn-primary" onClick={toggleRole} data-testid="btn-role-toggle">
                 切換角色 (切換主題色)
               </button>
+              <button className="btn-primary" onClick={() => setView('booking')}>
+                進入預約精靈 (飼主端)
+              </button>
               <button className="btn-primary" onClick={() => setView('orders')}>
-                進入訂單管理
+                進入訂單管理 (保母端)
               </button>
               <button className="btn-primary" onClick={() => setView('eval')}>
-                進入報價評估
+                進入報價評估 (保母端)
               </button>
             </div>
           </div>

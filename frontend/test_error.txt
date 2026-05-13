@@ -1,0 +1,40 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium] › e2e/client-booking.spec.ts:19:3 › Client Booking Wizard Flow › should complete the 3-step booking wizard with screenshots (30.1s)
+
+
+  1) [chromium] › e2e/client-booking.spec.ts:19:3 › Client Booking Wizard Flow › should complete the 3-step booking wizard with screenshots 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByTestId('client-booking-plan-p1')[22m
+
+
+      39 |     await expect(page.locator('h2')).toHaveText('方案與毛孩');
+      40 |     
+    > 41 |     await page.getByTestId('client-booking-plan-p1').click();
+         |                                                      ^
+      42 |     await page.getByTestId('client-booking-pet-pet1').click();
+      43 |     await page.screenshot({ path: path.join(screenshotDir, '04-plan-pet-selected.png') });
+      44 |     
+        at /Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/client-booking.spec.ts:41:54
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/client-booking-Client-Book-393db-ing-wizard-with-screenshots-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/client-booking.spec.ts:19:3 › Client Booking Wizard Flow › should complete the 3-step booking wizard with screenshots 

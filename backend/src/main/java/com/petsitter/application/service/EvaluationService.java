@@ -64,9 +64,13 @@ public class EvaluationService {
         }
 
         // --- 建立 Snapshot (SD-006) ---
-        List<OrderItem> items = List.of(
-                new OrderItem("SERVICE", plan.getName(), plan.getPrice().intValue(), (int) visitCount)
-        );
+        OrderItem serviceItem = new OrderItem();
+        serviceItem.setCategory("SERVICE");
+        serviceItem.setServiceName(plan.getName());
+        serviceItem.setUnitPrice(plan.getPrice().intValue());
+        serviceItem.setQuantity((int) visitCount);
+        serviceItem.setPlanId(plan.getId());
+        List<OrderItem> items = List.of(serviceItem);
 
         OrderSnapshot snapshot = OrderSnapshot.builder()
                 .order(order)

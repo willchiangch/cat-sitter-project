@@ -54,6 +54,8 @@ erDiagram
   - **`is_disputed`**: BOOLEAN (是否處於爭議凍結狀態，預設為 false)
 - **VISIT**
   - `order_id`: UUID (FK)
+  - `plan_id`: UUID (FK, 關聯方案)
+  - `snapshot_plan_title`: VARCHAR (方案快照名稱)
   - `scheduled_at`: TIMESTAMPTZ (預定執行時間)
   - **`finished_at`**: TIMESTAMPTZ (實際完成時間，用於結案倒數計算)
 - **ORDER_SNAPSHOT**

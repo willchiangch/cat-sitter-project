@@ -31,13 +31,25 @@
 ```json
 {
   "sitterId": "uuid",
-  "clientCalculatedTotal": 1500,
+  "clientCalculatedTotal": 2500,
   "items": [
     {
-      "planId": "uuid",
-      "petIds": ["uuid", "uuid"],
-      "dates": ["2026-06-01", "2026-06-02"],
+      "planId": "uuid-planA",
+      "petIds": ["uuid-pet1", "uuid-pet2"],
+      "dates": ["2026-06-01", "2026-06-02", "2026-06-03"],
       "timesPerDay": 2
+    },
+    {
+      "planId": "uuid-planB",
+      "petIds": ["uuid-pet1", "uuid-pet2"],
+      "dates": ["2026-06-01", "2026-06-02", "2026-06-03"],
+      "timesPerDay": 1
+    },
+    {
+      "planId": "uuid-planA",
+      "petIds": ["uuid-pet1", "uuid-pet2"],
+      "dates": ["2026-06-04"],
+      "timesPerDay": 1
     }
   ]
 }
