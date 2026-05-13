@@ -136,7 +136,7 @@ const PublicBookingPage: React.FC = () => {
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '2rem' }}>
           {booking.items.map((item, idx) => (
-             <Card key={idx} style={{ padding: '1.5rem', border: '1px solid var(--color-outline-variant)', position: 'relative' }}>
+             <Card key={idx} style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface-lowest)', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>預約項目 #{idx + 1}</span>
                   {booking.items.length > 1 && (
@@ -168,7 +168,8 @@ const PublicBookingPage: React.FC = () => {
                                 cursor: 'pointer',
                                 backgroundColor: isSelectedInItem ? 'var(--color-primary-container)' : 'var(--color-surface-low)',
                                 color: isSelectedInItem ? 'var(--color-on-primary-container)' : 'var(--color-on-surface-variant)',
-                                border: isSelectedInItem ? '1px solid var(--color-primary)' : '1px solid transparent'
+                                border: 'none',
+                                boxShadow: isSelectedInItem ? 'inset 0 0 0 1px var(--color-primary)' : 'none'
                               }}
                             >
                               {date.split('-')[2]}日
@@ -184,7 +185,7 @@ const PublicBookingPage: React.FC = () => {
                        <select 
                          value={item.planId} 
                          onChange={(e) => updateItem(idx, 'planId', e.target.value)}
-                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-outline)' }}
+                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--color-surface-low)', color: 'var(--color-on-surface)' }}
                          data-testid={`client-booking-item-${idx}-plan-select`}
                        >
                          {MOCK_PLANS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -195,7 +196,7 @@ const PublicBookingPage: React.FC = () => {
                        <select 
                          value={item.timesPerDay} 
                          onChange={(e) => updateItem(idx, 'timesPerDay', parseInt(e.target.value))}
-                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--color-outline)' }}
+                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--color-surface-low)', color: 'var(--color-on-surface)' }}
                          data-testid={`client-booking-item-${idx}-times-select`}
                        >
                          {[1, 2, 3].map(t => <option key={t} value={t}>{t} 次</option>)}
@@ -232,7 +233,7 @@ const PublicBookingPage: React.FC = () => {
                 style={{
                   padding: '12px 20px',
                   borderRadius: '9999px',
-                  border: isSelected ? '2px solid var(--color-primary)' : '1px solid var(--color-outline-variant)',
+                  border: isSelected ? '2px solid var(--color-primary)' : 'none',
                   backgroundColor: isSelected ? 'var(--color-surface-lowest)' : 'var(--color-surface-low)',
                   cursor: 'pointer',
                   fontWeight: '600',
@@ -283,7 +284,7 @@ const PublicBookingPage: React.FC = () => {
               {booking.items.map((item, idx) => {
                 const plan = MOCK_PLANS.find(p => p.id === item.planId);
                 return (
-                  <div key={idx} style={{ padding: '10px', backgroundColor: 'var(--color-surface-lowest)', borderRadius: '8px', borderLeft: '4px solid var(--color-primary)' }}>
+                  <div key={idx} style={{ padding: '10px', backgroundColor: 'var(--color-surface-low)', borderRadius: '8px', borderLeft: '4px solid var(--color-primary)' }}>
                     <div style={{ fontWeight: '700', fontSize: '0.875rem' }}>{plan?.name} (每天 {item.timesPerDay} 趟)</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
                       日期：{item.dates.join(', ')}
@@ -329,7 +330,7 @@ const PublicBookingPage: React.FC = () => {
             height: '100px',
             padding: '1rem',
             borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-outline-variant)',
+            border: 'none',
             backgroundColor: 'var(--color-surface-low)',
             fontFamily: 'var(--font-body)',
             marginBottom: '2rem',
