@@ -53,7 +53,6 @@ public class BookingService {
             orderItem.setPlanId(plan.getId());
             orderItem.setDates(itemReq.getDates().stream().map(java.time.LocalDate::toString).collect(java.util.stream.Collectors.toList()));
             orderItem.setTimesPerDay(itemReq.getTimesPerDay());
-            orderItem.setPetIds(itemReq.getPetIds());
             orderItems.add(orderItem);
         }
 

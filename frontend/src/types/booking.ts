@@ -18,10 +18,19 @@ export interface BookingItem {
   timesPerDay: number;
 }
 
+export interface ScheduleConfig {
+  dates: string[];
+  timesPerDay: number;
+}
+
+export interface PlanConfig {
+  planId: string;
+  schedules: ScheduleConfig[];
+}
+
 export interface BookingState {
   sitterId: string;
-  items: BookingItem[];
-  selectedPetIds: string[];
+  planConfigs: PlanConfig[];
   notes: string;
   totalAmount: number;
 }

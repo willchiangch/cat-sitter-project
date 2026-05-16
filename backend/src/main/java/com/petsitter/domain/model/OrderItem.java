@@ -16,5 +16,4 @@ public class OrderItem {
     private java.util.UUID planId;
     private java.util.List<String> dates;
     private Integer timesPerDay;
-    private java.util.List<java.util.UUID> petIds;
 }

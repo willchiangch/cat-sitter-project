@@ -1,72 +1,98 @@
 import React, { useState } from 'react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import { Dog, CheckCircle2, ArrowRight, Plus, Trash2 } from 'lucide-react';
-import type { BookingState, Plan, Pet, BookingItem } from '../../types/booking';
+import { CheckCircle2, ArrowRight, Plus, Trash2 } from 'lucide-react';
+import type { BookingState, Plan } from '../../types/booking';
 
 const MOCK_PLANS: Plan[] = [
   { id: 'p1', name: '基礎照顧', price: 500, description: '包含換水、餵食、清砂盆、拍照記錄' },
   { id: 'p2', name: '進階陪伴', price: 800, description: '包含基礎照顧 + 陪玩 20 分鐘、梳毛' }
 ];
 
-const MOCK_PETS: Pet[] = [
-  { id: 'pet1', name: '咪咪', type: 'Cat' },
-  { id: 'pet2', name: '小黑', type: 'Cat' }
-];
-
 const PublicBookingPage: React.FC = () => {
   const [step, setStep] = useState(1);
-  const [selectedDatesPool, setSelectedDatesPool] = useState<string[]>([]);
   const [booking, setBooking] = useState<BookingState>({
     sitterId: 'sitter-123',
-    items: [],
-    selectedPetIds: [],
+    planConfigs: [],
     notes: '',
     totalAmount: 0
   });
+  
+  // 當還沒有選任何方案，或使用者主動點擊「選擇其他方案」時為 true
+  const [isAddingPlan, setIsAddingPlan] = useState(true);
 
-  const toggleDateInPool = (date: string) => {
-    setSelectedDatesPool(prev => 
-      prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date].sort()
-    );
-  };
+  const allSelectedDates = booking.planConfigs.flatMap(p => p.schedules.flatMap(s => s.dates));
 
-  const addItem = () => {
+  const addPlanConfig = (planId: string) => {
     setBooking(prev => ({
       ...prev,
-      items: [...prev.items, { planId: MOCK_PLANS[0].id, dates: [...selectedDatesPool], timesPerDay: 1 }]
+      planConfigs: [...prev.planConfigs, { planId, schedules: [{ dates: [], timesPerDay: 1 }] }]
     }));
+    setIsAddingPlan(false);
   };
 
-  const removeItem = (index: number) => {
-    setBooking(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
+  const addScheduleToPlan = (planIndex: number) => {
+    setBooking(prev => {
+      const newConfigs = [...prev.planConfigs];
+      const plan = { ...newConfigs[planIndex] };
+      plan.schedules = [...plan.schedules, { dates: [], timesPerDay: 1 }];
+      newConfigs[planIndex] = plan;
+      return { ...prev, planConfigs: newConfigs };
+    });
   };
 
-  const updateItem = (index: number, field: keyof BookingItem, value: any) => {
-    setBooking(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => i === index ? { ...item, [field]: value } : item)
-    }));
+  const removeScheduleFromPlan = (planIndex: number, scheduleIndex: number) => {
+    setBooking(prev => {
+      const newConfigs = [...prev.planConfigs];
+      const plan = { ...newConfigs[planIndex] };
+      const schedules = [...plan.schedules];
+      schedules.splice(scheduleIndex, 1);
+      
+      if (schedules.length === 0) {
+        newConfigs.splice(planIndex, 1);
+        if (newConfigs.length === 0) setIsAddingPlan(true);
+      } else {
+        plan.schedules = schedules;
+        newConfigs[planIndex] = plan;
+      }
+      return { ...prev, planConfigs: newConfigs };
+    });
   };
 
-  const toggleDateInItem = (itemIndex: number, date: string) => {
-    const item = booking.items[itemIndex];
-    const newDates = item.dates.includes(date) 
-      ? item.dates.filter(d => d !== date) 
-      : [...item.dates, date].sort();
-    updateItem(itemIndex, 'dates', newDates);
+  const toggleDateInSchedule = (planIndex: number, scheduleIndex: number, date: string) => {
+    setBooking(prev => {
+      const newConfigs = [...prev.planConfigs];
+      const plan = { ...newConfigs[planIndex] };
+      const schedules = [...plan.schedules];
+      const schedule = { ...schedules[scheduleIndex] };
+      
+      if (schedule.dates.includes(date)) {
+        schedule.dates = schedule.dates.filter(d => d !== date);
+      } else {
+        schedule.dates = [...schedule.dates, date].sort();
+      }
+      
+      schedules[scheduleIndex] = schedule;
+      plan.schedules = schedules;
+      newConfigs[planIndex] = plan;
+      
+      return { ...prev, planConfigs: newConfigs };
+    });
+  };
+
+  const updateTimesPerDay = (planIndex: number, scheduleIndex: number, times: number) => {
+    setBooking(prev => {
+      const newConfigs = [...prev.planConfigs];
+      const plan = { ...newConfigs[planIndex] };
+      const schedules = [...plan.schedules];
+      schedules[scheduleIndex] = { ...schedules[scheduleIndex], timesPerDay: times };
+      plan.schedules = schedules;
+      newConfigs[planIndex] = plan;
+      return { ...prev, planConfigs: newConfigs };
+    });
   };
 
   const handleNextToStep2 = () => {
-    if (booking.items.length === 0) {
-      setBooking(prev => ({
-        ...prev,
-        items: [{ planId: MOCK_PLANS[0].id, dates: [...selectedDatesPool], timesPerDay: 1 }]
-      }));
-    }
     setStep(2);
   };
 
@@ -77,199 +103,152 @@ const PublicBookingPage: React.FC = () => {
       return d.toISOString().split('T')[0];
     });
 
+    const isNextDisabled = booking.planConfigs.length === 0 || 
+                           booking.planConfigs.some(pc => pc.schedules.some(s => s.dates.length === 0));
+
     return (
       <div className="fade-in">
-        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem', fontFamily: 'var(--font-display)' }}>選擇服務日期</h2>
-        <p style={{ color: 'var(--color-on-surface-variant)', marginBottom: '2rem', fontSize: '0.875rem' }}>請點選保母前往照顧的日期範疇</p>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '2rem' }}>
-          {['日', '一', '二', '三', '四', '五', '六'].map(d => (
-            <div key={d} style={{ textAlign: 'center', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-on-surface-variant)' }}>{d}</div>
-          ))}
-          {days.map(date => {
-            const dayNum = new Date(date).getDate();
-            const isSelected = selectedDatesPool.includes(date);
-            return (
-              <div 
-                key={date}
-                onClick={() => toggleDateInPool(date)}
-                data-testid={`client-booking-date-${date}`}
-                style={{
-                  aspectRatio: '1/1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: isSelected ? '700' : '500',
-                  backgroundColor: isSelected ? 'var(--color-primary)' : 'var(--color-surface-low)',
-                  color: isSelected ? 'var(--color-on-primary)' : 'var(--color-on-surface)',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isSelected ? 'var(--shadow-ambient)' : 'none'
-                }}
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem', fontFamily: 'var(--font-display)' }}>排程配置</h2>
+        <p style={{ color: 'var(--color-on-surface-variant)', marginBottom: '2rem', fontSize: '0.875rem' }}>請先選擇服務方案，再點選需要的日期與每日趟次</p>
+
+        {/* 已經選擇的方案清單 */}
+        {booking.planConfigs.map((planConfig, pIdx) => {
+          const plan = MOCK_PLANS.find(p => p.id === planConfig.planId);
+          return (
+            <Card key={planConfig.planId} style={{ marginBottom: '2rem', padding: '1.5rem', backgroundColor: 'var(--color-surface-lowest)' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '700', marginBottom: '1.5rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '8px', height: '24px', backgroundColor: 'var(--color-primary)', borderRadius: '4px' }}></span>
+                {plan?.name}
+              </h3>
+              
+              {planConfig.schedules.map((schedule, sIdx) => (
+                <div key={sIdx} style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: sIdx < planConfig.schedules.length - 1 ? '1px dashed var(--color-outline-variant)' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>排程 #{sIdx + 1}</span>
+                    <button 
+                      onClick={() => removeScheduleFromPlan(pIdx, sIdx)} 
+                      style={{ color: 'var(--color-error)', border: 'none', background: 'none', cursor: 'pointer', padding: '4px' }}
+                      data-testid={`client-booking-remove-schedule-${pIdx}-${sIdx}`}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '1.5rem' }}>
+                    {['日', '一', '二', '三', '四', '五', '六'].map(d => (
+                      <div key={d} style={{ textAlign: 'center', fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-on-surface-variant)' }}>{d}</div>
+                    ))}
+                    {days.map(date => {
+                      const dayNum = new Date(date).getDate();
+                      const isSelectedHere = schedule.dates.includes(date);
+                      const isSelectedElsewhere = !isSelectedHere && allSelectedDates.includes(date);
+                      
+                      return (
+                        <div 
+                          key={date}
+                          onClick={() => !isSelectedElsewhere && toggleDateInSchedule(pIdx, sIdx, date)}
+                          data-testid={`client-booking-date-${pIdx}-${sIdx}-${date}`}
+                          style={{
+                            aspectRatio: '1/1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '12px',
+                            cursor: isSelectedElsewhere ? 'not-allowed' : 'pointer',
+                            fontSize: '0.875rem',
+                            fontWeight: isSelectedHere ? '700' : '500',
+                            backgroundColor: isSelectedHere ? 'var(--color-primary)' : isSelectedElsewhere ? 'var(--color-surface-lowest)' : 'var(--color-surface-low)',
+                            color: isSelectedHere ? 'var(--color-on-primary)' : isSelectedElsewhere ? 'var(--color-outline-variant)' : 'var(--color-on-surface)',
+                            transition: 'all 0.2s ease',
+                            boxShadow: isSelectedHere ? 'var(--shadow-ambient)' : 'none',
+                            textDecoration: isSelectedElsewhere ? 'line-through' : 'none'
+                          }}
+                        >
+                          {dayNum}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', display: 'block', marginBottom: '6px' }}>每日趟次</label>
+                    <select 
+                      value={schedule.timesPerDay} 
+                      onChange={(e) => updateTimesPerDay(pIdx, sIdx, parseInt(e.target.value))}
+                      style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--color-surface-low)', color: 'var(--color-on-surface)' }}
+                      data-testid={`client-booking-times-${pIdx}-${sIdx}`}
+                    >
+                      {[1, 2, 3].map(t => <option key={t} value={t}>{t} 次</option>)}
+                    </select>
+                  </div>
+                </div>
+              ))}
+
+              <Button 
+                variant="secondary" 
+                onClick={() => addScheduleToPlan(pIdx)} 
+                fullWidth 
+                style={{ borderStyle: 'dashed' }}
+                data-testid={`client-booking-btn-add-schedule-${pIdx}`}
               >
-                {dayNum}
-              </div>
-            );
-          })}
-        </div>
-        
+                <Plus size={18} /> 新增其他日期 (同方案)
+              </Button>
+            </Card>
+          );
+        })}
+
+        {/* 可供選擇的方案卡片區塊 */}
+        {isAddingPlan && (
+          <div style={{ marginBottom: '2rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '1rem', fontFamily: 'var(--font-display)' }}>選擇服務方案</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {MOCK_PLANS.filter(p => !booking.planConfigs.some(pc => pc.planId === p.id)).map(plan => (
+                <Card 
+                  key={plan.id} 
+                  onClick={() => addPlanConfig(plan.id)}
+                  style={{ cursor: 'pointer', padding: '1.5rem', backgroundColor: 'var(--color-surface-low)', transition: 'all 0.2s', border: 'none' }}
+                  data-testid={`client-booking-plan-card-${plan.id}`}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                    <h4 style={{ fontWeight: '700', margin: 0 }}>{plan.name}</h4>
+                    <span style={{ color: 'var(--color-primary)', fontWeight: '700' }}>$ {plan.price} / 趟</span>
+                  </div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', margin: 0 }}>{plan.description}</p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isAddingPlan && booking.planConfigs.length < MOCK_PLANS.length && (
+          <div style={{ marginBottom: '2rem' }}>
+            <Button variant="secondary" fullWidth onClick={() => setIsAddingPlan(true)} data-testid="client-booking-btn-add-plan">
+              <Plus size={18} /> 選擇其他方案
+            </Button>
+          </div>
+        )}
+
         <Button 
           className="btn-primary" 
           fullWidth 
-          disabled={selectedDatesPool.length === 0}
+          disabled={isNextDisabled}
           onClick={handleNextToStep2}
           data-testid="client-booking-btn-step1-next"
         >
-          下一步：配置方案排程 <ArrowRight size={18} />
+          最後確認 <ArrowRight size={18} />
         </Button>
       </div>
     );
   };
 
   const renderStep2 = () => {
-    return (
-      <div className="fade-in">
-        <h2 style={{ fontSize: '1.5rem', fontWeight: '700', marginBottom: '0.5rem', fontFamily: 'var(--font-display)' }}>預約方案配置</h2>
-        <p style={{ color: 'var(--color-on-surface-variant)', marginBottom: '2rem', fontSize: '0.875rem' }}>您可以為不同日期組合設定不同的方案與次數</p>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '2rem' }}>
-          {booking.items.map((item, idx) => (
-             <Card key={idx} style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface-lowest)', position: 'relative' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>預約項目 #{idx + 1}</span>
-                  {booking.items.length > 1 && (
-                    <button 
-                      onClick={() => removeItem(idx)} 
-                      style={{ color: 'var(--color-error)', border: 'none', background: 'none', cursor: 'pointer' }}
-                      data-testid={`client-booking-item-remove-${idx}`}
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                   <div>
-                     <label style={{ fontSize: '0.75rem', fontWeight: '700', display: 'block', marginBottom: '4px' }}>適用日期</label>
-                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {selectedDatesPool.map(date => {
-                          const isSelectedInItem = item.dates.includes(date);
-                          return (
-                            <div 
-                              key={date}
-                              onClick={() => toggleDateInItem(idx, date)}
-                              data-testid={`client-booking-item-${idx}-date-${date}`}
-                              style={{
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem',
-                                cursor: 'pointer',
-                                backgroundColor: isSelectedInItem ? 'var(--color-primary-container)' : 'var(--color-surface-low)',
-                                color: isSelectedInItem ? 'var(--color-on-primary-container)' : 'var(--color-on-surface-variant)',
-                                border: 'none',
-                                boxShadow: isSelectedInItem ? 'inset 0 0 0 1px var(--color-primary)' : 'none'
-                              }}
-                            >
-                              {date.split('-')[2]}日
-                            </div>
-                          );
-                        })}
-                     </div>
-                   </div>
-
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                     <div>
-                       <label style={{ fontSize: '0.75rem', fontWeight: '700', display: 'block', marginBottom: '4px' }}>選擇方案</label>
-                       <select 
-                         value={item.planId} 
-                         onChange={(e) => updateItem(idx, 'planId', e.target.value)}
-                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--color-surface-low)', color: 'var(--color-on-surface)' }}
-                         data-testid={`client-booking-item-${idx}-plan-select`}
-                       >
-                         {MOCK_PLANS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                       </select>
-                     </div>
-                     <div>
-                       <label style={{ fontSize: '0.75rem', fontWeight: '700', display: 'block', marginBottom: '4px' }}>每日趟次</label>
-                       <select 
-                         value={item.timesPerDay} 
-                         onChange={(e) => updateItem(idx, 'timesPerDay', parseInt(e.target.value))}
-                         style={{ width: '100%', padding: '10px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--color-surface-low)', color: 'var(--color-on-surface)' }}
-                         data-testid={`client-booking-item-${idx}-times-select`}
-                       >
-                         {[1, 2, 3].map(t => <option key={t} value={t}>{t} 次</option>)}
-                       </select>
-                     </div>
-                   </div>
-                </div>
-             </Card>
-          ))}
-
-          <Button 
-            variant="secondary" 
-            onClick={addItem} 
-            fullWidth 
-            style={{ borderStyle: 'dashed' }}
-            data-testid="client-booking-btn-add-item"
-          >
-            <Plus size={18} /> 新增預約項目
-          </Button>
-        </div>
-
-        <h3 style={{ fontSize: '1rem', fontWeight: '700', marginBottom: '1rem', fontFamily: 'var(--font-display)' }}>選擇參與毛孩</h3>
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '2rem' }}>
-          {MOCK_PETS.map(pet => {
-            const isSelected = booking.selectedPetIds.includes(pet.id);
-            return (
-              <div 
-                key={pet.id}
-                onClick={() => setBooking(prev => ({
-                  ...prev,
-                  selectedPetIds: isSelected ? prev.selectedPetIds.filter(id => id !== pet.id) : [...prev.selectedPetIds, pet.id]
-                }))}
-                data-testid={`client-booking-pet-${pet.id}`}
-                style={{
-                  padding: '12px 20px',
-                  borderRadius: '9999px',
-                  border: isSelected ? '2px solid var(--color-primary)' : 'none',
-                  backgroundColor: isSelected ? 'var(--color-surface-lowest)' : 'var(--color-surface-low)',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '0.875rem',
-                  color: isSelected ? 'var(--color-primary)' : 'var(--color-on-surface)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-              >
-                <Dog size={16} /> {pet.name}
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="secondary" onClick={() => setStep(1)} style={{ flex: 1 }} data-testid="client-booking-btn-step2-back">上一步</Button>
-          <Button 
-            className="btn-primary" 
-            style={{ flex: 2 }}
-            disabled={booking.selectedPetIds.length === 0 || booking.items.some(it => it.dates.length === 0)}
-            onClick={() => setStep(3)}
-            data-testid="client-booking-btn-step2-next"
-          >
-            最後確認 <ArrowRight size={18} />
-          </Button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderStep3 = () => {
-    const total = booking.items.reduce((acc, item) => {
-      const plan = MOCK_PLANS.find(p => p.id === item.planId);
-      return acc + (plan?.price || 0) * item.dates.length * item.timesPerDay;
+    // 計算總額
+    const total = booking.planConfigs.reduce((acc, planConfig) => {
+      const plan = MOCK_PLANS.find(p => p.id === planConfig.planId);
+      const planTotal = planConfig.schedules.reduce((sAcc, schedule) => {
+        return sAcc + (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay;
+      }, 0);
+      return acc + planTotal;
     }, 0);
 
     return (
@@ -281,30 +260,23 @@ const PublicBookingPage: React.FC = () => {
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase' }}>排程明細</label>
             <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {booking.items.map((item, idx) => {
-                const plan = MOCK_PLANS.find(p => p.id === item.planId);
-                return (
-                  <div key={idx} style={{ padding: '10px', backgroundColor: 'var(--color-surface-low)', borderRadius: '8px', borderLeft: '4px solid var(--color-primary)' }}>
-                    <div style={{ fontWeight: '700', fontSize: '0.875rem' }}>{plan?.name} (每天 {item.timesPerDay} 趟)</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
-                      日期：{item.dates.join(', ')}
+              {booking.planConfigs.map((planConfig, pIdx) => {
+                const plan = MOCK_PLANS.find(p => p.id === planConfig.planId);
+                return planConfig.schedules.map((schedule, sIdx) => (
+                  <div key={`${pIdx}-${sIdx}`} style={{ padding: '12px', backgroundColor: 'var(--color-surface-low)', borderRadius: '8px', borderLeft: '4px solid var(--color-primary)' }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.875rem', marginBottom: '4px' }}>{plan?.name} (每天 {schedule.timesPerDay} 趟)</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', lineHeight: '1.4' }}>
+                      日期：{schedule.dates.join(', ')}
                     </div>
-                    <div style={{ textAlign: 'right', fontWeight: '700', fontSize: '0.75rem', marginTop: '4px' }}>
-                      小計: $ {(plan?.price || 0) * item.dates.length * item.timesPerDay}
+                    <div style={{ textAlign: 'right', fontWeight: '700', fontSize: '0.875rem', marginTop: '8px' }}>
+                      小計: $ {(plan?.price || 0) * schedule.dates.length * schedule.timesPerDay}
                     </div>
                   </div>
-                );
+                ));
               })}
             </div>
           </div>
           
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase' }}>參與毛孩</label>
-            <p style={{ margin: '0.25rem 0', fontWeight: '600' }}>
-              {booking.selectedPetIds.map(id => MOCK_PETS.find(p => p.id === id)?.name).join(', ')}
-            </p>
-          </div>
-
           <div style={{ 
             backgroundColor: 'var(--color-surface-low)',
             margin: '1.5rem -1.5rem -1.5rem -1.5rem',
@@ -340,7 +312,7 @@ const PublicBookingPage: React.FC = () => {
         />
 
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="secondary" onClick={() => setStep(2)} style={{ flex: 1 }} data-testid="client-booking-btn-step3-back">上一步</Button>
+          <Button variant="secondary" onClick={() => setStep(1)} style={{ flex: 1 }} data-testid="client-booking-btn-step2-back">上一步</Button>
           <Button 
             className="btn-primary" 
             style={{ flex: 2 }}
@@ -358,12 +330,12 @@ const PublicBookingPage: React.FC = () => {
     <div style={{ padding: '2rem 1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
         <div style={{ display: 'flex', gap: '8px' }}>
-          {[1, 2, 3].map(s => (
+          {[1, 2].map(s => (
             <div 
               key={s} 
               data-testid={`client-booking-step-indicator-${s}`}
               style={{ 
-                width: '32px', height: '4px', 
+                width: '48px', height: '4px', 
                 backgroundColor: step >= s ? 'var(--color-primary)' : 'var(--color-surface-high)',
                 borderRadius: '2px',
                 transition: 'all 0.3s ease'
@@ -371,12 +343,11 @@ const PublicBookingPage: React.FC = () => {
             />
           ))}
         </div>
-        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-on-surface-variant)' }}>STEP {step} / 3</span>
+        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-on-surface-variant)' }}>STEP {step} / 2</span>
       </div>
 
       {step === 1 && renderStep1()}
       {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
     </div>
   );
 };

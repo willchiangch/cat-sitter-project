@@ -1,32 +1,24 @@
-# 任務清單：多趟次排程實作 (Visit-based Scheduling)
+# 預約精靈流程重構 (方案導向排程)
 
-## 1. 文件更新 (SD & ERD)
-- [x] 修正 `docs/sd/SD-ERD.md`，於 VISIT 新增 `plan_id` 欄位。
-- [x] 修正 `docs/sd/SD-005-public-booking.md`，更新 API 範例。
-- [x] 修正 `docs/test-scenario/TS-005-public-booking.md`，新增 Scenario 3 測試情境。
-- [x] TS-005-01 基礎預約流程驗證
-- [x] TS-005-02 複合式預約案例驗證 (多日期、多方案、多趟次)
-- [x] 優化 Playwright 報告 (截圖附件化)
-- [x] 專案審計與修復 (Project Auditor)
-    - [x] 修復 No-Line Rule 邊框違規
-    - [x] 驗證時區、金額精度、PWA 配置
-- [x] 更新 README.md
-- [x] 執行 persist-progress 同步進度
-
-## 2. 後端重構 (Backend)
-- [x] 建立 `BookingItemRequest.java`。
-- [x] 修正 `BookingRequest.java` 改用 `items`。
-- [x] 修正 `OrderItem.java` 新增排程欄位。
-- [x] 修正 `Visit.java` 新增 `planId` 欄位。
-- [x] 修正 `BookingService.java` 的訂單與趟次建立邏輯。
-- [x] 修正現有測試 (若編譯失敗) 並實作 `BookingServiceTest` 的 Scenario 3。
-
-## 3. 前端重構 (Frontend)
-- [x] 修正 `types/booking.ts` 狀態定義。
-- [x] 重構 `PublicBookingPage.tsx` Step 2 趟次矩陣。
-- [x] 重構 `PublicBookingPage.tsx` Step 3 金額計算。
-- [x] 更新 `e2e/client-booking.spec.ts` 測試腳本以符合新 UI。
-
-## 4. 驗證
-- [x] 執行後端 Maven 測試。
-- [x] 執行前端 E2E 測試。
+- [x] 1. 調整前端資料模型 (`types/booking.ts`)
+  - 新增 `ScheduleConfig`, `PlanConfig` 介面
+  - 更新 `BookingState` 的結構 (使用 `planConfigs` 取代 `items`)
+- [x] 2. 重構 `PublicBookingPage.tsx` 狀態與防呆邏輯
+  - 實作「全域已選日期」計算函式，用於日曆防呆
+  - 實作新增/更新/刪除方案區塊與排程列的邏輯
+- [x] 3. 實作「卡片式方案選擇」UI
+  - 點擊卡片新增 `PlanConfig` 區塊
+  - 已選方案卡片變更樣式/鎖定
+- [x] 4. 實作「排程配置區塊」UI
+  - 渲染選定方案的日曆選單與次數下拉
+  - 支援「新增同方案其他日期」按鈕
+- [x] 5. 實作「摘要與送出」UI
+  - 依據 `planConfigs` 計算各方案小計與總額
+  - 轉換 `planConfigs` 為 API 格式 (`BookingItemRequest[]`)
+- [x] 6. 更新 E2E 測試 (`e2e/client-booking.spec.ts`)
+  - 驗證單一方案預約情境
+  - 驗證複合方案與排程情境
+- [x] 7. 確保設計符合 `SD-FRONTEND-SPEC.md`
+  - 確認卡片層次與陰影規範
+  - 確認日期互斥防呆邏輯
+- [x] 8. 專案審計 (Project Auditor) 掃描完整度
