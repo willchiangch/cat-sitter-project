@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>預約精靈 - 新版 UI 模擬</title>
+  <!-- 引入 Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --color-bg: #f8fafc;
+      --color-surface: #ffffff;
+      --color-surface-low: #f1f5f9;
+      --color-surface-lowest: #f8fafc;
+      --color-primary: #6366f1;
+      --color-primary-hover: #4f46e5;
+      --color-primary-light: rgba(99, 102, 241, 0.08);
+      --color-text: #0f172a;
+      --color-text-variant: #64748b;
+      --color-border: #e2e8f0;
+      --color-error: #ef4444;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 20px;
+    }
+    
+    * { box-sizing: border-box; }
+
+    body {
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    
+    .app-container {
+      width: 100%;
+      max-width: 420px;
+      background: var(--color-surface);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+      min-height: 600px;
+    }
+
+    h2 { margin-top: 0; font-size: 1.5rem; letter-spacing: -0.025em; }
+
+    /* ========== Plan Selection Overlay (方案選擇畫面) ========== */
+    .plan-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--color-surface);
+      z-index: 20;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .plan-overlay.active {
+      transform: translateY(0);
+    }
+
+    .plan-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--color-surface);
+    }
+    .plan-card:hover:not(.disabled) {
+      border-color: var(--color-primary);
+      background: var(--color-primary-light);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+    .plan-card.disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background: var(--color-surface-lowest);
+      border-color: var(--color-border);
+    }
+    .plan-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    /* ========== Main Booking View (主要排程畫面) ========== */
+    .booking-view {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .selected-plan-container {
+      background: var(--color-surface-lowest);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      border: 1px solid var(--color-border);
+    }
+
+    .plan-title {
+      font-weight: 800;
+      color: var(--color-primary);
+      font-size: 1.125rem;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .plan-title::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 20px;
+      background: var(--color-primary);
+      border-radius: 4px;
+    }
+
+    .schedule-block {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Calendar Trigger & Mockup */
+    .calendar-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--color-primary);
+      background: var(--color-primary-light);
+      border: none;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.875rem;
+      transition: background 0.2s;
+    }
+    .calendar-trigger:hover {
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    .calendar-mockup {
+      display: none;
+      background: var(--color-surface-low);
+      padding: 16px;
+      border-radius: var(--radius);
+      margin-top: 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--color-border);
+    }
+    .calendar-mockup.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* Results layout */
+    .result-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 16px;
+      gap: 12px;
+    }
+
+    /* Dates Column */
+    .dates-col {
+      flex: 1;
+      padding-top: 8px; /* 對齊按鈕高度 */
+    }
+    .empty-dates {
+      color: var(--color-text-variant);
+      font-size: 0.875rem;
+      margin-top: 8px;
+    }
+    .date-year {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--color-text-variant);
+      margin-top: 12px;
+      margin-bottom: 4px;
+      letter-spacing: 0.05em;
+    }
+    .date-list {
+      color: var(--color-primary);
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    /* Stepper & Action Column */
+    .controls-col {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .stepper-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--color-surface-lowest);
+      padding: 0 16px;
+      height: 44px; /* 與 .calendar-trigger 同高 */
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+    }
+    .stepper-label {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--color-text-variant);
+    }
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .stepper-btn {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+    .stepper-btn:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+    .stepper-val {
+      font-weight: 800;
+      font-size: 1rem;
+      width: 20px;
+      text-align: center;
+    }
+
+    /* Schedule Bottom Actions */
+    .schedule-bottom {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--color-border);
+    }
+
+    .btn-add-date {
+      background: none;
+      border: none;
+      color: var(--color-primary);
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0;
+    }
+    .btn-trash {
+      background: none;
+      border: none;
+      color: var(--color-text-variant);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-trash:hover {
+      background: #fee2e2;
+      color: var(--color-error);
+    }
+
+    /* Out-of-container Actions */
+    .btn-add-plan {
+      width: 100%;
+      padding: 16px;
+      background: transparent;
+      border: 2px dashed var(--color-primary);
+      color: var(--color-primary);
+      border-radius: var(--radius-lg);
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-add-plan:hover {
+      background: var(--color-primary-light);
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.875rem;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--color-border);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- 方案選擇畫面 (疊加層) -->
+    <div class="plan-overlay active" id="planOverlay">
+      <h2 style="margin-bottom:8px">選擇服務方案</h2>
+      <p style="color: var(--color-text-variant); font-size: 0.875rem; margin-bottom: 24px;">請選擇符合您需求的照護方案</p>
+      
+      <div class="plan-card" onclick="selectPlan('基礎照顧')">
+        <div class="plan-card-header">
+          <h3 style="margin:0; font-size: 1.125rem">基礎照顧</h3>
+          <span style="color:var(--color-primary); font-weight:700">$ 500 / 趟</span>
+        </div>
+        <p style="margin:0; font-size:0.875rem; color:var(--color-text-variant)">包含換水、餵食、清砂盆、拍照記錄</p>
+      </div>
+      
+      <div class="plan-card" onclick="selectPlan('進階陪伴')">
+        <div class="plan-card-header">
+          <h3 style="margin:0; font-size: 1.125rem">進階陪伴</h3>
+          <span style="color:var(--color-primary); font-weight:700">$ 800 / 趟</span>
+        </div>
+        <p style="margin:0; font-size:0.875rem; color:var(--color-text-variant)">包含基礎照顧 + 陪玩 20 分鐘、梳毛</p>
+      </div>
+
+      <!-- 檔期不足被禁用的方案 -->
+      <div class="plan-card disabled">
+        <div class="plan-card-header">
+          <h3 style="margin:0; font-size: 1.125rem; color:var(--color-text-variant)">尊榮包月</h3>
+          <span style="color:var(--color-text-variant); font-weight:700">$ 15,000 / 月</span>
+        </div>
+        <p style="margin:0; font-size:0.875rem; color:var(--color-error); font-weight:600; margin-top:8px">
+          <i data-lucide="calendar-x" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px"></i>
+          此方案目前檔期已滿或不適用
+        </p>
+      </div>
+
+      <div style="margin-top:auto; text-align:center;">
+        <button class="btn-secondary" style="width:100%" onclick="toggleOverlay(false)">返回上頁</button>
+      </div>
+    </div>
+
+    <!-- 主要預約畫面 -->
+    <div class="booking-view" id="mainView">
+      <h2>排程配置</h2>
+      
+      <!-- 方案容器 (Plan Container) -->
+      <div class="selected-plan-container">
+        <div class="plan-title">基礎照顧</div>
+        
+        <!-- 排程區塊 (Schedule Block) -->
+        <div class="schedule-block">
+          
+          <!-- 上半部操作區 (日期選擇與步進器並排) -->
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 16px;">
+            <button class="calendar-trigger" onclick="toggleCalendar()" style="flex-shrink:0;">
+              <i data-lucide="calendar-days" style="width:18px; height:18px"></i> 選擇日期
+            </button>
+
+            <div class="stepper-box">
+              <div class="stepper-label">每日次數</div>
+              <div class="stepper">
+                <button class="stepper-btn" onclick="updateTimes(-1)"><i data-lucide="minus" style="width:14px"></i></button>
+                <div class="stepper-val" id="timesVal">1</div>
+                <button class="stepper-btn" onclick="updateTimes(1)"><i data-lucide="plus" style="width:14px"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 日曆模擬區塊 (隱藏) -->
+          <div class="calendar-mockup" id="calendarMockup">
+            <p style="margin:0 0 12px 0; font-size:0.875rem; color:var(--color-text-variant)">
+              (假設在此點選了以下日期) <br>
+              2025/12/27, 2025/12/28, 2025/12/29<br>
+              2026/1/1, 2026/1/2
+            </p>
+            <div style="display:flex; justify-content:flex-end">
+               <button class="btn-primary" onclick="confirmDates()">確定日期</button>
+            </div>
+          </div>
+
+          <!-- 下半部展示區 -->
+          <div class="result-container" style="margin-top:0;">
+            <!-- 日期垂直顯示區 -->
+            <div class="dates-col" id="dateDisplay">
+              <div class="empty-dates">未選擇日期</div>
+            </div>
+
+            <!-- 垃圾桶 (刪除該日期排程) -->
+            <div class="controls-col">
+              <button class="btn-trash" title="移除此日期排程">
+                <i data-lucide="trash-2" style="width:18px"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 排程底部動作 -->
+          <div class="schedule-bottom">
+            <button class="btn-add-date">
+              <i data-lucide="plus" style="width:16px"></i> 新增其他日期
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 容器外的動作 -->
+      <button class="btn-add-plan" onclick="toggleOverlay(true)">
+        <i data-lucide="plus-circle" style="width:20px"></i> 新增其他方案
+      </button>
+
+      <div style="margin-top: 24px">
+        <button class="btn-primary" style="width: 100%">
+          最後確認
+          <i data-lucide="arrow-right" style="width:20px"></i>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+>>>>+++ REPLACE
+
+
+  <script>
+    // 渲染 Lucide Icons
+    lucide.createIcons();
+
+    function toggleOverlay(show) {
+      document.getElementById('planOverlay').classList.toggle('active', show);
+    }
+
+    function selectPlan(name) {
+      // 模擬選中方案，隱藏覆蓋層
+      toggleOverlay(false);
+    }
+
+    function toggleCalendar() {
+      const cal = document.getElementById('calendarMockup');
+      cal.classList.toggle('active');
+    }
+
+    function confirmDates() {
+      // 隱藏日曆
+      document.getElementById('calendarMockup').classList.remove('active');
+      
+      // 更新日期顯示，模擬根據年份群組的結果
+      const display = document.getElementById('dateDisplay');
+      display.innerHTML = `
+        <div class="date-year">2025年</div>
+        <div class="date-list">12/27, 12/28, 12/29</div>
+        <div class="date-year">2026年</div>
+        <div class="date-list">1/1, 1/2</div>
+      `;
+    }
+
+    let times = 1;
+    function updateTimes(delta) {
+      times += delta;
+      if (times < 1) times = 1;
+      if (times > 9) times = 9;
+      document.getElementById('timesVal').innerText = times;
+    }
+  </script>
+</body>
+</html>

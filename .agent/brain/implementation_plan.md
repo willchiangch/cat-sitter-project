@@ -1,70 +1,35 @@
-# 預約精靈流程重構 (方案導向排程)
+# 預約精靈 UI 排版與月曆組件優化實作計畫 (極簡並排版)
 
-## 目標與背景
-根據您的最新回饋，預約流程將從「先選全部日期 -> 分配方案」翻轉為「先選方案 -> 分配日期與次數」。這樣的層次結構更符合直覺，且支援同一方案內配置多組不同的日期/次數，同時避免日期與方案的重複選取。
+為了解決在特定解析度或容器限制下，「每日次數」與「選擇日期」控制列超出邊界的問題，我們引進極簡化與垂直緊湊的現代 UI 設計。
 
 ## User Review Required
 
 > [!IMPORTANT]
-> 此重構將大幅改變 `PublicBookingPage.tsx` 的操作動線與 UI 結構。
-> 已根據您的回饋，將方案選擇改為 **卡片式呈現**。
-> **請再次檢視下方的 UI 流程與狀態模型設計，確認是否可以開始動工？**
+> 1. **選擇日期純 Icon 化**：將「選擇日期」按鈕移除文字，改為純主色圓形 Icon 按鈕。點擊即可彈出月曆，維持 `data-testid` 不變。
+> 2. **每日次數兩行化**：將「每日次數」容器改為垂直雙行佈局。第一行為精緻小字標籤「每日次數」，第二行為小巧的減/加按鈕與數值，減少水平佔用空間。
+> 3. **極窄並排**：兩者水平並排，整體寬度將大幅縮減至約 150px 左右，徹底消除在小寬度容器下的溢出問題。
 
-## 提出的架構變更
-
-### 1. 前端資料狀態調整 (BookingState)
-為了支援以「方案」為群組的結構，前端內部狀態將調整為層次化的 `PlanConfig`，但在送出訂單時，會自動扁平化轉譯為後端原本就支援的 `BookingItemRequest` 陣列，**無需改動後端 API**。
-
-```typescript
-interface ScheduleConfig {
-  dates: string[]; // 該組選擇的日期
-  timesPerDay: number; // 該組選擇的每日趟次
-}
-
-interface PlanConfig {
-  planId: string; // 選擇的方案 (各 PlanConfig 互斥，不能選重複的)
-  schedules: ScheduleConfig[]; // 該方案下的多組日期排程
-}
-
-// BookingState 更新
-interface BookingState {
-  sitterId: string;
-  planConfigs: PlanConfig[]; // 取代原本的 items
-  notes: string;
-  totalAmount: number;
-}
-```
-
-### 2. UI 動線與元件重構 (PublicBookingPage.tsx)
-
-流程將整合成兩大步驟 (Step 1: 排程配置 -> Step 2: 摘要與送出)：
-
-#### 【Step 1】排程配置
-畫面將以「方案區塊 (Plan Section)」為單位展開：
-*   **選擇方案 (卡片式呈現)**：
-    *   頁面上會列出該保母提供的所有方案，以**卡片 (Cards)** 的形式並排呈現 (顯示方案名稱、價格、說明)。
-    *   使用者點擊其中一張卡片來啟用該方案的排程配置。
-    *   **方案互斥防呆**：如果某方案已經被選取並建立排程，該方案的卡片會呈現「已選取」狀態，無法被重複新增為獨立的第二個方案區塊。
-*   **該方案內的排程清單 (Schedules)**：
-    *   選定方案後，下方展開排程設定區塊。
-    *   每一列包含：「日曆元件 (選日期)」 + 「趟次選擇器 (選次數)」。
-    *   **日期互斥防呆**：全域已選取的日期 (不論是哪個方案、哪組排程)，在日曆上都會被 Disable (灰色不可點擊)，防止衝堂。
-    *   **按鈕「+ 新增其他日期 (同方案)」**：在該方案區塊內，新增另一組獨立的排程設定列。
-*   **按鈕「+ 選擇其他方案」**：若使用者想搭配不同的方案 (例如：基礎與進階混搭)，點擊後可再次看到方案卡片列表，選擇另一個尚未選過的方案。
-
-#### 【Step 2】摘要確認與送出
-*   顯示以「方案」為分類的金額計算與明細清單。
-*   輸入備註。
-*   將 `planConfigs` 轉換為 `BookingItemRequest[]` 格式並送出。
-
-### 3. E2E 測試腳本更新
-大幅修改 `e2e/client-booking.spec.ts` 以適應新的卡片點擊操作：
-*   驗證點擊方案卡片、再選日曆的流程。
-*   驗證同一方案內新增第二組排程。
-*   驗證跨方案的總金額計算。
+## Proposed Changes
 
 ---
 
-## 驗證計畫
-1.  **功能測試**：手動操作 UI，測試點擊方案卡片、新增/刪除排程，確認防呆邏輯（已選方案卡片狀態、互斥的日曆日期）正確運作。
-2.  **E2E 驗證**：運行 Playwright 測試確保所有新流程都能被自動化腳本覆蓋，並截圖輸出。
+### 前端 UI 優化
+
+#### [MODIFY] [PublicBookingPage.tsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/client/PublicBookingPage.tsx)
+
+1. **選擇日期按鈕極簡化**：
+   - 將 `<button data-testid="client-booking-open-calendar-pIdx-sIdx">` 修改為 `width: '44px'`, `height: '44px'`, `borderRadius: '50%'` 的純圓形 Icon 按鈕，僅保留 `CalendarDays` Icon。
+   - 加上 `title="選擇日期"` 強化 Accessibility。
+
+2. **每日次數兩行式佈局**：
+   - 外部包裹容器改用 `flexDirection: 'column'` 進行垂直排列，並加上細微內陰影與圓角（`borderRadius: '16px'`）。
+   - 「每日次數」文字尺寸縮小為 `0.75rem`，以小標籤形式呈現。
+   - 微調加減按鈕尺寸為 `24px * 24px`，Icon 尺寸改為 `10`，以保持視覺比例協調與極致精細感。
+
+## Verification Plan
+
+### Automated Tests
+- 在前端目錄下執行 `npx playwright test`，驗證所有 E2E 測試案例是否仍穩定通過。
+
+### Manual Verification
+- 檢查變更後的 UI 視覺，確認選擇日期圓形 Icon 按鈕與兩行式每日次數卡片在同一水平線上並排，無任何溢出或不對齊。

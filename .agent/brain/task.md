@@ -1,24 +1,5 @@
-# 預約精靈流程重構 (方案導向排程)
+# 預約精靈 UI 排版與月曆重構任務清單 (極簡版)
 
-- [x] 1. 調整前端資料模型 (`types/booking.ts`)
-  - 新增 `ScheduleConfig`, `PlanConfig` 介面
-  - 更新 `BookingState` 的結構 (使用 `planConfigs` 取代 `items`)
-- [x] 2. 重構 `PublicBookingPage.tsx` 狀態與防呆邏輯
-  - 實作「全域已選日期」計算函式，用於日曆防呆
-  - 實作新增/更新/刪除方案區塊與排程列的邏輯
-- [x] 3. 實作「卡片式方案選擇」UI
-  - 點擊卡片新增 `PlanConfig` 區塊
-  - 已選方案卡片變更樣式/鎖定
-- [x] 4. 實作「排程配置區塊」UI
-  - 渲染選定方案的日曆選單與次數下拉
-  - 支援「新增同方案其他日期」按鈕
-- [x] 5. 實作「摘要與送出」UI
-  - 依據 `planConfigs` 計算各方案小計與總額
-  - 轉換 `planConfigs` 為 API 格式 (`BookingItemRequest[]`)
-- [x] 6. 更新 E2E 測試 (`e2e/client-booking.spec.ts`)
-  - 驗證單一方案預約情境
-  - 驗證複合方案與排程情境
-- [x] 7. 確保設計符合 `SD-FRONTEND-SPEC.md`
-  - 確認卡片層次與陰影規範
-  - 確認日期互斥防呆邏輯
-- [x] 8. 專案審計 (Project Auditor) 掃描完整度
+- [x] 將 `PublicBookingPage.tsx` 中的「選擇日期」按鈕改為純圓形 Icon 按鈕
+- [x] 將「每日次數」容器改為垂直上下兩行之精緻小卡片佈局
+- [x] 執行 E2E 測試驗證修改結果是否通過

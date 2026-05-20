@@ -7,6 +7,11 @@ spring:
     open-in-view: false
   jackson:
     default-property-inclusion: non-null
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
 
 app:
   security:
