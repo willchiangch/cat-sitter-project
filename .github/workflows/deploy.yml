@@ -1,0 +1,131 @@
+name: Build and Deploy to GCP
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write # WIF OIDC 登入必備
+
+env:
+  PROJECT_ID: 'wd-pet-sitter'
+  REGION: 'asia-east1'
+  AR_REPO: 'cat-sitter-repo'
+  IMAGE_NAME: 'cat-sitter-app'
+  DB_INSTANCE: 'cat-sitter-db'
+  SERVICE_NAME: 'cat-sitter-app'
+  RUNNER_SA: 'cat-sitter-runner@wd-pet-sitter.iam.gserviceaccount.com'
+
+jobs:
+  deploy:
+    name: Build, Test and Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 1. 登入 Google Cloud (透過 WIF OIDC)
+      # 請在 GitHub Secrets 中設定 GCP_PROJECT_NUMBER
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-actions-deployer@wd-pet-sitter.iam.gserviceaccount.com'
+
+      # 2. 設定 Google Cloud CLI
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      # 3. 喚醒 Cloud SQL Database
+      - name: Start Cloud SQL Database
+        run: |
+          echo "Starting ${{ env.DB_INSTANCE }} database..."
+          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS
+          
+          echo "Polling database status until RUNNABLE..."
+          for i in {1..30}; do
+            STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
+            echo "Current status: $STATUS"
+            if [ "$STATUS" = "RUNNABLE" ]; then
+              echo "Database is ready!"
+              break
+            fi
+            sleep 10
+          done
+          
+          # 雙重檢查以防超時失敗
+          STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
+          if [ "$STATUS" != "RUNNABLE" ]; then
+            echo "Error: Database did not reach RUNNABLE state in time."
+            exit 1
+          fi
+
+      # 4. 建置前端並移動至後端靜態目錄
+      - name: Set up Node.js and Build Frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build Frontend Static Assets
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          # 建立後端靜態資源目錄並複製 dist 檔案
+          mkdir -p ../backend/src/main/resources/static
+          cp -r dist/* ../backend/src/main/resources/static/
+
+      # 5. 配置 Docker 認證登入 GCP Artifact Registry
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      # 6. Build and Push Backend Docker Image (內嵌前端靜態資源)
+      - name: Build and Push Docker Image
+        run: |
+          cd backend
+          IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # 7. 部署至 GCP Cloud Run
+      - name: Deploy to Cloud Run
+        id: deploy-run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.IMAGE_TAG }} \
+            --region=${{ env.REGION }} \
+            --service-account=${{ env.RUNNER_SA }} \
+            --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE }} \
+            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SPRING_DATASOURCE_USERNAME=petsitter_user \
+            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest \
+            --allow-unauthenticated \
+            --quiet
+          
+          # 取得 Cloud Run 部署 URL
+          RUN_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format="value(status.url)")
+          echo "BASE_URL=$RUN_URL" >> $GITHUB_ENV
+
+      # 8. 執行 Playwright E2E 測試
+      - name: Install Playwright Browsers and Run Tests
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+          # 使用 Cloud Run 部署 URL 作為測試目標，並略過啟動本地 webServer
+          BASE_URL=${{ env.BASE_URL }} npx playwright test
+
+      # 9. 關閉 Cloud SQL Database (安全防護：無論前述步驟成功或失敗皆必定執行)
+      - name: Stop Cloud SQL Database
+        if: always()
+        run: |
+          echo "Shutting down ${{ env.DB_INSTANCE }} to minimize costs..."
+          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=NEVER

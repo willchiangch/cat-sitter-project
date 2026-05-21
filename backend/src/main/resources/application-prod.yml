@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    # Cloud SQL Socket Factory 格式
+    url: jdbc:postgresql:///petsitter_db?cloudSqlInstance=wd-pet-sitter:asia-east1:cat-sitter-db&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 2
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    baseline-on-migrate: false  # prod 是全新 DB，不需要 baseline
+
+app:
+  security:
+    jwt-secret: ${APP_SECURITY_JWT_SECRET}
+    jwt-expiration: 86400000

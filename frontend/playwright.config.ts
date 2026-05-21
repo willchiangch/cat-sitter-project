@@ -14,7 +14,7 @@ export default defineConfig({
   outputDir: 'test-results/',
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: process.env.BASE_URL || 'http://localhost:5173',
     
     // 僅開啟截圖與 Trace，關閉錄影
     screenshot: 'on',
@@ -29,7 +29,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] }
     }
   ],
-  webServer: {
+  webServer: process.env.BASE_URL ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI
