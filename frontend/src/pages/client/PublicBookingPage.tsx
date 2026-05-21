@@ -143,12 +143,6 @@ const PublicBookingPage: React.FC = () => {
   };
 
   const renderStep1 = () => {
-    const days = Array.from({ length: 30 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return d.toISOString().split('T')[0];
-    });
-
     const isNextDisabled = booking.planConfigs.length === 0 || 
                            booking.planConfigs.some(pc => pc.schedules.some(s => s.dates.length === 0));
 
