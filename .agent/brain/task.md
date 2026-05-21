@@ -15,6 +15,6 @@
 - [x] **CI/CD 自動化實作**
   - [x] 建立前端打包至後端的建置指令
   - [x] 撰寫 `.github/workflows/deploy.yml` 檔 (包含 WIF 登入、自動開關機 Shell 與 Playwright 觸發)
-- [ ] **驗證**
-  - [ ] 測試 GitHub Actions 連通性與 Cloud Run 部署成功率
-  - [ ] 驗證部署後自動關機安全鎖 (`always()` 觸發) 確實將 `cat-sitter-db` 關機
+- [x] **驗證**
+  - [x] 測試 GitHub Actions 連通性與 Cloud Run 部署成功率
+  - [x] 驗證部署後自動關機安全鎖 (`always()` 觸發) 確實將 `cat-sitter-db` 關機
