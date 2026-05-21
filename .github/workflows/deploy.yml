@@ -45,7 +45,7 @@ jobs:
       - name: Start Cloud SQL Database
         run: |
           echo "Starting ${{ env.DB_INSTANCE }} database..."
-          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS
+          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS --async
           
           echo "Polling database status until RUNNABLE..."
           for i in {1..30}; do
@@ -123,9 +123,29 @@ jobs:
           # 使用 Cloud Run 部署 URL 作為測試目標，並略過啟動本地 webServer
           BASE_URL=${{ env.BASE_URL }} npx playwright test
 
-      # 9. 關閉 Cloud SQL Database (安全防護：無論前述步驟成功或失敗皆必定執行)
+      # 9. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
+      - name: Upload Playwright Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/report/
+          retention-days: 3
+
+      # 10. 關閉 Cloud SQL Database (安全防護：無論前述步驟成功或失敗皆必定執行)
       - name: Stop Cloud SQL Database
         if: always()
         run: |
+          echo "Checking database state before shutting down..."
+          for i in {1..20}; do
+            STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
+            echo "Current DB state: $STATUS"
+            if [ "$STATUS" = "RUNNABLE" ] || [ "$STATUS" = "STOPPED" ]; then
+              echo "No active blocking operations, safe to proceed."
+              break
+            fi
+            sleep 10
+          done
+          
           echo "Shutting down ${{ env.DB_INSTANCE }} to minimize costs..."
-          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=NEVER
+          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=NEVER --async
