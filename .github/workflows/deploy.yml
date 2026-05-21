@@ -44,26 +44,65 @@ jobs:
       # 3. 喚醒 Cloud SQL Database
       - name: Start Cloud SQL Database
         run: |
-          echo "Starting ${{ env.DB_INSTANCE }} database..."
-          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS --async
-          
-          echo "Polling database status until RUNNABLE..."
+          echo "Checking for any running database operations..."
           for i in {1..30}; do
+            RUNNING_OP=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name,status)" | grep -E "RUNNING|PENDING" | awk '{print $1}')
+            if [ -z "$RUNNING_OP" ]; then
+              echo "No active operations. Safe to start."
+              break
+            fi
+            echo "Operation $RUNNING_OP is still running/pending. Waiting 10s..."
+            sleep 10
+          done
+
+          # 檢查當前資料庫是否已經是開機狀態 (ALWAYS)
+          POLICY=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(settings.activationPolicy)")
+          STATE=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
+          if [ "$POLICY" = "ALWAYS" ] && [ "$STATE" = "RUNNABLE" ]; then
+            echo "Database is already running and ready."
+          else
+            echo "Starting ${{ env.DB_INSTANCE }} database..."
+            gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS --async
+            
+            sleep 5
+            # 取得剛剛觸發的 operation ID
+            OP_ID=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name)")
+            echo "Triggered operation ID: $OP_ID"
+            
+            echo "Polling database operation until DONE..."
+            for i in {1..40}; do
+              OP_STATUS=$(gcloud sql operations describe $OP_ID --format="value(status)")
+              echo "Operation status: $OP_STATUS"
+              if [ "$OP_STATUS" = "DONE" ]; then
+                break
+              fi
+              sleep 10
+            done
+
+            # 檢查 operation 是否真的成功
+            OP_STATUS=$(gcloud sql operations describe $OP_ID --format="value(status)")
+            if [ "$OP_STATUS" != "DONE" ]; then
+              echo "Warning: Database operation did not complete in time, but proceeding..."
+            fi
+          fi
+
+          # 確保資料庫狀態為 RUNNABLE
+          echo "Verifying database state..."
+          for i in {1..10}; do
             STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
-            echo "Current status: $STATUS"
+            echo "Database state: $STATUS"
             if [ "$STATUS" = "RUNNABLE" ]; then
-              echo "Database is ready!"
               break
             fi
             sleep 10
           done
-          
-          # 雙重檢查以防超時失敗
+
           STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
           if [ "$STATUS" != "RUNNABLE" ]; then
-            echo "Error: Database did not reach RUNNABLE state in time."
+            echo "Error: Database is not in RUNNABLE state."
             exit 1
           fi
+          echo "Database is fully ready and accepting connections!"
 
       # 4. 建置前端並移動至後端靜態目錄
       - name: Set up Node.js and Build Frontend
@@ -136,16 +175,22 @@ jobs:
       - name: Stop Cloud SQL Database
         if: always()
         run: |
-          echo "Checking database state before shutting down..."
-          for i in {1..20}; do
-            STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
-            echo "Current DB state: $STATUS"
-            if [ "$STATUS" = "RUNNABLE" ] || [ "$STATUS" = "STOPPED" ]; then
-              echo "No active blocking operations, safe to proceed."
+          echo "Checking for any running database operations before shutting down..."
+          for i in {1..30}; do
+            RUNNING_OP=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name,status)" | grep -E "RUNNING|PENDING" | awk '{print $1}')
+            if [ -z "$RUNNING_OP" ]; then
+              echo "No active operations. Safe to stop."
               break
             fi
+            echo "Operation $RUNNING_OP is still running/pending. Waiting 10s..."
             sleep 10
           done
-          
-          echo "Shutting down ${{ env.DB_INSTANCE }} to minimize costs..."
-          gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=NEVER --async
+
+          # 檢查當前資料庫是否已經是關機狀態 (NEVER)
+          POLICY=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(settings.activationPolicy)")
+          if [ "$POLICY" = "NEVER" ]; then
+            echo "Database is already configured to NEVER run."
+          else
+            echo "Shutting down ${{ env.DB_INSTANCE }} to minimize costs..."
+            gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=NEVER --async
+          fi
