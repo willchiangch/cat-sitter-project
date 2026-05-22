@@ -24,6 +24,15 @@ public class PlanGatingAspect {
 
     @Before("@annotation(requirePlan)")
     public void checkPlan(JoinPoint joinPoint, RequirePlan requirePlan) {
+        doCheckPlan(joinPoint, requirePlan);
+    }
+
+    @Before("@within(requirePlan) && !@annotation(com.petsitter.infrastructure.security.gating.RequirePlan)")
+    public void checkClassPlan(JoinPoint joinPoint, RequirePlan requirePlan) {
+        doCheckPlan(joinPoint, requirePlan);
+    }
+
+    private void doCheckPlan(JoinPoint joinPoint, RequirePlan requirePlan) {
         PlanTier requiredTier = requirePlan.value();
         
         // 1. 取得 Sitter ID (從參數中尋找)

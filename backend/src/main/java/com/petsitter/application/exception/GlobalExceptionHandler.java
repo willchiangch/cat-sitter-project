@@ -30,12 +30,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         String msg = ex.getMessage() != null ? ex.getMessage() : "";
-        if (msg.contains("orders_idempotency_key_key") || msg.contains("idempotency_key")) {
+        if (msg.toLowerCase().contains("idempotency")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "DUPLICATE_REQUEST", "message", "系統已受理此請求，請勿重複送單"));
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", "DATA_ERROR", "message", "資料處理異常"));
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "FORBIDDEN", "message", "權限不足"));
     }
 
     @ExceptionHandler(CapacityFullException.class)

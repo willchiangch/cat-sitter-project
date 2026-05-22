@@ -1,20 +1,28 @@
-# GCP 極省錢部署與 CI/CD 工作流任務清單 (修訂版 2)
+- [x] **1. CareNoteService 測試實作 (Service 層)**
+  - [x] 實作 `CareNoteServiceTest.java` 涵蓋：
+    - [x] Scenario 1: getCareNote 首次初始化 (AC-1)
+    - [x] Scenario 2: saveCareNote Recreate-on-Save 覆蓋重排與通知 (AC-2, AC-4)
+    - [x] Scenario 3: createTemplate 數量限制拋出例外 (AC-3)
+    - [x] Scenario 4: applyTemplate 的 Append-Only 追加模式與通知 (AC-4)
+    - [x] Scenario 10: Advisory Lock 並發超量防護 (SD-021 §1.5)
 
-- [x] **GCP 基礎設施與憑證初始化 (手動/CLI)** (使用者已完成)
-  - [x] 啟用必要 API (sqladmin, run, registry, secretmanager, iamcredentials)
-  - [x] 建立 Artifact Registry 與 Cloud SQL (`db-f1-micro`)
-  - [x] 於 Cloud SQL 內建立 `petsitter_db` 資料庫與 `petsitter_user` 使用者
-  - [x] 於 Secret Manager 內建立 `DB_PASSWORD` 與 `JWT_SECRET` 兩個 secret
-  - [x] 建立專屬 Cloud Run Runtime SA (`cat-sitter-runner`) 並授權讀取上面兩個 secret 與 SQL Client
-  - [x] 建立部署專用 SA (`github-actions-deployer`) 並授予相關部署權限
-  - [x] 設定 Workload Identity Federation (WIF) OIDC 連結，綁定 GitHub Repo
-- [x] **專案配置與代碼調整 (Blocking)**
-  - [x] 於 `pom.xml` 中引入 `postgres-socket-factory` 依賴
-  - [x] 新增 `application-prod.yml` 並限制 `maximum-pool-size: 2` 且對齊環境變數名稱
-  - [x] 調整 `frontend/playwright.config.ts` 的 `baseURL` 與 `webServer` 配置
-- [x] **CI/CD 自動化實作**
-  - [x] 建立前端打包至後端的建置指令
-  - [x] 撰寫 `.github/workflows/deploy.yml` 檔 (包含 WIF 登入、自動開關機 Shell 與 Playwright 觸發)
-- [x] **驗證**
-  - [x] 測試 GitHub Actions 連通性與 Cloud Run 部署成功率
-  - [x] 驗證部署後自動關機安全鎖 (`always()` 觸發) 確實將 `cat-sitter-db` 關機
+- [x] **2. CareMediaService 測試實作 (Service 層)**
+  - [x] 實作 `CareMediaServiceTest.java` 涵蓋：
+    - [x] Scenario 5: uploadMedia 數量限制拋出例外 (AC-6)
+    - [x] Scenario 6: uploadMedia DB 儲存失敗時的 GCS 反向補償清除
+    - [x] Scenario 7: deleteMedia 正常刪除與 GCS 同步刪除與通知 (AC-7)
+
+- [x] **3. Controller 層整合測試實作 (API / Security / Idempotency)**
+  - [x] 實作 `CareNoteControllerTest.java` 涵蓋：
+    - [x] Scenario 8a: 飼主唯讀寫入端點拒絕 (403)
+    - [x] Scenario 8b: IDOR 越權防護 — 無關保母讀取 (403)
+    - [x] Scenario 8c: OR 邏輯驗證 — 飼主合法讀取 GET (200)
+    - [x] Scenario 9: Idempotency 重複請求回傳 409
+  - [x] 實作 `CareMediaControllerTest.java` 涵蓋：
+    - [x] 媒體上傳/刪除/查詢的 IDOR 越權與唯讀驗證
+    - [x] 媒體上傳/刪除的冪等性驗證
+
+- [x] **4. 驗證與審計**
+  - [x] 執行本地單元測試 `mvn test` 確保全部通過
+  - [x] 執行 `/project-auditor` 確認稽核結果由 AT RISK 變更為 COMPLIANT
+  - [x] 更新 `walkthrough.md` 總結測試結果與合規狀態
