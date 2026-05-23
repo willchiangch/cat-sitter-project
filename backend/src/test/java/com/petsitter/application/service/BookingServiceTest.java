@@ -58,6 +58,9 @@ class BookingServiceTest {
     private UserRepository userRepository;
 
     @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private ServicePlanRepository servicePlanRepository;
 
     @Autowired
@@ -69,6 +72,7 @@ class BookingServiceTest {
 
     @BeforeEach
     void setUp() {
+        subscriptionRepository.deleteAll();
         visitRepository.deleteAll();
         orderSnapshotRepository.deleteAll();
         orderRepository.deleteAll();

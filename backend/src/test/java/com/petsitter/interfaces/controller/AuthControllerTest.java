@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.dto.LoginRequest;
 import com.petsitter.application.dto.RegisterRequest;
 import com.petsitter.domain.repository.UserRepository;
+import com.petsitter.domain.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,12 +47,16 @@ class AuthControllerTest {
     private UserRepository userRepository;
 
     @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
+        subscriptionRepository.deleteAll();
         userRepository.deleteAll();
     }
 

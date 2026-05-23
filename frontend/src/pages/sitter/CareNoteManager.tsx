@@ -49,6 +49,7 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
   const uploadKeyRef = useRef<string | null>(null);
   const saveAsTemplateKeyRef = useRef<string | null>(null);
   const deleteKeyRef = useRef<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 載入記事本資料並平鋪為前端 state
   useEffect(() => {
@@ -250,8 +251,9 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           setMediaFile(null);
           setMediaCaption('');
           // 清空 file input value
-          const fileInput = document.getElementById('media-upload-input') as HTMLInputElement;
-          if (fileInput) fileInput.value = '';
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
           alert('圖片上傳成功');
         },
         onError: (err: any) => {
@@ -501,6 +503,7 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
               <div>
                 <input
                   id="media-upload-input"
+                  ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   onChange={(e) => setMediaFile(e.target.files?.[0] || null)}

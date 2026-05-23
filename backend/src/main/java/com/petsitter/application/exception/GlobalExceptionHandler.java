@@ -75,4 +75,10 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "STATE_CONFLICT", "message", ex.getMessage()));
     }
+
+    @ExceptionHandler(VisitReportException.class)
+    public ResponseEntity<Map<String, String>> handleVisitReport(VisitReportException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
 }

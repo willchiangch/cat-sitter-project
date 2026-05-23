@@ -6,10 +6,12 @@ import OrderEvalView from './pages/sitter/OrderEvalView';
 import PublicBookingPage from './pages/client/PublicBookingPage';
 import CareNoteManager from './pages/sitter/CareNoteManager';
 import CareNoteView from './pages/client/CareNoteView';
+import VisitReportManager from './pages/sitter/VisitReportManager';
+import VisitReportView from './pages/client/VisitReportView';
 
 type ViewState = {
-  name: 'demo' | 'orders' | 'eval' | 'booking' | 'carenote-manager' | 'carenote-view';
-  params?: { sitterId: string; ownerId: string };
+  name: 'demo' | 'orders' | 'eval' | 'booking' | 'carenote-manager' | 'carenote-view' | 'visit-report-manager' | 'visit-report-view';
+  params?: { sitterId: string; ownerId: string; visitId?: string };
 };
 
 function App() {
@@ -17,10 +19,11 @@ function App() {
   const [view, setView] = useState<ViewState>({ name: 'demo' });
   const [authReady, setAuthReady] = useState(false);
 
-  // 測試用的 Mock Sitter / Owner UUID
+  // 測試用的 Mock Sitter / Owner / Visit UUID
   const mockParams = {
     sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
-    ownerId: '1031efbc-583a-4062-9a35-15706a3384c6'
+    ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
+    visitId: '2624511e-3f10-4376-b81e-7fb02e615dda'
   };
 
   useEffect(() => {
@@ -77,6 +80,18 @@ function App() {
             ownerId={view.params?.ownerId || mockParams.ownerId}
           />
         );
+      case 'visit-report-manager':
+        return (
+          <VisitReportManager
+            visitId={view.params?.visitId || mockParams.visitId}
+          />
+        );
+      case 'visit-report-view':
+        return (
+          <VisitReportView
+            visitId={view.params?.visitId || mockParams.visitId}
+          />
+        );
       default:
         return (
           <div style={{ padding: '2rem 0', textAlign: 'center' }}>
@@ -108,6 +123,18 @@ function App() {
                 onClick={() => setView({ name: 'carenote-view', params: mockParams })}
               >
                 進入照護檢視 (飼主端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'visit-report-manager', params: mockParams })}
+              >
+                進入日誌回報 (保母端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'visit-report-view', params: mockParams })}
+              >
+                進入日誌檢視 (飼主端)
               </button>
             </div>
           </div>

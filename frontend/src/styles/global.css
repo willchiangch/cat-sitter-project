@@ -124,3 +124,22 @@ h1, h2, h3, .font-display {
   background-color: var(--color-tertiary);
   border-radius: 50%;
 }
+
+/* Animations */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

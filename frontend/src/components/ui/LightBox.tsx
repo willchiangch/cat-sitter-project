@@ -103,13 +103,6 @@ const LightBox: React.FC<LightBoxProps> = ({ isOpen, onClose, mediaUrl, caption 
           {caption}
         </div>
       )}
-
-      <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-      `}</style>
     </div>,
     document.body
   );

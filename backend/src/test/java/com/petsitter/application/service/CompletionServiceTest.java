@@ -7,6 +7,7 @@ import com.petsitter.domain.repository.OrderLogRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.domain.repository.VisitRepository;
+import com.petsitter.domain.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,9 @@ class CompletionServiceTest {
     private UserRepository userRepository;
 
     @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private OrderLogRepository orderLogRepository;
 
     private User owner;
@@ -61,6 +65,7 @@ class CompletionServiceTest {
 
     @BeforeEach
     void setUp() {
+        subscriptionRepository.deleteAll();
         orderLogRepository.deleteAll();
         visitRepository.deleteAll();
         orderRepository.deleteAll();

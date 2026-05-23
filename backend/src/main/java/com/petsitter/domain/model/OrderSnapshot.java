@@ -41,8 +41,16 @@ public class OrderSnapshot extends BaseEntity {
     @Column(name = "max_photos", nullable = false)
     private Integer maxPhotos;
 
+    @Builder.Default
+    @Column(name = "max_videos", nullable = false)
+    private Integer maxVideos = 0;
+
     @Column(name = "max_video_seconds", nullable = false)
     private Integer maxVideoSeconds;
+
+    @Builder.Default
+    @Column(name = "plan_tier", nullable = false)
+    private String planTier = "FREE";
 
     // --- 完整內容快照 (JSONB) ---
     @JdbcTypeCode(SqlTypes.JSON)

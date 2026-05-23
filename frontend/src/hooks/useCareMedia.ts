@@ -17,7 +17,8 @@ export const useCareMediaQuery = (sitterId: string, ownerId: string) => {
         throw error;
       }
     },
-    enabled: !!sitterId && !!ownerId
+    enabled: !!sitterId && !!ownerId,
+    staleTime: 5 * 60 * 1000
   });
 };
 

@@ -41,6 +41,7 @@ export const useCareNoteQuery = (sitterId: string, ownerId: string) => {
         throw error;
       }
     },
+    staleTime: 5 * 60 * 1000,
     enabled: !!sitterId && !!ownerId
   });
 };
@@ -59,7 +60,8 @@ export const useSaveCareNoteMutation = (sitterId: string, ownerId: string) => {
 export const useTemplatesQuery = () => {
   return useQuery({
     queryKey: ['care-templates'],
-    queryFn: getTemplates
+    queryFn: getTemplates,
+    staleTime: 5 * 60 * 1000
   });
 };
 

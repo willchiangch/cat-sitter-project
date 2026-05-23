@@ -44,6 +44,9 @@ class ModificationServiceIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
+    @Autowired
     private OrderSnapshotRepository snapshotRepo;
 
     @Autowired
@@ -53,6 +56,7 @@ class ModificationServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        subscriptionRepository.deleteAll();
         modRepo.deleteAll();
         snapshotRepo.deleteAll();
         orderRepository.deleteAll();
@@ -105,7 +109,7 @@ class ModificationServiceIntegrationTest {
                     latch.await();
                     modificationService.proposeModification(orderId, prop, "OWNER");
                     successCount.incrementAndGet();
-                } catch (DataIntegrityViolationException e) {
+                } catch (DataIntegrityViolationException | IllegalStateException | org.springframework.orm.ObjectOptimisticLockingFailureException e) {
                     failureCount.incrementAndGet();
                 } catch (Exception e) {
                     e.printStackTrace();

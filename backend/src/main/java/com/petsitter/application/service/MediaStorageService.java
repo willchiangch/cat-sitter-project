@@ -16,6 +16,11 @@ public interface MediaStorageService {
     String uploadMedia(UUID sitterId, UUID ownerId, UUID mediaId, MultipartFile file);
 
     /**
+     * 上傳服務日誌多媒體檔案 (SD-022)
+     */
+    String uploadReportMedia(String planTier, String date, UUID orderId, UUID mediaId, MultipartFile file);
+
+    /**
      * 刪除媒體檔案
      * @param mediaUrl 檔案的完整 URL
      */
