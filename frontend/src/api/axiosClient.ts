@@ -59,10 +59,12 @@ axiosClient.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken');
         // 呼叫後端刷新介面 (需對應 SD-000)
         const response = await axios.post('/api/auth/refresh', { refreshToken });
-        const { accessToken, newRefreshToken } = response.data;
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
 
         localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        if (newRefreshToken) {
+          localStorage.setItem('refreshToken', newRefreshToken);
+        }
 
         axiosClient.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
         processQueue(null, accessToken);

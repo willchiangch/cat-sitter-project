@@ -37,14 +37,16 @@
 
 ## 📊 核心引擎開發狀態 (Module Status)
 
-| 模組 | SD 設計 | Backend 實作 | 測試狀態 | 備註 |
+| 模組 | SD 設計 | 實作狀態 | 測試狀態 | 備註 |
 | :--- | :---: | :---: | :---: | :--- |
-| **SD-000 身分驗證** | ✅ | ✅ | ✅ TS-000 | JWT 無狀態認證與 RBAC 權限控管 |
-| **SD-005 預約申請** | ✅ | ✅ | ✅ TS-005 | 支援 Advisory Lock 並升級多項目複合式排程矩陣 |
-| **SD-006 報價快照** | ✅ | ✅ | ✅ TS-006 | 支援 SaaS Gating 與零信任校驗 |
-| **SD-009 訂單結案** | ✅ | ✅ | ✅ TS-009 | 支援 72hr 殭屍清理與 48hr 自動結案 |
-| **SD-016 訂單變更** | ✅ | ✅ | ✅ TS-016 | 支援跨日容量校驗與加減價差額試算 |
-| **SD-FRONTEND-SPEC**| ✅ | ✅ | ✅ E2E | 預約精靈重構為方案導向 (Plan-Oriented) 流程，支援卡片選擇與日期互斥，完成 2-Step E2E 驗證 |
+| **SD-000 身分驗證** | ✅ | Backend ✅ | ✅ TS-000 | JWT 無狀態認證與 RBAC 權限控管 |
+| **SD-005 預約申請** | ✅ | Backend ✅ | ✅ TS-005 | 支援 Advisory Lock 並升級多項目複合式排程矩陣 |
+| **SD-006 報價快照** | ✅ | Backend ✅ | ✅ TS-006 | 支援 SaaS Gating 與零信任校驗 |
+| **SD-009 訂單結案** | ✅ | Backend ✅ | ✅ TS-009 | 支援 72hr 殭屍清理與 48hr 自動結案 |
+| **SD-016 訂單變更** | ✅ | Backend ✅ | ✅ TS-016 | 支援跨日容量校驗與加減價差額試算 |
+| **SD-021 照護記事與媒體庫** | ✅ | 前後端 ✅ | ✅ TS-021 | 支援 Recreate-on-Save、Append-Only 模板套用、409 冪等防重送、GCS 失敗補償機制與 IDOR 雙重角色放行，前端照護管理與照片牆已與後端對接 |
+| **SD-022 行程照護日誌** | ⏳ SA ✅ | 待實作 | 待測試 | PRD-022 已 Approved，Pure Lazy 逾期判定、SaaS 四級媒體配額、合約保護快照 |
+| **SD-FRONTEND-SPEC**| ✅ | Frontend ✅ | ✅ E2E | 預約精靈重構為方案導向 (Plan-Oriented) 流程，支援卡片選擇與日期互斥，完成 2-Step E2E 驗證 |
 
 ---
 
@@ -65,10 +67,37 @@ mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=local"
 ```
 *後端啟動後會自動執行 Flyway 遷移，初始化 Schema。*
 
-### 3. 開發進度追蹤
+### 3. 執行後端測試
+執行全部或特定模組的單元與整合測試（整合測試使用 Testcontainers 自動啟動 PostgreSQL 進行驗證）：
+```bash
+cd backend
+# 執行全部測試
+mvn test -Dmaven.compiler.release=17
+
+# 執行 SD-021 照護記事與媒體庫測試
+mvn test -Dmaven.compiler.release=17 -Dtest=CareNoteServiceTest,CareMediaServiceTest,CareNoteControllerTest,CareMediaControllerTest
+```
+
+### 4. 啟動與建置前端服務
+進入 `frontend` 目錄並啟動開發伺服器或進行編譯：
+```bash
+cd frontend
+# 安裝依賴
+npm install
+
+# 啟動開發伺服器 (Vite)
+npm run dev
+
+# 生產環境打包與 TypeScript 嚴格編譯檢查
+npm run build
+```
+
+### 5. 開發進度追蹤
 本專案使用 AI 助理協同開發，詳細進度與待辦事項請參考：
 - [最新進度總結](file:///.agent/brain/walkthrough.md)
 - [待辦清單 (Task List)](file:///.agent/brain/task.md)
+
+
 
 ---
 

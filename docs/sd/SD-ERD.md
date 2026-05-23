@@ -19,7 +19,7 @@ erDiagram
     ORDER ||--o| ORDER_SNAPSHOT : "stores_contract"
     
     VISIT ||--o| SERVICE_REPORT : "produces"
-    SERVICE_REPORT ||--o{ MEDIA : "includes"
+    SERVICE_REPORT ||--o{ REPORT_MEDIA : "includes"
     
     SITTER ||--o{ CARE_NOTE : "writes_for"
     SITTER ||--o{ CARE_NOTE_TEMPLATE : "owns"
@@ -83,7 +83,7 @@ erDiagram
 - **FAVORITE_SITTER**: `owner_id`, `sitter_id` (複合 PK).
 - **PET_EDIT_LOG**: `pet_id`, `editor_id`, `diff_summary` (JSONB).
 
-### 2.5 照護記事與媒體庫 (PRD-021)
+### 2.5 照護記事與媒體庫 (PRD-021, SD-021)
 - **CARE_NOTE** (照護記事本)
   - `sitter_id`: UUID (FK), `owner_id`: UUID (FK)
   - `sections`: JSONB (結構化大項與條目清單，含流水號)
@@ -98,5 +98,18 @@ erDiagram
   - `caption`: VARCHAR (說明文字)
   - `media_url`: VARCHAR (GCS 路徑)
   - 限制：每對保母-飼主最多 20 筆
+
+### 2.6 行程照護日誌 (PRD-022, SD-022)
+- **SERVICE_REPORT** (照護日誌)
+  - `visit_id`: UUID (FK, UNIQUE — 每個行程僅一份)
+  - `status`: VARCHAR (`DRAFT` / `SUBMITTED`；`EXPIRED` 為邏輯衍生狀態，不持久化)
+  - `text_content`: TEXT (nullable，≤ 1000 字)
+  - `submitted_at`: TIMESTAMPTZ (nullable，送出時寫入)
+  - 媒體保留天數不存於此表，由 `VISIT → ORDER → ORDER_SNAPSHOT.snapshot_media_retention_days` 查詢
+- **REPORT_MEDIA** (日誌多媒體，原 ERD 圖中 `MEDIA`)
+  - `service_report_id`: UUID (FK)
+  - `media_type`: VARCHAR (`IMAGE` / `VIDEO`)
+  - `media_url`: VARCHAR (GCS 路徑，不可變；使用標準生命週期路徑格式，`plan_tier` 取 ORDER_SNAPSHOT 快照值)
+  - `caption`: VARCHAR (nullable，≤ 100 字)
 
 ---
