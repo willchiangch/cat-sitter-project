@@ -67,11 +67,11 @@ public class VisitReportController {
         Integer version = ((Number) body.get("version")).intValue();
 
         reportService.deleteMedia(mediaId, version, sitterId, idempotencyKey);
-        return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "刪除成功",
-                "data", null
-        ));
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("code", 200);
+        response.put("message", "刪除成功");
+        response.put("data", null);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{visitId}/report/submit")
@@ -81,11 +81,11 @@ public class VisitReportController {
 
         UUID sitterId = TokenContext.getUserId();
         reportService.submitReport(visitId, sitterId, idempotencyKey);
-        return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "修改成功",
-                "data", null
-        ));
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("code", 200);
+        response.put("message", "修改成功");
+        response.put("data", null);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{visitId}/report")

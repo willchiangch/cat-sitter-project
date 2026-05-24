@@ -20,6 +20,7 @@ public class VisitServiceReportDto {
     private String content;
     private OffsetDateTime submittedAt;
     private List<ReportMediaDto> media;
+    @com.fasterxml.jackson.annotation.JsonProperty("isEditable")
     private boolean isEditable;
     private Integer version;
 }

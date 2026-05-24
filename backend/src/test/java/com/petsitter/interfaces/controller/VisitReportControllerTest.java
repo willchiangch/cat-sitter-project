@@ -2,6 +2,7 @@ package com.petsitter.interfaces.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.service.MediaStorageService;
+import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.model.*;
 import com.petsitter.domain.repository.*;
 import com.petsitter.infrastructure.security.TokenContext;
@@ -29,7 +30,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -82,6 +83,9 @@ class VisitReportControllerTest {
 
     @MockitoBean
     private MediaStorageService mediaStorageService;
+
+    @MockitoBean
+    private NotificationService notificationService;
 
     private User sitter;
     private User owner;
@@ -272,6 +276,298 @@ class VisitReportControllerTest {
 
         mockMvc.perform(get("/api/visits/{visitId}/report", visit.getId())
                 .with(user(unrelatedUser.getId().toString()).roles("SITTER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Scenario 2: 保母上傳媒體成功（IMAGE + 稽核日誌）")
+    void should_UploadMedia_Successfully() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "content".getBytes());
+        String expectedUrl = "https://storage.googleapis.com/test-bucket/PRO/2026-05-24/order-uuid/media-uuid.jpg";
+        when(mediaStorageService.uploadReportMedia(any(), any(), any(), any(), any()))
+                .thenReturn(expectedUrl);
+
+        mockMvc.perform(multipart("/api/visits/{visitId}/media", visit.getId())
+                .file(file)
+                .header("Idempotency-Key", "upload-media-success-key")
+                .param("mediaType", "IMAGE")
+                .param("caption", "貓咪很可愛")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.mediaId").exists())
+                .andExpect(jsonPath("$.data.mediaUrl").value(expectedUrl));
+
+        // 驗證 DB 數量與稽核日誌
+        List<ServiceReportMedia> mediaList = mediaRepository.findAll();
+        org.junit.jupiter.api.Assertions.assertEquals(1, mediaList.size());
+        org.junit.jupiter.api.Assertions.assertFalse(mediaList.get(0).isDeleted());
+
+        List<OrderLog> logs = orderLogRepository.findAll();
+        boolean hasUploadLog = logs.stream().anyMatch(l -> "UPLOAD_REPORT_MEDIA".equals(l.getActionType()));
+        org.junit.jupiter.api.Assertions.assertTrue(hasUploadLog);
+    }
+
+    @Test
+    @DisplayName("Scenario 3: 保母邏輯刪除媒體成功")
+    void should_DeleteMedia_Successfully() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 先建立一個草稿
+        VisitServiceReport report = reportRepository.save(VisitServiceReport.builder()
+                .visitId(visit.getId())
+                .status("DRAFT")
+                .content("")
+                .version(0)
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .build());
+
+        // 新增一個 media 檔案到 DB
+        ServiceReportMedia media = mediaRepository.save(ServiceReportMedia.builder()
+                .reportId(report.getId())
+                .mediaUrl("http://temp.jpg")
+                .mediaType("IMAGE")
+                .version(0)
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .build());
+
+        mockMvc.perform(delete("/api/visits/media/{mediaId}", media.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("version", 0)))
+                .header("Idempotency-Key", "delete-media-key")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        // 驗證邏輯刪除與 GCS delete 不被呼叫
+        ServiceReportMedia deletedMedia = mediaRepository.findById(media.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertTrue(deletedMedia.isDeleted());
+        verify(mediaStorageService, times(0)).deleteMedia(any());
+
+        List<OrderLog> logs = orderLogRepository.findAll();
+        boolean hasDeleteLog = logs.stream().anyMatch(l -> "DELETE_REPORT_MEDIA".equals(l.getActionType()));
+        org.junit.jupiter.api.Assertions.assertTrue(hasDeleteLog);
+    }
+
+    @Test
+    @DisplayName("Scenario 4: 保母正式送出日誌成功（非同步通知 + 稽核）")
+    void should_SubmitReport_Successfully() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 建立草稿
+        VisitServiceReport report = reportRepository.save(VisitServiceReport.builder()
+                .visitId(visit.getId())
+                .status("DRAFT")
+                .content("今日餵食正常")
+                .version(0)
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .build());
+
+        // 設定 visit 狀態為 DONE 且 finishedAt 在 24 小時內
+        visit.setStatus("DONE");
+        visit.setFinishedAt(OffsetDateTime.now().minusMinutes(30));
+        visitRepository.save(visit);
+
+        mockMvc.perform(post("/api/visits/{visitId}/report/submit", visit.getId())
+                .header("Idempotency-Key", "submit-report-key")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        // 驗證 DB 狀態
+        VisitServiceReport submittedReport = reportRepository.findById(report.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("SUBMITTED", submittedReport.getStatus());
+        org.junit.jupiter.api.Assertions.assertNotNull(submittedReport.getSubmittedAt());
+
+        // 驗證稽核日誌
+        List<OrderLog> logs = orderLogRepository.findAll();
+        boolean hasSubmitLog = logs.stream().anyMatch(l -> "SUBMIT_SERVICE_REPORT".equals(l.getActionType()));
+        org.junit.jupiter.api.Assertions.assertTrue(hasSubmitLog);
+
+        // 驗證通知被呼叫 1 次
+        verify(notificationService, times(1)).sendNotification(eq(owner.getId()), any());
+    }
+
+    @Test
+    @DisplayName("Scenario 5: 飼主讀取已送出日誌（SUBMITTED-only Gate 通過）")
+    void should_Return200_When_OwnerReadsSubmittedReport() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 建立 SUBMITTED 日誌
+        VisitServiceReport report = reportRepository.save(VisitServiceReport.builder()
+                .visitId(visit.getId())
+                .status("SUBMITTED")
+                .content("已完成任務")
+                .submittedAt(OffsetDateTime.now())
+                .version(0)
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .build());
+
+        // 建立 media，一個正常，一個已邏輯刪除
+        ServiceReportMedia media1 = mediaRepository.save(ServiceReportMedia.builder()
+                .reportId(report.getId())
+                .mediaUrl("http://normal.jpg")
+                .mediaType("IMAGE")
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .version(0)
+                .build());
+
+        ServiceReportMedia media2 = mediaRepository.save(ServiceReportMedia.builder()
+                .reportId(report.getId())
+                .mediaUrl("http://deleted.jpg")
+                .mediaType("IMAGE")
+                .isDeleted(true)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .version(0)
+                .build());
+
+        // 飼主身份讀取
+        TokenContext.setUserId(owner.getId());
+
+        mockMvc.perform(get("/api/visits/{visitId}/report", visit.getId())
+                .with(user(owner.getId().toString()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.status").value("SUBMITTED"))
+                .andExpect(jsonPath("$.data.isEditable").value(false))
+                .andExpect(jsonPath("$.data.media.length()").value(1))
+                .andExpect(jsonPath("$.data.media[0].mediaUrl").value("http://normal.jpg"));
+    }
+
+    @Test
+    @DisplayName("Scenario 11: 樂觀鎖版本衝突 (409 VERSION_CONFLICT)")
+    void should_Return409_When_VersionConflict() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 手動建立一個 version 為 1 的日誌在 DB 中
+        VisitServiceReport report = reportRepository.save(VisitServiceReport.builder()
+                .visitId(visit.getId())
+                .status("DRAFT")
+                .content("原本的內容")
+                .version(1)
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .build());
+
+        // 帶 version = 0 再次暫存
+        mockMvc.perform(put("/api/visits/{visitId}/report", visit.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("content", "衝突的暫存", "version", 0)))
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_VERSION_CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("Scenario 12: SUBMITTED 狀態後再修改拒絕 (409 REPORT_STATE_CONFLICT)")
+    void should_Return409_When_ReportAlreadySubmitted() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 建立 SUBMITTED 日誌
+        reportRepository.save(VisitServiceReport.builder()
+                .visitId(visit.getId())
+                .status("SUBMITTED")
+                .content("已完成任務")
+                .submittedAt(OffsetDateTime.now())
+                .version(0)
+                .isDeleted(false)
+                .createdBy(sitter.getId())
+                .updatedBy(sitter.getId())
+                .build());
+
+        // 試圖 PUT 暫存
+        mockMvc.perform(put("/api/visits/{visitId}/report", visit.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("content", "想偷改", "version", 0)))
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_STATE_CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("Scenario 13: 媒體格式/大小驗證失敗 (400 INVALID_MEDIA_FORMAT)")
+    void should_Return400_When_InvalidMediaFormat() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // GIF 不支援
+        MockMultipartFile gifFile = new MockMultipartFile("file", "test.gif", "image/gif", "content".getBytes());
+
+        mockMvc.perform(multipart("/api/visits/{visitId}/media", visit.getId())
+                .file(gifFile)
+                .header("Idempotency-Key", "upload-gif-key")
+                .param("mediaType", "IMAGE")
+                .param("caption", "GIF圖片")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_MEDIA"));
+
+        // 圖片大小過大 (1MB = 1024*1024 限制，所以 1024*1024 + 1 bytes 就過大)
+        byte[] largeBytes = new byte[1024 * 1024 + 1];
+        MockMultipartFile largeFile = new MockMultipartFile("file", "large.jpg", "image/jpeg", largeBytes);
+
+        mockMvc.perform(multipart("/api/visits/{visitId}/media", visit.getId())
+                .file(largeFile)
+                .header("Idempotency-Key", "upload-large-key")
+                .param("mediaType", "IMAGE")
+                .param("caption", "大圖片")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_MEDIA"));
+    }
+
+    @Test
+    @DisplayName("Scenario 14: GCS 上傳故障觸發事務回滾 (503 STORAGE_SERVICE_UNAVAILABLE)")
+    void should_Return503_When_GcsUploadFails() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // Mock 讓 uploadReportMedia 丟出 RuntimeException
+        when(mediaStorageService.uploadReportMedia(any(), any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("GCS connection timeout"));
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "content".getBytes());
+
+        mockMvc.perform(multipart("/api/visits/{visitId}/media", visit.getId())
+                .file(file)
+                .header("Idempotency-Key", "gcs-fail-key")
+                .param("mediaType", "IMAGE")
+                .param("caption", "故障測試")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_STORAGE_ERROR"));
+
+        // 驗證 DB 沒有新增 media
+        List<ServiceReportMedia> mediaList = mediaRepository.findAll();
+        org.junit.jupiter.api.Assertions.assertEquals(0, mediaList.size());
+
+        // 驗證 order_logs 寫入 UPLOAD_REPORT_MEDIA_FAIL
+        List<OrderLog> logs = orderLogRepository.findAll();
+        boolean hasFailLog = logs.stream().anyMatch(l -> "UPLOAD_REPORT_MEDIA_FAIL".equals(l.getActionType()));
+        org.junit.jupiter.api.Assertions.assertTrue(hasFailLog);
+    }
+
+    @Test
+    @DisplayName("Scenario 15b: 越權防禦 — 飼主嘗試呼叫寫入端點 (403)")
+    void should_Return403_When_OwnerAttemptsToWrite() throws Exception {
+        TokenContext.setUserId(owner.getId());
+
+        mockMvc.perform(put("/api/visits/{visitId}/report", visit.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("content", "飼主想寫日誌", "version", 0)))
+                .with(user(owner.getId().toString()).roles("OWNER")))
                 .andExpect(status().isForbidden());
     }
 }

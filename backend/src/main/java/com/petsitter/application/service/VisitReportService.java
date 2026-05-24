@@ -225,6 +225,12 @@ public class VisitReportService {
             );
         } catch (Exception e) {
             log.error("Storage service unavailable during report media upload", e);
+            auditLogService.writeOrderLog(
+                    visit.getOrder(),
+                    sitterId.toString(),
+                    "UPLOAD_REPORT_MEDIA_FAIL",
+                    Map.of("visitId", visitId, "error", e.getMessage())
+            );
             throw new VisitReportException(HttpStatus.SERVICE_UNAVAILABLE, "MSG_DATA_STORAGE_ERROR", "儲存服務暫時無法使用，請稍候重試");
         }
 
@@ -255,6 +261,12 @@ public class VisitReportService {
             } catch (Exception ex) {
                 log.error("CRITICAL: Failed to rollback storage file after database save failure", ex);
             }
+            auditLogService.writeOrderLog(
+                    visit.getOrder(),
+                    sitterId.toString(),
+                    "UPLOAD_REPORT_MEDIA_FAIL",
+                    Map.of("visitId", visitId, "error", "Database save failed: " + e.getMessage())
+            );
             throw new VisitReportException(HttpStatus.SERVICE_UNAVAILABLE, "MSG_DATA_STORAGE_ERROR", "日誌媒體保存失敗，儲存已回滾");
         }
 
