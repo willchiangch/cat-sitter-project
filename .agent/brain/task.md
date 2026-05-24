@@ -1,7 +1,9 @@
-- [x] 撰寫 `SD-003-service-plans.md` 文件
-  - [x] 設計保母 CRUD 方案、SaaS 卡控與稽核日誌序列圖
-  - [x] 定義資料表 DDL 欄位新增與資料模型變更
-  - [x] 設計方案 CRUD、排序、前台查詢之 API 規格
-  - [x] 規劃 `ServicePlanException` 異常對應與預約時程防禦規則
-- [x] 驗證設計文件合規性
-  - [x] 確保符合 sd-skill 與技術憲法 (price 為整數, 日期為 DATE)
+- [x] 撰寫 `TS-003-service-plans.md` 文件
+  - [x] 設計 S1~S5（CRUD、排序與操作日誌）之測試邏輯與驗證表
+  - [x] 設計 S6~S8（無效價格與 SaaS 限制日期區間）之測試邏輯與驗證表
+  - [x] 設計 S9a~S9c、S10（Lazy Evaluation 與預約時程防守）之測試邏輯與驗證表
+  - [x] 設計 S11~S14（IDOR 編輯/刪除、404、後台不限期查詢與角色門禁）之測試邏輯與驗證表
+- [x] 驗證測試情境文件合規性
+  - [x] 確保符合 ts-skill 的 Given/When/Then 與多維度驗證規範
+- [x] 同步進度與大腦文件
+  - [x] 執行 cp 同步至 `.agent/brain/`
