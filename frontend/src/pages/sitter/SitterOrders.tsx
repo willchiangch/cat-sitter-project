@@ -14,7 +14,7 @@ const SitterOrders: React.FC = () => {
 
   const filteredOrders = mockOrders.filter(order => {
     if (activeTab === 'evaluating') return order.status === 'PENDING';
-    if (activeTab === 'ongoing') return ['PENDING_PAYMENT', 'PAID', 'CONFIRMED'].includes(order.status);
+    if (activeTab === 'ongoing') return ['PENDING_PAYMENT', 'PAID', 'CONFIRMED', 'MODIFYING', 'REFUND_VERIFY'].includes(order.status);
     return order.status === 'COMPLETED' || order.status === 'CANCELLED';
   });
 

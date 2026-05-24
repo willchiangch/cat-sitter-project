@@ -1,0 +1,110 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Dispute and Completion Flow', () => {
+  test.beforeEach(async ({ page }) => {
+    // 攔截結案 API
+    await page.route('**/api/orders/*/complete**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'SUCCESS', message: '訂單已成功結案' })
+      });
+    });
+
+    // 攔截提出爭議 API
+    await page.route('**/api/orders/*/dispute**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'SUCCESS', message: '已成功提交爭議申請' })
+      });
+    });
+
+    // 攔截管理員調解 API
+    await page.route('**/api/orders/*/admin-resolve**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'SUCCESS', message: '爭議已由管理員調解結案' })
+      });
+    });
+
+    await page.goto('/');
+  });
+
+  test('should complete order from owner side', async ({ page }) => {
+    // 進入飼主端訂單管理
+    await page.getByRole('button', { name: '進入訂單管理 (飼主端)' }).click();
+    await expect(page.locator('text=飼主訂單管理')).toBeVisible();
+
+    // 點擊第一個卡片進入詳情
+    await page.locator('text=ORDER #a1023000').first().click();
+    await expect(page.locator('text=ORDER #a1023000')).toBeVisible();
+
+    // 點擊結案按鈕
+    page.once('dialog', async dialog => {
+      expect(dialog.message()).toContain('確定要將此訂單結案嗎');
+      await dialog.accept();
+    });
+    
+    const completeBtn = page.getByTestId('complete-order-btn');
+    await completeBtn.click();
+
+    // 檢查結案後的 banner
+    await expect(page.getByTestId('completed-status-banner')).toBeVisible();
+    await expect(page.getByTestId('completed-status-banner')).toContainText('訂單已順利結案');
+  });
+
+  test('should report dispute and resolve by admin', async ({ page }) => {
+    // 進入訂單詳情
+    await page.getByRole('button', { name: '直接進入訂單詳情 (飼主端)' }).click();
+    
+    // 點擊提出爭議
+    await page.getByTestId('dispute-order-btn').click();
+    await expect(page.getByTestId('dispute-modal')).toBeVisible();
+
+    // 選擇類別並輸入描述
+    await page.getByTestId('dispute-cat-未照約定打卡').click();
+    await page.getByTestId('dispute-desc-textarea').fill('保母今天沒有在約定時間打卡。');
+
+    // 提交爭議
+    await page.getByTestId('dispute-submit-btn').click();
+
+    // 檢查爭議後的 banner
+    await expect(page.getByTestId('disputed-status-banner')).toBeVisible();
+    await expect(page.getByTestId('disputed-status-banner')).toContainText('訂單正處於爭議調解中');
+
+    // 返回 Demo 首頁
+    await page.getByText('返回 Demo 首頁').click();
+
+    // 切換至管理員
+    await page.getByRole('button', { name: '切換為管理員' }).click();
+
+    // 直接進入爭議調解
+    await page.getByRole('button', { name: '直接進入爭議調解 (管理端)' }).click();
+
+    // 填寫調解資訊
+    await page.getByTestId('admin-resolve-amount').fill('1500');
+    await page.getByTestId('admin-resolve-receipt').fill('https://receipt.jpg');
+    await page.getByTestId('admin-resolve-reason').fill('已扣除未打卡時段之費用。');
+    
+    // 二次驗證密碼輸入錯誤
+    await page.getByTestId('admin-resolve-password').fill('wrongpassword');
+    page.once('dialog', async dialog => {
+      expect(dialog.message()).toContain('二次驗證密碼錯誤');
+      await dialog.accept();
+    });
+    await page.getByTestId('admin-resolve-submit-btn').click();
+
+    // 二次驗證密碼輸入正確
+    await page.getByTestId('admin-resolve-password').fill('password');
+    page.once('dialog', async dialog => {
+      expect(dialog.message()).toContain('爭議已順利調解結案');
+      await dialog.accept();
+    });
+    await page.getByTestId('admin-resolve-submit-btn').click();
+
+    // 驗證成功 banner
+    await expect(page.getByTestId('admin-resolved-banner')).toBeVisible();
+  });
+});

@@ -4,6 +4,11 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDate;
+import java.util.List;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "service_plans")
 @Getter
@@ -38,4 +43,32 @@ public class ServicePlan extends BaseEntity {
     @Builder.Default
     @Column(name = "max_video_seconds", nullable = false)
     private Integer maxVideoSeconds = 0;
+
+    // --- SD-003 自訂方案擴充欄位 ---
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "default_tasks", nullable = false)
+    private List<String> defaultTasks = List.of();
+
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "applicable_pet_types", nullable = false)
+    private List<String> applicablePetTypes = List.of();
+
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Builder.Default
+    @Column(name = "is_restricted", nullable = false)
+    private boolean isRestricted = false;
+
+    @Builder.Default
+    @Column(name = "sort_order", nullable = false)
+    private Integer sortOrder = 0;
 }

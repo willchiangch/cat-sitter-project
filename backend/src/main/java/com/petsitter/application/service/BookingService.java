@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.petsitter.application.exception.ServicePlanException;
+import org.springframework.http.HttpStatus;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -44,6 +47,16 @@ public class BookingService {
         for (com.petsitter.application.dto.BookingItemRequest itemReq : request.getItems()) {
             ServicePlan plan = servicePlanRepository.findById(itemReq.getPlanId())
                     .orElseThrow(() -> new IllegalArgumentException("找不到指定的服務方案: " + itemReq.getPlanId()));
+
+            // 雙向日期區間防禦 (SD-003)
+            for (LocalDate date : itemReq.getDates()) {
+                if (plan.getStartDate() != null && date.isBefore(plan.getStartDate())) {
+                    throw new ServicePlanException(HttpStatus.UNPROCESSABLE_ENTITY, "PLAN_NOT_IN_RANGE", "方案目前不在生效區間");
+                }
+                if (plan.getEndDate() != null && date.isAfter(plan.getEndDate())) {
+                    throw new ServicePlanException(HttpStatus.UNPROCESSABLE_ENTITY, "PLAN_NOT_IN_RANGE", "方案目前不在生效區間");
+                }
+            }
 
             OrderItem orderItem = new OrderItem();
             orderItem.setCategory("BOOKING");

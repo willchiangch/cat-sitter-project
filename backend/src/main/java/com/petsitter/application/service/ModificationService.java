@@ -144,4 +144,38 @@ public class ModificationService {
 
         visitRepository.saveAll(newVisits);
     }
+
+    @Transactional
+    public void uploadRefundProof(UUID orderId, UUID sitterId, String refundProofUrl) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
+        if (!order.getSitter().getId().equals(sitterId)) {
+            throw new IllegalArgumentException("無權操作此訂單");
+        }
+        ModificationRequest modReq = modRepo.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("找不到變更請求記錄"));
+        modReq.setRefundProofUrl(refundProofUrl);
+        modRepo.saveAndFlush(modReq);
+    }
+
+    @Transactional
+    public void confirmRefund(UUID orderId, UUID ownerId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
+        if (!order.getOwner().getId().equals(ownerId)) {
+            throw new IllegalArgumentException("無權操作此訂單");
+        }
+        if (!"REFUND_VERIFY".equals(order.getStatus())) {
+            throw new IllegalStateException("訂單當前狀態不符合退款確認條件");
+        }
+
+        // 若無預約項目，表示為整筆取消
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            order.setStatus("CANCELLED");
+        } else {
+            order.setStatus("CONFIRMED");
+        }
+        orderRepository.saveAndFlush(order);
+    }
 }

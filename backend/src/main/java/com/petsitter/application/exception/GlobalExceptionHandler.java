@@ -40,6 +40,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<Map<String, String>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "UNAUTHORIZED", "message", "未認證的請求，請先登入"));
+        }
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", "FORBIDDEN", "message", "權限不足"));
     }
@@ -80,5 +85,30 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleVisitReport(VisitReportException ex) {
         return ResponseEntity.status(ex.getStatus())
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    // --- SD-003 自訂服務方案例外攔截 ---
+    @ExceptionHandler(ServicePlanException.class)
+    public ResponseEntity<Map<String, String>> handleServicePlan(ServicePlanException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    // 樂觀鎖衝突防護 (409 VERSION_CONFLICT)
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, String>> handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", "VERSION_CONFLICT", "message", "內容已被更新，請重新整理後再試"));
+    }
+
+    // 處理 Bean Validation 校驗異常 (400 INVALID_PARAMETER)
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidation(org.springframework.web.bind.MethodArgumentNotValidException ex) {
+        String defaultMessage = ex.getBindingResult().getFieldErrors().stream()
+                .map(org.springframework.validation.FieldError::getDefaultMessage)
+                .findFirst()
+                .orElse("參數欄位校驗失敗");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "INVALID_PARAMETER", "message", defaultMessage));
     }
 }

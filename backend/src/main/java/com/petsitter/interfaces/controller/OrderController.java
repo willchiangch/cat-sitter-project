@@ -104,4 +104,53 @@ public class OrderController {
         completionService.manualComplete(orderId, ownerId);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "訂單已成功結案"));
     }
+
+    /**
+     * 飼主回報爭議 (SD-009)
+     */
+    @PostMapping("/{orderId}/dispute")
+    public ResponseEntity<Map<String, String>> disputeOrder(
+            @PathVariable UUID orderId,
+            @RequestParam UUID ownerId,
+            @RequestBody Map<String, String> payload) {
+        String category = payload.get("category");
+        String description = payload.get("description");
+        completionService.disputeOrder(orderId, ownerId, category, description);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已成功提交爭議申請"));
+    }
+
+    /**
+     * 管理員強制結案 (Admin Resolve - SD-009)
+     */
+    @PostMapping("/{orderId}/admin-resolve")
+    public ResponseEntity<Map<String, String>> resolveDisputedOrder(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody com.petsitter.application.dto.AdminResolveRequest request) {
+        completionService.resolveDisputedOrder(orderId, request);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "爭議已由管理員調解結案"));
+    }
+
+    /**
+     * 保母上傳退款憑證 (SD-016)
+     */
+    @PostMapping("/{orderId}/modification/refund-proof")
+    public ResponseEntity<Map<String, String>> uploadRefundProof(
+            @PathVariable UUID orderId,
+            @RequestParam UUID sitterId,
+            @RequestBody Map<String, String> payload) {
+        String refundProofUrl = payload.get("refundProofUrl");
+        modificationService.uploadRefundProof(orderId, sitterId, refundProofUrl);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "退款憑證已成功上傳"));
+    }
+
+    /**
+     * 飼主確認收到退款 (SD-016)
+     */
+    @PostMapping("/{orderId}/modification/refund-confirm")
+    public ResponseEntity<Map<String, String>> confirmRefund(
+            @PathVariable UUID orderId,
+            @RequestParam UUID ownerId) {
+        modificationService.confirmRefund(orderId, ownerId);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已確認收到退款，訂單變更生效"));
+    }
 }

@@ -154,4 +154,25 @@ public class CompletionService {
             .payload(payload)
             .build());
     }
+
+    /**
+     * 飼主提出爭議 (SD-009)
+     */
+    @Transactional
+    public void disputeOrder(UUID orderId, UUID ownerId, String category, String description) {
+        log.info("[CompletionService] Owner {} disputing order: {}", ownerId, orderId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
+        if (!order.getOwner().getId().equals(ownerId)) {
+            throw new IllegalArgumentException("無權操作此訂單");
+        }
+        order.setStatus("DISPUTED");
+        order.setDisputed(true);
+        orderRepository.saveAndFlush(order);
+
+        writeAuditLog(orderId, ownerId.toString(), "DISPUTE_提出", Map.of(
+            "category", category != null ? category : "",
+            "description", description != null ? description : ""
+        ));
+    }
 }

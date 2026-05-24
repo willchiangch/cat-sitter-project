@@ -16,7 +16,7 @@
 ### 1. 欄位級別 SaaS Gating 的例外允許 (Conscious Exception)
 - **規範對齊**：`SD-GLOBAL-SPEC 3.1` 規定「禁止在 Service 層寫死方案判斷，統一由 Controller 層標註權限」。
 - **決策背景**：自定義註解 `@RequirePlan(PlanTier)` 只能在 API 方法層進行卡控，無法在 AOP 攔截器中精確解析 Request Body 的特定進階欄位（如本功能的 `startDate`/`endDate` 開放預約日期區間限制）。
-- **特例設計**：在此功能中，我們例外允許在 Service 層（或 Controller 方法內部）執行方案等級（PlanTier）的屬性級檢核卡控，若保母非 `PRO`/`PREMIUM` 卻傳入日期限制時，拋出 `AuthPlanLimitException` (403)。
+- **特例設計**：在此功能中，我們例外允許在 Service 層（或 Controller 方法內部）執行方案等級（PlanTier）的屬性級檢核卡控，若保母非 `PRO`/`ULTIMATE` 卻傳入日期限制時，拋出 `AuthPlanLimitException` (403)。
 
 ---
 
@@ -47,7 +47,7 @@ sequenceDiagram
     alt Body 中含有 startDate 或 endDate (非常態開放)
         Service->>SubRepo: findBySitterId(sitterId)
         SubRepo-->>Service: Subscription (PlanTier)
-        alt PlanTier 不是 PRO 或 PREMIUM
+        alt PlanTier 不是 PRO 或 ULTIMATE
             Service-->>Sitter: 拋出 AuthPlanLimitException (403, AUTH_PLAN_LIMIT)
         end
     end
@@ -439,3 +439,5 @@ erDiagram
 | 非專業版保母設定日期區間 | 403 Forbidden | `AUTH_PLAN_LIMIT` | 僅限專業版以上方案可設定開放預約區間 |
 | 編輯時樂觀鎖衝突 | 409 Conflict | `VERSION_CONFLICT` | 內容已被更新，請重新整理後再試 |
 | 預約的日期不在方案生效區間 | 422 Unprocessable Entity | `PLAN_NOT_IN_RANGE` | 方案目前不在生效區間 |
+| IDOR 越權操作 | 403 Forbidden | `FORBIDDEN` | 無權限操作此方案 |
+
