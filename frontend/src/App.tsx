@@ -16,10 +16,11 @@ import AdminResolvePanel from './pages/admin/AdminResolvePanel';
 import OrderModificationWizard from './pages/client/OrderModificationWizard';
 import SitterModificationQuote from './pages/sitter/SitterModificationQuote';
 import OwnerModificationConfirm from './pages/client/OwnerModificationConfirm';
+import SitterPlans from './pages/sitter/SitterPlans';
 
 type ViewState = {
   name: 'demo' | 'orders' | 'eval' | 'booking' | 'carenote-manager' | 'carenote-view' | 'visit-report-manager' | 'visit-report-view'
-    | 'owner-orders' | 'owner-order-detail' | 'admin-resolve' | 'modification-wizard' | 'sitter-modification-quote' | 'owner-modification-confirm';
+    | 'owner-orders' | 'owner-order-detail' | 'admin-resolve' | 'modification-wizard' | 'sitter-modification-quote' | 'owner-modification-confirm' | 'sitter-plans';
   params?: { sitterId: string; ownerId: string; visitId?: string; orderId?: string };
 };
 
@@ -42,7 +43,9 @@ function App() {
       case 'eval':
         return <OrderEvalView />;
       case 'booking':
-        return <PublicBookingPage />;
+        return <PublicBookingPage sitterId={view.params?.sitterId || mockParams.sitterId} />;
+      case 'sitter-plans':
+        return <SitterPlans />;
       case 'carenote-manager':
         return (
           <CareNoteManager
@@ -126,6 +129,13 @@ function App() {
               </button>
               <button className="btn-primary" onClick={() => setView({ name: 'eval' })}>
                 進入報價評估 (保母端)
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={() => setView({ name: 'sitter-plans' })}
+                data-testid="btn-go-sitter-plans"
+              >
+                進入方案設定 (保母端)
               </button>
               <button
                 className="btn-primary"

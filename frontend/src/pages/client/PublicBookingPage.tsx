@@ -1,13 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { CheckCircle2, ArrowRight, Plus, Trash2, CalendarDays, Minus, CalendarX, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { BookingState, Plan } from '../../types/booking';
-
-const MOCK_PLANS: Plan[] = [
-  { id: 'p1', name: '基礎照顧', price: 500, description: '包含換水、餵食、清砂盆、拍照記錄' },
-  { id: 'p2', name: '進階陪伴', price: 800, description: '包含基礎照顧 + 陪玩 20 分鐘、梳毛' }
-];
+import type { BookingState } from '../../types/booking';
+import { useSitterActivePlansQuery } from '../../hooks/useServicePlans';
 
 const formatDatesGroupedByYear = (dates: string[]) => {
   if (!dates || dates.length === 0) return null;
@@ -20,20 +16,54 @@ const formatDatesGroupedByYear = (dates: string[]) => {
   return grouped;
 };
 
-const PublicBookingPage: React.FC = () => {
+interface PublicBookingPageProps {
+  sitterId?: string;
+}
+
+const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda' }) => {
+  const { data: plans = [], isLoading, error } = useSitterActivePlansQuery(sitterId);
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState<BookingState>({
-    sitterId: 'sitter-123',
+    sitterId: sitterId,
     planConfigs: [],
     notes: '',
     totalAmount: 0
   });
+
+  useEffect(() => {
+    setBooking(prev => ({ ...prev, sitterId }));
+  }, [sitterId]);
   
   const [isAddingPlan, setIsAddingPlan] = useState(true);
   const [activeCalendar, _setActiveCalendar] = useState<{ planIndex: number; scheduleIndex: number } | null>(null);
   
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+
+  if (isLoading) {
+    return (
+      <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-primary)' }}>
+        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>讀取方案中...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-error)' }}>
+        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>載入方案失敗，請稍後再試</div>
+      </div>
+    );
+  }
+
+  if (plans.length === 0) {
+    return (
+      <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '1rem', color: 'var(--color-on-surface)' }}>尚無服務方案</h2>
+        <p style={{ color: 'var(--color-on-surface-variant)' }}>此保母目前尚未設定任何服務方案，請稍後再試或與保母聯繫。</p>
+      </div>
+    );
+  }
 
   const setActiveCalendar = (val: { planIndex: number; scheduleIndex: number } | null) => {
     _setActiveCalendar(val);
@@ -155,10 +185,10 @@ const PublicBookingPage: React.FC = () => {
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {MOCK_PLANS.filter(p => !booking.planConfigs.some(pc => pc.planId === p.id)).map(plan => (
+            {plans.filter(p => !booking.planConfigs.some(pc => pc.planId === p.id)).map(plan => (
               <div 
                 key={plan.id} 
-                onClick={() => addPlanConfig(plan.id)}
+                onClick={() => addPlanConfig(plan.id!)}
                 style={{ cursor: 'pointer', padding: '24px', backgroundColor: 'var(--color-surface)', borderRadius: '16px', border: '1px solid var(--color-outline-variant)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: 'var(--shadow-ambient)' }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = 'var(--color-primary)';
@@ -216,7 +246,7 @@ const PublicBookingPage: React.FC = () => {
         </div>
 
         {booking.planConfigs.map((planConfig, pIdx) => {
-          const plan = MOCK_PLANS.find(p => p.id === planConfig.planId);
+          const plan = plans.find(p => p.id === planConfig.planId);
           return (
             <div key={planConfig.planId} style={{ marginBottom: '2rem', padding: '24px', backgroundColor: 'var(--color-surface)', borderRadius: '24px', boxShadow: 'var(--shadow-ambient)' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '24px', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -531,7 +561,7 @@ const PublicBookingPage: React.FC = () => {
 
   const renderStep2 = () => {
     const total = booking.planConfigs.reduce((acc, planConfig) => {
-      const plan = MOCK_PLANS.find(p => p.id === planConfig.planId);
+      const plan = plans.find(p => p.id === planConfig.planId);
       const planTotal = planConfig.schedules.reduce((sAcc, schedule) => {
         return sAcc + (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay;
       }, 0);
@@ -548,7 +578,7 @@ const PublicBookingPage: React.FC = () => {
             <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase' }}>排程明細</label>
             <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {booking.planConfigs.map((planConfig, pIdx) => {
-                const plan = MOCK_PLANS.find(p => p.id === planConfig.planId);
+                const plan = plans.find(p => p.id === planConfig.planId);
                 return planConfig.schedules.map((schedule, sIdx) => {
                   const groupedDates = formatDatesGroupedByYear(schedule.dates);
                   return (
