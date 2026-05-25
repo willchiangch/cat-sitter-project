@@ -1,0 +1,103 @@
+package com.petsitter.infrastructure.storage;
+
+import com.petsitter.application.service.MediaStorageService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@Profile("local")
+public class LocalMediaStorageServiceImpl implements MediaStorageService {
+
+    @Value("${app.storage.local.dir:/tmp/cat_sitter_media}")
+    private String localStorageDir;
+
+    @Value("${app.storage.local.base-url:http://localhost:8080/local-media}")
+    private String localBaseUrl;
+
+    @Override
+    public String uploadMedia(UUID sitterId, UUID ownerId, UUID mediaId, MultipartFile file) {
+        try {
+            String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+            String extension = StringUtils.getFilenameExtension(originalFilename);
+            String targetFilename = mediaId.toString() + (extension != null ? "." + extension : "");
+            
+            // 路徑格式: /tmp/cat_sitter_media/{sitterId}_{ownerId}/{uuid}.ext
+            String subDirName = sitterId.toString() + "_" + ownerId.toString();
+            Path targetDirPath = Paths.get(localStorageDir, subDirName);
+            
+            if (!Files.exists(targetDirPath)) {
+                Files.createDirectories(targetDirPath);
+            }
+            
+            Path targetFilePath = targetDirPath.resolve(targetFilename);
+            file.transferTo(targetFilePath);
+            
+            String fileUrl = localBaseUrl + "/" + subDirName + "/" + targetFilename;
+            log.info("Local media uploaded: {}", fileUrl);
+            return fileUrl;
+        } catch (IOException e) {
+            log.error("Failed to upload local media", e);
+            throw new RuntimeException("Local media upload failed", e);
+        }
+    }
+
+    @Override
+    public String uploadReportMedia(String planTier, String date, java.util.UUID orderId, java.util.UUID mediaId, MultipartFile file) {
+        try {
+            String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+            String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+            String targetFilename = mediaId.toString() + (extension != null ? "." + extension : "");
+            
+            // 路徑格式: /tmp/cat_sitter_media/{planTier}/{date}/{orderId}/{uuid}.ext
+            String subPath = planTier.toLowerCase() + "/" + date + "/" + orderId.toString();
+            Path targetDirPath = Paths.get(localStorageDir, planTier.toLowerCase(), date, orderId.toString());
+            
+            if (!Files.exists(targetDirPath)) {
+                Files.createDirectories(targetDirPath);
+            }
+            
+            Path targetFilePath = targetDirPath.resolve(targetFilename);
+            file.transferTo(targetFilePath);
+            
+            String fileUrl = localBaseUrl + "/" + subPath + "/" + targetFilename;
+            log.info("Local report media uploaded: {}", fileUrl);
+            return fileUrl;
+        } catch (IOException e) {
+            log.error("Failed to upload local report media", e);
+            throw new RuntimeException("Local report media upload failed", e);
+        }
+    }
+
+    @Override
+    public void deleteMedia(String mediaUrl) {
+        if (!mediaUrl.startsWith(localBaseUrl)) {
+            log.warn("Invalid local media URL: {}", mediaUrl);
+            return;
+        }
+        
+        try {
+            String relativePath = mediaUrl.substring(localBaseUrl.length());
+            Path targetPath = Paths.get(localStorageDir, relativePath);
+            boolean deleted = Files.deleteIfExists(targetPath);
+            if (deleted) {
+                log.info("Local media deleted: {}", targetPath);
+            } else {
+                log.warn("Local media not found for deletion: {}", targetPath);
+            }
+        } catch (IOException e) {
+            log.error("Failed to delete local media: {}", mediaUrl, e);
+            throw new RuntimeException("Local media deletion failed", e);
+        }
+    }
+}

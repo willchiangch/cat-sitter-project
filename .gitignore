@@ -58,7 +58,6 @@ cors.json
 cors-uat.json
 
 # === Storage & Temp ===
-**/storage/
 **/temp/
 .gstack/
 .gemini/
