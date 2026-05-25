@@ -17,3 +17,7 @@ app:
   security:
     jwt-secret: ${APP_SECURITY_JWT_SECRET}
     jwt-expiration: 86400000
+
+logging:
+  level:
+    com.google.cloud.sql: DEBUG
