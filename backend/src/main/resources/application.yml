@@ -5,7 +5,7 @@ spring:
   application:
     name: pet-sitter-backend
   profiles:
-    active: local # 預設啟動本地配置
+    default: local # 僅在未指定任何 profile 時套用，不會覆蓋環境變數 SPRING_PROFILES_ACTIVE
   jpa:
     open-in-view: false
   jackson:
