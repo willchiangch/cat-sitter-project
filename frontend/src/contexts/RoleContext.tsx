@@ -39,31 +39,21 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentRole, setCurrentRole] = useState<Role>(
     (localStorage.getItem('userRole') as Role) || 'sitter'
   );
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const isAuthLoading = false;
 
-  // 初始化登入與角色監聽
   useEffect(() => {
-    const initAuth = async () => {
-      setIsAuthLoading(true);
-      document.documentElement.setAttribute('data-theme', currentRole);
-      localStorage.setItem('userRole', currentRole);
-      // 無論是否有 Token，在初始化時都根據 localStorage 的角色動態登入對應的種子帳號
-      await loginAsRole(currentRole);
-      setIsAuthLoading(false);
-    };
-    initAuth();
+    document.documentElement.setAttribute('data-theme', currentRole);
+    localStorage.setItem('userRole', currentRole);
+    loginAsRole(currentRole).catch(console.error);
   }, [currentRole]);
 
   const setRole = async (role: Role) => {
-    setIsAuthLoading(true);
-    await loginAsRole(role);
     setCurrentRole(role);
-    setIsAuthLoading(false);
   };
 
   const toggleRole = async () => {
     const nextRole = currentRole === 'sitter' ? 'client' : 'sitter';
-    await setRole(nextRole);
+    setCurrentRole(nextRole);
   };
 
   return (

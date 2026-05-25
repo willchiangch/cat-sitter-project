@@ -70,7 +70,7 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await expect(page.locator('h2')).toContainText('選擇服務方案');
       
       // 點擊卡片選擇進階陪伴 (p2)
-      await page.click('[data-testid="client-booking-plan-card-p2"]');
+      await page.click('[data-testid="client-booking-plan-card-1"]');
 
       // 選擇方案後應進入排程配置
       await expect(page.locator('h2')).toContainText('排程配置');
@@ -121,7 +121,7 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       const helper = new CalendarHelper(page);
 
       // 方案 1: 基礎照顧 (p1)
-      await page.click('[data-testid="client-booking-plan-card-p1"]');
+      await page.click('[data-testid="client-booking-plan-card-0"]');
       // 日期 1, 2
       await helper.selectDate(0, 0, dates[0]);
       await helper.selectDate(0, 0, dates[1]);
@@ -133,7 +133,7 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await testInfo.attach('2-06-新增方案', { body: await page.screenshot(), contentType: 'image/png' });
       
       // 方案 2: 進階陪伴 (p2)
-      await page.click('[data-testid="client-booking-plan-card-p2"]');
+      await page.click('[data-testid="client-booking-plan-card-1"]');
       helper.reset(); // 新增方案後會開啟新日曆
       await testInfo.attach('2-07-選擇進階陪伴', { body: await page.screenshot(), contentType: 'image/png' });
 

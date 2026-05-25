@@ -185,7 +185,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ sitterId = '3d498
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {plans.filter(p => !booking.planConfigs.some(pc => pc.planId === p.id)).map(plan => (
+            {plans.map((plan, globalIdx) => ({ plan, globalIdx })).filter(({ plan }) => !booking.planConfigs.some(pc => pc.planId === plan.id)).map(({ plan, globalIdx }) => (
               <div 
                 key={plan.id} 
                 onClick={() => addPlanConfig(plan.id!)}
@@ -200,7 +200,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({ sitterId = '3d498
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'var(--shadow-ambient)';
                 }}
-                data-testid={`client-booking-plan-card-${plan.id}`}
+                data-testid={`client-booking-plan-card-${globalIdx}`}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <h3 style={{ fontWeight: '800', margin: 0, fontSize: '1.25rem', color: 'var(--color-on-surface)' }}>{plan.name}</h3>

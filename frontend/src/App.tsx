@@ -25,7 +25,7 @@ type ViewState = {
 };
 
 function App() {
-  const { currentRole, setRole, isAuthLoading } = useRole();
+  const { currentRole, setRole } = useRole();
   const [view, setView] = useState<ViewState>({ name: 'demo' });
 
   // 測試用的 Mock Sitter / Owner / Visit / Order UUID
@@ -187,10 +187,6 @@ function App() {
         );
     }
   };
-
-  if (isAuthLoading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>正在載入安全憑證與使用者資料...</div>;
-  }
 
   return (
     <AppShell>
