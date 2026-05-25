@@ -144,6 +144,9 @@ jobs:
             --region=${{ env.REGION }} \
             --service-account=${{ env.RUNNER_SA }} \
             --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE }} \
+            --memory=1Gi \
+            --cpu=1 \
+            --startup-cpu-boost \
             --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SPRING_DATASOURCE_USERNAME=petsitter_user \
             --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest \
             --allow-unauthenticated \

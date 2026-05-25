@@ -22,4 +22,4 @@ COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
 
 # 啟動參數：優化記憶體配置並設定無頭模式
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-Duser.timezone=UTC", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-XX:+UseContainerSupport", "-Djava.security.egd=file:/dev/./urandom", "-Duser.timezone=UTC", "-jar", "app.jar"]
