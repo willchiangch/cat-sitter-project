@@ -173,7 +173,7 @@ jobs:
 
       # 10. 關閉 Cloud SQL Database (安全防護：無論前述步驟成功或失敗皆必定執行)
       - name: Stop Cloud SQL Database
-        if: always()
+        if: false # 密集開發與聯調期暫停自動關機，由開發者確認部署後手動關閉
         run: |
           echo "Checking for any running database operations before shutting down..."
           for i in {1..30}; do
