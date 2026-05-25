@@ -102,8 +102,9 @@ function App() {
                 >
                   切換為保母
                 </button>
-                <button 
-                  className="btn-primary" 
+                <button
+                  className="btn-primary"
+                  data-testid="btn-role-toggle"
                   onClick={() => setRole('client')}
                   style={{ opacity: currentRole === 'client' ? 1 : 0.6, fontSize: '0.8rem', padding: '8px 12px' }}
                 >
