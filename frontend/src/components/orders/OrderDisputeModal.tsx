@@ -34,21 +34,23 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
   const categories = ['服務品質不符', '未照約定打卡', '保母無故缺席', '其他問題'];
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.4)',
-      backdropFilter: 'blur(8px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '1.5rem'
-    }}>
-      <div 
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '1.5rem'
+      }}
+    >
+      <div
         style={{
           backgroundColor: 'var(--color-surface-high)',
           borderRadius: 'var(--radius-lg)',
@@ -63,15 +65,38 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
         data-testid="dispute-modal"
       >
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: '700', color: 'var(--color-on-surface)', fontFamily: 'var(--font-display)' }}>回報訂單爭議</h3>
-          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: '1.5rem',
+              fontWeight: '700',
+              color: 'var(--color-on-surface)',
+              fontFamily: 'var(--font-display)'
+            }}
+          >
+            回報訂單爭議
+          </h3>
+          <p
+            style={{
+              margin: '0.5rem 0 0 0',
+              fontSize: '0.875rem',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
             請選擇爭議類型並填寫詳細說明，管理員將在收到申請後介入調解。
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-on-surface)' }}>爭議類別</label>
+            <label
+              style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-on-surface)' }}
+            >
+              爭議類別
+            </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {categories.map((cat) => (
                 <button
@@ -82,8 +107,12 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
                     padding: '0.5rem 1rem',
                     borderRadius: '9999px',
                     border: 'none',
-                    backgroundColor: category === cat ? 'var(--color-primary-container)' : 'var(--color-surface-low)',
-                    color: category === cat ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                    backgroundColor:
+                      category === cat
+                        ? 'var(--color-primary-container)'
+                        : 'var(--color-surface-low)',
+                    color:
+                      category === cat ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
                     fontSize: '0.8125rem',
                     fontWeight: '600',
                     cursor: 'pointer',
@@ -98,7 +127,11 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-on-surface)' }}>具體狀況說明</label>
+            <label
+              style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-on-surface)' }}
+            >
+              具體狀況說明
+            </label>
             <textarea
               rows={4}
               value={description}
@@ -126,7 +159,12 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
               onClick={onClose}
               disabled={loading}
               className="btn-primary"
-              style={{ flex: 1, backgroundColor: 'var(--color-surface-high)', color: 'var(--color-on-surface-variant)', boxShadow: 'none' }}
+              style={{
+                flex: 1,
+                backgroundColor: 'var(--color-surface-high)',
+                color: 'var(--color-on-surface-variant)',
+                boxShadow: 'none'
+              }}
             >
               取消
             </button>

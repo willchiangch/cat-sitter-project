@@ -17,4 +17,5 @@ public class BookingItemRequest {
     private UUID planId;
     private List<LocalDate> dates;
     private Integer timesPerDay;
+    private List<UUID> petIds;
 }

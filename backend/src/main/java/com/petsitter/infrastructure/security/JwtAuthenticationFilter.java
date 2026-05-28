@@ -30,22 +30,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         
         String jwt = parseJwt(request);
         
-        if (jwt != null && jwtUtils.validateToken(jwt)) {
-            Claims claims = jwtUtils.getClaims(jwt);
-            String email = claims.getSubject();
-            String role = claims.get("role", String.class);
+        boolean setByFilter = false;
+        try {
+            if (jwt != null && jwtUtils.validateToken(jwt)) {
+                Claims claims = jwtUtils.getClaims(jwt);
+                String email = claims.getSubject();
+                String role = claims.get("role", String.class);
+                String userId = claims.get("userId", String.class);
 
-            if (email != null) {
-                List<SimpleGrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
-                UsernamePasswordAuthenticationToken authentication = 
-                        new UsernamePasswordAuthenticationToken(email, null, authorities);
-                
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                if (email != null) {
+                    if (userId != null) {
+                        TokenContext.setUserId(java.util.UUID.fromString(userId));
+                        setByFilter = true;
+                    }
+                    List<SimpleGrantedAuthority> authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
+                    UsernamePasswordAuthenticationToken authentication = 
+                            new UsernamePasswordAuthenticationToken(email, null, authorities);
+                    
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            }
+
+            filterChain.doFilter(request, response);
+        } finally {
+            if (setByFilter) {
+                TokenContext.clear();
             }
         }
-
-        filterChain.doFilter(request, response);
     }
 
     private String parseJwt(HttpServletRequest request) {

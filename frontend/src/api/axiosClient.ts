@@ -9,7 +9,8 @@ const axiosClient = axios.create({
 });
 
 let isRefreshing = false;
-let failedQueue: { resolve: (token: string | null) => void; reject: (error: unknown) => void }[] = [];
+let failedQueue: { resolve: (token: string | null) => void; reject: (error: unknown) => void }[] =
+  [];
 
 const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {

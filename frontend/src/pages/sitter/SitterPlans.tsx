@@ -71,7 +71,11 @@ const SitterPlans: React.FC = () => {
 
   // 下架/邏輯刪除方案
   const handleDelete = async (planId: string) => {
-    if (window.confirm('確定要下架此服務方案嗎？\n這將使飼主無法再預約此方案，但不會影響已建立的歷史訂單。')) {
+    if (
+      window.confirm(
+        '確定要下架此服務方案嗎？\n這將使飼主無法再預約此方案，但不會影響已建立的歷史訂單。'
+      )
+    ) {
       try {
         await deletePlanMutation.mutateAsync(planId);
       } catch (err) {
@@ -185,17 +189,43 @@ const SitterPlans: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '2rem 1.5rem', maxWidth: '600px', margin: '0 auto' }} data-theme="sitter">
+    <div
+      style={{ padding: '2rem 1.5rem', maxWidth: '600px', margin: '0 auto' }}
+      data-theme="sitter"
+    >
       {/* Header section with asymmetry design */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '2.5rem'
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: '0 0 0.5rem 0', color: 'var(--color-primary)' }}>服務方案設定</h2>
-          <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.9rem', margin: 0 }}>定義您提供的照護方案與任務清單</p>
+          <h2
+            style={{
+              fontSize: '1.75rem',
+              fontWeight: '800',
+              margin: '0 0 0.5rem 0',
+              color: 'var(--color-primary)'
+            }}
+          >
+            服務方案設定
+          </h2>
+          <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.9rem', margin: 0 }}>
+            定義您提供的照護方案與任務清單
+          </p>
         </div>
         <button
           onClick={() => openModal()}
           className="btn-primary"
-          style={{ padding: '10px 20px', fontSize: '0.9rem', borderRadius: '100px', boxShadow: 'var(--shadow-ambient)' }}
+          style={{
+            padding: '10px 20px',
+            fontSize: '0.9rem',
+            borderRadius: '100px',
+            boxShadow: 'var(--shadow-ambient)'
+          }}
           data-testid="sitter-plan-btn-add"
         >
           <Plus size={16} /> 新增方案
@@ -210,7 +240,16 @@ const SitterPlans: React.FC = () => {
       )}
 
       {error && (
-        <div style={{ padding: '2rem', backgroundColor: 'rgba(176, 37, 0, 0.05)', borderRadius: '12px', display: 'flex', gap: '8px', color: 'var(--color-error)' }}>
+        <div
+          style={{
+            padding: '2rem',
+            backgroundColor: 'rgba(176, 37, 0, 0.05)',
+            borderRadius: '12px',
+            display: 'flex',
+            gap: '8px',
+            color: 'var(--color-error)'
+          }}
+        >
           <AlertCircle size={20} />
           <div>載入服務方案失敗，請確認後端服務已啟動並重新整理。</div>
         </div>
@@ -220,8 +259,20 @@ const SitterPlans: React.FC = () => {
       {!isLoading && !error && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {plans.length === 0 ? (
-            <div style={{ padding: '4rem 2rem', textAlign: 'center', backgroundColor: 'var(--color-surface-low)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--color-outline-variant)' }}>
-              <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.95rem', margin: 0 }}>目前尚無任何服務方案，請點擊右上角新增。</p>
+            <div
+              style={{
+                padding: '4rem 2rem',
+                textAlign: 'center',
+                backgroundColor: 'var(--color-surface-low)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px dashed var(--color-outline-variant)'
+              }}
+            >
+              <p
+                style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.95rem', margin: 0 }}
+              >
+                目前尚無任何服務方案，請點擊右上角新增。
+              </p>
             </div>
           ) : (
             plans.map((plan, index) => (
@@ -232,10 +283,29 @@ const SitterPlans: React.FC = () => {
                 data-testid={`sitter-plan-card-${plan.id}`}
               >
                 {/* Asymmetrical Top Layout */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '12px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '1rem',
+                    gap: '12px'
+                  }}
+                >
                   <div>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: '0 0 4px 0', color: 'var(--color-on-surface)' }}>{plan.name}</h3>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <h3
+                      style={{
+                        fontSize: '1.25rem',
+                        fontWeight: '800',
+                        margin: '0 0 4px 0',
+                        color: 'var(--color-on-surface)'
+                      }}
+                    >
+                      {plan.name}
+                    </h3>
+                    <div
+                      style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}
+                    >
                       {plan.applicablePetTypes.map((type) => (
                         <span
                           key={type}
@@ -251,29 +321,81 @@ const SitterPlans: React.FC = () => {
                           {type === 'CAT' ? '🐱 貓' : type === 'DOG' ? '🐶 狗' : type}
                         </span>
                       ))}
-                      <span style={{ fontSize: '0.75rem', backgroundColor: 'rgba(0, 107, 27, 0.08)', color: 'var(--color-tertiary)', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: 'rgba(0, 107, 27, 0.08)',
+                          color: 'var(--color-tertiary)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontWeight: '700'
+                        }}
+                      >
                         限額 {plan.dailyCapacity} 次/日
                       </span>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span style={{ fontSize: '1.3rem', fontWeight: '900', color: 'var(--color-primary)' }}>$ {plan.price}</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}> / 次</span>
+                    <span
+                      style={{
+                        fontSize: '1.3rem',
+                        fontWeight: '900',
+                        color: 'var(--color-primary)'
+                      }}
+                    >
+                      $ {plan.price}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
+                      {' '}
+                      / 次
+                    </span>
                   </div>
                 </div>
 
                 {/* Description */}
                 {plan.description && (
-                  <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', margin: '0 0 1rem 0', lineHeight: 1.5 }}>
+                  <p
+                    style={{
+                      fontSize: '0.875rem',
+                      color: 'var(--color-on-surface-variant)',
+                      margin: '0 0 1rem 0',
+                      lineHeight: 1.5
+                    }}
+                  >
                     {plan.description}
                   </p>
                 )}
 
                 {/* SOP Tasks */}
                 {plan.defaultTasks && plan.defaultTasks.length > 0 && (
-                  <div style={{ backgroundColor: 'var(--color-surface-low)', padding: '12px 16px', borderRadius: '12px', marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--color-on-surface-variant)', marginBottom: '8px', letterSpacing: '0.05em' }}>預設照護 SOP</div>
-                    <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'var(--color-on-surface)', lineHeight: 1.6 }}>
+                  <div
+                    style={{
+                      backgroundColor: 'var(--color-surface-low)',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      marginBottom: '1rem'
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: '800',
+                        color: 'var(--color-on-surface-variant)',
+                        marginBottom: '8px',
+                        letterSpacing: '0.05em'
+                      }}
+                    >
+                      預設照護 SOP
+                    </div>
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: '1.2rem',
+                        fontSize: '0.85rem',
+                        color: 'var(--color-on-surface)',
+                        lineHeight: 1.6
+                      }}
+                    >
                       {plan.defaultTasks.map((task, tIdx) => (
                         <li key={tIdx}>{task}</li>
                       ))}
@@ -282,22 +404,44 @@ const SitterPlans: React.FC = () => {
                 )}
 
                 {/* Restrictions and Date Ranges */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', marginBottom: '1rem', borderTop: '1px solid var(--color-outline-variant)', paddingTop: '10px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-on-surface-variant)',
+                    marginBottom: '1rem',
+                    borderTop: '1px solid var(--color-outline-variant)',
+                    paddingTop: '10px'
+                  }}
+                >
                   <div>
                     開放日期：
                     <strong style={{ color: 'var(--color-on-surface)' }}>
-                      {plan.startDate || plan.endDate ? `${plan.startDate || '無限制'} 至 ${plan.endDate || '無限制'}` : '常態方案 (無限制)'}
+                      {plan.startDate || plan.endDate
+                        ? `${plan.startDate || '無限制'} 至 ${plan.endDate || '無限制'}`
+                        : '常態方案 (無限制)'}
                     </strong>
                   </div>
                   {plan.isRestricted && (
-                    <div style={{ marginLeft: 'auto', color: 'var(--color-error)', fontWeight: '700' }}>
+                    <div
+                      style={{ marginLeft: 'auto', color: 'var(--color-error)', fontWeight: '700' }}
+                    >
                       ⚠️ 啟用白名單限制
                     </div>
                   )}
                 </div>
 
                 {/* Card Actions (Edit, Delete, Move) */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
                   {/* Sorting Buttons */}
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <button
@@ -419,13 +563,33 @@ const SitterPlans: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Title */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ fontSize: '1.5rem', fontWeight: '800', margin: 0, color: 'var(--color-on-surface)' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '1.5rem',
+                  fontWeight: '800',
+                  margin: 0,
+                  color: 'var(--color-on-surface)'
+                }}
+              >
                 {editingPlan ? '編輯服務方案' : '新增服務方案'}
               </h3>
               <button
                 onClick={closeModal}
-                style={{ background: 'none', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer', padding: '4px' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-on-surface-variant)',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
                 data-testid="sitter-plan-btn-cancel"
               >
                 <X size={24} />
@@ -455,10 +619,21 @@ const SitterPlans: React.FC = () => {
             )}
 
             {/* Form */}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form
+              onSubmit={handleSubmit}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            >
               {/* Name */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>方案名稱 *</label>
+                <label
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
+                  方案名稱 *
+                </label>
                 <input
                   type="text"
                   placeholder="例如: 30分鐘到府餵食"
@@ -480,7 +655,15 @@ const SitterPlans: React.FC = () => {
               {/* Price & Capacity Horizontal Layout */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>單次價格 ($) *</label>
+                  <label
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: '800',
+                      color: 'var(--color-on-surface-variant)'
+                    }}
+                  >
+                    單次價格 ($) *
+                  </label>
                   <input
                     type="number"
                     placeholder="500"
@@ -500,12 +683,22 @@ const SitterPlans: React.FC = () => {
                   />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>每日接單容量限制 *</label>
+                  <label
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: '800',
+                      color: 'var(--color-on-surface-variant)'
+                    }}
+                  >
+                    每日接單容量限制 *
+                  </label>
                   <input
                     type="number"
                     placeholder="3"
                     value={dailyCapacity}
-                    onChange={(e) => setDailyCapacity(e.target.value === '' ? '' : Number(e.target.value))}
+                    onChange={(e) =>
+                      setDailyCapacity(e.target.value === '' ? '' : Number(e.target.value))
+                    }
                     style={{
                       padding: '12px',
                       borderRadius: 'var(--radius-sm)',
@@ -523,7 +716,15 @@ const SitterPlans: React.FC = () => {
 
               {/* Applicable Pet Types */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>適用寵物類型 *</label>
+                <label
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
+                  適用寵物類型 *
+                </label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     type="button"
@@ -532,8 +733,12 @@ const SitterPlans: React.FC = () => {
                       flex: 1,
                       padding: '10px',
                       border: '1px solid var(--color-outline-variant)',
-                      backgroundColor: applicablePetTypes.includes('CAT') ? 'var(--color-primary)' : 'var(--color-surface-low)',
-                      color: applicablePetTypes.includes('CAT') ? 'white' : 'var(--color-on-surface)',
+                      backgroundColor: applicablePetTypes.includes('CAT')
+                        ? 'var(--color-primary)'
+                        : 'var(--color-surface-low)',
+                      color: applicablePetTypes.includes('CAT')
+                        ? 'white'
+                        : 'var(--color-on-surface)',
                       borderRadius: '8px',
                       cursor: 'pointer',
                       fontWeight: '700',
@@ -550,8 +755,12 @@ const SitterPlans: React.FC = () => {
                       flex: 1,
                       padding: '10px',
                       border: '1px solid var(--color-outline-variant)',
-                      backgroundColor: applicablePetTypes.includes('DOG') ? 'var(--color-primary)' : 'var(--color-surface-low)',
-                      color: applicablePetTypes.includes('DOG') ? 'white' : 'var(--color-on-surface)',
+                      backgroundColor: applicablePetTypes.includes('DOG')
+                        ? 'var(--color-primary)'
+                        : 'var(--color-surface-low)',
+                      color: applicablePetTypes.includes('DOG')
+                        ? 'white'
+                        : 'var(--color-on-surface)',
                       borderRadius: '8px',
                       cursor: 'pointer',
                       fontWeight: '700',
@@ -566,7 +775,15 @@ const SitterPlans: React.FC = () => {
 
               {/* Description */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>方案說明</label>
+                <label
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
+                  方案說明
+                </label>
                 <textarea
                   placeholder="請簡單描述此方案的服務細節"
                   value={description}
@@ -587,8 +804,18 @@ const SitterPlans: React.FC = () => {
 
               {/* SOP Default Tasks Dynamic Editor */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>預設照護 SOP 工作項目</label>
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <label
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: '800',
+                      color: 'var(--color-on-surface-variant)'
+                    }}
+                  >
+                    預設照護 SOP 工作項目
+                  </label>
                   <button
                     type="button"
                     onClick={handleAddTask}
@@ -608,7 +835,9 @@ const SitterPlans: React.FC = () => {
                     <Plus size={14} /> 新增項目
                   </button>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}
+                >
                   {defaultTasks.map((task, idx) => (
                     <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <input
@@ -645,7 +874,14 @@ const SitterPlans: React.FC = () => {
                     </div>
                   ))}
                   {defaultTasks.length === 0 && (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)', fontStyle: 'italic', padding: '6px 0' }}>
+                    <div
+                      style={{
+                        fontSize: '0.8rem',
+                        color: 'var(--color-on-surface-variant)',
+                        fontStyle: 'italic',
+                        padding: '6px 0'
+                      }}
+                    >
                       無預設照護工作項目
                     </div>
                   )}
@@ -653,11 +889,29 @@ const SitterPlans: React.FC = () => {
               </div>
 
               {/* Date Limits with Switch */}
-              <div style={{ borderTop: '1px solid var(--color-outline-variant)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{
+                  borderTop: '1px solid var(--color-outline-variant)',
+                  paddingTop: '1rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
                   <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>限制開放預約日期區間</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>
+                      限制開放預約日期區間
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--color-on-surface-variant)',
+                        marginTop: '2px'
+                      }}
+                    >
                       僅在選定區間內開放飼主預約
                     </div>
                   </div>
@@ -665,15 +919,36 @@ const SitterPlans: React.FC = () => {
                     type="checkbox"
                     checked={hasDateRange}
                     onChange={(e) => setHasDateRange(e.target.checked)}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      cursor: 'pointer',
+                      accentColor: 'var(--color-primary)'
+                    }}
                     data-testid="sitter-plan-switch-date-range"
                   />
                 </div>
 
                 {hasDateRange && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '4px', animation: 'fade-in 0.2s' }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '12px',
+                      marginTop: '4px',
+                      animation: 'fade-in 0.2s'
+                    }}
+                  >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>開始日期</label>
+                      <label
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: '800',
+                          color: 'var(--color-on-surface-variant)'
+                        }}
+                      >
+                        開始日期
+                      </label>
                       <input
                         type="date"
                         value={startDate}
@@ -690,7 +965,15 @@ const SitterPlans: React.FC = () => {
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--color-on-surface-variant)' }}>結束日期</label>
+                      <label
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: '800',
+                          color: 'var(--color-on-surface-variant)'
+                        }}
+                      >
+                        結束日期
+                      </label>
                       <input
                         type="date"
                         value={endDate}
@@ -709,17 +992,41 @@ const SitterPlans: React.FC = () => {
                   </div>
                 )}
                 {hasDateRange && (
-                  <p style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
-                    <strong style={{ color: 'var(--color-primary)' }}>* 限制提示：</strong>設定開放預約區間需要您訂閱 <strong style={{ color: 'var(--color-primary)' }}>專業版 (PRO) 或以上</strong>。普通版保母送出將會被限制。
+                  <p
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--color-on-surface-variant)',
+                      margin: '4px 0 0 0',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    <strong style={{ color: 'var(--color-primary)' }}>* 限制提示：</strong>
+                    設定開放預約區間需要您訂閱{' '}
+                    <strong style={{ color: 'var(--color-primary)' }}>專業版 (PRO) 或以上</strong>
+                    。普通版保母送出將會被限制。
                   </p>
                 )}
               </div>
 
               {/* Restrict Whitelist with Switch */}
-              <div style={{ borderTop: '1px solid var(--color-outline-variant)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{
+                  borderTop: '1px solid var(--color-outline-variant)',
+                  paddingTop: '1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
                 <div>
                   <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>啟用白名單預約限制</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', marginTop: '2px' }}>
+                  <div
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--color-on-surface-variant)',
+                      marginTop: '2px'
+                    }}
+                  >
                     啟用後，僅有加入白名單的飼主可檢視並預約此方案
                   </div>
                 </div>
@@ -727,13 +1034,26 @@ const SitterPlans: React.FC = () => {
                   type="checkbox"
                   checked={isRestricted}
                   onChange={(e) => setIsRestricted(e.target.checked)}
-                  style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    cursor: 'pointer',
+                    accentColor: 'var(--color-primary)'
+                  }}
                   data-testid="sitter-plan-switch-restricted"
                 />
               </div>
 
               {/* Form Buttons */}
-              <div style={{ display: 'flex', gap: '12px', marginTop: '1.5rem', borderTop: '1px solid var(--color-outline-variant)', paddingTop: '1.5rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '12px',
+                  marginTop: '1.5rem',
+                  borderTop: '1px solid var(--color-outline-variant)',
+                  paddingTop: '1.5rem'
+                }}
+              >
                 <button
                   type="button"
                   onClick={closeModal}

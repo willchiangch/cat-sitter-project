@@ -34,6 +34,7 @@ public class ServicePlanService {
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final GatekeeperService gatekeeperService;
 
     @Transactional
     public ServicePlanDto createPlan(ServicePlanDto dto, UUID sitterId) {
@@ -176,6 +177,10 @@ public class ServicePlanService {
 
     @Transactional(readOnly = true)
     public List<ServicePlanDto> getActivePlansForOwner(UUID sitterId, UUID currentUserId) {
+        if (currentUserId != null && gatekeeperService.isBlocked(sitterId, currentUserId, null)) {
+            throw new org.springframework.security.access.AccessDeniedException("保母目前不開放預約");
+        }
+
         List<ServicePlan> plans = servicePlanRepository.findBySitterIdAndIsDeletedOrderBySortOrderAsc(sitterId, false);
         LocalDate now = LocalDate.now();
 
@@ -190,13 +195,10 @@ public class ServicePlanService {
                     }
                     return true;
                 })
-                // 4. 白名單過濾：TODO (PRD-001/SD-001 整合點)。若 isRestricted = true 則檢核。當前版本跳過。
+                // 4. 門禁白名單/黑名單過濾
                 .filter(plan -> {
-                    if (plan.isRestricted()) {
-                        // TODO: 整合 whitelist 關係，不符則 return false. 目前直接放行
-                        return true;
-                    }
-                    return true;
+                    if (currentUserId == null) return true;
+                    return !gatekeeperService.isBlocked(sitterId, currentUserId, plan.getId());
                 })
                 .map(this::toDto)
                 .collect(Collectors.toList());

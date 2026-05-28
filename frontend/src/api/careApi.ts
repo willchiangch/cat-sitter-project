@@ -91,10 +91,7 @@ export const updateTemplate = async (
   return response.data.data;
 };
 
-export const deleteTemplate = async (
-  templateId: string,
-  idempotencyKey: string
-): Promise<void> => {
+export const deleteTemplate = async (templateId: string, idempotencyKey: string): Promise<void> => {
   await axiosClient.delete(`/care-notes/templates/${templateId}`, {
     headers: {
       'Idempotency-Key': idempotencyKey

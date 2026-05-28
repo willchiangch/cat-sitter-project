@@ -17,10 +17,28 @@ import OrderModificationWizard from './pages/client/OrderModificationWizard';
 import SitterModificationQuote from './pages/sitter/SitterModificationQuote';
 import OwnerModificationConfirm from './pages/client/OwnerModificationConfirm';
 import SitterPlans from './pages/sitter/SitterPlans';
+import PetManager from './pages/client/PetManager';
+import { GatekeeperSettings } from './pages/sitter/GatekeeperSettings';
 
 type ViewState = {
-  name: 'demo' | 'orders' | 'eval' | 'booking' | 'carenote-manager' | 'carenote-view' | 'visit-report-manager' | 'visit-report-view'
-    | 'owner-orders' | 'owner-order-detail' | 'admin-resolve' | 'modification-wizard' | 'sitter-modification-quote' | 'owner-modification-confirm' | 'sitter-plans';
+  name:
+    | 'demo'
+    | 'orders'
+    | 'eval'
+    | 'booking'
+    | 'carenote-manager'
+    | 'carenote-view'
+    | 'visit-report-manager'
+    | 'visit-report-view'
+    | 'owner-orders'
+    | 'owner-order-detail'
+    | 'admin-resolve'
+    | 'modification-wizard'
+    | 'sitter-modification-quote'
+    | 'owner-modification-confirm'
+    | 'sitter-plans'
+    | 'pet-manager'
+    | 'gatekeeper-settings';
   params?: { sitterId: string; ownerId: string; visitId?: string; orderId?: string };
 };
 
@@ -61,21 +79,18 @@ function App() {
           />
         );
       case 'visit-report-manager':
-        return (
-          <VisitReportManager
-            visitId={view.params?.visitId || mockParams.visitId}
-          />
-        );
+        return <VisitReportManager visitId={view.params?.visitId || mockParams.visitId} />;
       case 'visit-report-view':
-        return (
-          <VisitReportView
-            visitId={view.params?.visitId || mockParams.visitId}
-          />
-        );
+        return <VisitReportView visitId={view.params?.visitId || mockParams.visitId} />;
       case 'owner-orders':
         return <OwnerOrders setView={setView} />;
       case 'owner-order-detail':
-        return <OwnerOrderDetail orderId={view.params?.orderId || mockParams.orderId} setView={setView} />;
+        return (
+          <OwnerOrderDetail
+            orderId={view.params?.orderId || mockParams.orderId}
+            setView={setView}
+          />
+        );
       case 'admin-resolve':
         return <AdminResolvePanel orderId={view.params?.orderId || mockParams.orderId} />;
       case 'modification-wizard':
@@ -83,22 +98,56 @@ function App() {
       case 'sitter-modification-quote':
         return <SitterModificationQuote orderId={view.params?.orderId || mockParams.orderId} />;
       case 'owner-modification-confirm':
-        return <OwnerModificationConfirm orderId={view.params?.orderId || mockParams.orderId} />;
+        return (
+          <OwnerModificationConfirm
+            orderId={view.params?.orderId || mockParams.orderId}
+          />
+        );
+      case 'pet-manager':
+        return <PetManager />;
+      case 'gatekeeper-settings':
+        return <GatekeeperSettings />;
       default:
         return (
           <div style={{ padding: '2rem 0', textAlign: 'center' }}>
-            <h1 style={{ color: 'var(--color-primary)', fontSize: '2.5rem', marginBottom: '1rem' }}>WhiskerWatch</h1>
+            <h1 style={{ color: 'var(--color-primary)', fontSize: '2.5rem', marginBottom: '1rem' }}>
+              WhiskerWatch
+            </h1>
             <p style={{ color: 'var(--color-on-surface-variant)', marginBottom: '2.5rem' }}>
-              當前角色: <strong style={{ color: 'var(--color-on-surface)' }}>
-                {currentRole === 'sitter' ? '貓咪保母' : currentRole === 'client' ? '愛貓飼主' : '系統管理員'}
+              當前角色:{' '}
+              <strong style={{ color: 'var(--color-on-surface)' }}>
+                {currentRole === 'sitter'
+                  ? '貓咪保母'
+                  : currentRole === 'client'
+                    ? '愛貓飼主'
+                    : '系統管理員'}
               </strong>
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '340px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1rem' }}>
-                <button 
-                  className="btn-primary" 
-                  onClick={() => setRole('sitter')} 
-                  style={{ opacity: currentRole === 'sitter' ? 1 : 0.6, fontSize: '0.8rem', padding: '8px 12px' }}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                maxWidth: '340px',
+                margin: '0 auto'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '0.5rem',
+                  justifyContent: 'center',
+                  marginBottom: '1rem'
+                }}
+              >
+                <button
+                  className="btn-primary"
+                  onClick={() => setRole('sitter')}
+                  style={{
+                    opacity: currentRole === 'sitter' ? 1 : 0.6,
+                    fontSize: '0.8rem',
+                    padding: '8px 12px'
+                  }}
                 >
                   切換為保母
                 </button>
@@ -106,14 +155,22 @@ function App() {
                   className="btn-primary"
                   data-testid="btn-role-toggle"
                   onClick={() => setRole('client')}
-                  style={{ opacity: currentRole === 'client' ? 1 : 0.6, fontSize: '0.8rem', padding: '8px 12px' }}
+                  style={{
+                    opacity: currentRole === 'client' ? 1 : 0.6,
+                    fontSize: '0.8rem',
+                    padding: '8px 12px'
+                  }}
                 >
                   切換為飼主
                 </button>
-                <button 
-                  className="btn-primary" 
+                <button
+                  className="btn-primary"
                   onClick={() => setRole('admin')}
-                  style={{ opacity: currentRole === 'admin' ? 1 : 0.6, fontSize: '0.8rem', padding: '8px 12px' }}
+                  style={{
+                    opacity: currentRole === 'admin' ? 1 : 0.6,
+                    fontSize: '0.8rem',
+                    padding: '8px 12px'
+                  }}
                 >
                   切換為管理員
                 </button>
@@ -128,15 +185,29 @@ function App() {
               <button className="btn-primary" onClick={() => setView({ name: 'owner-orders' })}>
                 進入訂單管理 (飼主端)
               </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'pet-manager' })}
+                data-testid="btn-go-pet-manager"
+              >
+                進入毛孩管理 (飼主端)
+              </button>
               <button className="btn-primary" onClick={() => setView({ name: 'eval' })}>
                 進入報價評估 (保母端)
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 onClick={() => setView({ name: 'sitter-plans' })}
                 data-testid="btn-go-sitter-plans"
               >
                 進入方案設定 (保母端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'gatekeeper-settings' })}
+                data-testid="btn-go-gatekeeper"
+              >
+                進入門禁設定 (保母端)
               </button>
               <button
                 className="btn-primary"
@@ -163,22 +234,47 @@ function App() {
                 進入日誌檢視 (飼主端)
               </button>
 
-              <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--color-surface-high)', paddingTop: '1.5rem' }}>
+              <div
+                style={{
+                  marginTop: '1.5rem',
+                  borderTop: '1px solid var(--color-surface-high)',
+                  paddingTop: '1.5rem'
+                }}
+              >
                 <h4 style={{ margin: '0 0 1rem 0' }}>功能直接 Demo 入口</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <button className="btn-primary" onClick={() => setView({ name: 'owner-order-detail', params: mockParams })}>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setView({ name: 'owner-order-detail', params: mockParams })}
+                  >
                     直接進入訂單詳情 (飼主端)
                   </button>
-                  <button className="btn-primary" onClick={() => setView({ name: 'admin-resolve', params: mockParams })}>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setView({ name: 'admin-resolve', params: mockParams })}
+                  >
                     直接進入爭議調解 (管理端)
                   </button>
-                  <button className="btn-primary" onClick={() => setView({ name: 'modification-wizard', params: mockParams })}>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setView({ name: 'modification-wizard', params: mockParams })}
+                  >
                     直接進入變更精靈 (飼主/保母)
                   </button>
-                  <button className="btn-primary" onClick={() => setView({ name: 'sitter-modification-quote', params: mockParams })}>
+                  <button
+                    className="btn-primary"
+                    onClick={() =>
+                      setView({ name: 'sitter-modification-quote', params: mockParams })
+                    }
+                  >
                     直接進入變更報價 (保母端)
                   </button>
-                  <button className="btn-primary" onClick={() => setView({ name: 'owner-modification-confirm', params: mockParams })}>
+                  <button
+                    className="btn-primary"
+                    onClick={() =>
+                      setView({ name: 'owner-modification-confirm', params: mockParams })
+                    }
+                  >
                     直接進入變更確認 (飼主端)
                   </button>
                 </div>

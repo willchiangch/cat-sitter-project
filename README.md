@@ -10,6 +10,8 @@
 - **Migration**: Flyway 11.x
 - **ORM**: Hibernate 7.x (Jakarta Persistence 3.2)
 - **Auth**: Spring Security 6 + JJWT 0.12.6 (Stateless JWT)
+- **Monitoring**: Spring Boot Actuator (健康檢查曝露限制 /actuator/health)
+- **OpenAPI**: Springdoc OpenAPI / Swagger UI (開發期匿名存取 /swagger-ui.html)
 
 ### 前端 (Frontend)
 - **Framework**: React 19 + Vite 8
@@ -40,7 +42,9 @@
 | 模組 | SD 設計 | 實作狀態 | 測試狀態 | 備註 |
 | :--- | :---: | :---: | :---: | :--- |
 | **SD-000 身分驗證** | ✅ | Backend ✅ | ✅ TS-000 | JWT 無狀態認證與 RBAC 權限控管 |
-| **SD-003 服務方案** | ✅ | Backend ✅ | ✅ TS-003 | 支援自訂任務 SOP、SaaS 四級日期區間控制與白名單門禁 TODO |
+| **SD-001 角色切換與預約門禁** | ✅ | 前後端 ✅ | ✅ E2E | 支援角色雙向切換（懶加載 Profile）、SaaS 階梯式門禁卡控（Free鎖定、Pro黑名單、Ultimate無限制）、黑白名單互斥防禦與免填問卷卡控，已完成前後端聯調 |
+| **SD-002 毛孩資料與注意事項管理** | ✅ | 前後端 ✅ | ✅ E2E | 支援 8 大物種選單、雙欄管理版面、醫療/個性/環境備註共同編輯與防重複點選、JPA 樂觀鎖衝突 (409) 提示與進行中服務刪除卡控 |
+| **SD-003 服務方案** | ✅ | Backend ✅ | ✅ TS-003 | 支援自訂任務 SOP、SaaS 四級日期區間控制 |
 | **SD-005 預約申請** | ✅ | Backend ✅ | ✅ TS-005 | 支援 Advisory Lock 並升級多項目複合式排程矩陣 |
 | **SD-006 報價快照** | ✅ | Backend ✅ | ✅ TS-006 | 支援 SaaS Gating 與零信任校驗 |
 | **SD-009 訂單結案** | ✅ | 前後端 ✅ | ✅ TS-009 | 支援 72hr 殭屍清理與 48hr 自動結案，前端結案與爭議提報已與後端對接 |

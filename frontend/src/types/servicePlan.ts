@@ -8,7 +8,7 @@ export interface ServicePlan {
   applicablePetTypes: string[];
   description?: string;
   startDate?: string | null; // DATE - YYYY-MM-DD
-  endDate?: string | null;   // DATE - YYYY-MM-DD
+  endDate?: string | null; // DATE - YYYY-MM-DD
   isRestricted: boolean;
   sortOrder?: number;
   version?: number;

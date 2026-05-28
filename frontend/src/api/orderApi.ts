@@ -1,8 +1,10 @@
 import axiosClient from './axiosClient';
 
 export interface BookingItem {
-  servicePlanId: string;
-  scheduledDate: string; // YYYY-MM-DD
+  planId: string;
+  dates: string[];
+  timesPerDay: number;
+  petIds?: string[];
 }
 
 export interface BookingRequest {
@@ -54,14 +56,10 @@ export const modifyOrder = async (
   request: ModificationPayloadDto,
   idempotencyKey: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/modify`,
-    request,
-    {
-      params: { requestedBy },
-      headers: { 'Idempotency-Key': idempotencyKey }
-    }
-  );
+  const response = await axiosClient.post(`/orders/${orderId}/modify`, request, {
+    params: { requestedBy },
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
   return response.data;
 };
 
@@ -72,14 +70,10 @@ export const confirmModification = async (
   request: ModificationPayloadDto,
   idempotencyKey: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/modification/confirm`,
-    request,
-    {
-      params: { modRequestId },
-      headers: { 'Idempotency-Key': idempotencyKey }
-    }
-  );
+  const response = await axiosClient.post(`/orders/${orderId}/modification/confirm`, request, {
+    params: { modRequestId },
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
   return response.data;
 };
 
@@ -139,10 +133,7 @@ export const resolveDisputedOrder = async (
   orderId: string,
   request: AdminResolveRequest
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/admin-resolve`,
-    request
-  );
+  const response = await axiosClient.post(`/orders/${orderId}/admin-resolve`, request);
   return response.data;
 };
 
@@ -167,12 +158,8 @@ export const confirmRefund = async (
   orderId: string,
   ownerId: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/modification/refund-confirm`,
-    null,
-    {
-      params: { ownerId }
-    }
-  );
+  const response = await axiosClient.post(`/orders/${orderId}/modification/refund-confirm`, null, {
+    params: { ownerId }
+  });
   return response.data;
 };

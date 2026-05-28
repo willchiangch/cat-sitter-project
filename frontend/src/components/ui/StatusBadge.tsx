@@ -17,9 +17,17 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
       case 'CONFIRMED':
         return { label: s === 'PAID' ? '已付款' : '已確認', bg: '#91f78e', text: '#005e17' }; // tertiary_container
       case 'COMPLETED':
-        return { label: '已結案', bg: 'var(--color-surface-high)', text: 'var(--color-on-surface-variant)' };
+        return {
+          label: '已結案',
+          bg: 'var(--color-surface-high)',
+          text: 'var(--color-on-surface-variant)'
+        };
       default:
-        return { label: s, bg: 'var(--color-surface-low)', text: 'var(--color-on-surface-variant)' };
+        return {
+          label: s,
+          bg: 'var(--color-surface-low)',
+          text: 'var(--color-on-surface-variant)'
+        };
     }
   };
 

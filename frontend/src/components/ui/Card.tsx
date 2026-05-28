@@ -9,14 +9,14 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const Card: React.FC<CardProps> = ({ children, onClick, style, className, ...props }) => {
   return (
-    <div 
+    <div
       className={`card-layered ${className || ''}`}
       style={{
         cursor: onClick ? 'pointer' : 'default',
         padding: '1.5rem',
         marginBottom: '1.5rem',
         ...style
-      }} 
+      }}
       onClick={onClick}
       {...props}
     >

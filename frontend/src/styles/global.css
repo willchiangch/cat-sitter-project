@@ -10,24 +10,24 @@
   --color-surface-highest: #dbdddb;
   --color-on-surface: #2d2f2e;
   --color-on-surface-variant: #5a5c5b;
-  
+
   /* Utilities & Tokens */
   --color-outline-variant: rgba(172, 173, 172, 0.15); /* Ghost Border Rule (15% opacity) */
-  --radius-xl: 3rem;   /* Bottom Sheets */
+  --radius-xl: 3rem; /* Bottom Sheets */
   --radius-lg: 1.5rem; /* Cards */
   --radius-sm: 0.5rem; /* Inputs */
-  
+
   /* Ambient Glow Shadow Rule */
   --shadow-ambient: 0 8px 24px rgba(45, 47, 46, 0.04);
-  
+
   /* Typography Scale */
   --font-display: 'Plus Jakarta Sans', sans-serif;
   --font-body: 'Manrope', sans-serif;
-  
+
   /* Common States */
   --color-error: #b02500;
   --color-tertiary: #006b1b; /* Completed Nodes */
-  
+
   --max-width-mobile: 390px; /* iPhone standard from Stitch */
 }
 
@@ -48,7 +48,8 @@
 }
 
 /* Base Reset & Typography */
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   background-color: var(--color-surface);
@@ -58,7 +59,10 @@ html, body {
   overflow: hidden;
 }
 
-h1, h2, h3, .font-display {
+h1,
+h2,
+h3,
+.font-display {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -88,7 +92,9 @@ h1, h2, h3, .font-display {
   font-family: var(--font-display);
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;

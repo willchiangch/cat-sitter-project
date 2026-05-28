@@ -19,3 +19,12 @@ spring:
 app:
   security:
     internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

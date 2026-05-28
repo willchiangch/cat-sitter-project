@@ -77,10 +77,7 @@ export const deleteReportMedia = async (
   });
 };
 
-export const submitReport = async (
-  visitId: string,
-  idempotencyKey: string
-): Promise<void> => {
+export const submitReport = async (visitId: string, idempotencyKey: string): Promise<void> => {
   await axiosClient.post(
     `/visits/${visitId}/report/submit`,
     {},

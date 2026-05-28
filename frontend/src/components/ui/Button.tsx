@@ -12,14 +12,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  variant = 'primary', 
-  fullWidth = false, 
-  className, 
-  ...props 
+const Button: React.FC<ButtonProps> = ({
+  children,
+  variant = 'primary',
+  fullWidth = false,
+  className,
+  ...props
 }) => {
-  
   const variants = {
     primary: {
       backgroundColor: 'var(--color-primary)',
@@ -44,11 +43,7 @@ const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
-      style={style as React.CSSProperties}
-      className={cn('btn', className)}
-      {...props}
-    >
+    <button style={style as React.CSSProperties} className={cn('btn', className)} {...props}>
       {children}
     </button>
   );

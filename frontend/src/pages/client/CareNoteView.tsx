@@ -36,17 +36,29 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
   };
 
   const sectionsExist =
-    careNote?.sections &&
-    Object.values(careNote.sections).some((secItems) => secItems.length > 0);
+    careNote?.sections && Object.values(careNote.sections).some((secItems) => secItems.length > 0);
 
   return (
     <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
       <div>
-        <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--color-primary)', fontFamily: 'var(--font-display)' }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: '2rem',
+            color: 'var(--color-primary)',
+            fontFamily: 'var(--font-display)'
+          }}
+        >
           愛貓照護日誌
         </h1>
-        <p style={{ margin: '0.4rem 0 0 0', color: 'var(--color-on-surface-variant)', fontSize: '0.9rem' }}>
+        <p
+          style={{
+            margin: '0.4rem 0 0 0',
+            color: 'var(--color-on-surface-variant)',
+            fontSize: '0.9rem'
+          }}
+        >
           飼主唯讀檢視面板 · 隨時掌握現場照護狀態
         </p>
       </div>
@@ -67,7 +79,8 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
             flex: 1,
             border: 'none',
             background: activeTab === 'notes' ? 'var(--color-surface-lowest)' : 'none',
-            color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+            color:
+              activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
             padding: '0.8rem 0',
             borderRadius: '9999px',
             cursor: 'pointer',
@@ -86,7 +99,8 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
             flex: 1,
             border: 'none',
             background: activeTab === 'photos' ? 'var(--color-surface-lowest)' : 'none',
-            color: activeTab === 'photos' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+            color:
+              activeTab === 'photos' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
             padding: '0.8rem 0',
             borderRadius: '9999px',
             cursor: 'pointer',
@@ -105,7 +119,10 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
       {activeTab === 'notes' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {!sectionsExist ? (
-            <div className="card-layered" style={{ textAlign: 'center', padding: '4rem', opacity: 0.6 }}>
+            <div
+              className="card-layered"
+              style={{ textAlign: 'center', padding: '4rem', opacity: 0.6 }}
+            >
               保母目前尚未填寫任何照護備忘錄項目。
             </div>
           ) : (
@@ -120,7 +137,15 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
                   style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
                   data-testid={`client-carenote-section-${secType}`}
                 >
-                  <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--color-primary)', borderBottom: '1px solid var(--color-outline-variant)', paddingBottom: '0.5rem' }}>
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: '1.2rem',
+                      color: 'var(--color-primary)',
+                      borderBottom: '1px solid var(--color-outline-variant)',
+                      paddingBottom: '0.5rem'
+                    }}
+                  >
                     {SECTION_LABELS[secType]}
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -133,10 +158,24 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
                           borderRadius: 'var(--radius-lg)'
                         }}
                       >
-                        <strong style={{ display: 'block', fontSize: '1.05rem', marginBottom: '0.4rem', color: 'var(--color-on-surface)' }}>
+                        <strong
+                          style={{
+                            display: 'block',
+                            fontSize: '1.05rem',
+                            marginBottom: '0.4rem',
+                            color: 'var(--color-on-surface)'
+                          }}
+                        >
                           {idx + 1}. {item.title || '無標題'}
                         </strong>
-                        <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-on-surface-variant)', lineHeight: '1.5' }}>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: '0.95rem',
+                            color: 'var(--color-on-surface-variant)',
+                            lineHeight: '1.5'
+                          }}
+                        >
                           {item.content || '無說明'}
                         </p>
                       </div>
@@ -151,7 +190,10 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
         /* Photos Tab */
         <div>
           {mediaItems.length === 0 ? (
-            <div className="card-layered" style={{ textAlign: 'center', padding: '4rem', opacity: 0.6 }}>
+            <div
+              className="card-layered"
+              style={{ textAlign: 'center', padding: '4rem', opacity: 0.6 }}
+            >
               保母目前尚未上傳任何照護照片。
             </div>
           ) : (

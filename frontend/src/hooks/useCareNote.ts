@@ -9,11 +9,7 @@ import {
   deleteTemplate,
   applyTemplate
 } from '../api/careApi';
-import type {
-  CareNoteDto,
-  CareTemplateDto,
-  CareNoteItemDto
-} from '../api/careApi';
+import type { CareNoteDto, CareTemplateDto, CareNoteItemDto } from '../api/careApi';
 
 export const useCareNoteQuery = (sitterId: string, ownerId: string) => {
   return useQuery<CareNoteDto, Error>({

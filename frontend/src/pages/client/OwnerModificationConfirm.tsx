@@ -36,16 +36,21 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
     try {
       const idempotencyKey = crypto.randomUUID();
       const dates = ['2026-05-26', '2026-05-27'];
-      const items = dates.map(d => ({
+      const items = dates.map((d) => ({
         servicePlanId: '3d498178-14c0-4376-b81e-7fb02e615dda',
         scheduledDate: d
       }));
 
-      await confirmModification(orderId, modRequestId, {
-        items,
-        totalDays: dates.length,
-        dates
-      }, idempotencyKey);
+      await confirmModification(
+        orderId,
+        modRequestId,
+        {
+          items,
+          totalDays: dates.length,
+          dates
+        },
+        idempotencyKey
+      );
 
       setConfirmStatus('SUCCESS');
       alert('變更確認成功！');
@@ -78,21 +83,57 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
   };
 
   return (
-    <div style={{ padding: '2rem 1.5rem', fontFamily: 'var(--font-sans)', maxWidth: '600px', margin: '0 auto' }}>
-      <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--color-on-surface)', fontFamily: 'var(--font-display)', marginBottom: '2rem' }}>
+    <div
+      style={{
+        padding: '2rem 1.5rem',
+        fontFamily: 'var(--font-sans)',
+        maxWidth: '600px',
+        margin: '0 auto'
+      }}
+    >
+      <h2
+        style={{
+          fontSize: '1.75rem',
+          fontWeight: '700',
+          color: 'var(--color-on-surface)',
+          fontFamily: 'var(--font-display)',
+          marginBottom: '2rem'
+        }}
+      >
         飼主變更與退款確認
       </h2>
 
       {currentRole !== 'client' && (
-        <div style={{ padding: '1rem', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontWeight: '600' }}>
+        <div
+          style={{
+            padding: '1rem',
+            backgroundColor: '#f8d7da',
+            color: '#721c24',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: '1.5rem',
+            fontWeight: '600'
+          }}
+        >
           ⚠️ 警告：當前角色非飼主，無法調用確認變更或退款 API。請先在 Demo 首頁切換為飼主。
         </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <Card>
-          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}>變更方案確認</h3>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--color-surface-high)', fontSize: '0.875rem' }}>
+          <h3
+            style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}
+          >
+            變更方案確認
+          </h3>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '1rem 0',
+              borderBottom: '1px solid var(--color-surface-high)',
+              fontSize: '0.875rem'
+            }}
+          >
             <span>系統顯示差額：</span>
             <strong style={{ color: diffAmount < 0 ? '#dc2626' : '#16a34a' }}>
               $ {diffAmount.toLocaleString()} (負值為退款)
@@ -100,27 +141,51 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
           </div>
 
           {confirmStatus === 'SUCCESS' ? (
-            <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--color-primary)', fontWeight: '600' }} data-testid="confirm-success-banner">
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '1rem',
+                color: 'var(--color-primary)',
+                fontWeight: '600'
+              }}
+              data-testid="confirm-success-banner"
+            >
               ✓ 變更已確認
             </div>
           ) : (
-            <form onSubmit={handleConfirmMod} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1.25rem' }}>
+            <form
+              onSubmit={handleConfirmMod}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem',
+                marginTop: '1.25rem'
+              }}
+            >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>請輸入您同意的變更差額 (以進行防線核對)</label>
-                <input 
-                  type="number" 
+                <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+                  請輸入您同意的變更差額 (以進行防線核對)
+                </label>
+                <input
+                  type="number"
                   value={agreedDiffAmount}
                   onChange={(e) => setAgreedDiffAmount(Number(e.target.value))}
-                  style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: 'none', backgroundColor: 'var(--color-surface-low)', color: 'var(--color-on-surface)' }}
+                  style={{
+                    padding: '0.75rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    backgroundColor: 'var(--color-surface-low)',
+                    color: 'var(--color-on-surface)'
+                  }}
                   data-testid="agreed-diff-input"
                   required
                 />
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={loadingConfirm || currentRole !== 'client'}
-                className="btn-primary" 
+                className="btn-primary"
                 style={{ width: '100%', padding: '1rem' }}
                 data-testid="confirm-submit-btn"
               >
@@ -131,20 +196,38 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
         </Card>
 
         <Card>
-          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}>確認收到退款 (線下退款核對)</h3>
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', margin: '0 0 1.5rem 0' }}>
+          <h3
+            style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}
+          >
+            確認收到退款 (線下退款核對)
+          </h3>
+          <p
+            style={{
+              fontSize: '0.875rem',
+              color: 'var(--color-on-surface-variant)',
+              margin: '0 0 1.5rem 0'
+            }}
+          >
             若此變更涉及退款，且保母已上傳退款轉帳收據，請在確認您實體帳戶收到退款後點擊此按鈕，正式完成訂單變更結轉。
           </p>
 
           {refundStatus === 'SUCCESS' ? (
-            <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--color-primary)', fontWeight: '600' }} data-testid="refund-confirm-success-banner">
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '1rem',
+                color: 'var(--color-primary)',
+                fontWeight: '600'
+              }}
+              data-testid="refund-confirm-success-banner"
+            >
               ✓ 已確認收到退款
             </div>
           ) : (
-            <button 
+            <button
               onClick={handleConfirmRefund}
               disabled={loadingRefund || currentRole !== 'client'}
-              className="btn-primary" 
+              className="btn-primary"
               style={{ width: '100%', padding: '1rem' }}
               data-testid="refund-confirm-btn"
             >

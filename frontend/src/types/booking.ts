@@ -21,6 +21,7 @@ export interface BookingItem {
 export interface ScheduleConfig {
   dates: string[];
   timesPerDay: number;
+  petIds?: string[]; // 關聯的毛孩 ID
 }
 
 export interface PlanConfig {

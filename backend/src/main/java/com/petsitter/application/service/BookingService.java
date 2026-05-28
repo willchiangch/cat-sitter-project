@@ -33,10 +33,16 @@ public class BookingService {
     private final VisitRepository visitRepository;
     private final UserRepository userRepository;
     private final ServicePlanRepository servicePlanRepository;
+    private final GatekeeperService gatekeeperService;
 
     @Transactional
     public UUID createBooking(BookingRequest request) {
         log.info("[BookingService] Creating PENDING order for sitter: {}", request.getSitterId());
+
+        // 全域門禁卡控防禦
+        if (gatekeeperService.isBlocked(request.getSitterId(), request.getOwnerId(), null)) {
+            throw new org.springframework.security.access.AccessDeniedException("保母目前不開放預約");
+        }
 
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("預約項目不得為空");
@@ -47,6 +53,11 @@ public class BookingService {
         for (com.petsitter.application.dto.BookingItemRequest itemReq : request.getItems()) {
             ServicePlan plan = servicePlanRepository.findById(itemReq.getPlanId())
                     .orElseThrow(() -> new IllegalArgumentException("找不到指定的服務方案: " + itemReq.getPlanId()));
+
+            // 方案級門禁卡控防禦
+            if (gatekeeperService.isBlocked(request.getSitterId(), request.getOwnerId(), plan.getId())) {
+                throw new org.springframework.security.access.AccessDeniedException("您無權預約此方案");
+            }
 
             // 雙向日期區間防禦 (SD-003)
             for (LocalDate date : itemReq.getDates()) {
@@ -66,6 +77,9 @@ public class BookingService {
             orderItem.setPlanId(plan.getId());
             orderItem.setDates(itemReq.getDates().stream().map(java.time.LocalDate::toString).collect(java.util.stream.Collectors.toList()));
             orderItem.setTimesPerDay(itemReq.getTimesPerDay());
+            if (itemReq.getPetIds() != null) {
+                orderItem.setPetIds(itemReq.getPetIds());
+            }
             orderItems.add(orderItem);
         }
 

@@ -190,8 +190,17 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
         }}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1.5rem'
+          }}
+        >
+          <h2
+            style={{ margin: 0, fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+          >
             {isCreating ? '新增範本' : editingTemplate ? '編輯範本' : '管理照護範本'}
           </h2>
           <button
@@ -214,7 +223,9 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
             /* Form view for Add/Edit */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>範本名稱</label>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                  範本名稱
+                </label>
                 <input
                   type="text"
                   value={templateName}
@@ -232,7 +243,14 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
               </div>
 
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '0.5rem'
+                  }}
+                >
                   <label style={{ fontWeight: 600 }}>項目明細</label>
                   <button
                     onClick={handleAddItem}
@@ -277,7 +295,9 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                         <select
                           value={item.sectionType}
-                          onChange={(e) => handleItemChange(index, 'sectionType', e.target.value as any)}
+                          onChange={(e) =>
+                            handleItemChange(index, 'sectionType', e.target.value as any)
+                          }
                           style={{
                             padding: '0.5rem',
                             borderRadius: 'var(--radius-sm)',
@@ -329,7 +349,13 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
               {isLoading ? (
                 <div style={{ textAlign: 'center', padding: '2rem' }}>載入中...</div>
               ) : templates.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-on-surface-variant)' }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '2rem',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
                   尚無範本，點擊下方新增。
                 </div>
               ) : (
@@ -347,8 +373,12 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
                       }}
                     >
                       <div>
-                        <strong style={{ display: 'block', fontSize: '1.1rem' }}>{template.name}</strong>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
+                        <strong style={{ display: 'block', fontSize: '1.1rem' }}>
+                          {template.name}
+                        </strong>
+                        <span
+                          style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}
+                        >
                           條目數: {template.items?.length || 0}
                         </span>
                       </div>
@@ -389,7 +419,15 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
         </div>
 
         {/* Footer Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', borderTop: '1px solid var(--color-outline-variant)', paddingTop: '1rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '1rem',
+            borderTop: '1px solid var(--color-outline-variant)',
+            paddingTop: '1rem'
+          }}
+        >
           {isCreating || editingTemplate ? (
             <>
               <button

@@ -39,7 +39,13 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
   }, [report]);
 
   if (isLoading) {
-    return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>正在載入照護日誌...</div>;
+    return (
+      <div
+        style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+      >
+        正在載入照護日誌...
+      </div>
+    );
   }
 
   const isEditable = report?.isEditable ?? true;
@@ -55,7 +61,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
     if (!saveKeyRef.current) {
       saveKeyRef.current = getUuid();
     }
-    
+
     setUploadError(null);
     setSuccessMsg(null);
 
@@ -209,12 +215,32 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
   return (
     <div style={{ padding: '2rem 1.5rem', maxWidth: '800px', margin: '0 auto' }}>
       {/* 標題 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '2rem'
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--color-on-surface)', margin: 0 }}>
+          <h2
+            style={{
+              fontSize: '1.75rem',
+              fontWeight: '700',
+              color: 'var(--color-on-surface)',
+              margin: 0
+            }}
+          >
             🐾 行程照護日誌回報
           </h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', marginTop: '0.25rem' }}>
+          <p
+            style={{
+              fontSize: '0.875rem',
+              color: 'var(--color-on-surface-variant)',
+              marginTop: '0.25rem'
+            }}
+          >
             請記錄本次行程照護細節。結束 24 小時後將自動鎖定逾期。
           </p>
         </div>
@@ -227,13 +253,13 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
             backgroundColor: isSubmitted
               ? 'var(--color-primary-container)'
               : !isEditable
-              ? 'var(--color-error-container)'
-              : 'var(--color-surface-low)',
+                ? 'var(--color-error-container)'
+                : 'var(--color-surface-low)',
             color: isSubmitted
               ? 'var(--color-primary)'
               : !isEditable
-              ? 'var(--color-error)'
-              : 'var(--color-on-surface-variant)'
+                ? 'var(--color-error)'
+                : 'var(--color-on-surface-variant)'
           }}
         >
           {isSubmitted ? '已送出' : !isEditable ? '已逾期過期 (唯讀)' : '草稿中'}
@@ -242,26 +268,56 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
 
       {/* 錯誤與成功訊息 */}
       {uploadError && (
-        <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', marginBottom: '1.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
           ⚠️ {uploadError}
         </div>
       )}
       {successMsg && (
-        <div style={{ padding: '1rem', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', marginBottom: '1.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            color: '#10b981',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
           ✅ {successMsg}
         </div>
       )}
 
       {/* 文字日誌編輯區 */}
-      <div style={{
-        backgroundColor: 'var(--color-surface-container)',
-        borderRadius: '24px',
-        padding: '1.5rem',
-        marginBottom: '2rem',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        boxShadow: 'var(--shadow-ambient)'
-      }}>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: 'var(--color-on-surface)', marginTop: 0, marginBottom: '1rem' }}>
+      <div
+        style={{
+          backgroundColor: 'var(--color-surface-container)',
+          borderRadius: '24px',
+          padding: '1.5rem',
+          marginBottom: '2rem',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          boxShadow: 'var(--shadow-ambient)'
+        }}
+      >
+        <h3
+          style={{
+            fontSize: '1.125rem',
+            fontWeight: '600',
+            color: 'var(--color-on-surface)',
+            marginTop: 0,
+            marginBottom: '1rem'
+          }}
+        >
           📝 文字日誌
         </h3>
         <textarea
@@ -287,7 +343,14 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
             opacity: isEditable ? 1 : 0.6
           }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '0.5rem'
+          }}
+        >
           <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
             {content.length} / 1000 字
           </span>
@@ -314,41 +377,77 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
       </div>
 
       {/* 媒體管理區 */}
-      <div style={{
-        backgroundColor: 'var(--color-surface-container)',
-        borderRadius: '24px',
-        padding: '1.5rem',
-        marginBottom: '2rem',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        boxShadow: 'var(--shadow-ambient)'
-      }}>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: 'var(--color-on-surface)', marginTop: 0, marginBottom: '1.25rem' }}>
+      <div
+        style={{
+          backgroundColor: 'var(--color-surface-container)',
+          borderRadius: '24px',
+          padding: '1.5rem',
+          marginBottom: '2rem',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          boxShadow: 'var(--shadow-ambient)'
+        }}
+      >
+        <h3
+          style={{
+            fontSize: '1.125rem',
+            fontWeight: '600',
+            color: 'var(--color-on-surface)',
+            marginTop: 0,
+            marginBottom: '1.25rem'
+          }}
+        >
           📸 照護媒體清單 ({report?.media?.length || 0} 筆)
         </h3>
 
         {/* 媒體預覽照片牆 */}
         {report?.media && report.media.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+              gap: '1rem',
+              marginBottom: '1.5rem'
+            }}
+          >
             {report.media.map((item) => (
-              <div key={item.mediaId} style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', aspectRatio: '1', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <div
+                key={item.mediaId}
+                style={{
+                  position: 'relative',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  aspectRatio: '1',
+                  border: '1px solid rgba(255, 255, 255, 0.05)'
+                }}
+              >
                 {item.mediaType === 'VIDEO' ? (
-                  <video src={item.mediaUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+                  <video
+                    src={item.mediaUrl}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    muted
+                  />
                 ) : (
-                  <img src={item.mediaUrl} alt={item.caption} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img
+                    src={item.mediaUrl}
+                    alt={item.caption}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
                 )}
-                <div style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
-                  padding: '0.5rem',
-                  color: '#fff',
-                  fontSize: '0.75rem',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden'
-                }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+                    padding: '0.5rem',
+                    color: '#fff',
+                    fontSize: '0.75rem',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden'
+                  }}
+                >
                   {item.caption || (item.mediaType === 'VIDEO' ? '🎥 影片' : '📷 照片')}
                 </div>
                 {isEditable && (
@@ -380,14 +479,30 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
             ))}
           </div>
         ) : (
-          <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.9rem', textAlign: 'center', margin: '1.5rem 0' }}>
+          <p
+            style={{
+              color: 'var(--color-on-surface-variant)',
+              fontSize: '0.9rem',
+              textAlign: 'center',
+              margin: '1.5rem 0'
+            }}
+          >
             尚無上傳照片或影片
           </p>
         )}
 
         {/* 上傳表單 */}
         {isEditable && (
-          <form onSubmit={handleUploadMedia} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '1.25rem' }}>
+          <form
+            onSubmit={handleUploadMedia}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+              paddingTop: '1.25rem'
+            }}
+          >
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
               <input
                 data-testid="sitter-report-media-file-input"

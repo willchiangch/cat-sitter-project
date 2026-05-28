@@ -33,6 +33,9 @@ public class RefreshToken {
 
     private boolean revoked;
 
+    @Column(name = "active_role", length = 50)
+    private String activeRole;
+
     @CreationTimestamp
     private Instant createdAt;
 

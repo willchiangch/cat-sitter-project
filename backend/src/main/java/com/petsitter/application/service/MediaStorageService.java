@@ -21,6 +21,11 @@ public interface MediaStorageService {
     String uploadReportMedia(String planTier, String date, UUID orderId, UUID mediaId, MultipartFile file);
 
     /**
+     * 上傳寵物大頭照 (SD-002)
+     */
+    String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file);
+
+    /**
      * 刪除媒體檔案
      * @param mediaUrl 檔案的完整 URL
      */

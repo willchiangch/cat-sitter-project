@@ -62,8 +62,22 @@ const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title, child
           }}
         />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontFamily: 'var(--font-display)', color: 'var(--color-on-surface)' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1.5rem'
+          }}
+        >
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '1.5rem',
+              fontFamily: 'var(--font-display)',
+              color: 'var(--color-on-surface)'
+            }}
+          >
             {title}
           </h2>
           <button

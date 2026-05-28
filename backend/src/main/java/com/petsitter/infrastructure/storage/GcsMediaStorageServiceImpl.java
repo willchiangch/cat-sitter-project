@@ -48,6 +48,19 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file) {
+        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+        String targetFilename = petId.toString() + (extension != null ? "." + extension : "");
+        
+        // 格式: pet-avatars/{ownerId}/{petId}.{ext}
+        String objectName = "pet-avatars/" + ownerId.toString() + "/" + targetFilename;
+        
+        log.info("Mock GCS Upload pet avatar to bucket {}, object {}", bucketName, objectName);
+        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+    }
+
+    @Override
     public void deleteMedia(String mediaUrl) {
         log.info("Mock GCS Delete object from URL: {}", mediaUrl);
         // TODO: 解析 mediaUrl 取得 objectName，然後呼叫 GCP SDK 刪除

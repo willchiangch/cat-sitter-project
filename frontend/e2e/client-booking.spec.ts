@@ -44,7 +44,102 @@ class CalendarHelper {
 
 test.describe('TS-005 飼主預約精靈流程', () => {
 
+  let mockPets = [
+    {
+      id: 'e1023000-0000-0000-0000-000000000001',
+      ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
+      name: '咪咪',
+      species: 'CAT',
+      gender: 'FEMALE',
+      neutered: true,
+      weight: 4.5,
+      birthYear: 2021,
+      photoUrl: '',
+      medicalPersonalityNotes: '對海鮮過敏，個性傲嬌。',
+      environmentalNotes: '不能開陽台門。',
+      version: 1
+    }
+  ];
+
+  let mockPlans = [
+    {
+      id: 'p1023000-0000-0000-0000-000000000001',
+      sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+      name: '基礎照顧',
+      price: 500,
+      dailyCapacity: 5,
+      defaultTasks: ['餵食', '清理砂盆'],
+      applicablePetTypes: ['CAT', 'DOG'],
+      description: '基礎陪伴照顧',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      isRestricted: false,
+      sortOrder: 0
+    },
+    {
+      id: 'p1023000-0000-0000-0000-000000000002',
+      sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+      name: '進階陪伴',
+      price: 800,
+      dailyCapacity: 3,
+      defaultTasks: ['餵食', '清理砂盆', '梳毛', '玩耍'],
+      applicablePetTypes: ['CAT', 'DOG'],
+      description: '進階陪伴照顧',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      isRestricted: false,
+      sortOrder: 1
+    }
+  ];
+
   test.beforeEach(async ({ page }) => {
+    // 1. Mock Auto Login
+    await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          accessToken: 'fake-initial-token',
+          refreshToken: 'fake-initial-refresh',
+          userId: '1031efbc-583a-4062-9a35-15706a3384c6',
+          email: 'owner@test.com',
+          fullName: '愛貓飼主',
+          role: 'CLIENT'
+        })
+      });
+    });
+
+    // 2. Mock Owner's Pets List
+    await page.route(url => url.pathname === '/api/pets', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 200, message: 'OK', data: mockPets })
+      });
+    });
+
+    // 3. Mock Sitter's Active Plans
+    await page.route(url => url.pathname.includes('/api/sitters/') && url.pathname.endsWith('/plans'), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 200, message: 'OK', data: mockPlans })
+      });
+    });
+
+    // 4. Mock Order Booking Submission
+    await page.route(url => url.pathname === '/api/orders/booking', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 200,
+          message: 'OK',
+          data: 'a1023000-0000-0000-0000-000000000000'
+        })
+      });
+    });
+
     await page.goto('/');
   });
 
@@ -85,6 +180,9 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       
       // 選擇趟次 (點擊 + 號變成 2 次)
       await page.click('[data-testid="client-booking-times-plus-0-0"]');
+
+      // 勾選寵物「咪咪」以符合必填防禦
+      await page.click('[data-testid="client-booking-pet-label-0-0-咪咪"]');
       
       const screenshot = await page.screenshot();
       await testInfo.attach('步驟 2: 方案配置完成', { body: screenshot, contentType: 'image/png' });
@@ -127,6 +225,9 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await helper.selectDate(0, 0, dates[1]);
       await page.click('[data-testid="client-booking-btn-confirm-date-0-0"]');
       await page.click('[data-testid="client-booking-times-plus-0-0"]'); // 500 * 2 * 2 = 2000
+      
+      // 勾選寵物「咪咪」
+      await page.click('[data-testid="client-booking-pet-label-0-0-咪咪"]');
 
       // 新增第二個方案
       await page.click('[data-testid="client-booking-btn-add-plan"]');
@@ -147,6 +248,9 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await page.click('[data-testid="client-booking-btn-confirm-date-1-0"]');
       // 趟次預設為 1，不需點擊 plus
       await testInfo.attach('2-10-進階趟次', { body: await page.screenshot(), contentType: 'image/png' });
+      
+      // 勾選寵物「咪咪」
+      await page.click('[data-testid="client-booking-pet-label-1-0-咪咪"]');
 
       // 方案 2 的 排程 2: 日期 4
       await page.click('[data-testid="client-booking-btn-add-schedule-1"]');
@@ -159,6 +263,9 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await page.click('[data-testid="client-booking-btn-confirm-date-1-1"]');
       await page.click('[data-testid="client-booking-times-plus-1-1"]');
       await testInfo.attach('2-13-額外趟次', { body: await page.screenshot(), contentType: 'image/png' });
+      
+      // 勾選寵物「咪咪」
+      await page.click('[data-testid="client-booking-pet-label-1-1-咪咪"]');
 
       await page.click('[data-testid="client-booking-btn-step1-next"]');
       await testInfo.attach('2-14-進入摘要', { body: await page.screenshot(), contentType: 'image/png' });

@@ -25,4 +25,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findOrdersReadyForAutoComplete(@Param("threshold") OffsetDateTime threshold);
 
     List<Order> findByStatus(String status);
+
+    List<Order> findByOwnerIdAndStatusNotIn(UUID ownerId, List<String> statuses);
 }

@@ -1,6 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useCareNoteQuery, useSaveCareNoteMutation, useApplyTemplateMutation, useCreateTemplateMutation, useTemplatesQuery } from '../../hooks/useCareNote';
-import { useCareMediaQuery, useUploadMediaMutation, useDeleteMediaMutation } from '../../hooks/useCareMedia';
+import {
+  useCareNoteQuery,
+  useSaveCareNoteMutation,
+  useApplyTemplateMutation,
+  useCreateTemplateMutation,
+  useTemplatesQuery
+} from '../../hooks/useCareNote';
+import {
+  useCareMediaQuery,
+  useUploadMediaMutation,
+  useDeleteMediaMutation
+} from '../../hooks/useCareMedia';
 import BottomSheet from '../../components/modals/BottomSheet';
 import TemplateManagerModal from '../../components/modals/TemplateManagerModal';
 import type { CareNoteItemDto } from '../../api/careApi';
@@ -55,7 +65,14 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
   useEffect(() => {
     if (careNote?.sections) {
       const flatItems: CareNoteItemDto[] = [];
-      const sectionKeys: (keyof typeof SECTION_LABELS)[] = ['SERVICE', 'CONTACT', 'WARNING', 'PREFERENCE', 'HOSPITAL', 'OTHER'];
+      const sectionKeys: (keyof typeof SECTION_LABELS)[] = [
+        'SERVICE',
+        'CONTACT',
+        'WARNING',
+        'PREFERENCE',
+        'HOSPITAL',
+        'OTHER'
+      ];
       sectionKeys.forEach((secType) => {
         const secItems = careNote.sections[secType] || [];
         // 依據 sortOrder 進行排列
@@ -302,19 +319,44 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
   return (
     <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       {/* Page Header (Asymmetric Layout) */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}
+      >
         <div>
-          <h1 style={{ margin: 0, fontSize: '2rem', color: 'var(--color-primary)', fontFamily: 'var(--font-display)' }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: '2rem',
+              color: 'var(--color-primary)',
+              fontFamily: 'var(--font-display)'
+            }}
+          >
             照護主頁與媒體庫
           </h1>
-          <p style={{ margin: '0.4rem 0 0 0', color: 'var(--color-on-surface-variant)', fontSize: '0.9rem' }}>
+          <p
+            style={{
+              margin: '0.4rem 0 0 0',
+              color: 'var(--color-on-surface-variant)',
+              fontSize: '0.9rem'
+            }}
+          >
             保母專屬管理面板 · Stitch 無框線極簡設計
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             className="btn-primary"
-            style={{ background: 'none', border: '1px solid var(--color-surface-high)', color: 'var(--color-on-surface)' }}
+            style={{
+              background: 'none',
+              border: '1px solid var(--color-surface-high)',
+              color: 'var(--color-on-surface)'
+            }}
             onClick={() => setIsTemplateModalOpen(true)}
             data-testid="sitter-carenote-template-manage"
           >
@@ -322,7 +364,11 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           </button>
           <button
             className="btn-primary"
-            style={{ background: 'none', border: '1px solid var(--color-surface-high)', color: 'var(--color-on-surface)' }}
+            style={{
+              background: 'none',
+              border: '1px solid var(--color-surface-high)',
+              color: 'var(--color-on-surface)'
+            }}
             onClick={() => setIsTemplateSheetOpen(true)}
             data-testid="sitter-carenote-template-open"
           >
@@ -333,17 +379,24 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
 
       {/* Grid: Left - Care Note Edit, Right - Media Upload & Wall */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-        
         {/* Care Note Editor */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'var(--font-display)' }}>照護備忘錄項目</h2>
+            <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'var(--font-display)' }}>
+              照護備忘錄項目
+            </h2>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button
                 className="btn-primary"
                 onClick={() => setIsSaveAsModalOpen(true)}
                 data-testid="sitter-carenote-template-saveas"
-                style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', background: 'none', color: 'var(--color-primary)', border: '1px solid var(--color-primary)' }}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  fontSize: '0.9rem',
+                  background: 'none',
+                  color: 'var(--color-primary)',
+                  border: '1px solid var(--color-primary)'
+                }}
               >
                 另存為範本
               </button>
@@ -360,146 +413,192 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           </div>
 
           {/* 6 Sections Rendering */}
-          {(['SERVICE', 'CONTACT', 'WARNING', 'PREFERENCE', 'HOSPITAL', 'OTHER'] as const).map((secType) => {
-            const sectionItems = items.map((item, idx) => ({ item, idx })).filter((x) => x.item.sectionType === secType);
+          {(['SERVICE', 'CONTACT', 'WARNING', 'PREFERENCE', 'HOSPITAL', 'OTHER'] as const).map(
+            (secType) => {
+              const sectionItems = items
+                .map((item, idx) => ({ item, idx }))
+                .filter((x) => x.item.sectionType === secType);
 
-            return (
-              <div key={secType} className="card-layered" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-primary)' }}>
-                    {SECTION_LABELS[secType]}
-                  </h3>
-                  <button
-                    onClick={() => handleAddItem(secType)}
-                    data-testid={`sitter-carenote-add-item-${secType}`}
+              return (
+                <div
+                  key={secType}
+                  className="card-layered"
+                  style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+                >
+                  <div
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-primary)',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: '0.9rem'
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
                     }}
                   >
-                    + 新增條目
-                  </button>
-                </div>
-
-                {sectionItems.length === 0 ? (
-                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--color-on-surface-variant)', fontSize: '0.9rem', opacity: 0.6 }}>
-                    此分區目前沒有條目
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-primary)' }}>
+                      {SECTION_LABELS[secType]}
+                    </h3>
+                    <button
+                      onClick={() => handleAddItem(secType)}
+                      data-testid={`sitter-carenote-add-item-${secType}`}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-primary)',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.9rem'
+                      }}
+                    >
+                      + 新增條目
+                    </button>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sectionItems.map(({ item, idx }, pos) => (
-                      <div
-                        key={idx}
-                        style={{
-                          background: 'var(--color-surface-low)',
-                          padding: '1rem',
-                          borderRadius: 'var(--radius-sm)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.8rem',
-                          position: 'relative'
-                        }}
-                      >
-                        {/* Remove button */}
-                        <button
-                          onClick={() => handleRemoveItem(idx)}
+
+                  {sectionItems.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '1rem',
+                        textAlign: 'center',
+                        color: 'var(--color-on-surface-variant)',
+                        fontSize: '0.9rem',
+                        opacity: 0.6
+                      }}
+                    >
+                      此分區目前沒有條目
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {sectionItems.map(({ item, idx }, pos) => (
+                        <div
+                          key={idx}
                           style={{
-                            position: 'absolute',
-                            top: '12px',
-                            right: '12px',
-                            border: 'none',
-                            background: 'none',
-                            color: 'var(--color-error)',
-                            cursor: 'pointer',
-                            fontSize: '0.85rem'
+                            background: 'var(--color-surface-low)',
+                            padding: '1rem',
+                            borderRadius: 'var(--radius-sm)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.8rem',
+                            position: 'relative'
                           }}
                         >
-                          移除
-                        </button>
+                          {/* Remove button */}
+                          <button
+                            onClick={() => handleRemoveItem(idx)}
+                            style={{
+                              position: 'absolute',
+                              top: '12px',
+                              right: '12px',
+                              border: 'none',
+                              background: 'none',
+                              color: 'var(--color-error)',
+                              cursor: 'pointer',
+                              fontSize: '0.85rem'
+                            }}
+                          >
+                            移除
+                          </button>
 
-                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', paddingRight: '2.5rem' }}>
-                          {/* Sort buttons */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                            <button
-                              onClick={() => moveItem(idx, 'up')}
-                              disabled={pos === 0}
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '1rem',
+                              alignItems: 'flex-start',
+                              paddingRight: '2.5rem'
+                            }}
+                          >
+                            {/* Sort buttons */}
+                            <div
+                              style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
+                            >
+                              <button
+                                onClick={() => moveItem(idx, 'up')}
+                                disabled={pos === 0}
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor: pos === 0 ? 'not-allowed' : 'pointer',
+                                  opacity: pos === 0 ? 0.3 : 0.7,
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                ▲
+                              </button>
+                              <button
+                                onClick={() => moveItem(idx, 'down')}
+                                disabled={pos === sectionItems.length - 1}
+                                style={{
+                                  border: 'none',
+                                  background: 'none',
+                                  cursor:
+                                    pos === sectionItems.length - 1 ? 'not-allowed' : 'pointer',
+                                  opacity: pos === sectionItems.length - 1 ? 0.3 : 0.7,
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                ▼
+                              </button>
+                            </div>
+
+                            <div
                               style={{
-                                border: 'none',
-                                background: 'none',
-                                cursor: pos === 0 ? 'not-allowed' : 'pointer',
-                                opacity: pos === 0 ? 0.3 : 0.7,
-                                fontSize: '0.9rem'
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem',
+                                flex: 1
                               }}
                             >
-                              ▲
-                            </button>
-                            <button
-                              onClick={() => moveItem(idx, 'down')}
-                              disabled={pos === sectionItems.length - 1}
-                              style={{
-                                border: 'none',
-                                background: 'none',
-                                cursor: pos === sectionItems.length - 1 ? 'not-allowed' : 'pointer',
-                                opacity: pos === sectionItems.length - 1 ? 0.3 : 0.7,
-                                fontSize: '0.9rem'
-                              }}
-                            >
-                              ▼
-                            </button>
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
-                            <input
-                              type="text"
-                              value={item.title}
-                              onChange={(e) => handleItemChange(idx, 'title', e.target.value)}
-                              data-testid="sitter-carenote-item-title"
-                              placeholder="例如：早晨餵罐頭"
-                              style={{
-                                padding: '0.5rem',
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid var(--color-surface-high)',
-                                fontSize: '0.95rem'
-                              }}
-                            />
-                            <textarea
-                              value={item.content}
-                              onChange={(e) => handleItemChange(idx, 'content', e.target.value)}
-                              data-testid="sitter-carenote-item-content"
-                              placeholder="寫下具體指示或照護細節..."
-                              rows={2}
-                              style={{
-                                padding: '0.5rem',
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid var(--color-surface-high)',
-                                fontSize: '0.9rem',
-                                fontFamily: 'inherit',
-                                resize: 'vertical'
-                              }}
-                            />
+                              <input
+                                type="text"
+                                value={item.title}
+                                onChange={(e) => handleItemChange(idx, 'title', e.target.value)}
+                                data-testid="sitter-carenote-item-title"
+                                placeholder="例如：早晨餵罐頭"
+                                style={{
+                                  padding: '0.5rem',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--color-surface-high)',
+                                  fontSize: '0.95rem'
+                                }}
+                              />
+                              <textarea
+                                value={item.content}
+                                onChange={(e) => handleItemChange(idx, 'content', e.target.value)}
+                                data-testid="sitter-carenote-item-content"
+                                placeholder="寫下具體指示或照護細節..."
+                                rows={2}
+                                style={{
+                                  padding: '0.5rem',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--color-surface-high)',
+                                  fontSize: '0.9rem',
+                                  fontFamily: 'inherit',
+                                  resize: 'vertical'
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+          )}
         </div>
 
         {/* Media Management */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'var(--font-display)' }}>照護照片與媒體牆 ({mediaItems.length}/20)</h2>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'var(--font-display)' }}>
+            照護照片與媒體牆 ({mediaItems.length}/20)
+          </h2>
 
           {/* Upload Card */}
           <div className="card-layered">
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: 'var(--color-primary)' }}>上傳現場照護照片</h3>
-            <form onSubmit={handleMediaUpload} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: 'var(--color-primary)' }}>
+              上傳現場照護照片
+            </h3>
+            <form
+              onSubmit={handleMediaUpload}
+              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            >
               <div>
                 <input
                   id="media-upload-input"
@@ -510,7 +609,13 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                   data-testid="sitter-carenote-media-file"
                   style={{ width: '100%' }}
                 />
-                <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
+                <p
+                  style={{
+                    margin: '0.3rem 0 0 0',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
                   支援 PNG, JPG, WEBP (單檔最大 10MB)
                 </p>
               </div>
@@ -541,7 +646,10 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
 
           {/* Media Wall */}
           {mediaItems.length === 0 ? (
-            <div className="card-layered" style={{ textAlign: 'center', padding: '3rem', opacity: 0.6 }}>
+            <div
+              className="card-layered"
+              style={{ textAlign: 'center', padding: '3rem', opacity: 0.6 }}
+            >
               照片牆目前空空如也，快幫貓咪拍照上傳吧！
             </div>
           ) : (
@@ -638,7 +746,13 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
             className="card-layered"
             style={{ width: '90%', maxWidth: '400px', background: 'var(--color-surface-lowest)' }}
           >
-            <h3 style={{ margin: '0 0 1rem 0', fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}>
+            <h3
+              style={{
+                margin: '0 0 1rem 0',
+                fontFamily: 'var(--font-display)',
+                color: 'var(--color-primary)'
+              }}
+            >
               另存為照護範本
             </h3>
             <input
@@ -664,7 +778,11 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                   setNewTemplateName('');
                   saveAsTemplateKeyRef.current = null;
                 }}
-                style={{ background: 'none', color: 'var(--color-on-surface)', border: '1px solid var(--color-surface-high)' }}
+                style={{
+                  background: 'none',
+                  color: 'var(--color-on-surface)',
+                  border: '1px solid var(--color-surface-high)'
+                }}
               >
                 取消
               </button>
@@ -691,7 +809,13 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
         title="⚡ 選擇並追加照護範本"
       >
         {templates.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-on-surface-variant)' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '2rem',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
             您目前沒有任何範本。請先點選管理範本建立。
           </div>
         ) : (
@@ -713,10 +837,14 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                   transition: 'background 0.2s ease',
                   fontFamily: 'inherit'
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = 'var(--color-surface-high)')}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.background = 'var(--color-surface-high)')
+                }
                 onMouseOut={(e) => (e.currentTarget.style.background = 'var(--color-surface-low)')}
               >
-                <strong style={{ display: 'block', fontSize: '1rem', color: 'var(--color-on-surface)' }}>
+                <strong
+                  style={{ display: 'block', fontSize: '1rem', color: 'var(--color-on-surface)' }}
+                >
                   {tpl.name}
                 </strong>
                 <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
@@ -729,7 +857,10 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
       </BottomSheet>
 
       {/* Template Manager Portal Modal */}
-      <TemplateManagerModal isOpen={isTemplateModalOpen} onClose={() => setIsTemplateModalOpen(false)} />
+      <TemplateManagerModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+      />
     </div>
   );
 };
