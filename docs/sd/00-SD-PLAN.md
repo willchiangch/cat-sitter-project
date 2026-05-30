@@ -111,10 +111,47 @@ stateDiagram-v2
 - [x] **SD-001: 帳號 Profile 與門禁設定**
 ...
 
-### 第三階段：外圍與基礎設施 (The Shell)
-7. **`SD-000` (Auth)**：身分驗證。
-8. **`SD-015` (金流串接)**：支付細節。
-9. **其他 PRD**...
+### [第三階段] Close Beta 必要模組 (MVP Completion)
+
+> **決策背景 (2026-05-30)**：Close Beta 階段不接線上支付 (SD-015)。
+> 訂單付款走 PRD-007 線下流程；SaaS 訂閱方案由後台 Admin API 手動開通，取代 PRD-012/015 的付費流程。
+
+**執行優先序：**
+
+| 順序 | SD | 原因 |
+|:---:|---|---|
+| 1 | **SD-007** 線下付款 | 🔴 Blocking：付款路徑缺失，訂單流程無法完成 |
+| 2 | **SD-008** 服務執行 | 🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失 |
+| 3 | **SD-017** 保母 KYC | 🟡 Close Beta 信任基礎，無驗證保母飼主不放心，beta 反饋失真 |
+| 4 | **SD-014** 通知中心 | 🟡 無通知則狀態變更無感，Close Beta 流程可用性極差 |
+| 5 | **SD-018** 保母公開檔案 | 🟡 媒合入口，Close Beta 可先以直連 URL 繞路 |
+| 6 | **Admin Subscription API** | 🟡 手動開通 beta 用戶 SaaS 方案，無需獨立 SD |
+
+---
+
+- [ ] **SD-007: 線下付款憑證上傳與確認**
+  - 🔴 Blocking：`PENDING_PAYMENT → PAID → CONFIRMED` 路徑缺失，報價後訂單無路可走。
+  - 對應 PRD：`PRD-007-offline-payment.md`（已完成 SA）
+- [ ] **SD-008: 服務執行與 Check-in**
+  - 🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失，SD-009 自動結案永遠無法啟動。
+  - 對應 PRD：`PRD-008-service-execution.md`（已完成 SA）
+- [ ] **SD-017: 保母實名認證與資格審查 (KYC)**
+  - 🟡 Close Beta 信任基礎：無身份驗證機制，飼主無法判斷保母可信度，beta 反饋嚴重失真。
+  - 對應 PRD：`PRD-017-sitter-kyc.md`（已完成 SA）
+- [ ] **SD-014: 通知中心與訊息範本**
+  - 🟡 流程可用性：無通知則訂單狀態變更無感知，Close Beta 無法正常測試完整流程。
+  - 對應 PRD：`PRD-014-notification-center.md`（已完成 SA）
+- [ ] **SD-018: 保母公開檔案與標籤管理**
+  - 🟡 Important：飼主需要可瀏覽的保母頁面才能完成媒合，Close Beta 可用直連 URL 繞路但仍建議實作。
+  - 對應 PRD：`PRD-018-public-profile-management.md`（已完成 SA）
+- [ ] **Internal Admin Subscription API**
+  - 🟡 Important：提供 `POST /internal/admin/subscriptions` 讓管理員手動設定 beta 用戶的 SaaS 方案等級（FREE / PRO / ULTIMATE），受 `INTERNAL_CRON_SECRET` 保護。無需獨立 SD 文件，歸屬 SD-007 或單獨 PR 實作。
+
+### [延後至 Open Beta / 正式上線] The Shell
+- **SD-015 (金流串接)**：線上支付整合，等 Close Beta 驗證核心流程後再接。
+- **SD-012 (SaaS 訂閱管理 UI)**：付費升級流程，依賴 SD-015。
+- **SD-017 (KYC)**：Close Beta 期間由管理員手動審核保母資格。
+- **SD-014 (通知中心)**：基礎通知不阻塞核心流程，延後實作。
 
 ---
 
