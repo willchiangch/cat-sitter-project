@@ -107,6 +107,35 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file) {
+        try {
+            String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+            String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+            String dateStr = java.time.LocalDate.now().toString(); // YYYY-MM-DD
+            String fileUuid = UUID.randomUUID().toString();
+            String targetFilename = orderId.toString() + "_" + fileUuid + (extension != null ? "." + extension : "");
+            
+            // 路徑格式: /tmp/cat_sitter_media/payment-proofs/{date}/{orderId}_{fileUuid}.ext
+            String subDirName = "payment-proofs/" + dateStr;
+            Path targetDirPath = Paths.get(localStorageDir, subDirName);
+            
+            if (!Files.exists(targetDirPath)) {
+                Files.createDirectories(targetDirPath);
+            }
+            
+            Path targetFilePath = targetDirPath.resolve(targetFilename);
+            file.transferTo(targetFilePath);
+            
+            String fileUrl = localBaseUrl + "/" + subDirName + "/" + targetFilename;
+            log.info("Local payment proof uploaded: {}", fileUrl);
+            return fileUrl;
+        } catch (IOException e) {
+            log.error("Failed to upload local payment proof", e);
+            throw new RuntimeException("Local payment proof upload failed", e);
+        }
+    }
+
+    @Override
     public void deleteMedia(String mediaUrl) {
         if (!mediaUrl.startsWith(localBaseUrl)) {
             log.warn("Invalid local media URL: {}", mediaUrl);

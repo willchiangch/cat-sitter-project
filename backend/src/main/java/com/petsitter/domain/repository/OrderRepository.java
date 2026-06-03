@@ -27,4 +27,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByStatus(String status);
 
     List<Order> findByOwnerIdAndStatusNotIn(UUID ownerId, List<String> statuses);
+
+    boolean existsByPaymentIdempotencyKey(String paymentIdempotencyKey);
 }

@@ -1,42 +1,30 @@
-# SD-001: 角色切換與檔案管理 (含預約門禁) 工作清單
+# SD-007: 線下付款憑證上傳與確認 實作任務清單
 
-- [x] **1. 資料庫變更與側表建立**
-  - [x] 建立 `V20260527_01__create_profiles_and_gatekeeper.sql` 遷移檔案（建立 `profiles`, `gatekeeper_rules` 與 `log_user_action` 表，補上 `active_role` 欄位至 `refresh_tokens`，建立唯一索引與 `chk_plan_scope` 約束）
-
-- [x] **2. 後端 Domain 與 Infrastructure 實作**
-  - [x] 建立 `Profile.java` 實體
-  - [x] 建立 `GatekeeperRule.java` 實體
-  - [x] 修改 `RefreshToken.java`（新增 `activeRole` 屬性與其映射）
-  - [x] 建立 `ProfileRepository.java` 介面
-  - [x] 建立 `GatekeeperRuleRepository.java` 介面
-
-- [x] **3. 後端安全過濾器與 JWT Claims 綁定**
-  - [x] 修改 `AuthService.java` 
-    - [x] `createAuthResponse` 簽發 jwt 時注入 `userId` claims
-    - [x] `refreshToken` 邏輯改自 `RefreshToken` 取得 `activeRole`，並實作 `NULL` 安全 fallback 回退至 `user.getRole()`
-  - [x] 修改 `JwtAuthenticationFilter.java`
-    - [x] `doFilterInternal` 中解析 `userId` 呼叫 `TokenContext.setUserId(...)`
-    - [x] 於 `finally` 區塊呼叫 `TokenContext.clear()` 確保安全清除
-
-- [x] **4. 後端 Application 服務層與 API 實作**
-  - [x] 建立 `GatekeeperService.java`（CRUD 規則、`isBlocked` 與 `checkExemption` 整合點）
-  - [x] 修改 `ServicePlanService.java`（整合方案隱藏過濾）
-  - [x] 修改 `BookingService.java`（加入全域門禁卡控與免填問卷接口）
-  - [x] 修改 `AuthController.java`（新增 `POST /api/auth/switch-role`，處理 lazy initialization 與 `DataIntegrityViolationException` 冪等，返回全新 `AuthResponse`）
-  - [x] 建立 `GatekeeperController.java`（提供 CRUD 端點與 SaaS 訂閱等級卡控）
-
-- [x] **5. 前端實作與路由註冊**
-  - [x] 修改 `RoleContext.tsx`（`setRole` 整合 switch-role API 與 token 覆寫，相容 E2E 自動登入）
-  - [x] 建立 `GatekeeperSettings.tsx` 頁面（SaaS 方案升級提示、Email 防呆驗證與規則管理）
-  - [x] 修改 `App.tsx` 註冊 `/sitter/gatekeeper` 路由與 Menu 入口
-
-- [x] **6. 驗證與測試 (Verification)**
-  - [x] 建立 `frontend/e2e/gatekeeper-flow.spec.ts` 測試檔案
-  - [x] 執行 E2E 與編譯檢查（5 個 scenarios 100% 通過）
-
-- [x] **7. 系統審計 (System Audit) 修正與優化**
-  - [x] 修改 `pom.xml` 加入 `spring-boot-starter-actuator` 與 `springdoc-openapi-starter-webmvc-ui`
-  - [x] 修改 `SecurityConfig.java` 允許 Actuator 與 Swagger 匿名存取
-  - [x] 修改 `application.yml` 設定健康檢查路徑與細節隱蔽
-  - [x] 於 `GatekeeperService.java` 中將日誌 (`log.info` 與 `log.warn`) 實裝到 addRule 與 deleteRule 關鍵點
-  - [x] 執行 Maven 測試與驗證編譯合規
+- [x] **1. 資料庫與實體變更 (Database & Entities)**
+  - [x] 新增 Flyway 遷移檔 [V20260530_01__add_payment_proof_fields_to_orders.sql](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/resources/db/migration/V20260530_01__add_payment_proof_fields_to_orders.sql)
+  - [x] 擴充 `Order.java` 實體欄位
+  - [x] 擴充 `Profile.java` 實體欄位
+- [x] **2. 基礎設施擴充 (Infrastructure)**
+  - [x] 新建 `BankAccountInfo` VO [BankAccountInfo.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/petsitter/domain/model/BankAccountInfo.java)
+  - [x] 新建 AES-256-GCM 資料庫加解密轉換器 [BankAccountInfoCryptoConverter.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/petsitter/infrastructure/security/BankAccountInfoCryptoConverter.java)
+  - [x] 啟用非同步設定 `AsyncConfig.java` 與 `application.yml` 線程池配置
+- [x] **3. 事件與非同步監聽器 (Events & Listeners)**
+  - [x] 新增三個事件類別 `PaymentProofSubmittedEvent.java`、`PaymentVerifiedEvent.java`、`PaymentRejectedEvent.java`
+  - [x] 新建 `NotificationListener.java` 以實作 TransactionPhase.AFTER_COMMIT 與非同步發送
+- [x] **4. 媒體上傳服務擴充 (Media Storage)**
+  - [x] 於 `MediaStorageService.java` 介面新增 `uploadPaymentProof` 方法
+  - [x] 擴充 `LocalMediaStorageServiceImpl.java` 實作本地備份
+  - [x] 擴充 `GcsMediaStorageServiceImpl.java` 實作生產 GCS 上傳與 Lifecycle Exclusion 標記
+- [x] **5. DTO 類別定義 (DTOs)**
+  - [x] 新增 `UpdateSitterPaymentInfoRequest.java` 驗證 DTO
+  - [x] 新增 `OrderDetailResponseDto.java` 查詢 DTO
+- [x] **6. 業務服務層實作 (Services)**
+  - [x] 新建 `PaymentService.java` 處理上傳、確認、駁回付款憑證與更新帳戶邏輯
+  - [x] 新建 `OrderQueryService.java` 介面與實作，處理 BOLA 檢核與銀行資訊動態隱私過濾
+- [x] **7. 控制器介面實作 (Controllers)**
+  - [x] 於 `OrderController.java` 新增憑證上傳、確認、駁回與詳情查詢端點
+  - [x] 新建 `SitterProfileController.java` 處理保母收款資訊的 GET/PUT 端點
+- [x] **8. 驗證與自動化測試 (Verification)**
+  - [x] 撰寫 `PaymentControllerTest.java` 進行後端單元與整合測試
+  - [x] 執行本地編譯與單元測試
+  - [x] 執行 E2E Playwright 測試 (修復了 Playwright 與 React 同步 Dialog 產生的 Deadlock 問題，E2E 測項 100% 通過)

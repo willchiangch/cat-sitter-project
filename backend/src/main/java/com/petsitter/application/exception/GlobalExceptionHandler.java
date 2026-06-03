@@ -29,8 +29,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        Throwable rootCause = org.springframework.core.NestedExceptionUtils.getRootCause(ex);
+        if (rootCause != null && "org.postgresql.util.PSQLException".equals(rootCause.getClass().getName())) {
+            try {
+                java.lang.reflect.Method getServerErrorMessageMethod = rootCause.getClass().getMethod("getServerErrorMessage");
+                Object serverErrorMessage = getServerErrorMessageMethod.invoke(rootCause);
+                if (serverErrorMessage != null) {
+                    java.lang.reflect.Method getConstraintMethod = serverErrorMessage.getClass().getMethod("getConstraint");
+                    String constraint = (String) getConstraintMethod.invoke(serverErrorMessage);
+                    if ("idx_orders_payment_idempotency".equalsIgnoreCase(constraint)) {
+                        return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(Map.of("error", "DUPLICATE_REQUEST", "message", "系統已受理此請求，請勿重複送單"));
+                    }
+                }
+            } catch (Exception ignored) {
+                // Ignore exception and fall back to message check
+            }
+        }
+        
         String msg = ex.getMessage() != null ? ex.getMessage() : "";
-        if (msg.toLowerCase().contains("idempotency")) {
+        if (msg.contains("idx_orders_payment_idempotency")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "DUPLICATE_REQUEST", "message", "系統已受理此請求，請勿重複送單"));
         }

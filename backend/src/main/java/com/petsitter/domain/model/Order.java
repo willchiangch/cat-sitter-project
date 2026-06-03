@@ -67,4 +67,20 @@ public class Order extends BaseEntity {
 
     @Column(name = "idempotency_key", unique = true)
     private String idempotencyKey;
+
+    @Column(name = "payment_proof_url")
+    private String paymentProofUrl;
+
+    @Column(name = "payment_proof_last_five", length = 5)
+    private String paymentProofLastFive;
+
+    @Builder.Default
+    @Column(name = "disclaimer_agreed", nullable = false)
+    private boolean disclaimerAgreed = false;
+
+    @Column(name = "disclaimer_agreed_at")
+    private OffsetDateTime disclaimerAgreedAt;
+
+    @Column(name = "payment_idempotency_key")
+    private String paymentIdempotencyKey;
 }

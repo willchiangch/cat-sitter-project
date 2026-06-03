@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
+import { getOrderDetail } from '../../api/orderApi';
 
 interface OwnerOrdersProps {
   setView: (view: any) => void;
@@ -10,14 +11,27 @@ type TabType = 'ongoing' | 'history';
 
 const OwnerOrders: React.FC<OwnerOrdersProps> = ({ setView }) => {
   const [activeTab, setActiveTab] = useState<TabType>('ongoing');
+  const [dbOrder, setDbOrder] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      try {
+        const data = await getOrderDetail('a1023000-0000-0000-0000-000000000000');
+        setDbOrder(data);
+      } catch (err) {
+        console.error('Failed to fetch DB order in OwnerOrders:', err);
+      }
+    };
+    fetchOrder();
+  }, []);
 
   // 模擬飼主端訂單資料
   const mockOrders = [
     {
       id: 'a1023000-0000-0000-0000-000000000000',
       sitterName: '本地測試保母',
-      status: 'CONFIRMED',
-      totalAmount: 2400,
+      status: dbOrder ? dbOrder.status : 'PENDING_PAYMENT',
+      totalAmount: dbOrder ? dbOrder.totalAmount : 2400,
       scheduledDates: '2026-05-25 ~ 2026-05-29 (共 5 天)'
     },
     {
@@ -38,7 +52,7 @@ const OwnerOrders: React.FC<OwnerOrdersProps> = ({ setView }) => {
 
   const filteredOrders = mockOrders.filter((order) => {
     if (activeTab === 'ongoing') {
-      return ['PENDING', 'CONFIRMED', 'MODIFYING', 'REFUND_VERIFY', 'PENDING_PAYMENT'].includes(
+      return ['PENDING', 'CONFIRMED', 'MODIFYING', 'REFUND_VERIFY', 'PENDING_PAYMENT', 'PAID'].includes(
         order.status
       );
     }

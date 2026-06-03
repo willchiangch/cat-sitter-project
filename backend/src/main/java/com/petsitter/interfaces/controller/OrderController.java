@@ -6,6 +6,10 @@ import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.service.*;
 import com.petsitter.infrastructure.security.gating.PlanTier;
 import com.petsitter.infrastructure.security.gating.RequirePlan;
+import com.petsitter.infrastructure.security.TokenContext;
+import com.petsitter.application.dto.OrderDetailResponseDto;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,6 +29,8 @@ public class OrderController {
     private final EvaluationService evaluationService;
     private final CompletionService completionService;
     private final ModificationService modificationService;
+    private final PaymentService paymentService;
+    private final OrderQueryService orderQueryService;
 
     /**
      * 飼主送出預約申請
@@ -152,5 +158,66 @@ public class OrderController {
             @RequestParam UUID ownerId) {
         modificationService.confirmRefund(orderId, ownerId);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已確認收到退款，訂單變更生效"));
+    }
+
+    /**
+     * 飼主上傳付款憑證 (SD-007)
+     */
+    @PreAuthorize("hasRole('OWNER')")
+    @PostMapping("/{orderId}/payment-proof")
+    public ResponseEntity<Map<String, String>> uploadPaymentProof(
+            @PathVariable UUID orderId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("lastFive") String lastFive,
+            @RequestParam("disclaimerAgreed") boolean disclaimerAgreed) {
+        
+        if (idempotencyKey != null && idempotencyKey.length() > 100) {
+            throw new IllegalArgumentException("Idempotency-Key 長度不得超過 100 字元");
+        }
+        UUID ownerId = TokenContext.getUserId();
+        paymentService.submitPaymentProof(ownerId, orderId, lastFive, file, disclaimerAgreed, idempotencyKey);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "付款憑證已上傳，等待保母核對"));
+    }
+
+    /**
+     * 保母確認入帳 (SD-007)
+     */
+    @PreAuthorize("hasRole('SITTER')")
+    @PostMapping("/{orderId}/verify-payment")
+    public ResponseEntity<Map<String, String>> verifyPayment(
+            @PathVariable UUID orderId) {
+        
+        UUID sitterId = TokenContext.getUserId();
+        paymentService.verifyPayment(sitterId, orderId);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "入帳確認成功，訂單已生效"));
+    }
+
+    /**
+     * 保母駁回憑證 (SD-007)
+     */
+    @PreAuthorize("hasRole('SITTER')")
+    @PostMapping("/{orderId}/reject-payment")
+    public ResponseEntity<Map<String, String>> rejectPayment(
+            @PathVariable UUID orderId,
+            @RequestBody Map<String, String> payload) {
+        
+        UUID sitterId = TokenContext.getUserId();
+        String rejectReason = payload.get("rejectReason");
+        paymentService.rejectPayment(sitterId, orderId, rejectReason);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "憑證已駁回，訂單退回待付款狀態"));
+    }
+
+    /**
+     * 查詢訂單詳情 (SD-007)
+     */
+    @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
+    @GetMapping("/{orderId}")
+    public ResponseEntity<OrderDetailResponseDto> getOrderDetail(
+            @PathVariable UUID orderId) {
+        
+        UUID requesterId = TokenContext.getUserId();
+        OrderDetailResponseDto dto = orderQueryService.getOrderDetail(orderId, requesterId);
+        return ResponseEntity.ok(dto);
     }
 }

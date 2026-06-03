@@ -61,6 +61,21 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file) {
+        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+        String dateStr = java.time.LocalDate.now().toString(); // YYYY-MM-DD
+        String fileUuid = UUID.randomUUID().toString();
+        String targetFilename = orderId.toString() + "_" + fileUuid + (extension != null ? "." + extension : "");
+        
+        // 格式: payment-proofs/{date}/{orderId}_{fileUuid}.{ext}
+        String objectName = "payment-proofs/" + dateStr + "/" + targetFilename;
+        
+        log.info("Mock GCS Upload payment proof to bucket {}, object {}", bucketName, objectName);
+        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+    }
+
+    @Override
     public void deleteMedia(String mediaUrl) {
         log.info("Mock GCS Delete object from URL: {}", mediaUrl);
         // TODO: 解析 mediaUrl 取得 objectName，然後呼叫 GCP SDK 刪除

@@ -163,3 +163,88 @@ export const confirmRefund = async (
   });
   return response.data;
 };
+
+// --- SD-007 Offline Payment Types & APIs ---
+
+export interface BankAccountInfo {
+  bankCode?: string;
+  bankBranch?: string;
+  bankAccount?: string;
+  bankPayeeName?: string;
+}
+
+export interface OrderDetailResponseDto {
+  id: string;
+  ownerId: string;
+  sitterId: string;
+  status: string;
+  totalAmount: number;
+  adjustmentAmount: number;
+  adjustmentReason?: string;
+  paymentProofUrl?: string;
+  paymentProofLastFive?: string;
+  disclaimerAgreed: boolean;
+  disclaimerAgreedAt?: string;
+  paidAt?: string;
+  completedAt?: string;
+  payoutAt?: string;
+  items: any[];
+  sitterPaymentInfo?: BankAccountInfo;
+}
+
+// 取得訂單詳情 (SD-007)
+export const getOrderDetail = async (orderId: string): Promise<OrderDetailResponseDto> => {
+  const response = await axiosClient.get(`/orders/${orderId}`);
+  return response.data;
+};
+
+// 提交付款憑證 (SD-007)
+export const submitPaymentProof = async (
+  orderId: string,
+  lastFive: string,
+  disclaimerAgreed: boolean,
+  file: File,
+  idempotencyKey: string
+): Promise<{ status: string; message: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('lastFive', lastFive);
+  formData.append('disclaimerAgreed', String(disclaimerAgreed));
+
+  const response = await axiosClient.post(`/orders/${orderId}/payment-proof`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+      'Idempotency-Key': idempotencyKey
+    }
+  });
+  return response.data;
+};
+
+// 保母確認入帳 (SD-007)
+export const verifyPayment = async (orderId: string): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(`/orders/${orderId}/verify-payment`);
+  return response.data;
+};
+
+// 保母駁回付款憑證 (SD-007)
+export const rejectPayment = async (
+  orderId: string,
+  rejectReason: string
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(`/orders/${orderId}/reject-payment`, { rejectReason });
+  return response.data;
+};
+
+// 保母取得個人收款資訊 (SD-007)
+export const getSitterPaymentInfo = async (): Promise<BankAccountInfo> => {
+  const response = await axiosClient.get('/sitter/payment-info');
+  return response.data;
+};
+
+// 保母更新個人收款資訊 (SD-007)
+export const updateSitterPaymentInfo = async (
+  info: BankAccountInfo
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.put('/sitter/payment-info', info);
+  return response.data;
+};

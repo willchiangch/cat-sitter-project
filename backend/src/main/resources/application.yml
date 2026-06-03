@@ -14,11 +14,19 @@ spring:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
-
+  task:
+    execution:
+      thread-name-prefix: notify-
+      pool:
+        core-size: 2
+        max-size: 5
+        queue-capacity: 100
 
 app:
   security:
     internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}
+  crypto:
+    key: ${APP_CRYPTO_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
 
 management:
   endpoints:

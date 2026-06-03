@@ -1,0 +1,73 @@
+package com.petsitter.application.service;
+
+import com.petsitter.application.dto.OrderDetailResponseDto;
+import com.petsitter.domain.model.BankAccountInfo;
+import com.petsitter.domain.model.Order;
+import com.petsitter.domain.model.Profile;
+import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.domain.repository.ProfileRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OrderQueryServiceImpl implements OrderQueryService {
+
+    private final OrderRepository orderRepository;
+    private final ProfileRepository profileRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public OrderDetailResponseDto getOrderDetail(UUID orderId, UUID requesterId) {
+        log.info("Querying order details for order: {}, requester: {}", orderId, requesterId);
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到對應的訂單: " + orderId));
+
+        // BOLA 安全性檢核：請求者必須是訂單的飼主或保母
+        boolean isOwner = order.getOwner().getId().equals(requesterId);
+        boolean isSitter = order.getSitter().getId().equals(requesterId);
+
+        if (!isOwner && !isSitter) {
+            log.error("BOLA Violation: User {} tried to query details for order {} owned by {} and assigned to {}", 
+                    requesterId, orderId, order.getOwner().getId(), order.getSitter().getId());
+            throw new AccessDeniedException("權限不足：您非此訂單的飼主或服務保母");
+        }
+
+        // 依訂單狀態過濾並注入保母匯款帳戶資訊 (僅 PENDING_PAYMENT 與 PAID 開放)
+        BankAccountInfo bankAccountInfo = null;
+        if ("PENDING_PAYMENT".equals(order.getStatus()) || "PAID".equals(order.getStatus())) {
+            UUID sitterUserId = order.getSitter().getId();
+            Profile sitterProfile = profileRepository.findByUserIdAndType(sitterUserId, "SITTER").orElse(null);
+            if (sitterProfile != null) {
+                // 由 AttributeConverter 自動於載入時解密
+                bankAccountInfo = sitterProfile.getBankAccountInfo();
+            }
+        }
+
+        return OrderDetailResponseDto.builder()
+                .id(order.getId())
+                .ownerId(order.getOwner().getId())
+                .sitterId(order.getSitter().getId())
+                .status(order.getStatus())
+                .totalAmount(order.getTotalAmount())
+                .adjustmentAmount(order.getAdjustmentAmount())
+                .adjustmentReason(order.getAdjustmentReason())
+                .paymentProofUrl(order.getPaymentProofUrl())
+                .paymentProofLastFive(order.getPaymentProofLastFive())
+                .disclaimerAgreed(order.isDisclaimerAgreed())
+                .disclaimerAgreedAt(order.getDisclaimerAgreedAt())
+                .paidAt(order.getPaidAt())
+                .completedAt(order.getCompletedAt())
+                .payoutAt(order.getPayoutAt())
+                .items(order.getItems())
+                .sitterPaymentInfo(bankAccountInfo)
+                .build();
+    }
+}

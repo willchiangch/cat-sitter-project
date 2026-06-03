@@ -26,6 +26,11 @@ public interface MediaStorageService {
     String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file);
 
     /**
+     * 上傳付款憑證 (SD-007)
+     */
+    String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file);
+
+    /**
      * 刪除媒體檔案
      * @param mediaUrl 檔案的完整 URL
      */

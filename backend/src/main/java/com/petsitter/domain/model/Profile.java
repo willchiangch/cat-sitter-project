@@ -1,5 +1,6 @@
 package com.petsitter.domain.model;
 
+import com.petsitter.infrastructure.security.BankAccountInfoCryptoConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -34,6 +35,11 @@ public class Profile {
     @Builder.Default
     @Column(name = "kyc_status", nullable = false, length = 50)
     private String kycStatus = "PENDING";
+
+    @Convert(converter = BankAccountInfoCryptoConverter.class)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "bank_account_info", columnDefinition = "jsonb")
+    private BankAccountInfo bankAccountInfo;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

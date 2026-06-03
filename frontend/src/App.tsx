@@ -19,6 +19,7 @@ import OwnerModificationConfirm from './pages/client/OwnerModificationConfirm';
 import SitterPlans from './pages/sitter/SitterPlans';
 import PetManager from './pages/client/PetManager';
 import { GatekeeperSettings } from './pages/sitter/GatekeeperSettings';
+import SitterPaymentInfoSettings from './pages/sitter/SitterPaymentInfoSettings';
 
 type ViewState = {
   name:
@@ -38,6 +39,7 @@ type ViewState = {
     | 'owner-modification-confirm'
     | 'sitter-plans'
     | 'pet-manager'
+    | 'sitter-payment-settings'
     | 'gatekeeper-settings';
   params?: { sitterId: string; ownerId: string; visitId?: string; orderId?: string };
 };
@@ -107,6 +109,8 @@ function App() {
         return <PetManager />;
       case 'gatekeeper-settings':
         return <GatekeeperSettings />;
+      case 'sitter-payment-settings':
+        return <SitterPaymentInfoSettings />;
       default:
         return (
           <div style={{ padding: '2rem 0', textAlign: 'center' }}>
@@ -208,6 +212,13 @@ function App() {
                 data-testid="btn-go-gatekeeper"
               >
                 進入門禁設定 (保母端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'sitter-payment-settings' })}
+                data-testid="btn-go-sitter-payment"
+              >
+                進入收款設定 (保母端)
               </button>
               <button
                 className="btn-primary"
