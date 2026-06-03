@@ -63,38 +63,25 @@ jobs:
           else
             echo "Starting ${{ env.DB_INSTANCE }} database..."
             gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS --async
-            
+
             sleep 5
             # 取得剛剛觸發的 operation ID
             OP_ID=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name)")
             echo "Triggered operation ID: $OP_ID"
-            
-            echo "Polling database operation until DONE..."
-            for i in {1..40}; do
-              OP_STATUS=$(gcloud sql operations describe $OP_ID --format="value(status)")
-              echo "Operation status: $OP_STATUS"
-              if [ "$OP_STATUS" = "DONE" ]; then
-                break
-              fi
-              sleep 10
-            done
 
-            # 檢查 operation 是否真的成功
-            OP_STATUS=$(gcloud sql operations describe $OP_ID --format="value(status)")
-            if [ "$OP_STATUS" != "DONE" ]; then
-              echo "Warning: Database operation did not complete in time, but proceeding..."
-            fi
+            echo "Waiting for database operation to complete (up to 10 min)..."
+            gcloud sql operations wait "$OP_ID" --timeout=600
           fi
 
-          # 確保資料庫狀態為 RUNNABLE
+          # 確保資料庫狀態為 RUNNABLE (db-f1-micro 在 operation DONE 後仍需 MAINTENANCE 過渡期)
           echo "Verifying database state..."
-          for i in {1..10}; do
+          for i in {1..30}; do
             STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
             echo "Database state: $STATUS"
             if [ "$STATUS" = "RUNNABLE" ]; then
               break
             fi
-            sleep 10
+            sleep 15
           done
 
           STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
