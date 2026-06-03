@@ -1,9 +1,35 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dispute and Completion Flow', () => {
+  let orderStatus = 'CONFIRMED';
+
   test.beforeEach(async ({ page }) => {
+    orderStatus = 'CONFIRMED';
+
+    // Mock Order Detail GET — 缺少此 mock 時 Cloud Run 回 401，axios interceptor 會重導至 /login
+    await page.route('**/api/orders/a1023000-0000-0000-0000-000000000000', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'a1023000-0000-0000-0000-000000000000',
+          ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
+          sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+          status: orderStatus,
+          totalAmount: 2400,
+          adjustmentAmount: 0,
+          disclaimerAgreed: true,
+          paymentProofUrl: null,
+          paymentProofLastFive: null,
+          items: [],
+          sitterPaymentInfo: null
+        })
+      });
+    });
+
     // 攔截結案 API
     await page.route('**/api/orders/*/complete**', async (route) => {
+      orderStatus = 'COMPLETED';
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -13,6 +39,7 @@ test.describe('Dispute and Completion Flow', () => {
 
     // 攔截提出爭議 API
     await page.route('**/api/orders/*/dispute**', async (route) => {
+      orderStatus = 'DISPUTED';
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -22,6 +49,7 @@ test.describe('Dispute and Completion Flow', () => {
 
     // 攔截管理員調解 API
     await page.route('**/api/orders/*/admin-resolve**', async (route) => {
+      orderStatus = 'COMPLETED';
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
