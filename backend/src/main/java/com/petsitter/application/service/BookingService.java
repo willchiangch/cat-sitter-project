@@ -22,6 +22,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.petsitter.application.exception.ServicePlanException;
+import com.petsitter.application.exception.KycException;
+import com.petsitter.domain.repository.ProfileRepository;
 import org.springframework.http.HttpStatus;
 
 @Slf4j
@@ -34,10 +36,19 @@ public class BookingService {
     private final UserRepository userRepository;
     private final ServicePlanRepository servicePlanRepository;
     private final GatekeeperService gatekeeperService;
+    private final ProfileRepository profileRepository;
 
     @Transactional
     public UUID createBooking(BookingRequest request) {
         log.info("[BookingService] Creating PENDING order for sitter: {}", request.getSitterId());
+
+        // 保母實名認證與接單狀態雙重校驗 (SD-017 / SD-005 聯動)
+        com.petsitter.domain.model.Profile sitterProfile = profileRepository.findByUserIdAndType(request.getSitterId(), "SITTER")
+                .orElseThrow(() -> new KycException(HttpStatus.UNPROCESSABLE_ENTITY, "MSG_DATA_INVALID_STATUS", "保母未開放預約或未完成實名認證"));
+        
+        if (!sitterProfile.isOpen() || !"VERIFIED".equals(sitterProfile.getKycStatus())) {
+            throw new KycException(HttpStatus.UNPROCESSABLE_ENTITY, "MSG_DATA_INVALID_STATUS", "保母未開放預約或未完成實名認證");
+        }
 
         // 全域門禁卡控防禦
         if (gatekeeperService.isBlocked(request.getSitterId(), request.getOwnerId(), null)) {

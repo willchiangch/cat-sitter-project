@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
                 if (serverErrorMessage != null) {
                     java.lang.reflect.Method getConstraintMethod = serverErrorMessage.getClass().getMethod("getConstraint");
                     String constraint = (String) getConstraintMethod.invoke(serverErrorMessage);
-                    if ("idx_orders_payment_idempotency".equalsIgnoreCase(constraint)) {
+                    if ("idx_orders_payment_idempotency".equalsIgnoreCase(constraint) || "pk_idempotency".equalsIgnoreCase(constraint)) {
                         return ResponseEntity.status(HttpStatus.CONFLICT)
                                 .body(Map.of("error", "DUPLICATE_REQUEST", "message", "系統已受理此請求，請勿重複送單"));
                     }
@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
         }
         
         String msg = ex.getMessage() != null ? ex.getMessage() : "";
-        if (msg.contains("idx_orders_payment_idempotency")) {
+        if (msg.contains("idx_orders_payment_idempotency") || msg.contains("pk_idempotency") || msg.contains("Duplicate idempotency key")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "DUPLICATE_REQUEST", "message", "系統已受理此請求，請勿重複送單"));
         }
@@ -101,6 +101,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(VisitReportException.class)
     public ResponseEntity<Map<String, String>> handleVisitReport(VisitReportException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(KycException.class)
+    public ResponseEntity<Map<String, String>> handleKycException(KycException ex) {
         return ResponseEntity.status(ex.getStatus())
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
     }

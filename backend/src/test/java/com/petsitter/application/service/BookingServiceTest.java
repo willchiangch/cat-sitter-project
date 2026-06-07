@@ -66,6 +66,9 @@ class BookingServiceTest {
     @Autowired
     private OrderSnapshotRepository orderSnapshotRepository;
 
+    @Autowired
+    private ProfileRepository profileRepository;
+
     private UUID ownerId;
     private UUID sitterId;
     private UUID planId;
@@ -76,12 +79,21 @@ class BookingServiceTest {
         visitRepository.deleteAll();
         orderSnapshotRepository.deleteAll();
         orderRepository.deleteAll();
+        profileRepository.deleteAll();
         servicePlanRepository.deleteAll();
         userRepository.deleteAll();
 
         User owner = userRepository.save(User.builder().email("owner@test.com").passwordHash("hash").role("OWNER").build());
         User sitter = userRepository.save(User.builder().email("sitter@test.com").passwordHash("hash").role("SITTER").build());
         
+        // 建立已認證且開放的保母 Profile 檔案以通過預約門禁
+        profileRepository.save(com.petsitter.domain.model.Profile.builder()
+                .userId(sitter.getId())
+                .type("SITTER")
+                .kycStatus("VERIFIED")
+                .isOpen(true)
+                .build());
+
         ServicePlan plan = servicePlanRepository.save(ServicePlan.builder()
                 .sitter(sitter)
                 .name("專業餵食")

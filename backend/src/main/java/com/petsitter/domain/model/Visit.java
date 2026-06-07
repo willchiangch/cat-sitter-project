@@ -20,7 +20,7 @@ public class Visit extends BaseEntity {
     private Order order;
 
     @Column(nullable = false)
-    private String status; // PENDING, DONE, CLOSED_BY_SYSTEM
+    private String status; // PENDING, IN_PROGRESS, DONE, CLOSED_BY_SYSTEM
 
     @Column(name = "plan_id", nullable = false)
     private java.util.UUID planId;

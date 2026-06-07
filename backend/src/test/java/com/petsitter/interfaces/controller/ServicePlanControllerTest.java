@@ -6,10 +6,12 @@ import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.dto.ServicePlanDto;
 import com.petsitter.application.dto.ServicePlanSortRequest;
 import com.petsitter.domain.model.CareLog;
+import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.CareLogRepository;
+import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.ServicePlanRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -72,6 +74,9 @@ class ServicePlanControllerTest {
     @Autowired
     private CareLogRepository careLogRepository;
 
+    @Autowired
+    private ProfileRepository profileRepository;
+
     private ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     private User sitterA;
@@ -84,19 +89,23 @@ class ServicePlanControllerTest {
         careLogRepository.deleteAll();
         servicePlanRepository.deleteAll();
         subscriptionRepository.deleteAll();
+        profileRepository.deleteAll();
         userRepository.deleteAll();
 
         // 建立保母 A
         sitterA = userRepository.save(User.builder().email("sitterA@test.com").passwordHash("hash").role("SITTER").build());
         subscriptionRepository.save(Subscription.builder().sitter(sitterA).planTier("FREE").build());
+        profileRepository.save(Profile.builder().userId(sitterA.getId()).type("SITTER").kycStatus("VERIFIED").isOpen(true).build());
 
         // 建立保母 B
         sitterB = userRepository.save(User.builder().email("sitterB@test.com").passwordHash("hash").role("SITTER").build());
         subscriptionRepository.save(Subscription.builder().sitter(sitterB).planTier("FREE").build());
+        profileRepository.save(Profile.builder().userId(sitterB.getId()).type("SITTER").kycStatus("VERIFIED").isOpen(true).build());
 
         // 建立保母 C (專業版)
         sitterC = userRepository.save(User.builder().email("sitterC@test.com").passwordHash("hash").role("SITTER").build());
         subscriptionRepository.save(Subscription.builder().sitter(sitterC).planTier("PRO").build());
+        profileRepository.save(Profile.builder().userId(sitterC.getId()).type("SITTER").kycStatus("VERIFIED").isOpen(true).build());
 
         // 建立飼主 A
         ownerA = userRepository.save(User.builder().email("ownerA@test.com").passwordHash("hash").role("OWNER").build());

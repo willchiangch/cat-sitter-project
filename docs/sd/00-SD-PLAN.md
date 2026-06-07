@@ -120,7 +120,7 @@ stateDiagram-v2
 
 | 順序 | SD | 原因 |
 |:---:|---|---|
-| 1 | **SD-007** 線下付款 | 🔴 Blocking：付款路徑缺失，訂單流程無法完成 |
+| 1 | **SD-007** 線下付款 | ✅ **Implemented** (已完成前後端實作與 E2E 驗證) |
 | 2 | **SD-008** 服務執行 | 🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失 |
 | 3 | **SD-017** 保母 KYC | 🟡 Close Beta 信任基礎，無驗證保母飼主不放心，beta 反饋失真 |
 | 4 | **SD-014** 通知中心 | 🟡 無通知則狀態變更無感，Close Beta 流程可用性極差 |
@@ -129,15 +129,16 @@ stateDiagram-v2
 
 ---
 
-- [ ] **SD-007: 線下付款憑證上傳與確認**
-  - 🔴 Blocking：`PENDING_PAYMENT → PAID → CONFIRMED` 路徑缺失，報價後訂單無路可走。
+- [x] **SD-007: 線下付款憑證上傳與確認** (✅ **Implemented**)
+  - ~~🔴 Blocking：`PENDING_PAYMENT → PAID → CONFIRMED` 路徑缺失，報價後訂單無路可走。~~ (已打通核心流程)
   - 對應 PRD：`PRD-007-offline-payment.md`（已完成 SA）
-- [ ] **SD-008: 服務執行與 Check-in**
-  - 🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失，SD-009 自動結案永遠無法啟動。
+- [x] **SD-008: 服務執行與 Check-in** (✅ **Implemented**)
+  - ~~🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失，SD-009 自動結案永遠無法啟動。~~ (已打通核心流程，完成 E2E 驗證)
   - 對應 PRD：`PRD-008-service-execution.md`（已完成 SA）
-- [ ] **SD-017: 保母實名認證與資格審查 (KYC)**
+- [x] **SD-017: 保母實名認證與資格審查 (KYC)** (✅ **Implemented & COMPLIANT**)
   - 🟡 Close Beta 信任基礎：無身份驗證機制，飼主無法判斷保母可信度，beta 反饋嚴重失真。
-  - 對應 PRD：`PRD-017-sitter-kyc.md`（已完成 SA）
+  - 對應 PRD：`PRD-017-sitter-kyc.md`（已完成 SA / SD 9 輪 Review / 實作 2 輪 Audit / 全綠）
+  - 關鍵機制：SUSPENDED 阻擋重提、JOIN 防 N+1、profiles @Version 樂觀鎖、Partial Unique Index、AFTER_COMMIT 通知
 - [ ] **SD-014: 通知中心與訊息範本**
   - 🟡 流程可用性：無通知則訂單狀態變更無感知，Close Beta 無法正常測試完整流程。
   - 對應 PRD：`PRD-014-notification-center.md`（已完成 SA）
@@ -150,7 +151,6 @@ stateDiagram-v2
 ### [延後至 Open Beta / 正式上線] The Shell
 - **SD-015 (金流串接)**：線上支付整合，等 Close Beta 驗證核心流程後再接。
 - **SD-012 (SaaS 訂閱管理 UI)**：付費升級流程，依賴 SD-015。
-- **SD-017 (KYC)**：Close Beta 期間由管理員手動審核保母資格。
 - **SD-014 (通知中心)**：基礎通知不阻塞核心流程，延後實作。
 
 ---

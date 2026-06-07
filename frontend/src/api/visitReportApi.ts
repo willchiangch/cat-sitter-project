@@ -17,6 +17,7 @@ export interface VisitServiceReportDto {
   media: ReportMedia[];
   isEditable: boolean;
   version: number;
+  visitStatus: 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'CLOSED_BY_SYSTEM';
 }
 
 export const getReport = async (visitId: string): Promise<VisitServiceReportDto> => {
@@ -87,4 +88,36 @@ export const submitReport = async (visitId: string, idempotencyKey: string): Pro
       }
     }
   );
+};
+
+export const startVisit = async (
+  visitId: string,
+  idempotencyKey: string
+): Promise<{ visitId: string; visitStatus: string; orderStatus: string }> => {
+  const response = await axiosClient.post(
+    `/visits/${visitId}/start`,
+    {},
+    {
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      }
+    }
+  );
+  return response.data.data;
+};
+
+export const endVisit = async (
+  visitId: string,
+  idempotencyKey: string
+): Promise<{ visitId: string; visitStatus: string; finishedAt: string }> => {
+  const response = await axiosClient.post(
+    `/visits/${visitId}/end`,
+    {},
+    {
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      }
+    }
+  );
+  return response.data.data;
 };

@@ -1,30 +1,43 @@
-# SD-007: 線下付款憑證上傳與確認 實作任務清單
+# SD-008: 服務執行與 Check-in 實作任務清單
 
-- [x] **1. 資料庫與實體變更 (Database & Entities)**
-  - [x] 新增 Flyway 遷移檔 [V20260530_01__add_payment_proof_fields_to_orders.sql](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/resources/db/migration/V20260530_01__add_payment_proof_fields_to_orders.sql)
-  - [x] 擴充 `Order.java` 實體欄位
-  - [x] 擴充 `Profile.java` 實體欄位
-- [x] **2. 基礎設施擴充 (Infrastructure)**
-  - [x] 新建 `BankAccountInfo` VO [BankAccountInfo.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/petsitter/domain/model/BankAccountInfo.java)
-  - [x] 新建 AES-256-GCM 資料庫加解密轉換器 [BankAccountInfoCryptoConverter.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/petsitter/infrastructure/security/BankAccountInfoCryptoConverter.java)
-  - [x] 啟用非同步設定 `AsyncConfig.java` 與 `application.yml` 線程池配置
-- [x] **3. 事件與非同步監聽器 (Events & Listeners)**
-  - [x] 新增三個事件類別 `PaymentProofSubmittedEvent.java`、`PaymentVerifiedEvent.java`、`PaymentRejectedEvent.java`
-  - [x] 新建 `NotificationListener.java` 以實作 TransactionPhase.AFTER_COMMIT 與非同步發送
-- [x] **4. 媒體上傳服務擴充 (Media Storage)**
-  - [x] 於 `MediaStorageService.java` 介面新增 `uploadPaymentProof` 方法
-  - [x] 擴充 `LocalMediaStorageServiceImpl.java` 實作本地備份
-  - [x] 擴充 `GcsMediaStorageServiceImpl.java` 實作生產 GCS 上傳與 Lifecycle Exclusion 標記
-- [x] **5. DTO 類別定義 (DTOs)**
-  - [x] 新增 `UpdateSitterPaymentInfoRequest.java` 驗證 DTO
-  - [x] 新增 `OrderDetailResponseDto.java` 查詢 DTO
-- [x] **6. 業務服務層實作 (Services)**
-  - [x] 新建 `PaymentService.java` 處理上傳、確認、駁回付款憑證與更新帳戶邏輯
-  - [x] 新建 `OrderQueryService.java` 介面與實作，處理 BOLA 檢核與銀行資訊動態隱私過濾
-- [x] **7. 控制器介面實作 (Controllers)**
-  - [x] 於 `OrderController.java` 新增憑證上傳、確認、駁回與詳情查詢端點
-  - [x] 新建 `SitterProfileController.java` 處理保母收款資訊的 GET/PUT 端點
-- [x] **8. 驗證與自動化測試 (Verification)**
-  - [x] 撰寫 `PaymentControllerTest.java` 進行後端單元與整合測試
-  - [x] 執行本地編譯與單元測試
-  - [x] 執行 E2E Playwright 測試 (修復了 Playwright 與 React 同步 Dialog 產生的 Deadlock 問題，E2E 測項 100% 通過)
+- [x] **1. 領域模型與資料庫設計 (Domain & DB)**
+  - [x] 更新 `Visit.java` 的 `status` 狀態註解，補上 `IN_PROGRESS`
+- [x] **2. 業務服務層與控制器實作 (Services & Controllers)**
+  - [x] 擴充 `VisitReportService.java` 中 `startVisit` 與 `endVisit` 的實作
+  - [x] 注入 `OrderRepository` 與 `ApplicationEventPublisher` 以供狀態流轉與非同步事件通知
+  - [x] 新增可選（`required = false`）的 `Idempotency-Key` 校驗邏輯，對齊設計規格
+  - [x] 於 `startVisit` 狀態流轉後，呼叫 `orderRepository.save(order)` 明確化持久化意圖
+  - [x] 實作 `VisitReportController.java` 中的 `/start` 與 `/end` 端點，對接 Service
+- [x] **3. 異步事件驅動通知重構 (Events & Listeners)**
+  - [x] 新增 `VisitNotificationEvent` 事件
+  - [x] 於 `NotificationListener.java` 中加上對應的事件監聽器，使用 `@Async` 與 `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` 進行解耦，防止幽靈通知
+  - [x] 移除 `NotificationService.java` 原有的監聽邏輯，使其專注於通知推送實體
+- [x] **4. 前端 API 與 React Hooks 串接 (Frontend Integration)**
+  - [x] 更新 `visitReportApi.ts` 中 `startVisit` 與 `endVisit` 方法，加入 `Idempotency-Key` 標頭傳遞
+  - [x] 更新 `useVisitReport.ts` mutations 支援傳參
+  - [x] 修改 `VisitReportManager.tsx`：
+    - [x] 使用 `useRef` 生成並保存 `startKeyRef` 和 `endKeyRef` 冪等金鑰
+    - [x] 修正日誌正式送出 `handleSubmitReport` 的狀態防呆攔截，將 `!isEditable` 限制改為基於 `DONE` 行程狀態的判斷
+- [x] **5. 設計規格文件與測試驗證 (Verification)**
+  - [x] 撰寫並擴充 `VisitReportControllerTest.java` 整合測試：
+    - [x] 補齊對應 /start 與 /end 的 `Idempotency-Key` 測試
+    - [x] 新增「後續日 Check-in」（訂單已為 `IN_PROGRESS`）測試情境
+    - [x] 新增 `/start` 與 `/end` 重複請求冪等 409 衝突測試
+  - [x] 修正 `service-execution.spec.ts` 中 Mock 路由重複攔截掛起的 bug，將 GET 與 PUT 合併
+  - [x] 執行本地前端 Playwright E2E 測試，100% 綠燈通過
+  - [x] 更新 [SD-008-service-execution.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-008-service-execution.md)，將 `Idempotency-Key` 改為必填並加註「離線補送機制延後至 Open Beta 實作」之備註
+
+- [x] **SD-017: 保母實名認證與資格審查 (KYC) 實作** (✅ **COMPLIANT — Approved**)
+  - [x] 完成 [SD-017-sitter-kyc.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-017-sitter-kyc.md) 規劃（9 輪 Review 後 COMPLIANT）
+  - [x] 建立 Flyway 遷移 `V20260606_01__add_sitter_kyc_and_is_open.sql`（`is_open`、`version` 欄位、`kyc_records` 表、局部唯一索引防重送）
+  - [x] `Profile.java` 加 `@Version` 樂觀鎖，預設 `kycStatus = UNVERIFIED`，同步修正 `AuthService`/`PaymentService` 的硬碼 `"PENDING"`
+  - [x] 擴充 `MediaStorageService` 介面：`uploadKycFile` + `generateSignedUrl`，兩個 Profile 均已實作
+  - [x] `KycRecord.java`、`KycRecordRepository.java`（含 JOIN 查詢防 N+1）、`KycServiceImpl.java`
+  - [x] `SitterKycController.java`（Rate Limiting 在 `@Transactional` 外）+ `AdminKycController.java`
+  - [x] `BookingService.java` 新增雙重卡控：`isOpen == true && kycStatus == VERIFIED`（SD-005 聯動）
+  - [x] 非同步 AFTER_COMMIT 事件通知：`KycReviewedEvent`、`SitterSuspendedEvent`、`SitterUnsuspendedEvent`
+  - [x] `GlobalExceptionHandler` 修正冪等性衝突統一回 409（`pk_idempotency` + `Duplicate idempotency key`）
+  - [x] `ServicePlanControllerTest` 補齊保母 VERIFIED Profile 種子資料
+  - [x] `KycControllerTest.java` 整合測試全覆蓋（含 SUSPENDED 重提 422 場景），15 筆全綠
+  - [x] `AdminKycController.getPendingKycRecords` 冗餘 null-check 清理（INNER JOIN 保證非 null）
+

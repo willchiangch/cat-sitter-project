@@ -76,8 +76,26 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadKycFile(UUID sitterId, String type, MultipartFile file) {
+        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+        String targetFilename = type + (extension != null ? "." + extension : ".jpg");
+        String objectKey = "kyc/" + sitterId.toString() + "/" + targetFilename;
+        log.info("Mock GCS Upload KYC file to bucket {}, objectKey {}", bucketName, objectKey);
+        return objectKey;
+    }
+
+    @Override
     public void deleteMedia(String mediaUrl) {
         log.info("Mock GCS Delete object from URL: {}", mediaUrl);
         // TODO: 解析 mediaUrl 取得 objectName，然後呼叫 GCP SDK 刪除
+    }
+
+    @Override
+    public String generateSignedUrl(String objectKey, java.time.Duration ttl) {
+        log.info("Mock GCS generating signed URL for objectKey {} with TTL {}", objectKey, ttl);
+        return "https://storage.googleapis.com/" + bucketName + "/" + objectKey 
+                + "?GoogleAccessId=mock-access-id&Expires=" + (System.currentTimeMillis() / 1000 + ttl.getSeconds()) 
+                + "&Signature=mock-signature";
     }
 }

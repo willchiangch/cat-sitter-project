@@ -19,7 +19,8 @@ export const useVisitReportQuery = (visitId: string) => {
             submittedAt: null,
             media: [],
             isEditable: true,
-            version: 0
+            version: 0,
+            visitStatus: 'PENDING' as const
           };
         }
         throw error;
@@ -88,6 +89,26 @@ export const useSubmitReportMutation = (visitId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (idempotencyKey: string) => api.submitReport(visitId, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['visit-report', visitId] });
+    }
+  });
+};
+
+export const useStartVisitMutation = (visitId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (idempotencyKey: string) => api.startVisit(visitId, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['visit-report', visitId] });
+    }
+  });
+};
+
+export const useEndVisitMutation = (visitId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (idempotencyKey: string) => api.endVisit(visitId, idempotencyKey),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['visit-report', visitId] });
     }

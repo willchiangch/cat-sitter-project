@@ -44,7 +44,7 @@ public class PaymentService {
                         .userId(sitterId)
                         .type("SITTER")
                         .trustScore(100)
-                        .kycStatus("PENDING")
+                        .kycStatus("UNVERIFIED")
                         .build());
 
         BankAccountInfo bankAccountInfo = BankAccountInfo.builder()

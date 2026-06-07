@@ -31,8 +31,25 @@ public interface MediaStorageService {
     String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file);
 
     /**
+     * 上傳保母 KYC 證件照 (SD-017)
+     * @param sitterId 保母 ID
+     * @param type 證件類型 (e.g. "id-front", "selfie")
+     * @param file 檔案
+     * @return 儲存的 Object Key (例如: kyc/sitter-id/id-front.jpg)
+     */
+    String uploadKycFile(UUID sitterId, String type, MultipartFile file);
+
+    /**
      * 刪除媒體檔案
      * @param mediaUrl 檔案的完整 URL
      */
     void deleteMedia(String mediaUrl);
+
+    /**
+     * 產生私有儲存空間物件之短效安全簽名 URL
+     * @param objectKey 儲存物件 Key
+     * @param ttl 有效期限
+     * @return 簽名 URL
+     */
+    String generateSignedUrl(String objectKey, java.time.Duration ttl);
 }

@@ -114,7 +114,7 @@ public class AuthService {
                         .userId(user.getId())
                         .type(targetRole)
                         .trustScore(100)
-                        .kycStatus("PENDING")
+                        .kycStatus("UNVERIFIED")
                         .build();
                 profileRepository.saveAndFlush(profile);
             }

@@ -72,6 +72,9 @@ class OrderEvaluationTest {
     @Autowired
     private VisitRepository visitRepository;
 
+    @Autowired
+    private ProfileRepository profileRepository;
+
     private UUID sitterId;
     private UUID ownerId;
     private UUID planId;
@@ -81,6 +84,7 @@ class OrderEvaluationTest {
         visitRepository.deleteAll();
         orderSnapshotRepository.deleteAll();
         orderRepository.deleteAll();
+        profileRepository.deleteAll();
         subscriptionRepository.deleteAll();
         servicePlanRepository.deleteAll();
         userRepository.deleteAll();
@@ -88,6 +92,15 @@ class OrderEvaluationTest {
         User sitter = User.builder().email("sitter@example.com").passwordHash("hash").role("SITTER").build();
         User owner = User.builder().email("owner@example.com").passwordHash("hash").role("OWNER").build();
         userRepository.saveAllAndFlush(List.of(sitter, owner));
+        
+        // 建立已認證且開放的保母 Profile
+        profileRepository.save(com.petsitter.domain.model.Profile.builder()
+                .userId(sitter.getId())
+                .type("SITTER")
+                .kycStatus("VERIFIED")
+                .isOpen(true)
+                .build());
+
         this.sitterId = sitter.getId();
         this.ownerId = owner.getId();
 

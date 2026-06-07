@@ -1,108 +1,111 @@
-# SD-007: 線下付款憑證與收款帳戶 實作成果報告
+# SD-008: 服務執行與 Check-in 實作報告
 
-本成果報告總結了 SD-007「線下付款憑證上傳與確認」功能的開發與驗證成果。我們完成了資料庫擴充、JPA 安全加解密基礎設施、非同步事件通知機制、媒體服務整合、零信任 BOLA 身分與狀態機防禦，並撰寫了 17 個核心整合測試情境，已全數通過驗證。
-
----
-
-## 1. 實作功能與規格摘要
-
-1. **資料庫遷移與 Seed 預填 (Flyway)**：
-   - 於 `orders` 表新增憑證路徑、轉帳後五碼、免責聲明記錄欄位，並加上 `payment_idempotency_key` 唯一約束索引。
-   - 於 `profiles` 表新增加密儲存的 `bank_account_info` 欄位。
-   - 預填測試保母的收款帳戶（預先在本地以同密鑰 AES 加密好）與測試飼主的 profiles 記錄。
-2. **敏感財務帳戶加密 (JPA Converter & AES-256-GCM)**：
-   - 實作 `BankAccountInfoCryptoConverter`（使用 Spring 建構子注入防範 NPE 且強制 UTF-8 編碼）。
-   - 保母的收款帳戶資訊於寫入時由 GCM 模式自動加密、載入時自動解密，資料庫中僅留 Base64 密文，保護財務資料隱私。
-   - 藉由 `@JdbcTypeCode(SqlTypes.JSON)` 解決 PostgreSQL `JSONB` 欄位型態綁定衝突。
-3. **事件驅動通知 (Transactional Event Listener & Thread Pool)**：
-   - 實作三項訂單付款事件及其異步監聽器 `NotificationListener.java`，掛載於 `AFTER_COMMIT` 階段非同步執行。
-   - 於 `application.yml` 配置具備上限的 `ThreadPoolTaskExecutor` 執行緒池，保障高併發的線程安全性。
-4. **BOLA 安全性與隱私過濾 (Zero-Trust)**：
-   - API 身分全由 JWT Token 解析，拒絕透過 RequestParam 傳遞操作者 ID，防範越權漏洞。
-   - 新建 `OrderQueryService` 進行 BOLA 身分查驗與欄位過濾：僅在待付款/待核對狀態且為關係人查詢時解密回傳 `sitterPaymentInfo`，其餘狀態均過濾為 `null`，且該欄位保證永遠輸出。
-5. **上傳防呆與冪等性 (Idempotency)**：
-   - 付款憑證上傳 API 限定檔案大小（<=5MB）、MIME 類型（jpg/png/webp）以及後五碼格式。
-   - 上傳時強制要求 `Idempotency-Key`，由資料庫局部唯一索引防範併發重複提交。
+本文件紀錄了 **SD-008: 服務執行與 Check-in** 的前後端實作完成狀況，以及修復並通過 E2E 測試的詳細過程。
 
 ---
 
-## 2. 測試驗證與結果
+## 1. 核心實作目標
 
-我們於 `PaymentControllerTest.java` 實作了 17 個核心整合測試情境。藉由 Testcontainers 啟動真實的 PostgreSQL 容器執行，以保證與生產環境資料庫型態、索引之相容性。
+- **行程狀態機流轉**：保母點擊 **Check-in (開始服務)**，行程（Visit）狀態從 `PENDING` 轉為 `IN_PROGRESS`，且若是行程首日會自動將訂單（Order）狀態從 `CONFIRMED` 轉為 `IN_PROGRESS`。
+- **日誌填寫與結束**：保母在 `IN_PROGRESS` 期間可撰寫文字日誌與上傳多媒體（受方案額度限制）。服務結束後點擊 **Check-out (完成服務)**，狀態轉為 `DONE`，文字日誌編輯與媒體管理變為唯讀。
+- **正式送出**：行程 `DONE` 後，保母可正式提交日誌，狀態轉為 `SUBMITTED`（已送出且完全唯讀），並非同步發送通知給飼主。
 
-### 測試結果輸出
+---
 
+## 2. Bug 修復紀錄與 E2E 測試綠燈
+
+在此次任務中，我們主要定位並修復了兩個阻塞 E2E 測試運行的關鍵問題，並順利讓測試完全通過。
+
+### 2.1. 修正 E2E Mock 路由掛起問題
+- **問題**：原先的 `frontend/e2e/service-execution.spec.ts` 中分別對同一 URL `**/api/visits/.../report` 註冊了兩次 Mock（一次 GET，一次 PUT）。在 Playwright 中，後面註冊的 PUT 路由攔截器覆蓋了前者，且當接收到 GET 請求時，因條件不符合且未調用 `route.continue()`，導致 GET 請求被掛起（React Query 一直處於 loading 狀態，畫面卡死在「正在載入照護日誌...」）。
+- **修復**：將兩者合併為單一路由攔截器，根據 HTTP Method 進行分流處理，其他不符條件的請求均安全回退至 `route.continue()`。
+  
+  ```typescript
+  // frontend/e2e/service-execution.spec.ts
+  await page.route('**/api/visits/2624511e-3f10-4376-b81e-7fb02e615dda/report', async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({ ... });
+    } else if (method === 'PUT') {
+      await route.fulfill({ ... });
+    } else {
+      await route.continue();
+    }
+  });
+  ```
+
+### 2.2. 修正 `VisitReportManager.tsx` 中的日誌提交阻擋
+- **問題**：在 [VisitReportManager.tsx](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/sitter/VisitReportManager.tsx#L264-L281) 中，點擊「正式送出日誌」按鈕會觸發 `handleSubmitReport`。然而其第一行寫了 `if (!isEditable) return;`。
+  當保母執行 Check-out 後，行程狀態會流轉為 `DONE`，此時 `isEditable`（定義為在 `IN_PROGRESS` 且未送出）會變為 `false`，這導致雖然畫面上渲染了「正式送出」按鈕，但點擊該按鈕會被直接 return 阻擋，無法發送 API 與顯示成功提示。
+- **修復**：將條件從 `!isEditable` 修改為基於提交狀態與行程狀態的防呆判定：
+  
+  ```typescript
+  // frontend/src/pages/sitter/VisitReportManager.tsx
+  const handleSubmitReport = async () => {
+    if (isSubmitted || report?.visitStatus !== 'DONE') return;
+    // ...
+  };
+  ```
+
+---
+
+## 3. 新增優化與 Action Items 實作
+
+根據專案精益求精的要求，本階段已完成以下優化與追加項目：
+
+### 3.1. 補齊 /start 與 /end 冪等性（Idempotency-Key）支援
+- **後端 Controller/Service**：在 `startVisit` 與 `endVisit` API 新增必填的 `Idempotency-Key` 請求標頭校驗，並於 Service 呼叫 `idempotencyService.checkAndConsume`。若重複提交，將回傳 `409 CONFLICT` 衝突（`MSG_DATA_IDEMPOTENCY_CONFLICT`）。
+- **前端支援**：在前端 React mutations 及 UI 元件中使用 `useRef` 保存並隨機生成 `startKeyRef` 和 `endKeyRef`。成功發送 API 後重置，失敗時則保留重試。
+- **後端測試**：在 `VisitReportControllerTest.java` 補齊對應的重複請求冪等性驗證。
+
+### 3.2. 事件驅動通知（消弭幽靈通知風險）
+- **機制**：為避免在 `@Transactional` 中發送通知後發生事務回滾，導致飼主收到「幽靈通知」的問題，我們將 `startVisit/endVisit` 的通知重構為事件驅動。
+- **實作**：
+  1. 新增 `VisitNotificationEvent` 事件。
+  2. 於 `NotificationService` 中改用 `@Async` 與 `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` 監聽此事件。
+  3. `VisitReportService` 改為發布該事件，以確保只在事務安全提交後才非同步發送通知。
+
+### 3.3. 明確持久化意圖與後續日 Check-in 測試
+- **明確持久化**：在 `VisitReportService.startVisit` 中追加呼叫 `orderRepository.save(order)`。
+- **後續日測試**：於 `VisitReportControllerTest` 中新增 `should_StartVisit_OnSubsequentDay_Successfully` 測試情境，模擬訂單已經在 `IN_PROGRESS` 狀態下的第二日（或後續日）Check-in 行為，確認行程與訂單狀態運作無誤。
+- **文檔備註**：
+  * 更新 [Visit.java](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/main/java/com/petsitter/domain/model/Visit.java#L22) 的 status 註解，補充 `IN_PROGRESS`。
+  * 更新 `SD-008-service-execution.md` 文檔，備註離線補送機制延後至 Open Beta 實作。
+
+### 3.4. 追加修正與重構（Bug & Clean Code Fixes）
+- **UTC 時區修正**：將 `VisitReportService.java` 中原先缺漏 `ZoneOffset.UTC` 的 `OffsetDateTime.now()` 統一替換成 `OffsetDateTime.now(ZoneOffset.UTC)`（包含日誌送出時間及完工結束時間）。
+- **Idempotency-Key 改非必填**：修正 `VisitReportController.java`，將 `/start` 與 `/end` 的 `@RequestHeader` 改為 `@RequestHeader(value = "Idempotency-Key", required = false)`，以徹底對齊 SD 規格定義之「非必填」，避免前端在沒有帶 Header 的情況下被攔截拋出 400 錯誤。
+- **事件監聽器重構**：將 `handleVisitNotification` 事件監聽器從 `NotificationService.java` 移入 `NotificationListener.java`，讓 `NotificationService` 專心負責通知推送的實體邏輯，所有非同步事務事件聆聽機制均統一由 `NotificationListener` 接管，保持架構一致性。
+
+---
+
+## 4. 測試驗證結果
+
+### 4.1. 前端 E2E 測試
+在 `frontend` 目錄下執行 Playwright E2E 測試，結果為 100% 綠燈通過：
+
+```bash
+npx playwright test e2e/service-execution.spec.ts
 ```
-[INFO] Running com.petsitter.interfaces.controller.PaymentControllerTest
-...
-[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.664 s -- in TS-007: 線下付款憑證與收款帳戶測試
-[INFO] 
-[INFO] Results:
-[INFO] 
-[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0
-[INFO] ------------------------------------------------------------------------
-[INFO] BUILD SUCCESS
-[INFO] ------------------------------------------------------------------------
-```
 
-### 17 個整合測試情境說明
-1. **保母更新收款帳戶成功**：測試 `PUT /api/sitter/payment-info` 能成功以明文接收、JPA 自動加密寫入 DB 並可正確讀回。
-2. **保母更新收款帳戶欄位校驗失敗**：測試不符正規表示式（如 3 碼以外）的 `bankCode` 被 Bean Validation 自動拒絕並回傳 400。
-3. **飼主正常上傳憑證成功**：測試飼主上傳 MultipartFile 憑證、帶入合規參數，狀態機成功轉變為 `PAID`。
-4. **憑證上傳未勾免責聲明失敗**：測試 `disclaimerAgreed = false` 欄位被業務邏輯層攔截，回傳 400 並阻擋狀態變更。
-5. **憑證上傳後五碼格式錯誤失敗**：測試後五碼不為 5 位純數字時被阻擋，回傳 400。
-6. **非訂單飼主越權上傳攔截**：測試 BOLA 橫向越權防護，非訂單 owner 操作時拋出 `AccessDeniedException`，回應 403。
-7. **保母確認入帳成功**：測試 `POST /api/orders/{orderId}/verify-payment` 成功將訂單變更為 `CONFIRMED`。
-8. **保母駁回憑證重設測試**：測試駁回憑證後，狀態退回 `PENDING_PAYMENT`，清空 `paymentProofUrl` 等欄位，且 **`payment_idempotency_key` 重設為 null**、`disclaimer_agreed` 重設為 false，確認流程閉環無瑕疵。
-9. **詳情查詢解密與 BOLA 測試**：測試在待付款狀態下，合法的訂單飼主查詢訂單詳情可看到解密後的明文 `sitterPaymentInfo`。
-10. **銀行帳戶資訊狀態過濾測試**：測試當訂單已變更為已確認（`CONFIRMED`）時，即便保母有設定收款資訊，查詢詳情也無法取得，欄位值被強制過濾為 `null`，保證隱私安全。
-11. **保母查詢收款帳戶成功**：測試 `GET /api/sitter/payment-info` 保母身分呼叫能讀取自己解密明文。
-12. **飼主查詢保母個人收款帳戶阻擋**：測試 `GET /api/sitter/payment-info` 飼主身分呼叫時回傳 `403 Forbidden`（防護 BOLA）。
-13. **飼主更新保母個人收款帳戶阻擋**：測試 `PUT /api/sitter/payment-info` 飼主身分呼叫時回傳 `403 Forbidden`（防護 BOLA）。
-14. **飼主嘗試駁回憑證阻擋**：測試 `POST /api/orders/{orderId}/reject-payment` 飼主身分呼叫時回傳 `403 Forbidden`。
-15. **保母駁回時原因格式校驗**：測試 `rejectReason` 為空字串或超過 500 字元時，Bean Validation 阻擋成功，回傳 `400 Bad Request`。
-16. **保母查詢訂單亦可看到收款帳戶**：測試 `GET /api/orders/{orderId}` 當查詢者為訂單保母時，同樣能在合規狀態下讀取收款資訊（對稱檢索）。
-17. **Idempotency-Key 長度超限攔截**：測試當 `Idempotency-Key` 超過 100 字元時，API 能主動拒絕並回傳 400（防範 DB 欄位截斷異常）。
+**輸出結果：**
+```text
+Running 1 test using 1 worker
+
+[1/1] [chromium] › e2e/service-execution.spec.ts:135:3 › Service Execution & Check-in Flow E2E › should complete the entire check-in, execution, check-out and submission flow successfully
+  1 passed (1.9s)
+```
 
 ---
 
-## 3. 驗收標準對齊 (AC Alignment)
+## 5. 進度更新
 
-- [x] **AC-1 (線下上傳)**：已透過 `POST /api/orders/{orderId}/payment-proof` API 實作，且測試驗證上傳成功後狀態正確流轉為 `PAID`。
-- [x] **AC-2 (保母確認)**：已透過 `POST /api/orders/{orderId}/verify-payment` API 實作，核對入帳後狀態正確變更為 `CONFIRMED`，且非同步發布事件發送通知。
-- [x] **AC-3 (憑證無效退回)**：已透過 `POST /api/orders/{orderId}/reject-payment` API 實作，退回後狀態恢復為 `PENDING_PAYMENT`，清空相關憑證關聯與冪等 Key，且重設免責聲明狀態，容許再次提交。
-- [x] **AC-4 (編輯保護)**：於 `submitPaymentProof` 等 API 內，實作了前置狀態校驗，僅在 `PENDING_PAYMENT` 狀態才允許憑證提交，已確認 (`CONFIRMED` 等) 之訂單將拋出異常拒絕變更。
+- [x] **SD-008: 服務執行與 Check-in** (✅ **Implemented**)
+  - 打通 `CONFIRMED → IN_PROGRESS → DONE` 狀態流轉，支援選填 `Idempotency-Key`。
+  - 完成事件監聽器重構與異步防幽靈通知機制。
+  - 完成前端日誌回報介面的 SOP 控制與 E2E 綠燈驗證。
 
----
-
-## 4. 前端 E2E 測試與防死鎖修復
-
-我們在 `frontend/e2e/offline-payment.spec.ts` 中實作並驗證了 4 個關鍵的 E2E 測試案例。在此過程中，我們發現 Playwright 測試框架在測試 React 同步彈出的 `alert`（如「請填寫退回原因」）時，會因為 JavaScript 同步阻塞事件循環，導致 `Promise.all([page.waitForEvent('dialog'), page.click(...)])` 產生死鎖並超時。
-
-### 修復方案
-我們將 E2E 測試中的 dialog 攔截寫法優化為符合 Playwright 官方最佳實踐的**非同步前置監聽**：
-```typescript
-page.once('dialog', async (dialog) => {
-  expect(dialog.message()).toContain('請填寫退回原因');
-  await dialog.accept();
-});
-await page.getByTestId('btn-submit-reject').click();
-```
-這項變更確保了 Dialog 處理常式在 `click()` 執行前就已註冊完成，避免了 click 阻塞超時，讓 E2E 測試能在 2.6 秒內高速且 100% 通過。
-
-### 4 個前端 E2E 測試案例說明
-1. **保母端收款帳戶設定流程 (`should manage sitter payment info settings successfully`)**
-   - 進入收款設定頁面，驗證初始值加載。
-   - 測試不合規防呆（銀行代碼非3碼），成功攔截並顯示錯訊。
-   - 測試合規保存，驗證 API 更新與頁面成功提示。
-2. **飼主端付款憑證上傳與防呆 (`should display bank info and allow owner to upload proof with validations`)**
-   - 進入訂單詳情，確認正確讀取並顯示保母收款資訊。
-   - 測試「未勾選免責聲明」與「轉帳後五碼非5位數」的前端表單驗證攔截。
-   - 測試合規上傳圖片，驗證狀態正確流轉為 `PAID` 且顯示已付款憑證與後五碼。
-3. **保母端憑證審核與駁回流轉 (`should allow sitter to verify and reject payment proof`)**
-   - 進入保母訂單管理「進行中」頁籤，驗證憑證核對面板與圖片預覽。
-   - 測試異常駁回（未寫理由）攔截與同步 alert。
-   - 測試正常駁回理由提交，驗證訂單狀態退回 `PENDING_PAYMENT` 且清空憑證資訊。
-   - 測試正常確認入帳，驗證狀態流轉為 `CONFIRMED`。
-4. **安全隱私過濾驗證 (`should hide bank info to owner when status is CONFIRMED`)**
-   - 驗證當訂單為 `CONFIRMED`（已確認入帳）後，飼主端詳情頁面將不再暴露保母的敏感銀行帳戶資訊（`bank-info-container` 不可見）。
+- [x] **SD-017: 保母實名認證與資格審查 (KYC)** (✅ **Implemented & COMPLIANT**)
+  - 完成系統設計文件（9 輪 Review → COMPLIANT）。
+  - 完整實作後端所有 KYC 路徑，通過 Project Auditor 2 輪 Review（FAIL-1 SUSPENDED 阻擋、N+1、@Version、SUSPENDED 測試補齊）。
+  - 關鍵架構決策：Rate Limiting 置於 `@Transactional` 外的 Controller 層、Partial Unique Index DB 層防並發重送、`@Version` 補至 `profiles` 表、JOIN 查詢取代 N+1。

@@ -570,4 +570,249 @@ class VisitReportControllerTest {
                 .with(user(owner.getId().toString()).roles("OWNER")))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("Scenario 16: 保母開始行程 (Check-in) 成功，且訂單狀態流轉為 IN_PROGRESS")
+    void should_StartVisit_Successfully() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 建立一個新的 PENDING visit，且 order 的 status 為 CONFIRMED
+        Order confirmedOrder = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("CONFIRMED")
+                .planId(UUID.randomUUID())
+                .build());
+
+        Visit pendingVisit = visitRepository.save(Visit.builder()
+                .order(confirmedOrder)
+                .status("PENDING")
+                .planId(confirmedOrder.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", pendingVisit.getId())
+                .header("Idempotency-Key", "start-visit-key-1")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("行程已開始"))
+                .andExpect(jsonPath("$.data.visitStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.orderStatus").value("IN_PROGRESS"));
+
+        // 驗證 DB 狀態
+        Visit updatedVisit = visitRepository.findById(pendingVisit.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("IN_PROGRESS", updatedVisit.getStatus());
+
+        Order updatedOrder = orderRepository.findById(confirmedOrder.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("IN_PROGRESS", updatedOrder.getStatus());
+
+        // 驗證寫入日誌
+        List<OrderLog> logs = orderLogRepository.findAll();
+        boolean hasStartLog = logs.stream().anyMatch(l -> "START_VISIT".equals(l.getActionType()));
+        org.junit.jupiter.api.Assertions.assertTrue(hasStartLog);
+    }
+
+    @Test
+    @DisplayName("Scenario 16b: 後續日 Check-in 成功（訂單已為 IN_PROGRESS 狀態）")
+    void should_StartVisit_OnSubsequentDay_Successfully() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 建立一個新的 PENDING visit，且 order 的 status 已經是 IN_PROGRESS
+        Order inProgressOrder = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("IN_PROGRESS")
+                .planId(UUID.randomUUID())
+                .build());
+
+        Visit pendingVisit = visitRepository.save(Visit.builder()
+                .order(inProgressOrder)
+                .status("PENDING")
+                .planId(inProgressOrder.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", pendingVisit.getId())
+                .header("Idempotency-Key", "start-visit-subsequent-key")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("行程已開始"))
+                .andExpect(jsonPath("$.data.visitStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.orderStatus").value("IN_PROGRESS"));
+
+        // 驗證 DB 狀態
+        Visit updatedVisit = visitRepository.findById(pendingVisit.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("IN_PROGRESS", updatedVisit.getStatus());
+
+        Order updatedOrder = orderRepository.findById(inProgressOrder.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("IN_PROGRESS", updatedOrder.getStatus());
+    }
+
+    @Test
+    @DisplayName("Scenario 16c: 重複開始行程冪等性阻擋 (409)")
+    void should_Return409_When_DuplicateStartVisitIdempotencyKey() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        Order confirmedOrder = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("CONFIRMED")
+                .planId(UUID.randomUUID())
+                .build());
+
+        Visit pendingVisit1 = visitRepository.save(Visit.builder()
+                .order(confirmedOrder)
+                .status("PENDING")
+                .planId(confirmedOrder.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        Visit pendingVisit2 = visitRepository.save(Visit.builder()
+                .order(confirmedOrder)
+                .status("PENDING")
+                .planId(confirmedOrder.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        String key = "start-visit-dup-key";
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", pendingVisit1.getId())
+                .header("Idempotency-Key", key)
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", pendingVisit2.getId())
+                .header("Idempotency-Key", key)
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("Scenario 17: 保母開始行程 (Check-in) 失敗 — 越權防禦 (403)")
+    void should_Return403_When_UnrelatedSitterStartsVisit() throws Exception {
+        TokenContext.setUserId(unrelatedUser.getId());
+
+        Order confirmedOrder = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("CONFIRMED")
+                .planId(UUID.randomUUID())
+                .build());
+
+        Visit pendingVisit = visitRepository.save(Visit.builder()
+                .order(confirmedOrder)
+                .status("PENDING")
+                .planId(confirmedOrder.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", pendingVisit.getId())
+                .header("Idempotency-Key", "start-visit-key-unrelated")
+                .with(user(unrelatedUser.getId().toString()).roles("SITTER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Scenario 18: 保母開始行程 (Check-in) 失敗 — 行程非 PENDING (422)")
+    void should_Return422_When_VisitNotPendingOnStart() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", visit.getId())
+                .header("Idempotency-Key", "start-visit-key-invalid-status")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_STATUS"));
+    }
+
+    @Test
+    @DisplayName("Scenario 19: 保母結束行程 (Check-out) 成功")
+    void should_EndVisit_Successfully() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 確保為 IN_PROGRESS 狀態
+        visit.setStatus("IN_PROGRESS");
+        visit = visitRepository.save(visit);
+
+        mockMvc.perform(post("/api/visits/{visitId}/end", visit.getId())
+                .header("Idempotency-Key", "end-visit-key-1")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.message").value("行程已結束"))
+                .andExpect(jsonPath("$.data.visitStatus").value("DONE"))
+                .andExpect(jsonPath("$.data.finishedAt").isNotEmpty());
+
+        // 驗證 DB 狀態
+        Visit updatedVisit = visitRepository.findById(visit.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("DONE", updatedVisit.getStatus());
+        org.junit.jupiter.api.Assertions.assertNotNull(updatedVisit.getFinishedAt());
+
+        // 驗證寫入日誌
+        List<OrderLog> logs = orderLogRepository.findAll();
+        boolean hasEndLog = logs.stream().anyMatch(l -> "END_VISIT".equals(l.getActionType()));
+        org.junit.jupiter.api.Assertions.assertTrue(hasEndLog);
+    }
+
+    @Test
+    @DisplayName("Scenario 19b: 重複結束行程冪等性阻擋 (409)")
+    void should_Return409_When_DuplicateEndVisitIdempotencyKey() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        Visit inProgressVisit1 = visitRepository.save(Visit.builder()
+                .order(order)
+                .status("IN_PROGRESS")
+                .planId(order.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        Visit inProgressVisit2 = visitRepository.save(Visit.builder()
+                .order(order)
+                .status("IN_PROGRESS")
+                .planId(order.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        String key = "end-visit-dup-key";
+
+        mockMvc.perform(post("/api/visits/{visitId}/end", inProgressVisit1.getId())
+                .header("Idempotency-Key", key)
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/visits/{visitId}/end", inProgressVisit2.getId())
+                .header("Idempotency-Key", key)
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    @DisplayName("Scenario 20: 保母結束行程 (Check-out) 失敗 — 行程非 IN_PROGRESS (422)")
+    void should_Return422_When_VisitNotInProgressOnEnd() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        // 設定狀態為 DONE 模擬重複點擊 Check-out
+        visit.setStatus("DONE");
+        visit = visitRepository.save(visit);
+
+        mockMvc.perform(post("/api/visits/{visitId}/end", visit.getId())
+                .header("Idempotency-Key", "end-visit-key-invalid-status")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_STATUS"));
+    }
 }

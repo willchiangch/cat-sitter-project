@@ -3,16 +3,20 @@ package com.petsitter.application.service;
 import com.petsitter.application.dto.ReportMediaDto;
 import com.petsitter.application.dto.VisitServiceReportDto;
 import com.petsitter.application.exception.VisitReportException;
+import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderSnapshot;
 import com.petsitter.domain.model.ServiceReportMedia;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.model.VisitServiceReport;
+import com.petsitter.application.event.VisitNotificationEvent;
+import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.OrderSnapshotRepository;
 import com.petsitter.domain.repository.ServiceReportMediaRepository;
 import com.petsitter.domain.repository.VisitRepository;
 import com.petsitter.domain.repository.VisitServiceReportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,11 +43,13 @@ public class VisitReportService {
     private final VisitServiceReportRepository reportRepository;
     private final ServiceReportMediaRepository mediaRepository;
     private final VisitRepository visitRepository;
+    private final OrderRepository orderRepository;
     private final OrderSnapshotRepository orderSnapshotRepository;
     private final IdempotencyService idempotencyService;
     private final MediaStorageService mediaStorageService;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 懶加載逾期判定
     public boolean isExpired(VisitServiceReport report, Visit visit) {
@@ -355,7 +361,7 @@ public class VisitReportService {
         }
 
         report.setStatus("SUBMITTED");
-        report.setSubmittedAt(OffsetDateTime.now());
+        report.setSubmittedAt(OffsetDateTime.now(ZoneOffset.UTC));
         report.setUpdatedBy(sitterId);
 
         reportRepository.save(report);
@@ -430,6 +436,96 @@ public class VisitReportService {
                 .media(mediaDtos)
                 .isEditable(isEditable)
                 .version(report.getVersion())
+                .visitStatus(visit.getStatus())
                 .build();
     }
-}
+    @Transactional
+    public Map<String, String> startVisit(UUID visitId, UUID sitterId, String idempotencyKey) {
+        Visit visit = visitRepository.findById(visitId)
+                .orElseThrow(() -> new VisitReportException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到行程"));
+
+        if (!visit.getOrder().getSitter().getId().equals(sitterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("權限不足");
+        }
+
+        if (!"PENDING".equals(visit.getStatus())) {
+            throw new VisitReportException(HttpStatus.UNPROCESSABLE_ENTITY, "MSG_DATA_INVALID_STATUS", "行程非待執行狀態，無法開始");
+        }
+
+        Order order = visit.getOrder();
+        if (!"CONFIRMED".equals(order.getStatus()) && !"IN_PROGRESS".equals(order.getStatus())) {
+            throw new VisitReportException(HttpStatus.UNPROCESSABLE_ENTITY, "MSG_DATA_INVALID_STATUS", "訂單狀態不符合執行要求");
+        }
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            try {
+                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+            } catch (DataIntegrityViolationException e) {
+                throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
+            }
+        }
+
+        visit.setStatus("IN_PROGRESS");
+        visitRepository.save(visit);
+
+        if ("CONFIRMED".equals(order.getStatus())) {
+            order.setStatus("IN_PROGRESS");
+        }
+        orderRepository.save(order);
+
+        auditLogService.writeOrderLog(
+                order,
+                sitterId.toString(),
+                "START_VISIT",
+                Map.of("visitId", visitId)
+        );
+
+        eventPublisher.publishEvent(new VisitNotificationEvent(order.getOwner().getId(), "您的保母已開始今日的照護服務！"));
+
+        return Map.of(
+                "visitId", visitId.toString(),
+                "visitStatus", visit.getStatus(),
+                "orderStatus", order.getStatus()
+        );
+    }
+
+    @Transactional
+    public Map<String, String> endVisit(UUID visitId, UUID sitterId, String idempotencyKey) {
+        Visit visit = visitRepository.findById(visitId)
+                .orElseThrow(() -> new VisitReportException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到行程"));
+
+        if (!visit.getOrder().getSitter().getId().equals(sitterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("權限不足");
+        }
+
+        if (!"IN_PROGRESS".equals(visit.getStatus())) {
+            throw new VisitReportException(HttpStatus.UNPROCESSABLE_ENTITY, "MSG_DATA_INVALID_STATUS", "行程非執行中狀態，無法結束");
+        }
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            try {
+                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+            } catch (DataIntegrityViolationException e) {
+                throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
+            }
+        }
+
+        visit.setStatus("DONE");
+        visit.setFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        visitRepository.save(visit);
+
+        auditLogService.writeOrderLog(
+                visit.getOrder(),
+                sitterId.toString(),
+                "END_VISIT",
+                Map.of("visitId", visitId)
+        );
+
+        eventPublisher.publishEvent(new VisitNotificationEvent(visit.getOrder().getOwner().getId(), "您的保母已完成今日的照護服務，服務報告稍後會送出！"));
+
+        return Map.of(
+                "visitId", visitId.toString(),
+                "visitStatus", visit.getStatus(),
+                "finishedAt", visit.getFinishedAt().toString()
+        );
+    }}

@@ -136,6 +136,32 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadKycFile(UUID sitterId, String type, MultipartFile file) {
+        try {
+            String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+            String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+            String targetFilename = type + (extension != null ? "." + extension : ".jpg");
+            
+            String subDirName = "kyc/" + sitterId.toString();
+            Path targetDirPath = Paths.get(localStorageDir, subDirName);
+            
+            if (!Files.exists(targetDirPath)) {
+                Files.createDirectories(targetDirPath);
+            }
+            
+            Path targetFilePath = targetDirPath.resolve(targetFilename);
+            file.transferTo(targetFilePath);
+            
+            String objectKey = subDirName + "/" + targetFilename;
+            log.info("Local KYC file uploaded: {}", objectKey);
+            return objectKey;
+        } catch (IOException e) {
+            log.error("Failed to upload local KYC file", e);
+            throw new RuntimeException("Local KYC file upload failed", e);
+        }
+    }
+
+    @Override
     public void deleteMedia(String mediaUrl) {
         if (!mediaUrl.startsWith(localBaseUrl)) {
             log.warn("Invalid local media URL: {}", mediaUrl);
@@ -155,5 +181,12 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
             log.error("Failed to delete local media: {}", mediaUrl, e);
             throw new RuntimeException("Local media deletion failed", e);
         }
+    }
+
+    @Override
+    public String generateSignedUrl(String objectKey, java.time.Duration ttl) {
+        log.info("Local generating signed URL for objectKey {} with TTL {}", objectKey, ttl);
+        // 本地環境下直接返回對應的可存取 URL，模擬 Signed URL 行為
+        return localBaseUrl + "/" + objectKey;
     }
 }

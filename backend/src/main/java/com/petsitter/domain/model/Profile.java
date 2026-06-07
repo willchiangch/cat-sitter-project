@@ -34,7 +34,11 @@ public class Profile {
 
     @Builder.Default
     @Column(name = "kyc_status", nullable = false, length = 50)
-    private String kycStatus = "PENDING";
+    private String kycStatus = "UNVERIFIED";
+
+    @Builder.Default
+    @Column(name = "is_open", nullable = false)
+    private boolean isOpen = false;
 
     @Convert(converter = BankAccountInfoCryptoConverter.class)
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
@@ -48,4 +52,7 @@ public class Profile {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @Version
+    private Integer version;
 }

@@ -90,7 +90,7 @@ public class VisitReportController {
 
     @GetMapping("/{visitId}/report")
     public ResponseEntity<Map<String, Object>> getReport(
-            @PathVariable UUID visitId) {
+            @PathVariable java.util.UUID visitId) {
 
         UUID userId = TokenContext.getUserId();
         VisitServiceReportDto dto = reportService.getReport(visitId, userId);
@@ -98,6 +98,32 @@ public class VisitReportController {
                 "code", 200,
                 "message", "OK",
                 "data", dto
+        ));
+    }
+
+    @PostMapping("/{visitId}/start")
+    public ResponseEntity<Map<String, Object>> startVisit(
+            @PathVariable java.util.UUID visitId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        UUID sitterId = TokenContext.getUserId();
+        Map<String, String> result = reportService.startVisit(visitId, sitterId, idempotencyKey);
+        return ResponseEntity.ok(Map.of(
+                "code", 200,
+                "message", "行程已開始",
+                "data", result
+        ));
+    }
+
+    @PostMapping("/{visitId}/end")
+    public ResponseEntity<Map<String, Object>> endVisit(
+            @PathVariable java.util.UUID visitId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        UUID sitterId = TokenContext.getUserId();
+        Map<String, String> result = reportService.endVisit(visitId, sitterId, idempotencyKey);
+        return ResponseEntity.ok(Map.of(
+                "code", 200,
+                "message", "行程已結束",
+                "data", result
         ));
     }
 }

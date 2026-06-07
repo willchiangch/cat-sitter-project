@@ -23,4 +23,5 @@ public class VisitServiceReportDto {
     @com.fasterxml.jackson.annotation.JsonProperty("isEditable")
     private boolean isEditable;
     private Integer version;
+    private String visitStatus;
 }
