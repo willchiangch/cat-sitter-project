@@ -52,9 +52,14 @@ const OwnerOrders: React.FC<OwnerOrdersProps> = ({ setView }) => {
 
   const filteredOrders = mockOrders.filter((order) => {
     if (activeTab === 'ongoing') {
-      return ['PENDING', 'CONFIRMED', 'MODIFYING', 'REFUND_VERIFY', 'PENDING_PAYMENT', 'PAID'].includes(
-        order.status
-      );
+      return [
+        'PENDING',
+        'CONFIRMED',
+        'MODIFYING',
+        'REFUND_VERIFY',
+        'PENDING_PAYMENT',
+        'PAID'
+      ].includes(order.status);
     }
     return ['COMPLETED', 'CANCELLED', 'DISPUTED'].includes(order.status);
   });

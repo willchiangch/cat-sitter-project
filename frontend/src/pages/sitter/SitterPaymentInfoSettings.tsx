@@ -73,7 +73,9 @@ const SitterPaymentInfoSettings: React.FC = () => {
 
   if (fetchLoading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>
+      <div
+        style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+      >
         載入中...
       </div>
     );
@@ -99,12 +101,22 @@ const SitterPaymentInfoSettings: React.FC = () => {
       >
         銀行收款資訊設定
       </h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', marginBottom: '2rem' }}>
-        請填寫您的銀行帳戶。飼主選擇線下轉帳付款時，系統將在付款頁面顯示此資訊。您的敏感情財務資料在資料庫中將進行高強度 AES-256 加密存儲。
+      <p
+        style={{
+          fontSize: '0.875rem',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '2rem'
+        }}
+      >
+        請填寫您的銀行帳戶。飼主選擇線下轉帳付款時，系統將在付款頁面顯示此資訊。您的敏感情財務資料在資料庫中將進行高強度
+        AES-256 加密存儲。
       </p>
 
       <Card>
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form
+          onSubmit={handleSave}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+        >
           <div>
             <label
               style={{

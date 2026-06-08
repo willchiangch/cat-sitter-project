@@ -60,11 +60,11 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({ targetRole: role.toUpperCase() })
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.accessToken) {

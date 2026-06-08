@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
-import { 
-  completeOrder, 
-  disputeOrder, 
-  getOrderDetail, 
+import {
+  completeOrder,
+  disputeOrder,
+  getOrderDetail,
   submitPaymentProof
 } from '../../api/orderApi';
 import type { OrderDetailResponseDto } from '../../api/orderApi';
@@ -117,7 +117,9 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
 
   if (fetchLoading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>
+      <div
+        style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+      >
         載入中...
       </div>
     );
@@ -222,46 +224,72 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
         </div>
 
         {/* 轉帳帳戶資訊區塊 (僅在 PENDING_PAYMENT 與 PAID 狀態且 sitterPaymentInfo 存在時顯示) */}
-        {(status === 'PENDING_PAYMENT' || status === 'PAID') && sitterPaymentInfo && sitterPaymentInfo.bankAccount && (
-          <div
-            data-testid="bank-info-container"
-            style={{
-              backgroundColor: 'var(--color-surface-low)',
-              padding: '1.25rem',
-              borderRadius: '8px',
-              border: '1px solid var(--color-surface-high)',
-              marginBottom: '2rem'
-            }}
-          >
-            <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--color-on-surface)' }}>保母收款帳戶</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.875rem' }}>
-              <div>
-                <span style={{ color: 'var(--color-on-surface-variant)' }}>銀行代碼：</span>
-                <strong data-testid="bank-code-text">{sitterPaymentInfo.bankCode}</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--color-on-surface-variant)' }}>分行名稱：</span>
-                <strong>{sitterPaymentInfo.bankBranch}</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--color-on-surface-variant)' }}>銀行帳號：</span>
-                <strong data-testid="bank-account-text">{sitterPaymentInfo.bankAccount}</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--color-on-surface-variant)' }}>戶名：</span>
-                <strong data-testid="bank-payee-text">{sitterPaymentInfo.bankPayeeName}</strong>
+        {(status === 'PENDING_PAYMENT' || status === 'PAID') &&
+          sitterPaymentInfo &&
+          sitterPaymentInfo.bankAccount && (
+            <div
+              data-testid="bank-info-container"
+              style={{
+                backgroundColor: 'var(--color-surface-low)',
+                padding: '1.25rem',
+                borderRadius: '8px',
+                border: '1px solid var(--color-surface-high)',
+                marginBottom: '2rem'
+              }}
+            >
+              <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--color-on-surface)' }}>
+                保母收款帳戶
+              </h4>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <div>
+                  <span style={{ color: 'var(--color-on-surface-variant)' }}>銀行代碼：</span>
+                  <strong data-testid="bank-code-text">{sitterPaymentInfo.bankCode}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--color-on-surface-variant)' }}>分行名稱：</span>
+                  <strong>{sitterPaymentInfo.bankBranch}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--color-on-surface-variant)' }}>銀行帳號：</span>
+                  <strong data-testid="bank-account-text">{sitterPaymentInfo.bankAccount}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--color-on-surface-variant)' }}>戶名：</span>
+                  <strong data-testid="bank-payee-text">{sitterPaymentInfo.bankPayeeName}</strong>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* 憑證上傳區塊 (PENDING_PAYMENT) */}
         {status === 'PENDING_PAYMENT' && (
-          <form onSubmit={handlePaymentProofSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2rem' }}>
+          <form
+            onSubmit={handlePaymentProofSubmit}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem',
+              marginBottom: '2rem'
+            }}
+          >
             <h4 style={{ margin: 0, color: 'var(--color-on-surface)' }}>提交線下付款憑證</h4>
-            
+
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  marginBottom: '0.5rem'
+                }}
+              >
                 轉帳帳號後五碼
               </label>
               <input
@@ -283,7 +311,14 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  marginBottom: '0.5rem'
+                }}
+              >
                 上傳憑證照片
               </label>
               <input
@@ -307,7 +342,14 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
                 style={{ marginTop: '3px' }}
                 data-testid="checkbox-disclaimer-agreed"
               />
-              <label htmlFor="disclaimer" style={{ fontSize: '0.8125rem', color: 'var(--color-on-surface-variant)', lineHeight: '1.4' }}>
+              <label
+                htmlFor="disclaimer"
+                style={{
+                  fontSize: '0.8125rem',
+                  color: 'var(--color-on-surface-variant)',
+                  lineHeight: '1.4'
+                }}
+              >
                 我已確認轉帳完成。本人同意此筆交易係線下自行轉帳，若因帳號填寫錯誤或憑證造假導致任何款項爭議，需由本人自行承擔相關責任。
               </label>
             </div>
@@ -346,15 +388,33 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
             <p style={{ margin: '0 0 1rem 0', fontSize: '0.875rem' }}>
               您的付款資訊已送出，目前正等待保母核對入帳。
             </p>
-            <div style={{ fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <div>轉帳後五碼：<strong>{paymentProofLastFive}</strong></div>
+            <div
+              style={{
+                fontSize: '0.875rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.25rem'
+              }}
+            >
+              <div>
+                轉帳後五碼：<strong>{paymentProofLastFive}</strong>
+              </div>
               {paymentProofUrl && (
                 <div style={{ marginTop: '0.75rem' }}>
-                  <div style={{ marginBottom: '0.25rem', color: 'var(--color-on-surface-variant)' }}>憑證預覽：</div>
-                  <img 
-                    src={paymentProofUrl} 
-                    alt="Payment Proof" 
-                    style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '4px', border: '1px solid #bfdbfe' }}
+                  <div
+                    style={{ marginBottom: '0.25rem', color: 'var(--color-on-surface-variant)' }}
+                  >
+                    憑證預覽：
+                  </div>
+                  <img
+                    src={paymentProofUrl}
+                    alt="Payment Proof"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '180px',
+                      borderRadius: '4px',
+                      border: '1px solid #bfdbfe'
+                    }}
                   />
                 </div>
               )}

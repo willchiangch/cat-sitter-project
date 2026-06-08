@@ -135,10 +135,11 @@ stateDiagram-v2
 - [x] **SD-008: 服務執行與 Check-in** (✅ **Implemented**)
   - ~~🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失，SD-009 自動結案永遠無法啟動。~~ (已打通核心流程，完成 E2E 驗證)
   - 對應 PRD：`PRD-008-service-execution.md`（已完成 SA）
-- [x] **SD-017: 保母實名認證與資格審查 (KYC)** (✅ **Implemented & COMPLIANT**)
+- [x] **SD-017: 保母實名認證與資格審查 (KYC)** (✅ **前後端全端 Implemented & COMPLIANT**)
   - 🟡 Close Beta 信任基礎：無身份驗證機制，飼主無法判斷保母可信度，beta 反饋嚴重失真。
   - 對應 PRD：`PRD-017-sitter-kyc.md`（已完成 SA / SD 9 輪 Review / 實作 2 輪 Audit / 全綠）
-  - 關鍵機制：SUSPENDED 阻擋重提、JOIN 防 N+1、profiles @Version 樂觀鎖、Partial Unique Index、AFTER_COMMIT 通知
+  - 後端：SUSPENDED 阻擋重提、JOIN 防 N+1、profiles @Version 樂觀鎖、Partial Unique Index、AFTER_COMMIT 通知
+  - 前端：`SitterKycSubmit`（5 狀態分支 + 5MB 驗證 + Idempotency-Key）、`AdminKycList`（分頁待審 + 停權/解停工具）、`AdminKycDetail`（Promise.all 並行 Signed URL 媒體預覽 + Approve/Reject）
 - [ ] **SD-014: 通知中心與訊息範本**
   - 🟡 流程可用性：無通知則訂單狀態變更無感知，Close Beta 無法正常測試完整流程。
   - 對應 PRD：`PRD-014-notification-center.md`（已完成 SA）

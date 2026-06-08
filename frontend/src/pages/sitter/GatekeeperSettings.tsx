@@ -36,13 +36,13 @@ export const GatekeeperSettings: React.FC = () => {
     try {
       setLoading(true);
       setErrorMessage('');
-      
+
       // 1. Fetch Subscription
       const subRes = await axiosClient.get('/sitter/gatekeeper/subscription');
       setPlanTier(subRes.data.planTier || 'FREE');
-      
+
       const isProOrUltimate = subRes.data.planTier === 'PRO' || subRes.data.planTier === 'ULTIMATE';
-      
+
       if (isProOrUltimate) {
         // 2. Fetch Rules
         const rulesRes = await axiosClient.get('/sitter/gatekeeper');
@@ -106,12 +106,13 @@ export const GatekeeperSettings: React.FC = () => {
       setTargetEmail('');
       setSelectedPlanId('');
       setTimeout(() => setSuccessMessage(''), 3000);
-      
+
       // Refresh
       const rulesRes = await axiosClient.get('/sitter/gatekeeper');
       setRules(rulesRes.data);
     } catch (err: any) {
-      const msg = err.response?.data?.message || '新增門禁規則失敗，請檢查 Email 是否存在且未重複設定';
+      const msg =
+        err.response?.data?.message || '新增門禁規則失敗，請檢查 Email 是否存在且未重複設定';
       setErrorMessage(msg);
     } finally {
       setActionLoading(false);
@@ -126,7 +127,7 @@ export const GatekeeperSettings: React.FC = () => {
       await axiosClient.delete(`/sitter/gatekeeper/${ruleId}`);
       setSuccessMessage('成功刪除門禁規則');
       setTimeout(() => setSuccessMessage(''), 3000);
-      
+
       // Refresh
       const rulesRes = await axiosClient.get('/sitter/gatekeeper');
       setRules(rulesRes.data);
@@ -156,11 +157,11 @@ export const GatekeeperSettings: React.FC = () => {
           <div className="p-4 bg-purple-50 dark:bg-purple-900/30 rounded-full text-purple-600 animate-pulse">
             <Lock className="w-16 h-16" />
           </div>
-          
+
           <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
             解鎖預約門禁系統 (Gatekeeper)
           </h2>
-          
+
           <p className="text-gray-600 dark:text-gray-300 max-w-lg leading-relaxed">
             門禁系統為專業版/頂級版保母專屬功能。透過黑白名單防禦、問卷豁免機制，讓您輕鬆掌握預約接單的主導權，避開惡意騷擾，專注於優質服務。
           </p>
@@ -176,8 +177,12 @@ export const GatekeeperSettings: React.FC = () => {
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-gray-800 dark:text-gray-100">頂級版 (ULTIMATE)</h4>
-                <p className="text-sm text-gray-500">解鎖全功能：黑/白名單雙重防禦、預約免填問卷豁免權</p>
+                <h4 className="font-semibold text-gray-800 dark:text-gray-100">
+                  頂級版 (ULTIMATE)
+                </h4>
+                <p className="text-sm text-gray-500">
+                  解鎖全功能：黑/白名單雙重防禦、預約免填問卷豁免權
+                </p>
               </div>
             </div>
           </div>
@@ -263,7 +268,9 @@ export const GatekeeperSettings: React.FC = () => {
           <form onSubmit={handleAddRule} className="space-y-4">
             {/* Target Email */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">飼主帳號 Email</label>
+              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                飼主帳號 Email
+              </label>
               <input
                 type="email"
                 required
@@ -277,7 +284,9 @@ export const GatekeeperSettings: React.FC = () => {
 
             {/* Scope Type */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">作用範圍</label>
+              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                作用範圍
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -312,7 +321,9 @@ export const GatekeeperSettings: React.FC = () => {
             {/* Plan Selector (if PLAN scope) */}
             {scopeType === 'PLAN' && (
               <div className="space-y-1.5 animate-fadeIn">
-                <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">選擇適用方案</label>
+                <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                  選擇適用方案
+                </label>
                 <select
                   required
                   value={selectedPlanId}
@@ -332,7 +343,9 @@ export const GatekeeperSettings: React.FC = () => {
 
             {/* Rule Type */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">規則類型</label>
+              <label className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                規則類型
+              </label>
               <select
                 value={ruleType}
                 onChange={(e) => setRuleType(e.target.value)}
@@ -395,15 +408,15 @@ export const GatekeeperSettings: React.FC = () => {
                               rule.ruleType === 'BLACK'
                                 ? 'bg-red-50 dark:bg-red-900/20 text-red-600'
                                 : rule.ruleType === 'WHITE'
-                                ? 'bg-green-50 dark:bg-green-900/20 text-green-600'
-                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600'
+                                  ? 'bg-green-50 dark:bg-green-900/20 text-green-600'
+                                  : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600'
                             }`}
                           >
                             {rule.ruleType === 'BLACK'
                               ? '黑名單'
                               : rule.ruleType === 'WHITE'
-                              ? '白名單'
-                              : '免問卷'}
+                                ? '白名單'
+                                : '免問卷'}
                           </span>
                         </td>
                         <td className="py-3.5">
@@ -412,7 +425,11 @@ export const GatekeeperSettings: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 text-xs text-gray-500">
-                          {rule.scopeType === 'GLOBAL' ? '-' : matchedPlan ? matchedPlan.name : '未知方案'}
+                          {rule.scopeType === 'GLOBAL'
+                            ? '-'
+                            : matchedPlan
+                              ? matchedPlan.name
+                              : '未知方案'}
                         </td>
                         <td className="py-3.5 text-right">
                           <button

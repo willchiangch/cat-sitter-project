@@ -389,7 +389,8 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
               lineHeight: '1.6'
             }}
           >
-            您已抵達現場嗎？請點擊下方按鈕進行服務 Check-in。<br />
+            您已抵達現場嗎？請點擊下方按鈕進行服務 Check-in。
+            <br />
             Check-in 後即可開始記錄照護項目並上傳多媒體日誌。
           </p>
           <button
@@ -678,8 +679,12 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
                       padding: '0.5rem 1.5rem',
                       borderRadius: '12px',
                       border: 'none',
-                      backgroundColor: mediaFile ? 'var(--color-primary)' : 'var(--color-surface-low)',
-                      color: mediaFile ? 'var(--color-on-primary)' : 'var(--color-on-surface-variant)',
+                      backgroundColor: mediaFile
+                        ? 'var(--color-primary)'
+                        : 'var(--color-surface-low)',
+                      color: mediaFile
+                        ? 'var(--color-on-primary)'
+                        : 'var(--color-on-surface-variant)',
                       fontSize: '0.9rem',
                       fontWeight: '600',
                       cursor: mediaFile ? 'pointer' : 'default'

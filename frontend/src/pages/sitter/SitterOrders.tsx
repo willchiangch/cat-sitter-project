@@ -86,7 +86,14 @@ const SitterOrders: React.FC = () => {
   });
 
   return (
-    <div style={{ padding: '2rem 1.5rem', fontFamily: 'var(--font-sans)', maxWidth: '640px', margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '2rem 1.5rem',
+        fontFamily: 'var(--font-sans)',
+        maxWidth: '640px',
+        margin: '0 auto'
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -154,7 +161,9 @@ const SitterOrders: React.FC = () => {
         {filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
             <Card key={order.id}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}
+              >
                 <span
                   style={{
                     fontSize: '0.6875rem',
@@ -231,7 +240,9 @@ const SitterOrders: React.FC = () => {
                 >
                   預估總額
                 </span>
-                <span style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '1.125rem' }}>
+                <span
+                  style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '1.125rem' }}
+                >
                   $ {order.totalAmount.toLocaleString()}
                 </span>
               </div>
@@ -246,13 +257,35 @@ const SitterOrders: React.FC = () => {
                     marginTop: '1rem'
                   }}
                 >
-                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--color-on-surface)' }}>付款憑證核對</h4>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-                    <div>飼主轉帳後五碼：<strong style={{ color: 'var(--color-primary)' }}>{order.paymentProofLastFive}</strong></div>
+                  <h4 style={{ margin: '0 0 1rem 0', color: 'var(--color-on-surface)' }}>
+                    付款憑證核對
+                  </h4>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem',
+                      marginBottom: '1.5rem',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <div>
+                      飼主轉帳後五碼：
+                      <strong style={{ color: 'var(--color-primary)' }}>
+                        {order.paymentProofLastFive}
+                      </strong>
+                    </div>
                     {order.paymentProofUrl && (
                       <div>
-                        <div style={{ color: 'var(--color-on-surface-variant)', marginBottom: '0.5rem' }}>轉帳憑證預覽：</div>
+                        <div
+                          style={{
+                            color: 'var(--color-on-surface-variant)',
+                            marginBottom: '0.5rem'
+                          }}
+                        >
+                          轉帳憑證預覽：
+                        </div>
                         <img
                           src={order.paymentProofUrl}
                           alt="Owner Payment Proof"
@@ -295,9 +328,19 @@ const SitterOrders: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <form onSubmit={handleReject} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <form
+                      onSubmit={handleReject}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+                    >
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                        <label
+                          style={{
+                            display: 'block',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            marginBottom: '0.5rem'
+                          }}
+                        >
                           駁回原因
                         </label>
                         <textarea

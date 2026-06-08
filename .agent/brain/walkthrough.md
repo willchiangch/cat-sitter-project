@@ -105,7 +105,8 @@ Running 1 test using 1 worker
   - 完成事件監聽器重構與異步防幽靈通知機制。
   - 完成前端日誌回報介面的 SOP 控制與 E2E 綠燈驗證。
 
-- [x] **SD-017: 保母實名認證與資格審查 (KYC)** (✅ **Implemented & COMPLIANT**)
+- [x] **SD-017: 保母實名認證與資格審查 (KYC)** (✅ **前後端全端 Implemented & COMPLIANT**)
   - 完成系統設計文件（9 輪 Review → COMPLIANT）。
   - 完整實作後端所有 KYC 路徑，通過 Project Auditor 2 輪 Review（FAIL-1 SUSPENDED 阻擋、N+1、@Version、SUSPENDED 測試補齊）。
   - 關鍵架構決策：Rate Limiting 置於 `@Transactional` 外的 Controller 層、Partial Unique Index DB 層防並發重送、`@Version` 補至 `profiles` 表、JOIN 查詢取代 N+1。
+  - 前端實作：`kycApi.ts` 全端點串接、`SitterKycSubmit`（5 狀態分支 + 5MB 驗證）、`AdminKycList`（分頁待審 + 停權工具）、`AdminKycDetail`（Promise.all 並行 Signed URL + Approve/Reject）。

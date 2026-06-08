@@ -41,3 +41,10 @@
   - [x] `KycControllerTest.java` 整合測試全覆蓋（含 SUSPENDED 重提 422 場景），15 筆全綠
   - [x] `AdminKycController.getPendingKycRecords` 冗餘 null-check 清理（INNER JOIN 保證非 null）
 
+- [x] **SD-017: 保母實名認證 (KYC) 前端實作** (✅ **COMPLIANT**)
+  - [x] 新增 `frontend/src/api/kycApi.ts`：對接全部 KYC 端點（getSitterKycStatus、submitKyc multipart、getPendingKycList、getKycDetail、getAdminMediaUrl、getSitterMediaUrl、reviewKyc、suspendSitter、unsuspendSitter、updateSitterOpenStatus、getSitterOpenStatus）
+  - [x] 新增 `frontend/src/pages/sitter/SitterKycSubmit.tsx`：5 狀態分支 UI（UNVERIFIED/PENDING_REVIEW/VERIFIED/REJECTED/SUSPENDED）、檔案上傳表單含 5MB 前端驗證、Idempotency-Key
+  - [x] 新增 `frontend/src/pages/admin/AdminKycList.tsx`：待審清單（分頁）+ 停權/解停工具欄
+  - [x] 新增 `frontend/src/pages/admin/AdminKycDetail.tsx`：申請者資料 + Promise.all 並行取 Signed URL 媒體預覽 + Approve/Reject 決策（含駁回原因輸入）
+  - [x] 更新 `App.tsx`：新增 `sitter-kyc`、`admin-kyc-list`、`admin-kyc-detail` ViewState，補 `kycRecordId` params，新增 Demo 首頁快速跳轉按鈕
+

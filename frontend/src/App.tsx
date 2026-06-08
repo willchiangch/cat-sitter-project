@@ -20,6 +20,9 @@ import SitterPlans from './pages/sitter/SitterPlans';
 import PetManager from './pages/client/PetManager';
 import { GatekeeperSettings } from './pages/sitter/GatekeeperSettings';
 import SitterPaymentInfoSettings from './pages/sitter/SitterPaymentInfoSettings';
+import SitterKycSubmit from './pages/sitter/SitterKycSubmit';
+import AdminKycList from './pages/admin/AdminKycList';
+import AdminKycDetail from './pages/admin/AdminKycDetail';
 
 type ViewState = {
   name:
@@ -40,8 +43,17 @@ type ViewState = {
     | 'sitter-plans'
     | 'pet-manager'
     | 'sitter-payment-settings'
-    | 'gatekeeper-settings';
-  params?: { sitterId: string; ownerId: string; visitId?: string; orderId?: string };
+    | 'gatekeeper-settings'
+    | 'sitter-kyc'
+    | 'admin-kyc-list'
+    | 'admin-kyc-detail';
+  params?: {
+    sitterId: string;
+    ownerId: string;
+    visitId?: string;
+    orderId?: string;
+    kycRecordId?: string;
+  };
 };
 
 function App() {
@@ -53,7 +65,8 @@ function App() {
     sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
     ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
     visitId: '2624511e-3f10-4376-b81e-7fb02e615dda',
-    orderId: 'a1023000-0000-0000-0000-000000000000'
+    orderId: 'a1023000-0000-0000-0000-000000000000',
+    kycRecordId: 'a1023000-0000-0000-0000-000000000000'
   };
 
   const renderView = () => {
@@ -100,17 +113,24 @@ function App() {
       case 'sitter-modification-quote':
         return <SitterModificationQuote orderId={view.params?.orderId || mockParams.orderId} />;
       case 'owner-modification-confirm':
-        return (
-          <OwnerModificationConfirm
-            orderId={view.params?.orderId || mockParams.orderId}
-          />
-        );
+        return <OwnerModificationConfirm orderId={view.params?.orderId || mockParams.orderId} />;
       case 'pet-manager':
         return <PetManager />;
       case 'gatekeeper-settings':
         return <GatekeeperSettings />;
       case 'sitter-payment-settings':
         return <SitterPaymentInfoSettings />;
+      case 'sitter-kyc':
+        return <SitterKycSubmit />;
+      case 'admin-kyc-list':
+        return <AdminKycList setView={setView} />;
+      case 'admin-kyc-detail':
+        return (
+          <AdminKycDetail
+            kycRecordId={view.params?.kycRecordId || mockParams.kycRecordId}
+            setView={setView}
+          />
+        );
       default:
         return (
           <div style={{ padding: '2rem 0', textAlign: 'center' }}>
@@ -222,6 +242,20 @@ function App() {
               </button>
               <button
                 className="btn-primary"
+                onClick={() => setView({ name: 'sitter-kyc' })}
+                data-testid="btn-go-sitter-kyc"
+              >
+                進入 KYC 認證 (保母端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'admin-kyc-list' })}
+                data-testid="btn-go-admin-kyc-list"
+              >
+                進入 KYC 審核清單 (管理端)
+              </button>
+              <button
+                className="btn-primary"
                 onClick={() => setView({ name: 'carenote-manager', params: mockParams })}
               >
                 進入照護管理 (保母端)
@@ -287,6 +321,12 @@ function App() {
                     }
                   >
                     直接進入變更確認 (飼主端)
+                  </button>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setView({ name: 'admin-kyc-detail', params: mockParams })}
+                  >
+                    直接進入 KYC 審核詳情 (管理端)
                   </button>
                 </div>
               </div>

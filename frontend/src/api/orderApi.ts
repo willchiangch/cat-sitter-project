@@ -221,7 +221,9 @@ export const submitPaymentProof = async (
 };
 
 // 保母確認入帳 (SD-007)
-export const verifyPayment = async (orderId: string): Promise<{ status: string; message: string }> => {
+export const verifyPayment = async (
+  orderId: string
+): Promise<{ status: string; message: string }> => {
   const response = await axiosClient.post(`/orders/${orderId}/verify-payment`);
   return response.data;
 };
