@@ -21,6 +21,8 @@ public class AuditLogService {
 
     private final CareLogRepository careLogRepository;
     private final OrderLogRepository orderLogRepository;
+    private final com.petsitter.domain.repository.UserActionLogRepository userActionLogRepository;
+
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void writeLog(UUID userId, String action, String status, String details) {
@@ -54,5 +56,25 @@ public class AuditLogService {
         } catch (Exception e) {
             log.error("Failed to write order log to database", e);
         }
+     }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void writeUserActionLog(String funcCode, String actionType, UUID operatorId, UUID targetId, String targetTable) {
+        log.info("USER ACTION AUDIT LOG [REQUIRES_NEW] - FuncCode: {}, ActionType: {}, Operator: {}, TargetId: {}, TargetTable: {}", 
+                 funcCode, actionType, operatorId, targetId, targetTable);
+        try {
+            com.petsitter.domain.model.UserActionLog auditLog = com.petsitter.domain.model.UserActionLog.builder()
+                    .funcCode(funcCode)
+                    .actionType(actionType)
+                    .operatorId(operatorId)
+                    .targetId(targetId)
+                    .targetTable(targetTable)
+                    .actionResult("SUCCESS")
+                    .build();
+            userActionLogRepository.save(auditLog);
+        } catch (Exception e) {
+            log.error("Failed to write user action log to database", e);
+        }
     }
 }
+

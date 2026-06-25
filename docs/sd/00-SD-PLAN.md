@@ -121,11 +121,12 @@ stateDiagram-v2
 | 順序 | SD | 原因 |
 |:---:|---|---|
 | 1 | **SD-007** 線下付款 | ✅ **Implemented** (已完成前後端實作與 E2E 驗證) |
-| 2 | **SD-008** 服務執行 | 🔴 Blocking：`CONFIRMED → IN_PROGRESS` 觸發機制缺失 |
-| 3 | **SD-017** 保母 KYC | 🟡 Close Beta 信任基礎，無驗證保母飼主不放心，beta 反饋失真 |
-| 4 | **SD-014** 通知中心 | 🟡 無通知則狀態變更無感，Close Beta 流程可用性極差 |
-| 5 | **SD-018** 保母公開檔案 | 🟡 媒合入口，Close Beta 可先以直連 URL 繞路 |
+| 2 | **SD-008** 服務執行 | ✅ **Implemented** (已完成前後端實作與 E2E 驗證) |
+| 3 | **SD-017** 保母 KYC | ✅ **Implemented** (已完成前後端實作與審核面板) |
+| 4 | **SD-014** 通知中心 | ✅ **Implemented** (已完成前後端實作與 E2E 驗證) |
+| 5 | **SD-018** 保母公開檔案 | ✅ **Implemented & COMPLIANT** (已完成前後端實作與 E2E 驗證) |
 | 6 | **Admin Subscription API** | 🟡 手動開通 beta 用戶 SaaS 方案，無需獨立 SD |
+
 
 ---
 
@@ -140,14 +141,14 @@ stateDiagram-v2
   - 對應 PRD：`PRD-017-sitter-kyc.md`（已完成 SA / SD 9 輪 Review / 實作 2 輪 Audit / 全綠）
   - 後端：SUSPENDED 阻擋重提、JOIN 防 N+1、profiles @Version 樂觀鎖、Partial Unique Index、AFTER_COMMIT 通知
   - 前端：`SitterKycSubmit`（5 狀態分支 + 5MB 驗證 + Idempotency-Key）、`AdminKycList`（分頁待審 + 停權/解停工具）、`AdminKycDetail`（Promise.all 並行 Signed URL 媒體預覽 + Approve/Reject）
-- [ ] **SD-014: 通知中心與訊息範本**
-  - 🟡 流程可用性：無通知則訂單狀態變更無感知，Close Beta 無法正常測試完整流程。
-  - 對應 PRD：`PRD-014-notification-center.md`（已完成 SA）
-- [ ] **SD-018: 保母公開檔案與標籤管理**
-  - 🟡 Important：飼主需要可瀏覽的保母頁面才能完成媒合，Close Beta 可用直連 URL 繞路但仍建議實作。
+- [x] **SD-014: 通知中心與訊息範本** (✅ **前後端全端 Implemented & E2E 綠燈**)
+  - ✅ **已完成**：實作未讀 Badge、下拉選單、分頁通知中心、iOS風格通知偏好（ACCOUNT_AUTH卡控）及保母端置頂 KYC Banner。
+  - 對應 PRD：`PRD-014-notification-center.md`（已完成 SA / [SD-014-notification-center.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-014-notification-center.md) 與 [TS-014-notification-center.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/test-scenario/TS-014-notification-center.md) 已完成）
+- [x] **SD-018: 保母公開檔案與標籤管理** (✅ **前後端全端 Implemented & COMPLIANT**)
+  - ✅ **已完成**：完成 [SD-018-public-profile-management.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-018-public-profile-management.md) 的全端實作，包括 GCS 事務外上傳以防 DB 連接長鎖、標籤長度 10 字硬卡控、防 TOCTOU 獨佔鎖與 E2E 測試 Toggle 狀態防污染。後端單元測試與 Playwright 測試皆順利綠燈。
   - 對應 PRD：`PRD-018-public-profile-management.md`（已完成 SA）
-- [ ] **Internal Admin Subscription API**
-  - 🟡 Important：提供 `POST /internal/admin/subscriptions` 讓管理員手動設定 beta 用戶的 SaaS 方案等級（FREE / PRO / ULTIMATE），受 `INTERNAL_CRON_SECRET` 保護。無需獨立 SD 文件，歸屬 SD-007 或單獨 PR 實作。
+- [x] **Internal Admin Subscription API** (✅ **Implemented**)
+  - 實作 `GET /api/admin/subscriptions/{sitterId}` 查詢 + `POST /api/admin/subscriptions/{sitterId}` 覆寫，受 `hasRole('ADMIN')` 保護，寫入 `ADMIN_SUBSCRIPTION_SET` 審計日誌。無需獨立 SD 文件。
 
 ### [延後至 Open Beta / 正式上線] The Shell
 - **SD-015 (金流串接)**：線上支付整合，等 Close Beta 驗證核心流程後再接。

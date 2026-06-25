@@ -16,6 +16,7 @@ import type { BookingState } from '../../types/booking';
 import { useSitterActivePlansQuery } from '../../hooks/useServicePlans';
 import { usePetsQuery } from '../../hooks/usePets';
 import { createBooking } from '../../api/orderApi';
+import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
 
 const formatDatesGroupedByYear = (dates: string[]) => {
   if (!dates || dates.length === 0) return null;
@@ -36,6 +37,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda'
 }) => {
   const { data: plans = [], isLoading, error } = useSitterActivePlansQuery(sitterId);
+  const { data: profile, isLoading: isProfileLoading, error: profileError } = usePublicProfileQuery(sitterId);
   const { data: pets = [] } = usePetsQuery();
   const [step, setStep] = useState(1);
   const [booking, setBooking] = useState<BookingState>({
@@ -58,18 +60,18 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
 
-  if (isLoading) {
+  if (isLoading || isProfileLoading) {
     return (
       <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-primary)' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>讀取方案中...</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>讀取保母公開檔案與方案中...</div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || profileError) {
     return (
       <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-error)' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>載入方案失敗，請稍後再試</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>找不到該保母資料或帳號已刪除</div>
       </div>
     );
   }
@@ -265,6 +267,8 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 
   const renderStep1 = () => {
     const isNextDisabled =
+      profile?.gated ||
+      !profile?.isOpen ||
       booking.planConfigs.length === 0 ||
       booking.planConfigs.some((pc) =>
         pc.schedules.some((s) => s.dates.length === 0 || !s.petIds || s.petIds.length === 0)
@@ -1389,6 +1393,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
             className="btn-primary"
             style={{ flex: 2, padding: '12px', fontSize: '1rem' }}
             onClick={handleSubmitBooking}
+            disabled={profile?.gated || !profile?.isOpen}
             data-testid="client-booking-btn-submit"
           >
             確認並送出 <CheckCircle2 size={18} style={{ marginLeft: '8px' }} />
@@ -1400,6 +1405,124 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 
   return (
     <div style={{ padding: '2rem 1.5rem' }}>
+      {/* 警示 Banner */}
+      {profile?.gated && (
+        <div
+          style={{
+            backgroundColor: '#fee2e2',
+            border: '1px solid #fca5a5',
+            padding: '1rem',
+            borderRadius: '8px',
+            color: '#b91c1c',
+            marginBottom: '1.5rem',
+            fontWeight: 'bold',
+            fontSize: '0.875rem'
+          }}
+        >
+          此保母目前暫停服務或處於休息狀態，暫時無法接受預約。
+        </div>
+      )}
+      {!profile?.gated && !profile?.isOpen && (
+        <div
+          style={{
+            backgroundColor: '#fef3c7',
+            border: '1px solid #fcd34d',
+            padding: '1rem',
+            borderRadius: '8px',
+            color: '#b45309',
+            marginBottom: '1.5rem',
+            fontWeight: 'bold',
+            fontSize: '0.875rem'
+          }}
+        >
+          此保母目前不開放預約，您仍可瀏覽其公開檔案。
+        </div>
+      )}
+
+      {/* 保母基本公開檔案 */}
+      <Card style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <img
+            src={profile?.avatarUrl || 'https://via.placeholder.com/150'}
+            alt="Sitter Avatar"
+            style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '2px solid var(--color-primary-light)'
+            }}
+          />
+          <div>
+            <h2
+              data-testid="client-booking-sitter-name"
+              style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-on-surface)' }}
+            >
+              {profile?.displayName || '保母'}
+            </h2>
+            <p
+              data-testid="client-booking-sitter-bio"
+              style={{
+                margin: '8px 0',
+                fontSize: '0.875rem',
+                color: 'var(--color-on-surface-variant)',
+                lineHeight: '1.5'
+              }}
+            >
+              {profile?.bio || '尚無自我介紹'}
+            </p>
+            
+            {/* 標籤 */}
+            {profile?.tags && profile.tags.length > 0 && (
+              <div
+                data-testid="client-booking-sitter-tags"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}
+              >
+                {profile.tags.map((tag, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      backgroundColor: 'var(--color-primary-lowest)',
+                      color: 'var(--color-primary)',
+                      border: '1px solid var(--color-primary-light)'
+                    }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* 服務區域 */}
+            {profile?.serviceAreas && profile.serviceAreas.length > 0 && (
+              <div
+                data-testid="client-booking-sitter-areas"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}
+              >
+                {profile.serviceAreas.map((area, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      backgroundColor: 'var(--color-surface-high)',
+                      color: 'var(--color-on-surface)',
+                      border: '1px solid var(--color-surface-higher)'
+                    }}
+                  >
+                    {area.city} {area.district}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
       <div
         style={{
           display: 'flex',
@@ -1409,6 +1532,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
         }}
       >
         <div style={{ display: 'flex', gap: '8px' }}>
+
           {[1, 2].map((s) => (
             <div
               key={s}

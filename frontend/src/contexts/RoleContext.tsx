@@ -53,32 +53,9 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentRole]);
 
   const setRole = async (role: Role) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      try {
-        const response = await fetch('/api/auth/switch-role', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ targetRole: role.toUpperCase() })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.accessToken) {
-            localStorage.setItem('accessToken', data.accessToken);
-            localStorage.setItem('refreshToken', data.refreshToken || '');
-            skipAutoLoginRef.current = true;
-          }
-        } else {
-          console.warn(`切換角色 API 返回錯誤，執行舊的登入 Fallback`);
-        }
-      } catch (err) {
-        console.warn(`切換角色 API 失敗，執行舊的登入 Fallback：`, err);
-      }
-    }
+    // Demo 專案為切換不同獨立種子使用者 (Sitter, Owner, Admin)，直接執行獨立登入
+    await loginAsRole(role);
+    skipAutoLoginRef.current = true;
     setCurrentRole(role);
   };
 

@@ -48,3 +48,36 @@
   - [x] 新增 `frontend/src/pages/admin/AdminKycDetail.tsx`：申請者資料 + Promise.all 並行取 Signed URL 媒體預覽 + Approve/Reject 決策（含駁回原因輸入）
   - [x] 更新 `App.tsx`：新增 `sitter-kyc`、`admin-kyc-list`、`admin-kyc-detail` ViewState，補 `kycRecordId` params，新增 Demo 首頁快速跳轉按鈕
 
+- [x] **SD-014: 訊息中心與推播通知實作** (✅ **COMPLIANT**)
+  - [x] **資料模型與防禦**：建立 Flyway SQL 遷移 `V20260614_01__create_notifications_and_preferences.sql`。在 DB 層設計 CHECK 約束，確保 `ACCOUNT_AUTH` 偏好在資料庫層級永遠無法被設定為 false。
+  - [x] **後端安全與業務**：實作 IDOR Ownership 驗證防禦，越權或無紀錄皆回傳 404 MSG_DATA_F11。修正無效與鎖定偏好更新錯誤碼為 `MSG_DATA_INVALID_INPUT`。
+  - [x] **物理清理與 REQUIRES_NEW**：拆分 `NotificationCleanupService` 與 `NotificationBatchDeleter`，避免 Spring AOP 自我呼叫 Proxy 失效，以 LIMIT 1000 獨立 Commit 釋放行級鎖。
+  - [x] **前端 API 與 React Hooks 串接**：新增 `notificationApi.ts` 與 `useNotifications.ts`（對未讀計數套用 30 秒快取與 60 秒背景自動暫停 Polling，防範 Cloud Run 縮容計費陷阱）。
+  - [x] **前端 UI 與元件串接**：
+    - [x] 實作 `AppHeader.tsx`（包含小鈴鐺 icon、未讀計數 Badge、前 10 筆 Dropdown，以及保母 KYC 認證警告置頂 Banner）。
+    - [x] 實作 `NotificationsPage.tsx`（分頁載入、一鍵已讀、業務路由導向）。
+    - [x] 實作 `PreferencesPage.tsx`（iOS風格 Toggle，`ACCOUNT_AUTH` 強制鎖定 disabled 與警語說明）。
+  - [x] **相容性修復與測試**：將 `App.tsx` 中的返回按鈕調降至 `top: 120px` 避開 KYC Banner 與 Header 的指標攔截，補齊 DB CHECK constraint 測試，Playwright E2E 測試與 Maven 後端測試 100% 綠燈通過。
+
+- [x] **SD-018: 保母公開檔案與標籤管理實作** (✅ **COMPLIANT**)
+  - [x] **資料庫與遷移**：新增 Flyway SQL 遷移 `V20260618_01__add_sitter_profile_fields.sql`，建立 profiles 欄位擴充、sitter_tags、sitter_service_areas 與 forbidden_keywords 表。
+  - [x] **後端合規性修復**：
+    - [x] **優化事務邊界**：移除 `uploadAvatar` 方法的 `@Transactional`，將 GCS 網路 I/O 上傳移至事務外，僅在 `txSaveAvatar` 內使用 `@Transactional` 處理 DB 寫入，避免長鎖連接問題。
+    - [x] **修正字數限制**：單個標籤字數限制由 20 字改為 10 字 (對齊 DTO 驗證、Service 長度檢查與前端欄位卡控)。
+    - [x] **解決 TOCTOU 競爭條件**：在 `addForbiddenKeyword` 移除 `existsByKeyword` 檢查，改為 try-catch 捕獲 `DataIntegrityViolationException` 並呼叫 `flush()`，轉譯為 409 `MSG_DATA_CONCURRENCY_CONFLICT` 衝突。
+    - [x] **樂觀鎖錯誤碼一致性**：修正 `GlobalExceptionHandler.java` 當中的樂觀鎖 fallback 錯誤碼為 `MSG_DATA_CONCURRENCY_CONFLICT`。
+  - [x] **前端與相容性修復**：
+    - [x] **補齊 DTO 欄位**：在 `PublicProfileResponse` 與 `publicProfileApi.ts` 補齊 `isVisible` 屬性。
+    - [x] **對齊 DTO 封裝**：後端服務在非 gated 分支設定了 `.isVisible(profile.isVisible())`。
+    - [x] **安全 Toggle 初始化**：在 `SitterProfileSettings.tsx` 中使用 `profile.isVisible ?? true` 安全初始化 Toggle 狀態。
+    - [x] **防禦 E2E 測試狀態污染**：在 `sitter-profile.spec.ts` 中，對 Toggle 使用 `isChecked` 狀態判斷，確保第一步與第五步的開關狀態是確定性的，解決由於本地資料庫持久化引起的測試狀態污染。
+  - [x] **測試與文檔對齊**：
+    - [x] **後端整合測試**：`SitterPublicProfileControllerTest.java` 7 個測試場景全覆蓋（含敏感詞攔截、KYC 停權連動、黑名單模糊防禦），100% 通過。
+    - [x] **E2E 測試驗證**：前端 Playwright 測試 `sitter-profile.spec.ts` 綠燈通過。
+    - [x] **同步 testid 規格至文檔**：更新 `SD-018-public-profile-management.md` Section 6.1 中的 5 個 testid，使其與程式碼完全一致。
+
+- [x] **Admin Subscription API — 訂閱方案人工覆寫** (✅ **Implemented**)
+  - [x] **後端**：新增 `AdminSubscriptionController.java`，提供 `GET /api/admin/subscriptions/{sitterId}` 查詢與 `POST /api/admin/subscriptions/{sitterId}` upsert 覆寫，受 `@PreAuthorize("hasRole('ADMIN')")` 保護。Upsert 邏輯：有既有訂閱則更新 planTier/expiredAt，無則新建；`monthlyOrderCount` 保持不動。寫入 `ADMIN_SUBSCRIPTION_SET` 審計日誌 (REQUIRES_NEW)。
+  - [x] **前端**：新增 `AdminSubscriptionPage.tsx`，兩段式 UI：先輸入保母 UUID 查詢當前方案（顯示 planTier / expiredAt / monthlyOrderCount），確認後選擇新方案等級、可選到期日、可選異動原因，提交後顯示成功/失敗訊息。
+  - [x] **App.tsx**：新增 `'admin-subscription'` ViewState、renderView case、Demo 首頁按鈕。
+  - [x] **文檔**：`00-SD-PLAN.md` Close Beta 清單更新為全部 ✅ 完成。

@@ -23,6 +23,14 @@ import SitterPaymentInfoSettings from './pages/sitter/SitterPaymentInfoSettings'
 import SitterKycSubmit from './pages/sitter/SitterKycSubmit';
 import AdminKycList from './pages/admin/AdminKycList';
 import AdminKycDetail from './pages/admin/AdminKycDetail';
+import SitterProfileSettings from './pages/sitter/SitterProfileSettings';
+import AdminForbiddenKeywords from './pages/admin/AdminForbiddenKeywords';
+import AdminSubscriptionPage from './pages/admin/AdminSubscriptionPage';
+
+// 訊息通知頁面
+import AppHeader from './components/layout/AppHeader';
+import { NotificationsPage } from './pages/shared/NotificationsPage';
+import { PreferencesPage } from './pages/shared/PreferencesPage';
 
 type ViewState = {
   name:
@@ -46,7 +54,12 @@ type ViewState = {
     | 'gatekeeper-settings'
     | 'sitter-kyc'
     | 'admin-kyc-list'
-    | 'admin-kyc-detail';
+    | 'admin-kyc-detail'
+    | 'notifications'
+    | 'preferences'
+    | 'sitter-profile-settings'
+    | 'admin-forbidden-keywords'
+    | 'admin-subscription';
   params?: {
     sitterId: string;
     ownerId: string;
@@ -131,6 +144,16 @@ function App() {
             setView={setView}
           />
         );
+      case 'notifications':
+        return <NotificationsPage setView={setView} />;
+      case 'preferences':
+        return <PreferencesPage />;
+      case 'sitter-profile-settings':
+        return <SitterProfileSettings />;
+      case 'admin-forbidden-keywords':
+        return <AdminForbiddenKeywords />;
+      case 'admin-subscription':
+        return <AdminSubscriptionPage />;
       default:
         return (
           <div style={{ padding: '2rem 0', textAlign: 'center' }}>
@@ -242,6 +265,27 @@ function App() {
               </button>
               <button
                 className="btn-primary"
+                onClick={() => setView({ name: 'sitter-profile-settings' })}
+                data-testid="btn-go-sitter-profile-settings"
+              >
+                進入公開檔案設定 (保母端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'admin-forbidden-keywords' })}
+                data-testid="btn-go-admin-keywords"
+              >
+                進入敏感詞管理 (管理端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'admin-subscription' })}
+                data-testid="btn-go-admin-subscription"
+              >
+                進入訂閱方案管理 (管理端)
+              </button>
+              <button
+                className="btn-primary"
                 onClick={() => setView({ name: 'sitter-kyc' })}
                 data-testid="btn-go-sitter-kyc"
               >
@@ -277,6 +321,20 @@ function App() {
                 onClick={() => setView({ name: 'visit-report-view', params: mockParams })}
               >
                 進入日誌檢視 (飼主端)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'notifications' })}
+                data-testid="btn-go-notifications"
+              >
+                進入通知中心 (共用)
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => setView({ name: 'preferences' })}
+                data-testid="btn-go-preferences"
+              >
+                進入通知偏好 (共用)
               </button>
 
               <div
@@ -338,12 +396,13 @@ function App() {
 
   return (
     <AppShell>
+      <AppHeader setView={setView} currentViewName={view.name} />
       {view.name !== 'demo' && (
         <button
           onClick={() => setView({ name: 'demo' })}
           style={{
             position: 'absolute',
-            top: '16px',
+            top: '120px',
             right: '16px',
             zIndex: 10,
             border: 'none',
@@ -357,7 +416,9 @@ function App() {
           返回 Demo 首頁
         </button>
       )}
-      {renderView()}
+      <div style={{ flex: 1, padding: '1rem 0' }}>
+        {renderView()}
+      </div>
     </AppShell>
   );
 }

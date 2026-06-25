@@ -18,7 +18,16 @@ public class TokenContext {
         return id;
     }
 
+    public static java.util.Optional<UUID> tryGetUserId() {
+        UUID id = userIdHolder.get();
+        if (id == null || id.equals(UUID.fromString("00000000-0000-0000-0000-000000000000"))) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(id);
+    }
+
     public static void clear() {
         userIdHolder.remove();
     }
 }
+

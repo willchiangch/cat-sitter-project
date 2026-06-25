@@ -40,10 +40,16 @@ public interface MediaStorageService {
     String uploadKycFile(UUID sitterId, String type, MultipartFile file);
 
     /**
+     * 上傳保母大頭照 (SD-018)
+     */
+    String uploadAvatar(UUID sitterId, MultipartFile file);
+
+    /**
      * 刪除媒體檔案
      * @param mediaUrl 檔案的完整 URL
      */
     void deleteMedia(String mediaUrl);
+
 
     /**
      * 產生私有儲存空間物件之短效安全簽名 URL

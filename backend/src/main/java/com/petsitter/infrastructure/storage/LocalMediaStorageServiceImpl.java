@@ -162,7 +162,35 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadAvatar(UUID sitterId, MultipartFile file) {
+        try {
+            String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+            String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+            String targetFilename = sitterId.toString() + (extension != null ? "." + extension : "");
+            
+            // 路徑格式: /tmp/cat_sitter_media/avatars/{sitterId}.ext
+            String subDirName = "avatars";
+            Path targetDirPath = Paths.get(localStorageDir, subDirName);
+            
+            if (!Files.exists(targetDirPath)) {
+                Files.createDirectories(targetDirPath);
+            }
+            
+            Path targetFilePath = targetDirPath.resolve(targetFilename);
+            file.transferTo(targetFilePath);
+            
+            String fileUrl = localBaseUrl + "/" + subDirName + "/" + targetFilename;
+            log.info("Local sitter avatar uploaded: {}", fileUrl);
+            return fileUrl;
+        } catch (IOException e) {
+            log.error("Failed to upload local sitter avatar", e);
+            throw new RuntimeException("Local sitter avatar upload failed", e);
+        }
+    }
+
+    @Override
     public void deleteMedia(String mediaUrl) {
+
         if (!mediaUrl.startsWith(localBaseUrl)) {
             log.warn("Invalid local media URL: {}", mediaUrl);
             return;

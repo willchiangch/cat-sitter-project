@@ -54,6 +54,9 @@
 | **SD-021 照護記事與媒體庫** | ✅ | 前後端 ✅ | ✅ TS-021 | 支援 Recreate-on-Save、Append-Only 模板套用、409 冪等防重送、GCS 失敗補償機制與 IDOR 雙重角色放行，前端照護管理與照片牆已與後端對接 |
 | **SD-022 行程照護日誌** | ✅ | 前後端 ✅ | ✅ TS-022 | PRD-022 已 Approved，Pure Lazy 逾期判定、SaaS 四級媒體配額、合約保護快照。已完成前後端聯調，防呆、版本衝突樂觀鎖及檔案檢核實裝。 |
 | **SD-017 保母實名認證 (KYC)** | ✅ | 前後端 ✅ | ✅ TS-017 | KYC 狀態機 (UNVERIFIED→PENDING_REVIEW→VERIFIED/REJECTED/SUSPENDED)、GCS Signed URL 10min TTL、Partial Unique Index 防並發重送、BookingService 雙重卡控 (isOpen + VERIFIED)、@Version 樂觀鎖、AFTER_COMMIT 非同步事件通知；前端：保母 5 狀態分支上傳表單 + Admin 待審清單/審查詳情/停權工具 |
+| **SD-014 訊息中心與通知偏好** | ✅ | 前後端 ✅ | ✅ TS-014 | 支援未讀 Badge、下拉選單、分頁通知中心、iOS風格通知偏好（ACCOUNT_AUTH卡控）及保母端置頂 KYC Banner，E2E 綠燈通過 |
+| **SD-018 保母公開檔案管理** | ✅ | 前後端 ✅ | ✅ TS-018 | 5 級 Gating 隱私卡控、Optional JWT 匿名讀取、GCS 事務外上傳 Cache-Busting、@Version 樂觀鎖、敏感詞過濾 TOCTOU 防禦，E2E 綠燈通過 |
+| **Admin Subscription API** | — | 前後端 ✅ | — | 管理員手動覆寫保母 SaaS 方案等級與到期日（Close Beta 早鳥/補償用），`ADMIN_SUBSCRIPTION_SET` 審計日誌，無需獨立 SD |
 | **SD-FRONTEND-SPEC**| ✅ | Frontend ✅ | ✅ E2E | 預約精靈重構為方案導向 (Plan-Oriented) 流程，支援卡片選擇與日期互斥，完成 2-Step E2E 驗證 |
 
 ---

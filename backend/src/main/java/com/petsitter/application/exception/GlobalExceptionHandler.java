@@ -122,7 +122,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(Map.of("error", "VERSION_CONFLICT", "message", "內容已被更新，請重新整理後再試"));
+                .body(Map.of("error", "MSG_DATA_CONCURRENCY_CONFLICT", "message", "內容已被更新，請重新整理後再試"));
     }
 
     // 處理 Bean Validation 校驗異常 (400 INVALID_PARAMETER)
@@ -135,4 +135,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", "INVALID_PARAMETER", "message", defaultMessage));
     }
+
+    @ExceptionHandler(NotificationException.class)
+    public ResponseEntity<Map<String, String>> handleNotification(NotificationException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    @ExceptionHandler(PublicProfileException.class)
+    public ResponseEntity<Map<String, String>> handlePublicProfile(PublicProfileException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
 }
+

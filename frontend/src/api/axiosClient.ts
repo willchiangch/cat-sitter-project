@@ -73,9 +73,8 @@ axiosClient.interceptors.response.use(
         return axiosClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // 若刷新也失敗，導向登入 (由 AuthContext 或路由處理)
-        localStorage.clear();
-        window.location.href = '/login';
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

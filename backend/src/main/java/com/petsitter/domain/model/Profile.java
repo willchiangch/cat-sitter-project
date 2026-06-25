@@ -45,6 +45,19 @@ public class Profile {
     @Column(name = "bank_account_info", columnDefinition = "jsonb")
     private BankAccountInfo bankAccountInfo;
 
+    @Column(name = "avatar_url", length = 512)
+    private String avatarUrl;
+
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
+    @Column(columnDefinition = "text")
+    private String bio;
+
+    @Builder.Default
+    @Column(name = "is_visible", nullable = false)
+    private boolean isVisible = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -56,3 +69,4 @@ public class Profile {
     @Version
     private Integer version;
 }
+

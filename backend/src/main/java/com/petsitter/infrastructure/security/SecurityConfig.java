@@ -52,7 +52,9 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/sitters/*/plans").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/sitter/profile/*").permitAll()
                 .requestMatchers("/api/internal/**").hasRole("INTERNAL")
+
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated()
             );
