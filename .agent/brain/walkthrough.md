@@ -225,3 +225,22 @@ Close Beta 不接線上支付 (SD-015)，早鳥優惠與補償方案由管理員
 | SD-018 保母公開檔案 | ✅ Implemented & COMPLIANT |
 | Admin Subscription API | ✅ Implemented |
 
+---
+
+## 9. Open Beta / 正式上線階段系統設計 (Phase 4)
+
+### 9.1. SD-015: 線上支付與金流整合 (🟡 Designing)
+- 完成線上代收代付流程與 Webhooks 非同步付款成功通知設計。
+- 規劃 `sitter_payout_settings`、`payments`、`payout_records` 資料表。
+- 實作 HMAC-SHA256 安全簽章防禦、TWD 高精度四捨五入計算與防重送冪等設計。
+
+### 9.2. SD-013: 多媒體生命週期與保留策略 (✅ SD Designed)
+- **Cloud Run 排程設計**：使用 GCP Cloud Scheduler + Internal API (/api/internal/cron/...) 代替原生 @Scheduled，規避 min-instances:0 限制。
+- **資料表對齊**：基於現有 `service_report_media` 與 `order_snapshots`（mediaRetentionDays / planTier）進行狀態欄位擴充與快照判定。
+- **邊界防禦與強健性**：
+  - 警告通知查詢加上 `EXISTS` 子查詢防禦，照片已物理清理的訂單不發送過期警告。
+  - 使用 `MediaExpiryWarningBatchProcessor` 的 `REQUIRES_NEW` 獨立 Bean 處理單筆通知發送，避免單筆失敗阻塞整批排程。
+  - 通知信件發送攜帶 `expiryTime` 精確日期（`yyyy-MM-dd`），優化 UX。
+- **前端下沉**：`isPurged` 判定下沉至單一媒體級別 (Per-item DTO)，避免誤遮擋整份報告未過期媒體，report 級別 `isPurged` 僅用於頂端 Banner。
+
+

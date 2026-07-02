@@ -57,7 +57,10 @@
 | **SD-014 訊息中心與通知偏好** | ✅ | 前後端 ✅ | ✅ TS-014 | 支援未讀 Badge、下拉選單、分頁通知中心、iOS風格通知偏好（ACCOUNT_AUTH卡控）及保母端置頂 KYC Banner，E2E 綠燈通過 |
 | **SD-018 保母公開檔案管理** | ✅ | 前後端 ✅ | ✅ TS-018 | 5 級 Gating 隱私卡控、Optional JWT 匿名讀取、GCS 事務外上傳 Cache-Busting、@Version 樂觀鎖、敏感詞過濾 TOCTOU 防禦，E2E 綠燈通過 |
 | **Admin Subscription API** | — | 前後端 ✅ | — | 管理員手動覆寫保母 SaaS 方案等級與到期日（Close Beta 早鳥/補償用），`ADMIN_SUBSCRIPTION_SET` 審計日誌，無需獨立 SD |
+| **SD-015 線上支付與金流整合** | 🟡 Designing | — | — | 設計第三方金流、Webhooks 簽章驗證、代收代付撥款紀錄（T+3）與高精度整數運算 |
+| **SD-013 多媒體生命週期** | ✅ SD Designed | — | — | 設計 GCP Cloud Scheduler + Internal API 相容 Cloud Run 物理清理、SaaS 方案升級追溯展延與前端 per-media 逾期佔位盒 |
 | **SD-FRONTEND-SPEC**| ✅ | Frontend ✅ | ✅ E2E | 預約精靈重構為方案導向 (Plan-Oriented) 流程，支援卡片選擇與日期互斥，完成 2-Step E2E 驗證 |
+
 
 ---
 

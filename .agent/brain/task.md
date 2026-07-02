@@ -1,83 +1,52 @@
-# SD-008: 服務執行與 Check-in 實作任務清單
+# SD-015 & SD-013: 線上支付與多媒體生命週期實作任務清單
 
-- [x] **1. 領域模型與資料庫設計 (Domain & DB)**
-  - [x] 更新 `Visit.java` 的 `status` 狀態註解，補上 `IN_PROGRESS`
-- [x] **2. 業務服務層與控制器實作 (Services & Controllers)**
-  - [x] 擴充 `VisitReportService.java` 中 `startVisit` 與 `endVisit` 的實作
-  - [x] 注入 `OrderRepository` 與 `ApplicationEventPublisher` 以供狀態流轉與非同步事件通知
-  - [x] 新增可選（`required = false`）的 `Idempotency-Key` 校驗邏輯，對齊設計規格
-  - [x] 於 `startVisit` 狀態流轉後，呼叫 `orderRepository.save(order)` 明確化持久化意圖
-  - [x] 實作 `VisitReportController.java` 中的 `/start` 與 `/end` 端點，對接 Service
-- [x] **3. 異步事件驅動通知重構 (Events & Listeners)**
-  - [x] 新增 `VisitNotificationEvent` 事件
-  - [x] 於 `NotificationListener.java` 中加上對應的事件監聽器，使用 `@Async` 與 `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` 進行解耦，防止幽靈通知
-  - [x] 移除 `NotificationService.java` 原有的監聽邏輯，使其專注於通知推送實體
-- [x] **4. 前端 API 與 React Hooks 串接 (Frontend Integration)**
-  - [x] 更新 `visitReportApi.ts` 中 `startVisit` 與 `endVisit` 方法，加入 `Idempotency-Key` 標頭傳遞
-  - [x] 更新 `useVisitReport.ts` mutations 支援傳參
-  - [x] 修改 `VisitReportManager.tsx`：
-    - [x] 使用 `useRef` 生成並保存 `startKeyRef` 和 `endKeyRef` 冪等金鑰
-    - [x] 修正日誌正式送出 `handleSubmitReport` 的狀態防呆攔截，將 `!isEditable` 限制改為基於 `DONE` 行程狀態的判斷
-- [x] **5. 設計規格文件與測試驗證 (Verification)**
-  - [x] 撰寫並擴充 `VisitReportControllerTest.java` 整合測試：
-    - [x] 補齊對應 /start 與 /end 的 `Idempotency-Key` 測試
-    - [x] 新增「後續日 Check-in」（訂單已為 `IN_PROGRESS`）測試情境
-    - [x] 新增 `/start` 與 `/end` 重複請求冪等 409 衝突測試
-  - [x] 修正 `service-execution.spec.ts` 中 Mock 路由重複攔截掛起的 bug，將 GET 與 PUT 合併
-  - [x] 執行本地前端 Playwright E2E 測試，100% 綠燈通過
-  - [x] 更新 [SD-008-service-execution.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-008-service-execution.md)，將 `Idempotency-Key` 改為必填並加註「離線補送機制延後至 Open Beta 實作」之備註
+## 📋 當前任務 (Open Beta - Phase 4)
 
-- [x] **SD-017: 保母實名認證與資格審查 (KYC) 實作** (✅ **COMPLIANT — Approved**)
-  - [x] 完成 [SD-017-sitter-kyc.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-017-sitter-kyc.md) 規劃（9 輪 Review 後 COMPLIANT）
-  - [x] 建立 Flyway 遷移 `V20260606_01__add_sitter_kyc_and_is_open.sql`（`is_open`、`version` 欄位、`kyc_records` 表、局部唯一索引防重送）
-  - [x] `Profile.java` 加 `@Version` 樂觀鎖，預設 `kycStatus = UNVERIFIED`，同步修正 `AuthService`/`PaymentService` 的硬碼 `"PENDING"`
-  - [x] 擴充 `MediaStorageService` 介面：`uploadKycFile` + `generateSignedUrl`，兩個 Profile 均已實作
-  - [x] `KycRecord.java`、`KycRecordRepository.java`（含 JOIN 查詢防 N+1）、`KycServiceImpl.java`
-  - [x] `SitterKycController.java`（Rate Limiting 在 `@Transactional` 外）+ `AdminKycController.java`
-  - [x] `BookingService.java` 新增雙重卡控：`isOpen == true && kycStatus == VERIFIED`（SD-005 聯動）
-  - [x] 非同步 AFTER_COMMIT 事件通知：`KycReviewedEvent`、`SitterSuspendedEvent`、`SitterUnsuspendedEvent`
-  - [x] `GlobalExceptionHandler` 修正冪等性衝突統一回 409（`pk_idempotency` + `Duplicate idempotency key`）
-  - [x] `ServicePlanControllerTest` 補齊保母 VERIFIED Profile 種子資料
-  - [x] `KycControllerTest.java` 整合測試全覆蓋（含 SUSPENDED 重提 422 場景），15 筆全綠
-  - [x] `AdminKycController.getPendingKycRecords` 冗餘 null-check 清理（INNER JOIN 保證非 null）
+### 💳 SD-015: 線上支付與金流整合
+- [ ] **1. 資料庫變更與實體建立 (Schema & Entities)**
+  - [ ] 撰寫 Flyway SQL 遷移，建立 `sitter_payout_settings`、`payments` 與 `payout_records` 資料表
+  - [ ] 建立對應的 JPA 實體（`Payment`, `PayoutRecord`, `SitterPayoutSettings`）
+  - [ ] 在 `Order` 與 `Sitter`（或 `Profile`）中配置對應的關聯欄位與 `@Version` 樂觀鎖
+- [ ] **2. 核心支付與金流 Webhook (Backend Logic)**
+  - [ ] 實作第三方金流商模擬器/SDK 串接元件（代收代付建立交易）
+  - [ ] 實作 `PaymentService.java` 以處理支付請求與狀態流轉
+  - [ ] 實作 `PaymentController.java` 暴露支付與 Webhook 端點
+  - [ ] 於 Webhook 端點實作 HMAC-SHA256 簽章防禦，確保 Webhook 安全性
+- [ ] **3. 結案撥款與對帳機制 (Settlement & Cron)**
+  - [ ] 實作 Order 完成（`COMPLETED`）的事件監聽器，自動生成 `PayoutRecord`，計算預計撥款日（T+3 工作日）與淨額（高精度 `BigDecimal` 運算）
+  - [ ] 實作撥款排程（模擬每天跑批執行 PENDING -> PROCESSING -> SUCCEEDED）
+  - [ ] 實作 `SitterPayoutSettingsController.java` 以供保母設定收款帳號
+- [ ] **4. 前端金流整合與對接 (Frontend)**
+  - [ ] 新增 `paymentApi.ts` 與對應的 React Query Hooks
+  - [ ] 實作飼主端預約支付跳轉與 Success/Failed 導向頁面
+  - [ ] 實作保母端「收款設定」管理介面與「帳務撥款明細」面板
+- [ ] **5. 整合測試與 E2E 驗證 (Verification)**
+  - [ ] 撰寫 `PaymentControllerTest.java` 驗證 Webhook 簽章防禦與重複 Webhook 的 409 衝突
+  - [ ] 撰寫 `PayoutSettlementTest.java` 驗證 T+3 撥款生成與手續費四捨五入計算
+  - [ ] 撰寫 Playwright E2E 測試，打通「支付 -> 服務 -> 結案 -> 撥款產生」全流程
 
-- [x] **SD-017: 保母實名認證 (KYC) 前端實作** (✅ **COMPLIANT**)
-  - [x] 新增 `frontend/src/api/kycApi.ts`：對接全部 KYC 端點（getSitterKycStatus、submitKyc multipart、getPendingKycList、getKycDetail、getAdminMediaUrl、getSitterMediaUrl、reviewKyc、suspendSitter、unsuspendSitter、updateSitterOpenStatus、getSitterOpenStatus）
-  - [x] 新增 `frontend/src/pages/sitter/SitterKycSubmit.tsx`：5 狀態分支 UI（UNVERIFIED/PENDING_REVIEW/VERIFIED/REJECTED/SUSPENDED）、檔案上傳表單含 5MB 前端驗證、Idempotency-Key
-  - [x] 新增 `frontend/src/pages/admin/AdminKycList.tsx`：待審清單（分頁）+ 停權/解停工具欄
-  - [x] 新增 `frontend/src/pages/admin/AdminKycDetail.tsx`：申請者資料 + Promise.all 並行取 Signed URL 媒體預覽 + Approve/Reject 決策（含駁回原因輸入）
-  - [x] 更新 `App.tsx`：新增 `sitter-kyc`、`admin-kyc-list`、`admin-kyc-detail` ViewState，補 `kycRecordId` params，新增 Demo 首頁快速跳轉按鈕
+### 📅 SD-013: 多媒體生命週期與保留策略
+- [ ] **1. 欄位變更與快照更新 (Schema & DB)**
+  - [ ] 撰寫 Flyway SQL 遷移，於 `service_report_media` 新增 `is_purged` 與 `purged_at` 欄位，在 `orders` 新增 `media_expiry_warned`
+- [ ] **2. 批次清理與通知排程 (Backend Scheduling)**
+  - [ ] 於 `InternalCronController.java` 新增 `/api/internal/cron/media/cleanup` 與 `/api/internal/cron/media/expiry-warning` 兩個 API 端點
+  - [ ] 實作 `MediaRetentionServiceImpl.java` 中的 `cleanupExpiredMedia()` 方法，呼叫 `mediaStorageService.deleteMedia(url)` 執行實體刪除，並由 `MediaPurgeBatchDeleter` 以分批 (LIMIT 500) `REQUIRES_NEW` 獨立 Commit 標記 DB 刪除
+  - [ ] 實作保母升級方案時的 `upgradeSitterMediaRetention` 追溯展延邏輯，覆寫快照保留天數，並調用 `auditLogService.writeUserActionLog` (5 參數) 記錄審計日誌
+  - [ ] 實作過期前 3 天的自動通知排程任務，引入 `MediaExpiryWarningBatchProcessor` 獨立 Bean 處理單筆 `REQUIRES_NEW` 事務（避免單筆失敗阻塞），利用 `ApplicationEventPublisher` 發布事件，在 `AFTER_COMMIT` 由 `NotificationListener` 寫入通知（分類為 `SERVICE_RECORD`）
 
-- [x] **SD-014: 訊息中心與推播通知實作** (✅ **COMPLIANT**)
-  - [x] **資料模型與防禦**：建立 Flyway SQL 遷移 `V20260614_01__create_notifications_and_preferences.sql`。在 DB 層設計 CHECK 約束，確保 `ACCOUNT_AUTH` 偏好在資料庫層級永遠無法被設定為 false。
-  - [x] **後端安全與業務**：實作 IDOR Ownership 驗證防禦，越權或無紀錄皆回傳 404 MSG_DATA_F11。修正無效與鎖定偏好更新錯誤碼為 `MSG_DATA_INVALID_INPUT`。
-  - [x] **物理清理與 REQUIRES_NEW**：拆分 `NotificationCleanupService` 與 `NotificationBatchDeleter`，避免 Spring AOP 自我呼叫 Proxy 失效，以 LIMIT 1000 獨立 Commit 釋放行級鎖。
-  - [x] **前端 API 與 React Hooks 串接**：新增 `notificationApi.ts` 與 `useNotifications.ts`（對未讀計數套用 30 秒快取與 60 秒背景自動暫停 Polling，防範 Cloud Run 縮容計費陷阱）。
-  - [x] **前端 UI 與元件串接**：
-    - [x] 實作 `AppHeader.tsx`（包含小鈴鐺 icon、未讀計數 Badge、前 10 筆 Dropdown，以及保母 KYC 認證警告置頂 Banner）。
-    - [x] 實作 `NotificationsPage.tsx`（分頁載入、一鍵已讀、業務路由導向）。
-    - [x] 實作 `PreferencesPage.tsx`（iOS風格 Toggle，`ACCOUNT_AUTH` 強制鎖定 disabled 與警語說明）。
-  - [x] **相容性修復與測試**：將 `App.tsx` 中的返回按鈕調降至 `top: 120px` 避開 KYC Banner 與 Header 的指標攔截，補齊 DB CHECK constraint 測試，Playwright E2E 測試與 Maven 後端測試 100% 綠燈通過。
+- [ ] **3. 逾期 UI 與警告倒數 (Frontend UX)**
+  - [ ] 在 `ReportMediaDto` 新增 `isPurged` 欄位，並在 `VisitServiceReportDto` 擴充 `mediaRetentionDays`、`completedAt`、`expiryTime`、`isPurged`
+  - [ ] 前端實作當 `media.isPurged == true` 時顯示單個媒體灰色佔位盒（「照片已逾期移除 🐾」）
+  - [ ] 實作結案訂單媒體剩餘天數倒數 UI（剩餘 <= 3 天時顯示黃色警告橫幅），且當 `report.isPurged` 為 true 時頂端顯示部分照片已逾期移除橫幅
 
-- [x] **SD-018: 保母公開檔案與標籤管理實作** (✅ **COMPLIANT**)
-  - [x] **資料庫與遷移**：新增 Flyway SQL 遷移 `V20260618_01__add_sitter_profile_fields.sql`，建立 profiles 欄位擴充、sitter_tags、sitter_service_areas 與 forbidden_keywords 表。
-  - [x] **後端合規性修復**：
-    - [x] **優化事務邊界**：移除 `uploadAvatar` 方法的 `@Transactional`，將 GCS 網路 I/O 上傳移至事務外，僅在 `txSaveAvatar` 內使用 `@Transactional` 處理 DB 寫入，避免長鎖連接問題。
-    - [x] **修正字數限制**：單個標籤字數限制由 20 字改為 10 字 (對齊 DTO 驗證、Service 長度檢查與前端欄位卡控)。
-    - [x] **解決 TOCTOU 競爭條件**：在 `addForbiddenKeyword` 移除 `existsByKeyword` 檢查，改為 try-catch 捕獲 `DataIntegrityViolationException` 並呼叫 `flush()`，轉譯為 409 `MSG_DATA_CONCURRENCY_CONFLICT` 衝突。
-    - [x] **樂觀鎖錯誤碼一致性**：修正 `GlobalExceptionHandler.java` 當中的樂觀鎖 fallback 錯誤碼為 `MSG_DATA_CONCURRENCY_CONFLICT`。
-  - [x] **前端與相容性修復**：
-    - [x] **補齊 DTO 欄位**：在 `PublicProfileResponse` 與 `publicProfileApi.ts` 補齊 `isVisible` 屬性。
-    - [x] **對齊 DTO 封裝**：後端服務在非 gated 分支設定了 `.isVisible(profile.isVisible())`。
-    - [x] **安全 Toggle 初始化**：在 `SitterProfileSettings.tsx` 中使用 `profile.isVisible ?? true` 安全初始化 Toggle 狀態。
-    - [x] **防禦 E2E 測試狀態污染**：在 `sitter-profile.spec.ts` 中，對 Toggle 使用 `isChecked` 狀態判斷，確保第一步與第五步的開關狀態是確定性的，解決由於本地資料庫持久化引起的測試狀態污染。
-  - [x] **測試與文檔對齊**：
-    - [x] **後端整合測試**：`SitterPublicProfileControllerTest.java` 7 個測試場景全覆蓋（含敏感詞攔截、KYC 停權連動、黑名單模糊防禦），100% 通過。
-    - [x] **E2E 測試驗證**：前端 Playwright 測試 `sitter-profile.spec.ts` 綠燈通過。
-    - [x] **同步 testid 規格至文檔**：更新 `SD-018-public-profile-management.md` Section 6.1 中的 5 個 testid，使其與程式碼完全一致。
+- [ ] **4. 邏輯覆蓋測試 (Verification)**
+  - [ ] 撰寫 `MediaCleanupTest.java` 整合測試，驗證清理排程、升級展延追溯與降級合約保護隔離
 
-- [x] **Admin Subscription API — 訂閱方案人工覆寫** (✅ **Implemented**)
-  - [x] **後端**：新增 `AdminSubscriptionController.java`，提供 `GET /api/admin/subscriptions/{sitterId}` 查詢與 `POST /api/admin/subscriptions/{sitterId}` upsert 覆寫，受 `@PreAuthorize("hasRole('ADMIN')")` 保護。Upsert 邏輯：有既有訂閱則更新 planTier/expiredAt，無則新建；`monthlyOrderCount` 保持不動。寫入 `ADMIN_SUBSCRIPTION_SET` 審計日誌 (REQUIRES_NEW)。
-  - [x] **前端**：新增 `AdminSubscriptionPage.tsx`，兩段式 UI：先輸入保母 UUID 查詢當前方案（顯示 planTier / expiredAt / monthlyOrderCount），確認後選擇新方案等級、可選到期日、可選異動原因，提交後顯示成功/失敗訊息。
-  - [x] **App.tsx**：新增 `'admin-subscription'` ViewState、renderView case、Demo 首頁按鈕。
-  - [x] **文檔**：`00-SD-PLAN.md` Close Beta 清單更新為全部 ✅ 完成。
+---
+
+## 🏆 已完成里程碑 (Close Beta - Phase 1~3)
+- [x] **SD-008: 服務執行與 Check-in** (✅ **Implemented**)
+- [x] **SD-017: 保母實名認證 (KYC)** (✅ **Implemented**)
+- [x] **SD-014: 訊息中心與推播通知** (✅ **Implemented**)
+- [x] **SD-018: 保母公開檔案與標籤管理** (✅ **Implemented**)
+- [x] **Admin Subscription API 手動開通** (✅ **Implemented**)

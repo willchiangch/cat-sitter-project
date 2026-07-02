@@ -150,10 +150,16 @@ stateDiagram-v2
 - [x] **Internal Admin Subscription API** (✅ **Implemented**)
   - 實作 `GET /api/admin/subscriptions/{sitterId}` 查詢 + `POST /api/admin/subscriptions/{sitterId}` 覆寫，受 `hasRole('ADMIN')` 保護，寫入 `ADMIN_SUBSCRIPTION_SET` 審計日誌。無需獨立 SD 文件。
 
-### [延後至 Open Beta / 正式上線] The Shell
-- **SD-015 (金流串接)**：線上支付整合，等 Close Beta 驗證核心流程後再接。
-- **SD-012 (SaaS 訂閱管理 UI)**：付費升級流程，依賴 SD-015。
-- **SD-014 (通知中心)**：基礎通知不阻塞核心流程，延後實作。
+### [第四階段] Open Beta 實作 (商用擴展進行中)
+- [ ] **SD-015: 線上支付與金流整合** (🟡 **Designing**)
+  - 對應 PRD：`PRD-015-payment-integration.md`
+  - 任務：串接第三方金流、Webhooks 簽章驗證、代收代付撥款紀錄（T+3）與高精度整數運算。
+- [ ] **SD-012: SaaS 訂閱管理與 UI** (🔴 **Pending SD-015**)
+- [x] **SD-013: 工作日誌媒體生命週期管理** (✅ **SD Designed**)
+  - 對應 PRD：`PRD-013-media-retention.md`
+  - 任務：設計 GCS 批次物理刪除排程、SaaS 方案升級追溯展延演算法、以及前端逾期佔位盒。
+
+
 
 ---
 
