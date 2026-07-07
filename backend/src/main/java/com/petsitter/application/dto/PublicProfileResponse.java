@@ -1,5 +1,6 @@
 package com.petsitter.application.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.util.List;
@@ -18,6 +19,7 @@ public class PublicProfileResponse {
     private String bio;
     private List<String> tags;
     private List<ServiceAreaDto> serviceAreas;
+    @JsonProperty("isOpen")
     private boolean isOpen;
     private String kycStatus;
     private int trustScore;
