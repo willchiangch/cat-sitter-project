@@ -1,23 +1,25 @@
 spring:
   datasource:
-    # Cloud SQL Socket Factory 格式
-    url: jdbc:postgresql:///petsitter_db?cloudSqlInstance=wd-pet-sitter:asia-east1:cat-sitter-db&socketFactory=com.google.cloud.sql.postgres.SocketFactory
-    username: ${SPRING_DATASOURCE_USERNAME}
+    # Supabase Transaction Pooler (Supavisor, port 6543)：Cloud Run 多實例 serverless 用這條，
+    # 但 pgbouncer transaction mode 不支援 server-side prepared statement，務必加 prepareThreshold=0
+    url: jdbc:postgresql://${SUPABASE_POOLER_HOST}:6543/postgres?prepareThreshold=0&sslmode=require
+    username: ${SPRING_DATASOURCE_USERNAME}   # 格式為 postgres.<project-ref>
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
-      maximum-pool-size: 2
+      maximum-pool-size: 3
   jpa:
     hibernate:
       ddl-auto: none
   flyway:
     enabled: true
     baseline-on-migrate: false  # prod 是全新 DB，不需要 baseline
+    # Flyway 的 schema history advisory lock 在 transaction pooler 下會出問題，
+    # 所以 migration 走 Session Pooler (port 5432)，跟平常查詢的連線分開
+    url: jdbc:postgresql://${SUPABASE_POOLER_HOST}:5432/postgres?sslmode=require
+    user: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 
 app:
   security:
     jwt-secret: ${APP_SECURITY_JWT_SECRET}
     jwt-expiration: 86400000
-
-logging:
-  level:
-    com.google.cloud.sql: DEBUG

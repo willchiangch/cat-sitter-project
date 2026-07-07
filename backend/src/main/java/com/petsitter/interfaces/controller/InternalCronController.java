@@ -19,6 +19,7 @@ public class InternalCronController {
 
     private final CompletionService completionService;
     private final NotificationCleanupService notificationCleanupService;
+    private final com.petsitter.application.service.MediaRetentionService mediaRetentionService;
 
     /**
      * 外部排程器觸發自動結案
@@ -43,4 +44,33 @@ public class InternalCronController {
                 "deletedCount", deletedCount
         ));
     }
+
+    /**
+     * 外部排程器觸發物理清理過期日誌多媒體檔案 (SD-013)
+     */
+    @PostMapping("/media/cleanup")
+    public ResponseEntity<Map<String, Object>> triggerMediaCleanup() {
+        log.info("[InternalCronController] Received media cleanup trigger");
+        int deletedCount = mediaRetentionService.cleanupExpiredMedia();
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Media cleanup task completed",
+                "deletedCount", deletedCount
+        ));
+    }
+
+    /**
+     * 外部排程器觸發發送多媒體到期前 3 天的提醒通知 (SD-013)
+     */
+    @PostMapping("/media/expiry-warning")
+    public ResponseEntity<Map<String, Object>> triggerMediaExpiryWarning() {
+        log.info("[InternalCronController] Received media expiry warning trigger");
+        int warnedCount = mediaRetentionService.sendExpiryWarnings();
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "Media expiry warning task completed",
+                "warnedCount", warnedCount
+        ));
+    }
 }
+

@@ -29,4 +29,23 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByOwnerIdAndStatusNotIn(UUID ownerId, List<String> statuses);
 
     boolean existsByPaymentIdempotencyKey(String paymentIdempotencyKey);
+
+    @Query(value = """
+        SELECT o.* FROM orders o
+        JOIN order_snapshots os ON os.order_id = o.id
+        WHERE o.status = 'COMPLETED'
+          AND o.media_expiry_warned = false
+          AND os.media_retention_days != -1
+          AND o.completed_at + ((os.media_retention_days - 3) || ' day')::interval <= :now
+          AND EXISTS (
+              SELECT 1 FROM service_report_media srm2
+              JOIN visit_service_reports sr2 ON srm2.report_id = sr2.id
+              JOIN visits v2 ON sr2.visit_id = v2.id
+              WHERE v2.order_id = o.id 
+                AND srm2.is_purged = false 
+                AND srm2.is_deleted = false
+          )
+        """, nativeQuery = true)
+    List<Order> findOrdersPendingMediaExpiryWarning(@Param("now") OffsetDateTime now);
+
 }

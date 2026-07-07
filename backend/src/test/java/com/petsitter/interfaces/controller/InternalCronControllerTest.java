@@ -82,4 +82,41 @@ class InternalCronControllerTest {
                 .header("X-Internal-Secret", "wrong-secret"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("Media cleanup: 帶正確 Secret 應回傳 200")
+    void should_Return200_When_CorrectSecretHeader_MediaCleanup() throws Exception {
+        mockMvc.perform(post("/api/internal/cron/media/cleanup")
+                .header("X-Internal-Secret", "local-secret-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.deletedCount").exists());
+    }
+
+    @Test
+    @DisplayName("Media cleanup: 帶錯誤 Secret 應回傳 401")
+    void should_Return401_When_WrongSecretHeader_MediaCleanup() throws Exception {
+        mockMvc.perform(post("/api/internal/cron/media/cleanup")
+                .header("X-Internal-Secret", "wrong-secret"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Media expiry warning: 帶正確 Secret 應回傳 200")
+    void should_Return200_When_CorrectSecretHeader_MediaExpiryWarning() throws Exception {
+        mockMvc.perform(post("/api/internal/cron/media/expiry-warning")
+                .header("X-Internal-Secret", "local-secret-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.warnedCount").exists());
+    }
+
+    @Test
+    @DisplayName("Media expiry warning: 帶錯誤 Secret 應回傳 401")
+    void should_Return401_When_WrongSecretHeader_MediaExpiryWarning() throws Exception {
+        mockMvc.perform(post("/api/internal/cron/media/expiry-warning")
+                .header("X-Internal-Secret", "wrong-secret"))
+                .andExpect(status().isUnauthorized());
+    }
 }
+

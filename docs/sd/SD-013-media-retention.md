@@ -5,7 +5,7 @@
 | 對應需求 | PRD-013 |
 | 負責 SD | AI (Antigravity) |
 | 建立日期 | 2026-06-30 |
-| 狀態 | Draft |
+| 狀態 | COMPLIANT |
 | DB 表 | `service_report_media`, `order_snapshots`, `orders` |
 | 相依共用設計 | [SD-009 訂單自動結案](SD-009-order-completion.md), [SD-014 通知中心](SD-014-notification-center.md) |
 

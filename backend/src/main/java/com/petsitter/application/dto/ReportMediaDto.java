@@ -17,4 +17,7 @@ public class ReportMediaDto {
     private String mediaType;
     private String caption;
     private Integer version;
+    @com.fasterxml.jackson.annotation.JsonProperty("isPurged")
+    private boolean isPurged;
 }
+

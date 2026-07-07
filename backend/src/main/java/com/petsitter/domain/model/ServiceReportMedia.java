@@ -26,4 +26,12 @@ public class ServiceReportMedia extends BaseEntity {
 
     @Column(length = 100)
     private String caption;
+
+    @Builder.Default
+    @Column(name = "is_purged", nullable = false)
+    private boolean isPurged = false;
+
+    @Column(name = "purged_at")
+    private java.time.OffsetDateTime purgedAt;
+
 }

@@ -57,6 +57,47 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
   const isEditable = (report?.isEditable ?? true) && report?.visitStatus === 'IN_PROGRESS';
   const isSubmitted = report?.status === 'SUBMITTED';
 
+  const renderExpiryBanner = () => {
+    if (!report || !report.expiryTime) return null;
+    const expiry = new Date(report.expiryTime).getTime();
+    const now = Date.now();
+    const remainingDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+    if (remainingDays <= 3 && remainingDays > 0) {
+      return (
+        <div style={{
+          padding: '1rem',
+          borderRadius: '12px',
+          backgroundColor: '#fef3c7',
+          color: '#d97706',
+          marginBottom: '1.5rem',
+          fontSize: '0.875rem',
+          fontWeight: '500'
+        }}>
+          ⚠️ 此報告的照片將於 {remainingDays} 天後自動移除，請儘快備份。
+        </div>
+      );
+    }
+    
+    if (report.isPurged) {
+      return (
+        <div style={{
+          padding: '1rem',
+          borderRadius: '12px',
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '1.5rem',
+          fontSize: '0.875rem',
+          fontWeight: '500',
+          border: '1px solid rgba(255, 255, 255, 0.05)'
+        }}>
+          🐾 此報告的部分照片已逾期移除。
+        </div>
+      );
+    }
+    return null;
+  };
+
   const getBadgeStyleAndText = () => {
     const visitStatus = report?.visitStatus || 'PENDING';
     if (visitStatus === 'PENDING') {
@@ -336,6 +377,8 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
         </span>
       </div>
 
+      {renderExpiryBanner()}
+
       {/* 錯誤與成功訊息 */}
       {uploadError && (
         <div
@@ -529,74 +572,99 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
                   marginBottom: '1.5rem'
                 }}
               >
-                {report.media.map((item) => (
-                  <div
-                    key={item.mediaId}
-                    style={{
-                      position: 'relative',
-                      borderRadius: '16px',
-                      overflow: 'hidden',
-                      aspectRatio: '1',
-                      border: '1px solid rgba(255, 255, 255, 0.05)'
-                    }}
-                  >
-                    {item.mediaType === 'VIDEO' ? (
-                      <video
-                        src={item.mediaUrl}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        muted
-                      />
-                    ) : (
-                      <img
-                        src={item.mediaUrl}
-                        alt={item.caption}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    )}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
-                        padding: '0.5rem',
-                        color: '#fff',
-                        fontSize: '0.75rem',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      {item.caption || (item.mediaType === 'VIDEO' ? '🎥 影片' : '📷 照片')}
-                    </div>
-                    {isEditable && (
-                      <button
-                        data-testid={`sitter-report-media-delete-${item.mediaId}`}
-                        onClick={() => handleDeleteMedia(item.mediaId, item.version)}
+                {report.media.map((item) => {
+                  if (item.isPurged) {
+                    return (
+                      <div
+                        key={item.mediaId}
                         style={{
-                          position: 'absolute',
-                          top: '0.5rem',
-                          right: '0.5rem',
-                          backgroundColor: 'rgba(239, 68, 68, 0.9)',
-                          border: 'none',
-                          borderRadius: '50%',
-                          width: '24px',
-                          height: '24px',
-                          color: 'white',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
+                          borderRadius: '16px',
+                          aspectRatio: '1',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
                           display: 'flex',
+                          flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontSize: '0.75rem'
+                          color: 'var(--color-on-surface-variant)',
+                          fontSize: '0.85rem'
+                        }}
+                        data-testid="purged-media-placeholder"
+                      >
+                        <span style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🐾</span>
+                        <span>檔案已逾期移除</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      key={item.mediaId}
+                      style={{
+                        position: 'relative',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        aspectRatio: '1',
+                        border: '1px solid rgba(255, 255, 255, 0.05)'
+                      }}
+                    >
+                      {item.mediaType === 'VIDEO' ? (
+                        <video
+                          src={item.mediaUrl}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          muted
+                        />
+                      ) : (
+                        <img
+                          src={item.mediaUrl}
+                          alt={item.caption}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      )}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+                          padding: '0.5rem',
+                          color: '#fff',
+                          fontSize: '0.75rem',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden'
                         }}
                       >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        {item.caption || (item.mediaType === 'VIDEO' ? '🎥 影片' : '📷 照片')}
+                      </div>
+                      {isEditable && (
+                        <button
+                          data-testid={`sitter-report-media-delete-${item.mediaId}`}
+                          onClick={() => handleDeleteMedia(item.mediaId, item.version)}
+                          style={{
+                            position: 'absolute',
+                            top: '0.5rem',
+                            right: '0.5rem',
+                            backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '24px',
+                            height: '24px',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p

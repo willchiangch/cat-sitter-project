@@ -147,4 +147,24 @@ public class NotificationListener {
                 "SITTER"
         );
     }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onMediaExpiryWarning(com.petsitter.domain.event.MediaExpiryWarningEvent event) {
+        log.info("Async notification - Media Expiry Warning. Order: {}, Owner: {}", event.getOrderId(), event.getOwnerId());
+        
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        String dateStr = event.getExpiryTime().format(formatter);
+        String content = "您的服務報告內含照片/影片將於 " + dateStr + " 自動移除，請儘速下載備份。";
+
+        notificationService.createNotification(
+                event.getOwnerId(),
+                "照護影像即將過期提醒",
+                content,
+                "SERVICE_RECORD",
+                "/visits/report?orderId=" + event.getOrderId(),
+                "OWNER"
+        );
+    }
 }
+

@@ -422,10 +422,26 @@ public class VisitReportService {
                         .mediaType(m.getMediaType())
                         .caption(m.getCaption())
                         .version(m.getVersion())
+                        .isPurged(m.isPurged())
                         .build())
                 .collect(Collectors.toList());
 
         boolean isEditable = "DRAFT".equals(report.getStatus()) && !isExpired(report, visit);
+        boolean isPurged = mediaList.stream().anyMatch(ServiceReportMedia::isPurged);
+
+        Order order = visit.getOrder();
+        java.util.Optional<OrderSnapshot> optSnapshot = orderSnapshotRepository.findByOrderId(order.getId());
+        Integer mediaRetentionDays = null;
+        OffsetDateTime completedAt = order.getCompletedAt();
+        OffsetDateTime expiryTime = null;
+
+        if (optSnapshot.isPresent()) {
+            OrderSnapshot snapshot = optSnapshot.get();
+            mediaRetentionDays = snapshot.getMediaRetentionDays();
+            if (completedAt != null && mediaRetentionDays != -1) {
+                expiryTime = completedAt.plusDays(mediaRetentionDays);
+            }
+        }
 
         return VisitServiceReportDto.builder()
                 .reportId(report.getId())
@@ -437,7 +453,12 @@ public class VisitReportService {
                 .isEditable(isEditable)
                 .version(report.getVersion())
                 .visitStatus(visit.getStatus())
+                .mediaRetentionDays(mediaRetentionDays)
+                .completedAt(completedAt)
+                .expiryTime(expiryTime)
+                .isPurged(isPurged)
                 .build();
+
     }
     @Transactional
     public Map<String, String> startVisit(UUID visitId, UUID sitterId, String idempotencyKey) {

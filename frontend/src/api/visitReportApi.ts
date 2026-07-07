@@ -6,6 +6,7 @@ export interface ReportMedia {
   mediaType: 'IMAGE' | 'VIDEO';
   caption: string;
   version: number;
+  isPurged: boolean;
 }
 
 export interface VisitServiceReportDto {
@@ -18,6 +19,10 @@ export interface VisitServiceReportDto {
   isEditable: boolean;
   version: number;
   visitStatus: 'PENDING' | 'IN_PROGRESS' | 'DONE' | 'CLOSED_BY_SYSTEM';
+  mediaRetentionDays?: number;
+  completedAt?: string;
+  expiryTime?: string;
+  isPurged: boolean;
 }
 
 export const getReport = async (visitId: string): Promise<VisitServiceReportDto> => {

@@ -14,7 +14,6 @@ env:
   REGION: 'asia-east1'
   AR_REPO: 'cat-sitter-repo'
   IMAGE_NAME: 'cat-sitter-app'
-  DB_INSTANCE: 'cat-sitter-db'
   SERVICE_NAME: 'cat-sitter-app'
   RUNNER_SA: 'cat-sitter-runner@wd-pet-sitter.iam.gserviceaccount.com'
 
@@ -41,57 +40,7 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 3. 喚醒 Cloud SQL Database
-      - name: Start Cloud SQL Database
-        run: |
-          echo "Checking for any running database operations..."
-          for i in {1..30}; do
-            RUNNING_OP=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name,status)" | grep -E "RUNNING|PENDING" | awk '{print $1}')
-            if [ -z "$RUNNING_OP" ]; then
-              echo "No active operations. Safe to start."
-              break
-            fi
-            echo "Operation $RUNNING_OP is still running/pending. Waiting 10s..."
-            sleep 10
-          done
-
-          # 檢查當前資料庫是否已經是開機狀態 (ALWAYS)
-          POLICY=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(settings.activationPolicy)")
-          STATE=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
-          if [ "$POLICY" = "ALWAYS" ] && [ "$STATE" = "RUNNABLE" ]; then
-            echo "Database is already running and ready."
-          else
-            echo "Starting ${{ env.DB_INSTANCE }} database..."
-            gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=ALWAYS --async
-
-            sleep 5
-            # 取得剛剛觸發的 operation ID
-            OP_ID=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name)")
-            echo "Triggered operation ID: $OP_ID"
-
-            echo "Waiting for database operation to complete (up to 10 min)..."
-            gcloud sql operations wait "$OP_ID" --timeout=600
-          fi
-
-          # 確保資料庫狀態為 RUNNABLE (db-f1-micro 在 operation DONE 後仍需 MAINTENANCE 過渡期)
-          echo "Verifying database state..."
-          for i in {1..30}; do
-            STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
-            echo "Database state: $STATUS"
-            if [ "$STATUS" = "RUNNABLE" ]; then
-              break
-            fi
-            sleep 15
-          done
-
-          STATUS=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(state)")
-          if [ "$STATUS" != "RUNNABLE" ]; then
-            echo "Error: Database is not in RUNNABLE state."
-            exit 1
-          fi
-          echo "Database is fully ready and accepting connections!"
-
-      # 4. 建置前端並移動至後端靜態目錄
+      # 3. 建置前端並移動至後端靜態目錄
       - name: Set up Node.js and Build Frontend
         uses: actions/setup-node@v4
         with:
@@ -108,12 +57,12 @@ jobs:
           mkdir -p ../backend/src/main/resources/static
           cp -r dist/* ../backend/src/main/resources/static/
 
-      # 5. 配置 Docker 認證登入 GCP Artifact Registry
+      # 4. 配置 Docker 認證登入 GCP Artifact Registry
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 6. Build and Push Backend Docker Image (內嵌前端靜態資源)
+      # 5. Build and Push Backend Docker Image (內嵌前端靜態資源)
       - name: Build and Push Docker Image
         run: |
           cd backend
@@ -122,7 +71,7 @@ jobs:
           docker push $IMAGE_TAG
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      # 7. 部署至 GCP Cloud Run
+      # 6. 部署至 GCP Cloud Run
       - name: Deploy to Cloud Run
         id: deploy-run
         run: |
@@ -130,11 +79,10 @@ jobs:
             --image=${{ env.IMAGE_TAG }} \
             --region=${{ env.REGION }} \
             --service-account=${{ env.RUNNER_SA }} \
-            --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:${{ env.DB_INSTANCE }} \
             --memory=1Gi \
             --cpu=1 \
             --cpu-boost \
-            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SPRING_DATASOURCE_USERNAME=petsitter_user \
+            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }},SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }} \
             --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest \
             --allow-unauthenticated \
             --quiet
@@ -143,7 +91,7 @@ jobs:
           RUN_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format="value(status.url)")
           echo "BASE_URL=$RUN_URL" >> $GITHUB_ENV
 
-      # 8. 執行 Playwright E2E 測試
+      # 7. 執行 Playwright E2E 測試
       - name: Install Playwright Browsers and Run Tests
         run: |
           cd frontend
@@ -152,7 +100,7 @@ jobs:
           # 使用 Cloud Run 部署 URL 作為測試目標，並略過啟動本地 webServer
           BASE_URL=${{ env.BASE_URL }} npx playwright test
 
-      # 9. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
+      # 8. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
       - name: Upload Playwright Report
         if: always()
         uses: actions/upload-artifact@v4
@@ -160,27 +108,3 @@ jobs:
           name: playwright-report
           path: frontend/report/
           retention-days: 3
-
-      # 10. 關閉 Cloud SQL Database (安全防護：無論前述步驟成功或失敗皆必定執行)
-      - name: Stop Cloud SQL Database
-        if: false # 密集開發與聯調期暫停自動關機，由開發者確認部署後手動關閉
-        run: |
-          echo "Checking for any running database operations before shutting down..."
-          for i in {1..30}; do
-            RUNNING_OP=$(gcloud sql operations list --instance=${{ env.DB_INSTANCE }} --limit=1 --format="value(name,status)" | grep -E "RUNNING|PENDING" | awk '{print $1}')
-            if [ -z "$RUNNING_OP" ]; then
-              echo "No active operations. Safe to stop."
-              break
-            fi
-            echo "Operation $RUNNING_OP is still running/pending. Waiting 10s..."
-            sleep 10
-          done
-
-          # 檢查當前資料庫是否已經是關機狀態 (NEVER)
-          POLICY=$(gcloud sql instances describe ${{ env.DB_INSTANCE }} --format="value(settings.activationPolicy)")
-          if [ "$POLICY" = "NEVER" ]; then
-            echo "Database is already configured to NEVER run."
-          else
-            echo "Shutting down ${{ env.DB_INSTANCE }} to minimize costs..."
-            gcloud sql instances patch ${{ env.DB_INSTANCE }} --activation-policy=NEVER --async
-          fi

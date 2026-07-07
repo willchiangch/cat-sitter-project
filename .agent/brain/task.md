@@ -26,21 +26,21 @@
   - [ ] 撰寫 Playwright E2E 測試，打通「支付 -> 服務 -> 結案 -> 撥款產生」全流程
 
 ### 📅 SD-013: 多媒體生命週期與保留策略
-- [ ] **1. 欄位變更與快照更新 (Schema & DB)**
-  - [ ] 撰寫 Flyway SQL 遷移，於 `service_report_media` 新增 `is_purged` 與 `purged_at` 欄位，在 `orders` 新增 `media_expiry_warned`
-- [ ] **2. 批次清理與通知排程 (Backend Scheduling)**
-  - [ ] 於 `InternalCronController.java` 新增 `/api/internal/cron/media/cleanup` 與 `/api/internal/cron/media/expiry-warning` 兩個 API 端點
-  - [ ] 實作 `MediaRetentionServiceImpl.java` 中的 `cleanupExpiredMedia()` 方法，呼叫 `mediaStorageService.deleteMedia(url)` 執行實體刪除，並由 `MediaPurgeBatchDeleter` 以分批 (LIMIT 500) `REQUIRES_NEW` 獨立 Commit 標記 DB 刪除
-  - [ ] 實作保母升級方案時的 `upgradeSitterMediaRetention` 追溯展延邏輯，覆寫快照保留天數，並調用 `auditLogService.writeUserActionLog` (5 參數) 記錄審計日誌
-  - [ ] 實作過期前 3 天的自動通知排程任務，引入 `MediaExpiryWarningBatchProcessor` 獨立 Bean 處理單筆 `REQUIRES_NEW` 事務（避免單筆失敗阻塞），利用 `ApplicationEventPublisher` 發布事件，在 `AFTER_COMMIT` 由 `NotificationListener` 寫入通知（分類為 `SERVICE_RECORD`）
+- [x] **1. 欄位變更與快照更新 (Schema & DB)**
+  - [x] 撰寫 Flyway SQL 遷移，於 `service_report_media` 新增 `is_purged` 與 `purged_at` 欄位，在 `orders` 新增 `media_expiry_warned`
+- [x] **2. 批次清理與通知排程 (Backend Scheduling)**
+  - [x] 於 `InternalCronController.java` 新增 `/api/internal/cron/media/cleanup` 與 `/api/internal/cron/media/expiry-warning` 兩個 API 端點
+  - [x] 實作 `MediaRetentionServiceImpl.java` 中的 `cleanupExpiredMedia()` 方法，呼叫 `mediaStorageService.deleteMedia(url)` 執行實體刪除，並由 `MediaPurgeBatchDeleter` 以分批 (LIMIT 500) `REQUIRES_NEW` 獨立 Commit 標記 DB 刪除
+  - [x] 實作保母升級方案時的 `upgradeSitterMediaRetention` 追溯展延邏輯，覆寫快照保留天數，並調用 `auditLogService.writeUserActionLog` (5 參數) 記錄審計日誌
+  - [x] 實作過期前 3 天的自動通知排程任務，引入 `MediaExpiryWarningBatchProcessor` 獨立 Bean 處理單筆 `REQUIRES_NEW` 事務（避免單筆失敗阻塞），利用 `ApplicationEventPublisher` 發布事件，在 `AFTER_COMMIT` 由 `NotificationListener` 寫入通知（分類為 `SERVICE_RECORD`）
 
-- [ ] **3. 逾期 UI 與警告倒數 (Frontend UX)**
-  - [ ] 在 `ReportMediaDto` 新增 `isPurged` 欄位，並在 `VisitServiceReportDto` 擴充 `mediaRetentionDays`、`completedAt`、`expiryTime`、`isPurged`
-  - [ ] 前端實作當 `media.isPurged == true` 時顯示單個媒體灰色佔位盒（「照片已逾期移除 🐾」）
-  - [ ] 實作結案訂單媒體剩餘天數倒數 UI（剩餘 <= 3 天時顯示黃色警告橫幅），且當 `report.isPurged` 為 true 時頂端顯示部分照片已逾期移除橫幅
+- [x] **3. 逾期 UI 與警告倒數 (Frontend UX)**
+  - [x] 在 `ReportMediaDto` 新增 `isPurged` 欄位，並在 `VisitServiceReportDto` 擴充 `mediaRetentionDays`、`completedAt`、`expiryTime`、`isPurged`
+  - [x] 前端實作當 `media.isPurged == true` 時顯示單個媒體灰色佔位盒（「照片已逾期移除 🐾」）
+  - [x] 實作結案訂單媒體剩餘天數倒數 UI（剩餘 <= 3 天時顯示黃色警告橫幅），且當 `report.isPurged` 為 true 時頂端顯示部分照片已逾期移除橫幅
 
-- [ ] **4. 邏輯覆蓋測試 (Verification)**
-  - [ ] 撰寫 `MediaCleanupTest.java` 整合測試，驗證清理排程、升級展延追溯與降級合約保護隔離
+- [x] **4. 邏輯覆蓋測試 (Verification)**
+  - [x] 撰寫 `MediaCleanupTest.java` (已在 `MediaRetentionServiceTest.java` 實作) 整合測試，驗證清理排程、升級展延追溯與降級合約保護隔離
 
 ---
 

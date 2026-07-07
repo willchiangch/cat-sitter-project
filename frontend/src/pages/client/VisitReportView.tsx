@@ -27,6 +27,47 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
   // 如果 report.reportId 為空，或是狀態不是 SUBMITTED，對飼主皆視為「尚未回報」
   const hasNoReport = !report || !report.reportId || report.status !== 'SUBMITTED';
 
+  const renderExpiryBanner = () => {
+    if (!report || report.status !== 'SUBMITTED' || !report.expiryTime) return null;
+    const expiry = new Date(report.expiryTime).getTime();
+    const now = Date.now();
+    const remainingDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+    if (remainingDays <= 3 && remainingDays > 0) {
+      return (
+        <div style={{
+          padding: '1rem',
+          borderRadius: '12px',
+          backgroundColor: '#fef3c7',
+          color: '#d97706',
+          marginBottom: '1.5rem',
+          fontSize: '0.875rem',
+          fontWeight: '500'
+        }}>
+          ⚠️ 此報告的照片將於 {remainingDays} 天後自動移除，請儘快備份。
+        </div>
+      );
+    }
+    
+    if (report.isPurged) {
+      return (
+        <div style={{
+          padding: '1rem',
+          borderRadius: '12px',
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '1.5rem',
+          fontSize: '0.875rem',
+          fontWeight: '500',
+          border: '1px solid rgba(255, 255, 255, 0.05)'
+        }}>
+          🐾 此報告的部分照片已逾期移除。
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (hasNoReport) {
     return (
       <div
@@ -117,6 +158,8 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
         </span>
       </div>
 
+      {renderExpiryBanner()}
+
       {/* 文字日誌 */}
       <div
         style={{
@@ -198,58 +241,83 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
               gap: '1rem'
             }}
           >
-            {report.media.map((item) => (
-              <div
-                key={item.mediaId}
-                style={{
-                  position: 'relative',
-                  borderRadius: '16px',
-                  overflow: 'hidden',
-                  aspectRatio: '1',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  cursor: item.mediaType === 'IMAGE' ? 'pointer' : 'default'
-                }}
-                onClick={() => {
-                  if (item.mediaType === 'IMAGE') {
-                    setSelectedImageUrl(item.mediaUrl);
-                    setSelectedImageCaption(item.caption || '現場照片');
-                  }
-                }}
-              >
-                {item.mediaType === 'VIDEO' ? (
-                  <video
-                    src={item.mediaUrl}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    controls
-                  />
-                ) : (
-                  <img
-                    src={item.mediaUrl}
-                    alt={item.caption}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                )}
-                {item.caption && (
+            {report.media.map((item) => {
+              if (item.isPurged) {
+                return (
                   <div
+                    key={item.mediaId}
                     style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
-                      padding: '0.5rem',
-                      color: '#fff',
-                      fontSize: '0.75rem',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden'
+                      borderRadius: '16px',
+                      aspectRatio: '1',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--color-on-surface-variant)',
+                      fontSize: '0.85rem'
                     }}
+                    data-testid="purged-media-placeholder"
                   >
-                    {item.caption}
+                    <span style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🐾</span>
+                    <span>檔案已逾期移除</span>
                   </div>
-                )}
-              </div>
-            ))}
+                );
+              }
+              return (
+                <div
+                  key={item.mediaId}
+                  style={{
+                    position: 'relative',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    aspectRatio: '1',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    cursor: item.mediaType === 'IMAGE' ? 'pointer' : 'default'
+                  }}
+                  onClick={() => {
+                    if (item.mediaType === 'IMAGE') {
+                      setSelectedImageUrl(item.mediaUrl);
+                      setSelectedImageCaption(item.caption || '現場照片');
+                    }
+                  }}
+                >
+                  {item.mediaType === 'VIDEO' ? (
+                    <video
+                      src={item.mediaUrl}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      controls
+                    />
+                  ) : (
+                    <img
+                      src={item.mediaUrl}
+                      alt={item.caption}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  )}
+                  {item.caption && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+                        padding: '0.5rem',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {item.caption}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p

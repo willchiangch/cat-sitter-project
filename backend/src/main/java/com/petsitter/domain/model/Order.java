@@ -83,4 +83,9 @@ public class Order extends BaseEntity {
 
     @Column(name = "payment_idempotency_key")
     private String paymentIdempotencyKey;
+
+    @Builder.Default
+    @Column(name = "media_expiry_warned", nullable = false)
+    private boolean mediaExpiryWarned = false;
 }
+

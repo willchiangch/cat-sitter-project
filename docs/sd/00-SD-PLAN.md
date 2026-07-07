@@ -155,7 +155,7 @@ stateDiagram-v2
   - 對應 PRD：`PRD-015-payment-integration.md`
   - 任務：串接第三方金流、Webhooks 簽章驗證、代收代付撥款紀錄（T+3）與高精度整數運算。
 - [ ] **SD-012: SaaS 訂閱管理與 UI** (🔴 **Pending SD-015**)
-- [x] **SD-013: 工作日誌媒體生命週期管理** (✅ **SD Designed**)
+- [x] **SD-013: 工作日誌媒體生命週期管理** (✅ **Implemented & COMPLIANT**)
   - 對應 PRD：`PRD-013-media-retention.md`
   - 任務：設計 GCS 批次物理刪除排程、SaaS 方案升級追溯展延演算法、以及前端逾期佔位盒。
 

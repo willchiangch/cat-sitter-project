@@ -24,4 +24,12 @@ public class VisitServiceReportDto {
     private boolean isEditable;
     private Integer version;
     private String visitStatus;
+
+    // --- 媒體保留過期屬性 (SD-013) ---
+    private Integer mediaRetentionDays;
+    private OffsetDateTime completedAt;
+    private OffsetDateTime expiryTime;
+    @com.fasterxml.jackson.annotation.JsonProperty("isPurged")
+    private boolean isPurged;
 }
+

@@ -1,6 +1,8 @@
 package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.service.AuditLogService;
+import com.petsitter.application.service.MediaRetentionService;
+
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.SubscriptionRepository;
@@ -30,6 +32,8 @@ public class AdminSubscriptionController {
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final MediaRetentionService mediaRetentionService;
+
 
     @GetMapping("/{sitterId}")
     public ResponseEntity<Map<String, Object>> getSubscription(@PathVariable UUID sitterId) {
@@ -91,8 +95,13 @@ public class AdminSubscriptionController {
         subscriptionRepository.save(sub);
 
         UUID adminId = TokenContext.getUserId();
+        
+        // 方案變更時追溯展延媒體保留期限 (SD-013)
+        mediaRetentionService.upgradeSitterMediaRetention(sitterId, adminId, planTier);
+
         auditLogService.writeUserActionLog(
                 "ADMIN_SUBSCRIPTION_SET", "UPDATE", adminId, sub.getId(), "subscriptions");
+
 
         Map<String, Object> res = new HashMap<>();
         res.put("sitterId", sitterId);
