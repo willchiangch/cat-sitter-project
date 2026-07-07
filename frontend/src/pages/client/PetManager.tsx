@@ -368,7 +368,7 @@ const PetManager: React.FC = () => {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '350px 1fr',
+          gridTemplateColumns: '1fr',
           gap: '2rem',
           alignItems: 'start'
         }}

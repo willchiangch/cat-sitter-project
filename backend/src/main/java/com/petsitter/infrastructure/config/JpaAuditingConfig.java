@@ -1,5 +1,6 @@
 package com.petsitter.infrastructure.config;
 
+import com.petsitter.infrastructure.security.TokenContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.auditing.DateTimeProvider;
@@ -22,13 +23,12 @@ public class JpaAuditingConfig {
     }
 }
 
-/**
- * 測試用的 AuditorAware
- */
 @Component
-class MockAuditorAware implements AuditorAware<UUID> {
+class RequestAuditorAware implements AuditorAware<UUID> {
     @Override
     public Optional<UUID> getCurrentAuditor() {
-        return Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000000"));
+        // 沒有登入者時回傳 empty，讓 @CreatedBy/@LastModifiedBy 保持原值（通常是 null），
+        // 避免用全零 dummy UUID 覆寫掉 service 層手動設定的值，導致外鍵約束違反
+        return TokenContext.tryGetUserId();
     }
 }
