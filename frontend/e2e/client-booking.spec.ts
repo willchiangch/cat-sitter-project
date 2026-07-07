@@ -162,13 +162,13 @@ test.describe('TS-005 飼主預約精靈流程', () => {
 
     await test.step('選擇方案與日期', async () => {
       // 現在預設會先看到選擇方案頁面
-      await expect(page.locator('h2')).toContainText('選擇服務方案');
-      
+      await expect(page.getByRole('heading', { name: '選擇服務方案' })).toBeVisible();
+
       // 點擊卡片選擇進階陪伴 (p2)
       await page.click('[data-testid="client-booking-plan-card-1"]');
 
       // 選擇方案後應進入排程配置
-      await expect(page.locator('h2')).toContainText('排程配置');
+      await expect(page.getByRole('heading', { name: '排程配置' })).toBeVisible();
       
       // 選擇兩天日期
       const helper = new CalendarHelper(page);
@@ -190,7 +190,7 @@ test.describe('TS-005 飼主預約精靈流程', () => {
     });
 
     await test.step('確認預約摘要', async () => {
-      await expect(page.locator('h2')).toContainText('預約摘要');
+      await expect(page.getByRole('heading', { name: '預約摘要' })).toBeVisible();
       // p2 (800) * 2 days * 2 times = 3200
       await expect(page.locator('[data-testid="client-booking-total"]')).toContainText('$ 3,200');
       const screenshot = await page.screenshot();
@@ -272,7 +272,7 @@ test.describe('TS-005 飼主預約精靈流程', () => {
     });
 
     await test.step('確認最終摘要金額', async () => {
-      await expect(page.locator('h2')).toContainText('預約摘要');
+      await expect(page.getByRole('heading', { name: '預約摘要' })).toBeVisible();
       await expect(page.locator('[data-testid="client-booking-total"]')).toContainText('$ 5,200');
       await testInfo.attach('2-15-最終確認', { body: await page.screenshot(), contentType: 'image/png' });
 
