@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -95,11 +96,11 @@ public class CareNoteController {
                     "data", Map.of("templateId", templateId)
             ));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "code", 400,
-                    "message", e.getMessage(),
-                    "data", null
-            ));
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 400);
+            response.put("message", e.getMessage());
+            response.put("data", null);
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
@@ -132,12 +133,12 @@ public class CareNoteController {
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
         
         careNoteService.deleteTemplate(sitterId, templateId);
-        
-        return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "刪除成功",
-                "data", null
-        ));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", 200);
+        response.put("message", "刪除成功");
+        response.put("data", null);
+        return ResponseEntity.ok(response);
     }
 
     // POST /api/care-notes/{sitterId}/{ownerId}/apply-template/{templateId}
@@ -155,11 +156,11 @@ public class CareNoteController {
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
         
         careNoteService.applyTemplate(sitterId, ownerId, templateId);
-        
-        return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "套用成功",
-                "data", null
-        ));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", 200);
+        response.put("message", "套用成功");
+        response.put("data", null);
+        return ResponseEntity.ok(response);
     }
 }

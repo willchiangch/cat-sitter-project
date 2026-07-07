@@ -13,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,11 +88,11 @@ public class CareMediaController {
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
         
         careMediaService.deleteMedia(sitterId, mediaId);
-        
-        return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "刪除成功",
-                "data", null
-        ));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", 200);
+        response.put("message", "刪除成功");
+        response.put("data", null);
+        return ResponseEntity.ok(response);
     }
 }

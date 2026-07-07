@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -79,11 +80,11 @@ public class PetController {
     public ResponseEntity<Map<String, Object>> deletePet(@PathVariable UUID petId) {
         UUID ownerId = TokenContext.getUserId();
         petService.deletePet(ownerId, petId);
-        return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "刪除成功",
-                "data", null
-        ));
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", 200);
+        response.put("message", "刪除成功");
+        response.put("data", null);
+        return ResponseEntity.ok(response);
     }
 
     // PUT /api/pets/{petId}/notes

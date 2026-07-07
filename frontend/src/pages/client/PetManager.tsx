@@ -182,7 +182,12 @@ const PetManager: React.FC = () => {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedPetId) return;
+    if (!file) return;
+    if (!selectedPetId) {
+      showToast('error', '請先儲存基本資料，才能上傳照片');
+      e.target.value = '';
+      return;
+    }
 
     // 限制大小 3MB
     if (file.size > 3 * 1024 * 1024) {
