@@ -6,7 +6,7 @@ import {
   useUpdateProfileMutation,
   useUploadAvatarMutation
 } from '../../hooks/usePublicProfile';
-import { Camera, Plus, X, Globe, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Camera, Plus, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
 const decodeJwt = (token: string) => {
   try {

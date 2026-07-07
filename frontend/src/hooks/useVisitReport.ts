@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '../api/visitReportApi';
+import type { VisitServiceReportDto } from '../api/visitReportApi';
 
 export const useVisitReportQuery = (visitId: string) => {
   return useQuery({
@@ -11,17 +12,19 @@ export const useVisitReportQuery = (visitId: string) => {
       } catch (error: any) {
         // 捕捉 404 (尚未建立或飼主端隔離)
         if (error.response && error.response.status === 404) {
-          return {
+          const fallback: VisitServiceReportDto = {
             reportId: '',
             visitId,
-            status: 'DRAFT' as const,
+            status: 'DRAFT',
             content: '',
             submittedAt: null,
             media: [],
             isEditable: true,
             version: 0,
-            visitStatus: 'PENDING' as const
+            visitStatus: 'PENDING',
+            isPurged: false
           };
+          return fallback;
         }
         throw error;
       }
