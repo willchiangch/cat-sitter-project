@@ -1,6 +1,15 @@
 package com.petsitter.infrastructure.storage;
 
+import com.google.auth.ServiceAccountSigner;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ImpersonatedCredentials;
+import com.google.cloud.storage.Acl;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 import com.petsitter.application.service.MediaStorageService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -8,7 +17,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.net.URL;
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -18,98 +32,129 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     @Value("${gcp.storage.bucket-name:cat-sitter-media-bucket}")
     private String bucketName;
 
-    @Override
-    public String uploadMedia(UUID sitterId, UUID ownerId, UUID mediaId, MultipartFile file) {
+    @Value("${gcp.storage.signer-service-account:cat-sitter-runner@wd-pet-sitter.iam.gserviceaccount.com}")
+    private String serviceAccountEmail;
+
+    private Storage storage;
+    private ServiceAccountSigner urlSigner;
+
+    @PostConstruct
+    void init() throws IOException {
+        storage = StorageOptions.getDefaultInstance().getService();
+        // Cloud Run 是 attached service account (無本地私鑰檔)，V4 signed URL 需要透過
+        // IAM Credentials API 的 signBlob 動作簽名，因此用 ImpersonatedCredentials 自己模擬自己
+        urlSigner = (ServiceAccountSigner) ImpersonatedCredentials.create(
+                GoogleCredentials.getApplicationDefault(),
+                serviceAccountEmail,
+                null,
+                List.of("https://www.googleapis.com/auth/cloud-platform"),
+                300
+        );
+    }
+
+    private String buildTargetFilename(UUID mediaId, MultipartFile file) {
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
         String extension = StringUtils.getFilenameExtension(originalFilename);
-        String targetFilename = mediaId.toString() + (extension != null ? "." + extension : "");
-        
-        String objectName = "care_media/" + sitterId.toString() + "_" + ownerId.toString() + "/" + targetFilename;
-        
-        log.info("Mock GCS Upload to bucket {}, object {}", bucketName, objectName);
-        
-        // TODO: 實際呼叫 GCP SDK 進行上傳 (例如: storage.create(...))
-        // 此處因為沒有引入 GCP SDK Dependency，先以 mock 形式回傳 URL
-        
-        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+        return mediaId.toString() + (extension != null ? "." + extension : "");
+    }
+
+    private String uploadPublic(String objectName, MultipartFile file) {
+        try {
+            BlobId blobId = BlobId.of(bucketName, objectName);
+            BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
+                    .setContentType(file.getContentType())
+                    .setAcl(List.of(Acl.of(Acl.User.ofAllUsers(), Acl.Role.READER)))
+                    .build();
+            storage.create(blobInfo, file.getBytes());
+            log.info("GCS uploaded (public): bucket={}, object={}", bucketName, objectName);
+            return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+        } catch (IOException e) {
+            throw new RuntimeException("上傳檔案失敗", e);
+        }
+    }
+
+    private String uploadPrivate(String objectName, MultipartFile file) {
+        try {
+            BlobId blobId = BlobId.of(bucketName, objectName);
+            BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
+                    .setContentType(file.getContentType())
+                    .build();
+            storage.create(blobInfo, file.getBytes());
+            log.info("GCS uploaded (private): bucket={}, object={}", bucketName, objectName);
+            return objectName;
+        } catch (IOException e) {
+            throw new RuntimeException("上傳檔案失敗", e);
+        }
     }
 
     @Override
-    public String uploadReportMedia(String planTier, String date, java.util.UUID orderId, java.util.UUID mediaId, MultipartFile file) {
-        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
-        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
-        String targetFilename = mediaId.toString() + (extension != null ? "." + extension : "");
-        
-        // 格式: {planTier}/{date}/{orderId}/{uuid}.ext
-        String objectName = planTier.toLowerCase() + "/" + date + "/" + orderId.toString() + "/" + targetFilename;
-        
-        log.info("Mock GCS Upload to bucket {}, object {}", bucketName, objectName);
-        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+    public String uploadMedia(UUID sitterId, UUID ownerId, UUID mediaId, MultipartFile file) {
+        String objectName = "care_media/" + sitterId + "_" + ownerId + "/" + buildTargetFilename(mediaId, file);
+        return uploadPublic(objectName, file);
+    }
+
+    @Override
+    public String uploadReportMedia(String planTier, String date, UUID orderId, UUID mediaId, MultipartFile file) {
+        String objectName = planTier.toLowerCase() + "/" + date + "/" + orderId + "/" + buildTargetFilename(mediaId, file);
+        return uploadPublic(objectName, file);
     }
 
     @Override
     public String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file) {
-        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
-        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
-        String targetFilename = petId.toString() + (extension != null ? "." + extension : "");
-        
-        // 格式: pet-avatars/{ownerId}/{petId}.{ext}
-        String objectName = "pet-avatars/" + ownerId.toString() + "/" + targetFilename;
-        
-        log.info("Mock GCS Upload pet avatar to bucket {}, object {}", bucketName, objectName);
-        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = StringUtils.getFilenameExtension(originalFilename);
+        String targetFilename = petId + (extension != null ? "." + extension : "");
+        String objectName = "pet-avatars/" + ownerId + "/" + targetFilename;
+        return uploadPublic(objectName, file);
     }
 
     @Override
     public String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file) {
-        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
-        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
-        String dateStr = java.time.LocalDate.now().toString(); // YYYY-MM-DD
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = StringUtils.getFilenameExtension(originalFilename);
+        String dateStr = java.time.LocalDate.now().toString();
         String fileUuid = UUID.randomUUID().toString();
-        String targetFilename = orderId.toString() + "_" + fileUuid + (extension != null ? "." + extension : "");
-        
-        // 格式: payment-proofs/{date}/{orderId}_{fileUuid}.{ext}
+        String targetFilename = orderId + "_" + fileUuid + (extension != null ? "." + extension : "");
         String objectName = "payment-proofs/" + dateStr + "/" + targetFilename;
-        
-        log.info("Mock GCS Upload payment proof to bucket {}, object {}", bucketName, objectName);
-        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+        return uploadPublic(objectName, file);
     }
 
     @Override
     public String uploadKycFile(UUID sitterId, String type, MultipartFile file) {
-        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
-        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = StringUtils.getFilenameExtension(originalFilename);
         String targetFilename = type + (extension != null ? "." + extension : ".jpg");
-        String objectKey = "kyc/" + sitterId.toString() + "/" + targetFilename;
-        log.info("Mock GCS Upload KYC file to bucket {}, objectKey {}", bucketName, objectKey);
-        return objectKey;
+        String objectKey = "kyc/" + sitterId + "/" + targetFilename;
+        return uploadPrivate(objectKey, file);
     }
 
     @Override
     public String uploadAvatar(UUID sitterId, MultipartFile file) {
-        String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
-        String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
-        String targetFilename = sitterId.toString() + (extension != null ? "." + extension : "");
-        
-        // 格式: avatars/{sitterId}.{ext}
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = StringUtils.getFilenameExtension(originalFilename);
+        String targetFilename = sitterId + (extension != null ? "." + extension : "");
         String objectName = "avatars/" + targetFilename;
-        
-        log.info("Mock GCS Upload sitter avatar to bucket {}, object {}", bucketName, objectName);
-        return "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+        return uploadPublic(objectName, file);
     }
 
     @Override
     public void deleteMedia(String mediaUrl) {
-
-        log.info("Mock GCS Delete object from URL: {}", mediaUrl);
-        // TODO: 解析 mediaUrl 取得 objectName，然後呼叫 GCP SDK 刪除
+        String prefix = "https://storage.googleapis.com/" + bucketName + "/";
+        String objectName = mediaUrl.startsWith(prefix) ? mediaUrl.substring(prefix.length()) : mediaUrl;
+        boolean deleted = storage.delete(BlobId.of(bucketName, objectName));
+        log.info("GCS delete object={}, deleted={}", objectName, deleted);
     }
 
     @Override
-    public String generateSignedUrl(String objectKey, java.time.Duration ttl) {
-        log.info("Mock GCS generating signed URL for objectKey {} with TTL {}", objectKey, ttl);
-        return "https://storage.googleapis.com/" + bucketName + "/" + objectKey 
-                + "?GoogleAccessId=mock-access-id&Expires=" + (System.currentTimeMillis() / 1000 + ttl.getSeconds()) 
-                + "&Signature=mock-signature";
+    public String generateSignedUrl(String objectKey, Duration ttl) {
+        BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).build();
+        URL url = storage.signUrl(
+                blobInfo,
+                ttl.toMillis(),
+                TimeUnit.MILLISECONDS,
+                Storage.SignUrlOption.withV4Signature(),
+                Storage.SignUrlOption.signWith(urlSigner)
+        );
+        return url.toString();
     }
 }
