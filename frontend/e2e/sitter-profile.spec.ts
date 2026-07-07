@@ -109,5 +109,19 @@ test.describe('Sitter Public Profile & Forbidden Keywords Flow', () => {
     // 下一步按鈕不應顯示
     const nextBtn = page.getByTestId('client-booking-btn-step1-next');
     await expect(nextBtn).not.toBeVisible();
+
+    // 6. 還原公開檔案為開啟狀態，避免污染其他測試共用的種子資料
+    // （資料庫在測試之間是持久化的，這裡若不還原，下一輪測試會誤判此保母為 gated）
+    await page.click('text=返回 Demo 首頁');
+    await page.getByRole('button', { name: '切換為保母' }).click();
+    await expect(page.locator('text=當前角色: 貓咪保母')).toBeVisible();
+    await page.getByTestId('btn-go-sitter-profile-settings').click();
+
+    const toggleCheckbox6 = page.getByTestId('sitter-profile-toggle-visible');
+    if (!(await toggleCheckbox6.isChecked())) {
+      await page.locator('label:has([data-testid="sitter-profile-toggle-visible"]) span').first().click();
+    }
+    await page.getByTestId('sitter-profile-btn-save').click();
+    await expect(messageLocator).toHaveText(/公開檔案儲存成功/);
   });
 });
