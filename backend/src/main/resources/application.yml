@@ -25,6 +25,10 @@ spring:
 app:
   security:
     internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}
+    # application-local.yml 有 .gitignore，CI checkout 後不存在該檔案；
+    # 沒有這個預設值 @ActiveProfiles("local") 的測試會因為 placeholder 解析失敗
+    # 而讓整個 ApplicationContext 炸掉 (影響所有 @SpringBootTest)
+    jwt-secret: ${APP_SECURITY_JWT_SECRET:v9y$B&E)H@McQfTjWnZr4u7x!A%C*F-JaNdRgUkXp2s5v8y/B?E(G+KbPeShVmYq}
   crypto:
     key: ${APP_CRYPTO_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
 
