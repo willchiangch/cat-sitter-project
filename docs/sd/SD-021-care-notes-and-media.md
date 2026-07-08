@@ -645,4 +645,4 @@ CREATE INDEX idx_idempotency_keys_created ON idempotency_keys(created_at);
 - **檔案服務依賴**：本模組依賴 `shared/file-upload.md` 定義之上傳機制。`cfg_upload` 中的 `uploadGroupType` 設定為 `CARE_MEDIA`。
 - **GCS 路徑嚴格規範**：必須遵守 GLOBAL-SPEC §4.1，絕對路徑為 `/{bucket}/care_media/{sitter_id}_{client_id}/{uuid}_{filename}`，避免被生命週期排程誤刪。
 - **開發環境隔離 (`@Profile("local")`)**: 實作 `LocalMediaStorageServiceImpl`，將檔案寫入本機 `/tmp/cat_sitter_media/`，並透過 Spring `WebMvcConfigurer` 將 `http://localhost:8080/local-media/**` 映射供前端讀取。
-- **UAT / PROD (`@Profile({"uat", "prod"})`)**: 串接真實 GCS。以環境變數 `GCS_BUCKET_NAME` 切分實體 Bucket。
+- **非本地環境 (`@Profile("!local")`)**: 串接真實 GCS (`google-cloud-storage` SDK)，以 Spring property `gcp.storage.bucket-name` (可用環境變數 `GCP_STORAGE_BUCKET_NAME` 覆寫) 切分實體 Bucket。公開類媒體 (照護日誌、頭像、繳費證明) 上傳時以 `Acl.User.ofAllUsers()` 設定 public-read ACL 並回傳完整 URL；KYC 證件維持 private，僅回傳 objectKey，讀取需透過 `generateSignedUrl` 產生 V4 短效簽名連結。Cloud Run 為 attached service account 無本地私鑰，簽名動作透過 `ImpersonatedCredentials` 自我模擬 (self-impersonation)，需授予該 service account `roles/iam.serviceAccountTokenCreator`。

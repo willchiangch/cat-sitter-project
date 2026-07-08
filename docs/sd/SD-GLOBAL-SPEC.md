@@ -2,7 +2,7 @@
 
 ## 1. 基礎設施與成本定調 (Infrastructure Strategy)
 - **原則**：MVP 階段嚴控預算，極小化雲端帳單。
-- **Database**: GCP Cloud SQL (PostgreSQL)，初期僅選用 `db-f1-micro`。
+- **Database**: Supabase (PostgreSQL)。應用連線走 Transaction Pooler (6543)，Flyway migration 走 Session Pooler (5432)，避免 pgbouncer transaction mode 的 advisory lock 限制。
 - **Computing**: Cloud Run 開啟 `min-instances: 0`（無請求時不計費）。
 - **Cache**: **MVP 階段不導入 Redis/Memorystore**。
 - **Logging**: 全域使用 SLF4J 輸出至 Console，由 GCP Cloud Logging 自動收集，禁止引入 ELK 或第三方監控工具。
@@ -10,7 +10,7 @@
 ## 1.2 容器化標準 (Containerization Standard)
 - **基底鏡像**：
   - **Backend**: `eclipse-temurin:21-jre-jammy` (Java 21 LTS), **Spring Boot 4.0.x**。
-  - **Frontend**: `node:24-alpine` (構建階段) -> `nginx:alpine` 或直接用 Next.js standalone 模式。
+  - **Frontend**: React + Vite，`npm run build` 產出的靜態檔案於 CI 階段複製進 Backend 的 `src/main/resources/static`，由 Spring Boot 內嵌 serve，與後端打包成同一個 Docker Image、部署為同一個 Cloud Run service（非獨立 nginx/Next.js 容器）。
 - **多階段構建 (Multi-stage Build)**：強制採用多階段構建，確保 Production Image 不包含原始碼與編譯工具。
 - **環境變數**：嚴禁將 Secrets 寫死在 Dockerfile。統一透過 `ENTRYPOINT` 讀取系統環境變數，並由 GCP Secret Manager 注入。
 - **時區對齊**：容器內 OS 時區統一強制設定為 `UTC`，與資料庫規格對齊。
