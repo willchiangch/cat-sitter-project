@@ -123,7 +123,7 @@ jobs:
         run: |
           curl -sf -X POST \
             -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}" \
-            "${{ env.BASE_URL }}/api/internal/test-data/cleanup-seed-orders"
+            "${{ env.BASE_URL }}/api/internal/cron/test-data/cleanup-seed-orders"
 
       # 11. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
       - name: Upload Playwright Report
