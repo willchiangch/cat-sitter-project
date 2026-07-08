@@ -6,7 +6,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  
+
+  // CI 是打正式部署 (Firebase Hosting -> Cloud Run asia-east1 -> Supabase ap-southeast-2)，
+  // 真實跨區網路延遲下 5000ms 的預設 expect timeout 偶爾不夠，拉寬到 10s
+  expect: {
+    timeout: 10000
+  },
+
   // 報告輸出至 report/ 資料夾
   reporter: [['html', { outputFolder: 'report', open: 'never' }]],
   
