@@ -6,34 +6,11 @@ import {
   useUpdateProfileMutation,
   useUploadAvatarMutation
 } from '../../hooks/usePublicProfile';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { Camera, Plus, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
-const decodeJwt = (token: string) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-};
-
-const getUserIdFromToken = (): string => {
-  const token = localStorage.getItem('accessToken');
-  if (!token) return '3d498178-14c0-4376-b81e-7fb02e615dda'; // fallback mock
-  const decoded = decodeJwt(token);
-  return decoded?.userId || '3d498178-14c0-4376-b81e-7fb02e615dda';
-};
-
 const SitterProfileSettings: React.FC = () => {
-  const sitterId = getUserIdFromToken();
+  const { userId: sitterId } = useCurrentUser();
   const { data: profile, isLoading, error, refetch } = usePublicProfileQuery(sitterId, 'edit');
   const updateProfileMutation = useUpdateProfileMutation(sitterId);
   const uploadAvatarMutation = useUploadAvatarMutation(sitterId);

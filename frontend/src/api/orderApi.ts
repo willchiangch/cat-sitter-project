@@ -198,6 +198,31 @@ export const getOrderDetail = async (orderId: string): Promise<OrderDetailRespon
   return response.data;
 };
 
+export interface OrderSummaryDto {
+  id: string;
+  ownerId: string;
+  ownerName: string;
+  sitterId: string;
+  sitterName: string;
+  status: string;
+  totalAmount: number;
+  paymentProofUrl?: string;
+  paymentProofLastFive?: string;
+  scheduledDatesLabel: string;
+}
+
+// 飼主查詢自己的訂單清單
+export const getMyOrdersAsOwner = async (): Promise<OrderSummaryDto[]> => {
+  const response = await axiosClient.get('/orders/owner');
+  return response.data;
+};
+
+// 保母查詢自己的訂單清單
+export const getMyOrdersAsSitter = async (): Promise<OrderSummaryDto[]> => {
+  const response = await axiosClient.get('/orders/sitter');
+  return response.data;
+};
+
 // 提交付款憑證 (SD-007)
 export const submitPaymentProof = async (
   orderId: string,

@@ -27,6 +27,28 @@ test.describe('Dispute and Completion Flow', () => {
       });
     });
 
+    // Mock 飼主訂單清單 GET — OwnerOrders 頁面改接真實清單 API 後需要一併攔截
+    await page.route('**/api/orders/owner', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 'a1023000-0000-0000-0000-000000000000',
+            ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
+            ownerName: '陳先生 (愛貓飼主)',
+            sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+            sitterName: '本地測試保母',
+            status: orderStatus,
+            totalAmount: 2400,
+            paymentProofUrl: null,
+            paymentProofLastFive: null,
+            scheduledDatesLabel: '2026-05-25 ~ 2026-05-29 (共 5 天)'
+          }
+        ])
+      });
+    });
+
     // 攔截結案 API
     await page.route('**/api/orders/*/complete**', async (route) => {
       orderStatus = 'COMPLETED';

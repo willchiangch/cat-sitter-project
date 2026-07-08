@@ -2,6 +2,7 @@ package com.petsitter.domain.repository;
 
 import com.petsitter.domain.model.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -27,6 +28,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     List<Order> findByStatus(String status);
 
     List<Order> findByOwnerIdAndStatusNotIn(UUID ownerId, List<String> statuses);
+
+    @Query("SELECT o FROM Order o JOIN FETCH o.owner JOIN FETCH o.sitter WHERE o.owner.id = :ownerId AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    List<Order> findByOwnerIdWithParties(@Param("ownerId") UUID ownerId);
+
+    @Query("SELECT o FROM Order o JOIN FETCH o.owner JOIN FETCH o.sitter WHERE o.sitter.id = :sitterId AND o.isDeleted = false ORDER BY o.createdAt DESC")
+    List<Order> findBySitterIdWithParties(@Param("sitterId") UUID sitterId);
+
+    @Modifying
+    @Query("UPDATE Order o SET o.isDeleted = true WHERE o.owner.email IN :emails OR o.sitter.email IN :emails")
+    int softDeleteByPartyEmails(@Param("emails") List<String> emails);
 
     boolean existsByPaymentIdempotencyKey(String paymentIdempotencyKey);
 

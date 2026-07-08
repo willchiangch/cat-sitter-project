@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRole } from '../../contexts/RoleContext';
 import {
   useNotificationsQuery,
@@ -7,12 +8,9 @@ import {
 } from '../../hooks/useNotifications';
 import type { NotificationDto } from '../../api/notificationApi';
 
-interface NotificationsPageProps {
-  setView: (view: any) => void;
-}
-
-export const NotificationsPage: React.FC<NotificationsPageProps> = ({ setView }) => {
+export const NotificationsPage: React.FC = () => {
   const { currentRole } = useRole();
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const size = 10;
 
@@ -33,11 +31,11 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ setView })
     
     // 依據 linkUrl 切換視圖
     if (noti.linkUrl === '/sitter/orders') {
-      setView({ name: 'orders' });
+      navigate('/sitter/orders');
     } else if (noti.linkUrl === '/client/orders') {
-      setView({ name: 'owner-orders' });
+      navigate('/owner/orders');
     } else if (noti.linkUrl === '/sitter/kyc') {
-      setView({ name: 'sitter-kyc' });
+      navigate('/sitter/kyc');
     }
   };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
@@ -9,10 +10,10 @@ import {
   submitPaymentProof
 } from '../../api/orderApi';
 import type { OrderDetailResponseDto } from '../../api/orderApi';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 interface OwnerOrderDetailProps {
   orderId: string;
-  setView: (view: any) => void;
 }
 
 const generateUUID = () => {
@@ -23,7 +24,8 @@ const generateUUID = () => {
   });
 };
 
-const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView }) => {
+const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
+  const navigate = useNavigate();
   const [order, setOrder] = useState<OrderDetailResponseDto | null>(null);
   const [isDisputeOpen, setIsDisputeOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,7 +39,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
 
-  const ownerId = '1031efbc-583a-4062-9a35-15706a3384c6'; // 測試用 Owner ID
+  const { userId: ownerId } = useCurrentUser();
 
   const fetchOrderDetail = async () => {
     try {
@@ -145,7 +147,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId, setView })
       }}
     >
       <button
-        onClick={() => setView({ name: 'owner-orders' })}
+        onClick={() => navigate('/owner/orders')}
         style={{
           border: 'none',
           background: 'none',

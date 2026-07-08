@@ -1,8 +1,10 @@
 package com.petsitter.application.service;
 
 import com.petsitter.application.dto.OrderDetailResponseDto;
+import com.petsitter.application.dto.OrderSummaryDto;
 import com.petsitter.domain.model.BankAccountInfo;
 import com.petsitter.domain.model.Order;
+import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ProfileRepository;
@@ -12,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -69,5 +72,56 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .items(order.getItems())
                 .sitterPaymentInfo(bankAccountInfo)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderSummaryDto> getMyOrdersAsOwner(UUID ownerId) {
+        return orderRepository.findByOwnerIdWithParties(ownerId).stream()
+                .map(this::toSummaryDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderSummaryDto> getMyOrdersAsSitter(UUID sitterId) {
+        return orderRepository.findBySitterIdWithParties(sitterId).stream()
+                .map(this::toSummaryDto)
+                .toList();
+    }
+
+    private OrderSummaryDto toSummaryDto(Order order) {
+        return OrderSummaryDto.builder()
+                .id(order.getId())
+                .ownerId(order.getOwner().getId())
+                .ownerName(order.getOwner().getFullName())
+                .sitterId(order.getSitter().getId())
+                .sitterName(order.getSitter().getFullName())
+                .status(order.getStatus())
+                .totalAmount(order.getTotalAmount())
+                .paymentProofUrl(order.getPaymentProofUrl())
+                .paymentProofLastFive(order.getPaymentProofLastFive())
+                .scheduledDatesLabel(buildScheduledDatesLabel(order.getItems()))
+                .build();
+    }
+
+    private String buildScheduledDatesLabel(List<OrderItem> items) {
+        List<String> dates = items.stream()
+                .flatMap(item -> item.getDates() == null ? java.util.stream.Stream.<String>empty() : item.getDates().stream())
+                .sorted()
+                .toList();
+
+        if (dates.isEmpty()) {
+            return "尚未排定日期";
+        }
+
+        String start = dates.get(0);
+        String end = dates.get(dates.size() - 1);
+        long dayCount = dates.stream().distinct().count();
+
+        if (start.equals(end)) {
+            return start + " (共 " + dayCount + " 天)";
+        }
+        return start + " ~ " + end + " (共 " + dayCount + " 天)";
     }
 }

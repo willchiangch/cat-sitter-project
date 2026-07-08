@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import { getPendingKycList, suspendSitter, unsuspendSitter } from '../../api/kycApi';
 import type { PendingKycRecordDto } from '../../api/kycApi';
 import { useRole } from '../../contexts/RoleContext';
 
-interface AdminKycListProps {
-  setView: (view: any) => void;
-}
-
-const AdminKycList: React.FC<AdminKycListProps> = ({ setView }) => {
+const AdminKycList: React.FC = () => {
   const { currentRole } = useRole();
+  const navigate = useNavigate();
   const [records, setRecords] = useState<PendingKycRecordDto[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -206,12 +204,7 @@ const AdminKycList: React.FC<AdminKycListProps> = ({ setView }) => {
                           <button
                             className="btn-primary"
                             style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                            onClick={() =>
-                              setView({
-                                name: 'admin-kyc-detail',
-                                params: { kycRecordId: record.recordId }
-                              })
-                            }
+                            onClick={() => navigate(`/admin/kyc/${record.recordId}`)}
                           >
                             進入審查
                           </button>

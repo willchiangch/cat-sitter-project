@@ -55,12 +55,26 @@ jobs:
           npm ci
           npm run build
 
-      # 4. 配置 Docker 認證登入 GCP Artifact Registry
+      # 4. 執行後端單元/整合測試 (擋在 Docker build 之前，失敗就不部署)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+          cache-dependency-path: backend/pom.xml
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          mvn test
+
+      # 5. 配置 Docker 認證登入 GCP Artifact Registry
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 5. Build and Push Backend Docker Image (純 API，不再內嵌前端靜態資源)
+      # 6. Build and Push Backend Docker Image (純 API，不再內嵌前端靜態資源)
       - name: Build and Push Docker Image
         run: |
           cd backend
@@ -69,7 +83,7 @@ jobs:
           docker push $IMAGE_TAG
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      # 6. 部署至 GCP Cloud Run
+      # 7. 部署至 GCP Cloud Run
       - name: Deploy to Cloud Run
         id: deploy-run
         run: |
@@ -81,11 +95,11 @@ jobs:
             --cpu=1 \
             --cpu-boost \
             --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }},SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }} \
-            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest \
+            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest,INTERNAL_CRON_SECRET=INTERNAL_CRON_SECRET:latest \
             --allow-unauthenticated \
             --quiet
-          
-      # 7. 部署前端至 Firebase Hosting (透過 rewrite 將 /api/** 轉發至上一步的 Cloud Run service)
+
+      # 8. 部署前端至 Firebase Hosting (透過 rewrite 將 /api/** 轉發至上一步的 Cloud Run service)
       - name: Deploy Frontend to Firebase Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
@@ -94,7 +108,7 @@ jobs:
 
           echo "BASE_URL=https://${{ env.PROJECT_ID }}.web.app" >> $GITHUB_ENV
 
-      # 8. 執行 Playwright E2E 測試
+      # 9. 執行 Playwright E2E 測試
       - name: Install Playwright Browsers and Run Tests
         run: |
           cd frontend
@@ -103,7 +117,15 @@ jobs:
           # 使用 Firebase Hosting 網址作為測試目標 (真實入口，/api 會經 rewrite 打到 Cloud Run)
           BASE_URL=${{ env.BASE_URL }} npx playwright test
 
-      # 9. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
+      # 10. 清理 E2E 種子測試帳號累積的訂單資料 (Supabase 持久化，避免清單越跑越髒)
+      - name: Cleanup E2E Test Orders
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}" \
+            "${{ env.BASE_URL }}/api/internal/test-data/cleanup-seed-orders"
+
+      # 11. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
       - name: Upload Playwright Report
         if: always()
         uses: actions/upload-artifact@v4

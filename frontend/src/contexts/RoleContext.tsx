@@ -29,6 +29,7 @@ const loginAsRole = async (role: Role) => {
     if (data.accessToken) {
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken || '');
+      localStorage.setItem('authMode', 'seed');
     }
   } catch (err) {
     console.error(`自動登入 ${role} 失敗：`, err);
@@ -40,16 +41,33 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (localStorage.getItem('userRole') as Role) || 'sitter'
   );
   const skipAutoLoginRef = useRef(false);
-  const isAuthLoading = false;
+  const isInitialAuthCheckRef = useRef(true);
+  // 剛掛載時要等第一次自動登入 (或確認已是 manual session) 完成，
+  // 避免 RequireAuth 在 token 還沒寫入 localStorage 前就把使用者導去 /login
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', currentRole);
     localStorage.setItem('userRole', currentRole);
+
+    const finishInitialCheck = () => {
+      if (isInitialAuthCheckRef.current) {
+        isInitialAuthCheckRef.current = false;
+        setIsAuthLoading(false);
+      }
+    };
+
     if (skipAutoLoginRef.current) {
       skipAutoLoginRef.current = false;
+      finishInitialCheck();
       return;
     }
-    loginAsRole(currentRole).catch(console.error);
+    // 已透過正式 /login 頁面登入時，不要用種子帳號蓋掉真實 session
+    if (localStorage.getItem('authMode') === 'manual') {
+      finishInitialCheck();
+      return;
+    }
+    loginAsRole(currentRole).catch(console.error).finally(finishInitialCheck);
   }, [currentRole]);
 
   const setRole = async (role: Role) => {

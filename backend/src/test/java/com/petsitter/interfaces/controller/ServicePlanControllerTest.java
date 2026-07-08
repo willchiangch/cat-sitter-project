@@ -231,7 +231,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("VERSION_CONFLICT"))
+                .andExpect(jsonPath("$.error").value("MSG_DATA_CONCURRENCY_CONFLICT"))
                 .andExpect(jsonPath("$.message").value(containsString("內容已被更新")));
 
         // 驗證 DB 中依然為更新過的名字且 version 為 1

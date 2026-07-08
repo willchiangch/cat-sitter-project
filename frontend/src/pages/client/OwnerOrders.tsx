@@ -1,56 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { getOrderDetail } from '../../api/orderApi';
-
-interface OwnerOrdersProps {
-  setView: (view: any) => void;
-}
+import { useOwnerOrdersQuery } from '../../hooks/useOrders';
 
 type TabType = 'ongoing' | 'history';
 
-const OwnerOrders: React.FC<OwnerOrdersProps> = ({ setView }) => {
+const OwnerOrders: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('ongoing');
-  const [dbOrder, setDbOrder] = useState<any>(null);
+  const { data: orders = [], isLoading } = useOwnerOrdersQuery();
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      try {
-        const data = await getOrderDetail('a1023000-0000-0000-0000-000000000000');
-        setDbOrder(data);
-      } catch (err) {
-        console.error('Failed to fetch DB order in OwnerOrders:', err);
-      }
-    };
-    fetchOrder();
-  }, []);
-
-  // 模擬飼主端訂單資料
-  const mockOrders = [
-    {
-      id: 'a1023000-0000-0000-0000-000000000000',
-      sitterName: '本地測試保母',
-      status: dbOrder ? dbOrder.status : 'PENDING_PAYMENT',
-      totalAmount: dbOrder ? dbOrder.totalAmount : 2400,
-      scheduledDates: '2026-05-25 ~ 2026-05-29 (共 5 天)'
-    },
-    {
-      id: 'a1024000-0000-0000-0000-000000000000',
-      sitterName: '本地測試保母',
-      status: 'COMPLETED',
-      totalAmount: 1200,
-      scheduledDates: '2026-05-10 ~ 2026-05-12 (共 3 天)'
-    },
-    {
-      id: 'a1025000-0000-0000-0000-000000000000',
-      sitterName: '本地測試保母',
-      status: 'DISPUTED',
-      totalAmount: 3000,
-      scheduledDates: '2026-05-15 ~ 2026-05-20 (共 6 天)'
-    }
-  ];
-
-  const filteredOrders = mockOrders.filter((order) => {
+  const filteredOrders = orders.filter((order) => {
     if (activeTab === 'ongoing') {
       return [
         'PENDING',
@@ -121,12 +82,11 @@ const OwnerOrders: React.FC<OwnerOrdersProps> = ({ setView }) => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {filteredOrders.length > 0 ? (
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        ) : filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
-            <Card
-              key={order.id}
-              onClick={() => setView({ name: 'owner-order-detail', params: { orderId: order.id } })}
-            >
+            <Card key={order.id} onClick={() => navigate(`/owner/orders/${order.id}`)}>
               <div
                 style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}
               >
@@ -178,7 +138,7 @@ const OwnerOrders: React.FC<OwnerOrdersProps> = ({ setView }) => {
                       color: 'var(--color-on-surface-variant)'
                     }}
                   >
-                    {order.scheduledDates}
+                    {order.scheduledDatesLabel}
                   </p>
                 </div>
               </div>

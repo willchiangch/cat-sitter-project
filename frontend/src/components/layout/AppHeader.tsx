@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useRole } from '../../contexts/RoleContext';
 import {
   useUnreadCountQuery,
@@ -9,13 +10,11 @@ import {
 import { getSitterKycStatus } from '../../api/kycApi';
 import type { NotificationDto } from '../../api/notificationApi';
 
-interface AppHeaderProps {
-  setView: (view: any) => void;
-  currentViewName: string;
-}
-
-const AppHeader: React.FC<AppHeaderProps> = ({ setView, currentViewName }) => {
+const AppHeader: React.FC = () => {
   const { currentRole } = useRole();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentViewName = location.pathname;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [kycStatus, setKycStatus] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -67,11 +66,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({ setView, currentViewName }) => {
     
     // 依據 linkUrl 切換視圖
     if (noti.linkUrl === '/sitter/orders') {
-      setView({ name: 'orders' });
+      navigate('/sitter/orders');
     } else if (noti.linkUrl === '/client/orders') {
-      setView({ name: 'owner-orders' });
+      navigate('/owner/orders');
     } else if (noti.linkUrl === '/sitter/kyc') {
-      setView({ name: 'sitter-kyc' });
+      navigate('/sitter/kyc');
     }
   };
 
@@ -132,7 +131,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ setView, currentViewName }) => {
       >
         {/* Logo */}
         <div
-          onClick={() => setView({ name: 'demo' })}
+          onClick={() => navigate('/demo')}
           style={{
             fontFamily: 'var(--font-display)',
             fontWeight: 700,
@@ -309,7 +308,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ setView, currentViewName }) => {
                 <button
                   onClick={() => {
                     setDropdownOpen(false);
-                    setView({ name: 'notifications' });
+                    navigate('/notifications');
                   }}
                   data-testid={`${currentRole}-header-bell-viewall`}
                   style={{
@@ -325,7 +324,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ setView, currentViewName }) => {
                 <button
                   onClick={() => {
                     setDropdownOpen(false);
-                    setView({ name: 'preferences' });
+                    navigate('/preferences');
                   }}
                   data-testid={`${currentRole}-header-bell-preferences`}
                   style={{
@@ -363,7 +362,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ setView, currentViewName }) => {
         >
           <span>{bannerConfig.text}</span>
           <button
-            onClick={() => setView({ name: 'sitter-kyc' })}
+            onClick={() => navigate('/sitter/kyc')}
             data-testid={`${currentRole}-kyc-banner-action`}
             style={{
               backgroundColor: bannerConfig.color,

@@ -79,6 +79,28 @@ test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
       });
     });
 
+    // Mock 保母訂單清單 GET — SitterOrders 頁面改接真實清單 API 後需要一併攔截
+    await page.route('**/api/orders/sitter', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 'a1023000-0000-0000-0000-000000000000',
+            ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
+            ownerName: '陳先生 (愛貓飼主)',
+            sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+            sitterName: '本地測試保母',
+            status: orderStatus,
+            totalAmount: 2400,
+            paymentProofUrl: paymentProofUrl,
+            paymentProofLastFive: paymentProofLastFive,
+            scheduledDatesLabel: '2026-05-25 ~ 2026-05-29 (共 5 天)'
+          }
+        ])
+      });
+    });
+
     // Mock Upload Payment Proof
     await page.route('**/api/orders/a1023000-0000-0000-0000-000000000000/payment-proof', async (route) => {
       orderStatus = 'PAID';

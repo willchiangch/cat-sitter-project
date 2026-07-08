@@ -1,82 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Card from '../../components/ui/Card';
-import { getOrderDetail, verifyPayment, rejectPayment } from '../../api/orderApi';
+import { useSitterOrdersQuery, useVerifyPaymentMutation, useRejectPaymentMutation } from '../../hooks/useOrders';
 
 type TabType = 'evaluating' | 'ongoing' | 'history';
 
 const SitterOrders: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('evaluating');
-  const [dbOrder, setDbOrder] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
 
-  const orderId = 'a1023000-0000-0000-0000-000000000000'; // 預設測試訂單 ID
+  const { data: orders = [], isLoading } = useSitterOrdersQuery();
+  const verifyMutation = useVerifyPaymentMutation();
+  const rejectMutation = useRejectPaymentMutation();
 
-  const fetchOrder = async () => {
+  const handleVerify = async (orderId: string) => {
     try {
-      const data = await getOrderDetail(orderId);
-      setDbOrder(data);
-    } catch (err) {
-      console.error('Failed to load DB order for sitter view:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchOrder();
-  }, []);
-
-  const handleVerify = async () => {
-    setLoading(true);
-    try {
-      await verifyPayment(orderId);
-      await fetchOrder();
+      await verifyMutation.mutateAsync(orderId);
       alert('入帳核對確認成功！');
     } catch (err) {
       console.error(err);
       alert('操作失敗，請稍後再試。');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleReject = async (e: React.FormEvent) => {
+  const handleReject = async (e: React.FormEvent, orderId: string) => {
     e.preventDefault();
     if (!rejectReason.trim()) {
       alert('請填寫退回原因');
       return;
     }
-    setLoading(true);
     try {
-      await rejectPayment(orderId, rejectReason);
+      await rejectMutation.mutateAsync({ orderId, rejectReason });
       setRejectReason('');
-      setShowRejectForm(false);
-      await fetchOrder();
+      setRejectingOrderId(null);
       alert('已成功駁回該憑證，訂單已退回待付款狀態。');
     } catch (err: any) {
       console.error(err);
       const errMsg = err.response?.data?.message || '駁回失敗，請稍後再試';
       alert(errMsg);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const mockOrders = [
-    {
-      id: orderId,
-      ownerName: '陳先生 (愛貓飼主)',
-      status: dbOrder ? dbOrder.status : 'PENDING_PAYMENT',
-      totalAmount: dbOrder ? dbOrder.totalAmount : 2400,
-      scheduledDates: '2026-05-25 ~ 2026-05-29 (共 5 天)',
-      isNewCustomer: true,
-      paymentProofUrl: dbOrder?.paymentProofUrl,
-      paymentProofLastFive: dbOrder?.paymentProofLastFive
-    }
-  ];
+  const loading = verifyMutation.isPending || rejectMutation.isPending;
 
-  const filteredOrders = mockOrders.filter((order) => {
+  const filteredOrders = orders.filter((order) => {
     if (activeTab === 'evaluating') return order.status === 'PENDING';
     if (activeTab === 'ongoing')
       return ['PENDING_PAYMENT', 'PAID', 'CONFIRMED', 'MODIFYING', 'REFUND_VERIFY'].includes(
@@ -158,7 +126,9 @@ const SitterOrders: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {filteredOrders.length > 0 ? (
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        ) : filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
             <Card key={order.id}>
               <div
@@ -215,7 +185,7 @@ const SitterOrders: React.FC = () => {
                       color: 'var(--color-on-surface-variant)'
                     }}
                   >
-                    {order.scheduledDates}
+                    {order.scheduledDatesLabel}
                   </p>
                 </div>
               </div>
@@ -300,10 +270,10 @@ const SitterOrders: React.FC = () => {
                     )}
                   </div>
 
-                  {!showRejectForm ? (
+                  {rejectingOrderId !== order.id ? (
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <button
-                        onClick={handleVerify}
+                        onClick={() => handleVerify(order.id)}
                         disabled={loading}
                         className="btn-primary"
                         style={{ flex: 1, padding: '0.75rem' }}
@@ -312,7 +282,7 @@ const SitterOrders: React.FC = () => {
                         {loading ? '處理中...' : '確認款項入帳'}
                       </button>
                       <button
-                        onClick={() => setShowRejectForm(true)}
+                        onClick={() => setRejectingOrderId(order.id)}
                         disabled={loading}
                         className="btn-primary"
                         style={{
@@ -329,7 +299,7 @@ const SitterOrders: React.FC = () => {
                     </div>
                   ) : (
                     <form
-                      onSubmit={handleReject}
+                      onSubmit={(e) => handleReject(e, order.id)}
                       style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
                     >
                       <div>
@@ -375,7 +345,7 @@ const SitterOrders: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            setShowRejectForm(false);
+                            setRejectingOrderId(null);
                             setRejectReason('');
                           }}
                           className="btn-primary"

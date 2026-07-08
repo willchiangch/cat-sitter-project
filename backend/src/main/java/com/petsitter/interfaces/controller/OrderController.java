@@ -8,6 +8,7 @@ import com.petsitter.infrastructure.security.gating.PlanTier;
 import com.petsitter.infrastructure.security.gating.RequirePlan;
 import com.petsitter.infrastructure.security.TokenContext;
 import com.petsitter.application.dto.OrderDetailResponseDto;
+import com.petsitter.application.dto.OrderSummaryDto;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -219,5 +221,25 @@ public class OrderController {
         UUID requesterId = TokenContext.getUserId();
         OrderDetailResponseDto dto = orderQueryService.getOrderDetail(orderId, requesterId);
         return ResponseEntity.ok(dto);
+    }
+
+    /**
+     * 飼主查詢自己的訂單清單
+     */
+    @PreAuthorize("hasRole('OWNER')")
+    @GetMapping("/owner")
+    public ResponseEntity<List<OrderSummaryDto>> getMyOrdersAsOwner() {
+        UUID ownerId = TokenContext.getUserId();
+        return ResponseEntity.ok(orderQueryService.getMyOrdersAsOwner(ownerId));
+    }
+
+    /**
+     * 保母查詢自己的訂單清單
+     */
+    @PreAuthorize("hasRole('SITTER')")
+    @GetMapping("/sitter")
+    public ResponseEntity<List<OrderSummaryDto>> getMyOrdersAsSitter() {
+        UUID sitterId = TokenContext.getUserId();
+        return ResponseEntity.ok(orderQueryService.getMyOrdersAsSitter(sitterId));
     }
 }

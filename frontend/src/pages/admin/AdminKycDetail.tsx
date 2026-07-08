@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import { getKycDetail, getAdminMediaUrl, reviewKyc } from '../../api/kycApi';
 import type { KycRecordDetailDto } from '../../api/kycApi';
@@ -6,11 +7,11 @@ import { useRole } from '../../contexts/RoleContext';
 
 interface AdminKycDetailProps {
   kycRecordId: string;
-  setView: (view: any) => void;
 }
 
-const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId, setView }) => {
+const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
   const { currentRole } = useRole();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<KycRecordDetailDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -67,7 +68,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId, setView })
       );
       setSuccessMsg(action === 'APPROVE' ? '實名認證審核已通過！' : '實名認證已被駁回。');
       setTimeout(() => {
-        setView({ name: 'admin-kyc-list' });
+        navigate('/admin/kyc');
       }, 1500);
     } catch (err: any) {
       console.error(err);
@@ -128,7 +129,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId, setView })
         </h2>
         <button
           className="btn-secondary"
-          onClick={() => setView({ name: 'admin-kyc-list' })}
+          onClick={() => navigate('/admin/kyc')}
           style={{ padding: '8px 16px', fontSize: '0.9rem' }}
         >
           返回待審清單

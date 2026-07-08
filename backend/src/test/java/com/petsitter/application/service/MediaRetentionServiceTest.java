@@ -78,6 +78,7 @@ class MediaRetentionServiceTest {
 
     private User owner;
     private User sitter;
+    private User admin;
 
     @BeforeEach
     void setUp() {
@@ -106,6 +107,13 @@ class MediaRetentionServiceTest {
                 .build();
         sitter = userRepository.save(sitter);
 
+        admin = User.builder()
+                .email("admin-" + UUID.randomUUID() + "@test.com")
+                .passwordHash("password")
+                .role("ADMIN")
+                .isDeleted(false)
+                .build();
+        admin = userRepository.save(admin);
     }
 
     @Test
@@ -187,7 +195,7 @@ class MediaRetentionServiceTest {
                 OffsetDateTime.now(ZoneOffset.UTC).minusDays(5), order.getId());
 
         // 方案升級為 Pro (90天)
-        mediaRetentionService.upgradeSitterMediaRetention(sitter.getId(), UUID.randomUUID(), "PRO");
+        mediaRetentionService.upgradeSitterMediaRetention(sitter.getId(), admin.getId(), "PRO");
 
         // 驗證該訂單快照保留天數已展延為 90 天
         OrderSnapshot updatedSnapshot = orderSnapshotRepository.findByOrderId(order.getId()).orElseThrow();
@@ -213,7 +221,7 @@ class MediaRetentionServiceTest {
                 OffsetDateTime.now(ZoneOffset.UTC).minusDays(10), order.getId());
 
         // 保母方案降級為 FREE (7天)。呼叫該方法，驗證降級保護防呆
-        mediaRetentionService.upgradeSitterMediaRetention(sitter.getId(), UUID.randomUUID(), "FREE");
+        mediaRetentionService.upgradeSitterMediaRetention(sitter.getId(), admin.getId(), "FREE");
 
         // 即使保母此時被降級，我們驗證原訂單快照依然是 90 天
         OrderSnapshot snapshot = orderSnapshotRepository.findByOrderId(order.getId()).orElseThrow();
