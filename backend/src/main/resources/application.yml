@@ -29,6 +29,7 @@ app:
     # 沒有這個預設值 @ActiveProfiles("local") 的測試會因為 placeholder 解析失敗
     # 而讓整個 ApplicationContext 炸掉 (影響所有 @SpringBootTest)
     jwt-secret: ${APP_SECURITY_JWT_SECRET:v9y$B&E)H@McQfTjWnZr4u7x!A%C*F-JaNdRgUkXp2s5v8y/B?E(G+KbPeShVmYq}
+    jwt-expiration: 86400000 # 24 小時，與 application-prod.yml 一致，非機密不需要走環境變數
   crypto:
     key: ${APP_CRYPTO_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
 
