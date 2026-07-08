@@ -33,6 +33,7 @@ jobs:
         with:
           workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-actions-deployer@wd-pet-sitter.iam.gserviceaccount.com'
+          create_credentials_file: true
 
       # 2. 設定 Google Cloud CLI
       - name: Set up Cloud SDK
@@ -40,7 +41,7 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
-      # 3. 建置前端並移動至後端靜態目錄
+      # 3. 建置前端靜態檔案 (獨立部署到 Firebase Hosting，不再內嵌進 backend)
       - name: Set up Node.js and Build Frontend
         uses: actions/setup-node@v4
         with:
@@ -53,16 +54,13 @@ jobs:
           cd frontend
           npm ci
           npm run build
-          # 建立後端靜態資源目錄並複製 dist 檔案
-          mkdir -p ../backend/src/main/resources/static
-          cp -r dist/* ../backend/src/main/resources/static/
 
       # 4. 配置 Docker 認證登入 GCP Artifact Registry
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-      # 5. Build and Push Backend Docker Image (內嵌前端靜態資源)
+      # 5. Build and Push Backend Docker Image (純 API，不再內嵌前端靜態資源)
       - name: Build and Push Docker Image
         run: |
           cd backend
@@ -87,20 +85,25 @@ jobs:
             --allow-unauthenticated \
             --quiet
           
-          # 取得 Cloud Run 部署 URL
-          RUN_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format="value(status.url)")
-          echo "BASE_URL=$RUN_URL" >> $GITHUB_ENV
+      # 7. 部署前端至 Firebase Hosting (透過 rewrite 將 /api/** 轉發至上一步的 Cloud Run service)
+      - name: Deploy Frontend to Firebase Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+        run: |
+          npx firebase-tools@latest deploy --only hosting --project ${{ env.PROJECT_ID }} --non-interactive
 
-      # 7. 執行 Playwright E2E 測試
+          echo "BASE_URL=https://${{ env.PROJECT_ID }}.web.app" >> $GITHUB_ENV
+
+      # 8. 執行 Playwright E2E 測試
       - name: Install Playwright Browsers and Run Tests
         run: |
           cd frontend
           npm ci
           npx playwright install --with-deps chromium
-          # 使用 Cloud Run 部署 URL 作為測試目標，並略過啟動本地 webServer
+          # 使用 Firebase Hosting 網址作為測試目標 (真實入口，/api 會經 rewrite 打到 Cloud Run)
           BASE_URL=${{ env.BASE_URL }} npx playwright test
 
-      # 8. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
+      # 9. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
       - name: Upload Playwright Report
         if: always()
         uses: actions/upload-artifact@v4
