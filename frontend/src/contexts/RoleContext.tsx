@@ -67,6 +67,13 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
       finishInitialCheck();
       return;
     }
+    // /login 頁面本身就會送出真正的登入請求，這裡如果也對同一組種子帳號並發登入，
+    // 後端的樂觀鎖會讓其中一個請求 409 (MSG_DATA_CONCURRENCY_CONFLICT)，
+    // 使用者可能會在帳密正確的情況下看到假的「登入失敗」
+    if (window.location.pathname === '/login') {
+      finishInitialCheck();
+      return;
+    }
     loginAsRole(currentRole).catch(console.error).finally(finishInitialCheck);
   }, [currentRole]);
 

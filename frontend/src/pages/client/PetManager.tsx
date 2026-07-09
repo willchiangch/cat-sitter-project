@@ -61,6 +61,10 @@ const PetManager: React.FC = () => {
     environmentalNotes: ''
   });
 
+  // 新增毛孩流程中，使用者已選但尚未上傳的頭像檔案 (等基本資料存檔拿到 petId 後才真的上傳)
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string>('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 當前選中的毛孩
@@ -78,11 +82,20 @@ const PetManager: React.FC = () => {
     }, 4000);
   };
 
+  const clearPendingAvatar = () => {
+    if (avatarPreviewUrl) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+    setPendingAvatarFile(null);
+    setAvatarPreviewUrl('');
+  };
+
   const handleSelectPet = (pet: Pet) => {
     setSelectedPetId(pet.id || null);
     setIsAdding(false);
     setIsEditingNotes(false);
     setOptimisticLockError(null);
+    clearPendingAvatar();
     setPetForm({
       name: pet.name,
       species: pet.species,
@@ -105,6 +118,7 @@ const PetManager: React.FC = () => {
     setSelectedPetId(null);
     setIsEditingNotes(false);
     setOptimisticLockError(null);
+    clearPendingAvatar();
     setPetForm({
       name: '',
       species: 'CAT',
@@ -152,8 +166,21 @@ const PetManager: React.FC = () => {
     try {
       if (isAdding) {
         const newPet = await createPetMutation.mutateAsync(petForm);
-        showToast('success', '成功新增毛孩資料');
         setIsAdding(false);
+        if (newPet.id && pendingAvatarFile) {
+          try {
+            const photoUrl = await uploadAvatarMutation.mutateAsync({
+              petId: newPet.id,
+              file: pendingAvatarFile
+            });
+            newPet.photoUrl = photoUrl;
+          } catch (avatarErr) {
+            console.error(avatarErr);
+            showToast('error', '毛孩資料已建立，但頭像上傳失敗，請稍後於編輯頁重新上傳');
+          }
+        }
+        clearPendingAvatar();
+        showToast('success', '成功新增毛孩資料');
         if (newPet.id) {
           handleSelectPet(newPet);
         }
@@ -173,25 +200,28 @@ const PetManager: React.FC = () => {
 
   // 上傳大頭照
   const handleAvatarClick = () => {
-    if (isAdding) {
-      showToast('error', '請先儲存毛孩基本資料，再上傳大頭照');
-      return;
-    }
     fileInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!selectedPetId) {
-      showToast('error', '請先儲存基本資料，才能上傳照片');
-      e.target.value = '';
-      return;
-    }
 
     // 限制大小 3MB
     if (file.size > 3 * 1024 * 1024) {
       showToast('error', '檔案大小不能超過 3MB');
+      e.target.value = '';
+      return;
+    }
+
+    // 新增流程尚未有 petId，先在本地暫存檔案並預覽，等「儲存基本資料」建立好毛孩後再一併上傳
+    if (!selectedPetId) {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+      setPendingAvatarFile(file);
+      setAvatarPreviewUrl(URL.createObjectURL(file));
+      e.target.value = '';
       return;
     }
 
@@ -648,9 +678,9 @@ const PetManager: React.FC = () => {
                 <form onSubmit={handleSavePet}>
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '150px 1fr',
-                      gap: '2rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.5rem',
                       marginBottom: '1.5rem'
                     }}
                   >
@@ -680,9 +710,9 @@ const PetManager: React.FC = () => {
                           border: '2px solid var(--color-surface-high)'
                         }}
                       >
-                        {petForm.photoUrl ? (
+                        {avatarPreviewUrl || petForm.photoUrl ? (
                           <img
-                            src={petForm.photoUrl}
+                            src={avatarPreviewUrl || petForm.photoUrl}
                             alt="Avatar"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
