@@ -405,8 +405,14 @@ class SitterPublicProfileControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("MSG_DATA_CONCURRENCY_CONFLICT"));
 
-        // 3. 查詢
+        // 3. 查詢 (帶關鍵字)
         mockMvc.perform(get("/api/admin/forbidden-keywords?q=買")
+                        .with(user(adminUser.getEmail()).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].keyword").value("買賣"));
+
+        // 3b. 查詢 (不帶關鍵字，列出全部)
+        mockMvc.perform(get("/api/admin/forbidden-keywords")
                         .with(user(adminUser.getEmail()).roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].keyword").value("買賣"));

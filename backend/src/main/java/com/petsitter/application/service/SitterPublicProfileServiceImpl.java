@@ -239,8 +239,16 @@ public class SitterPublicProfileServiceImpl implements SitterPublicProfileServic
     @Override
     @Transactional(readOnly = true)
     public Page<ForbiddenKeywordDto> getForbiddenKeywords(String q, Pageable pageable) {
-        return forbiddenKeywordRepository.findByKeywordContaining(q, pageable)
-                .map(f -> ForbiddenKeywordDto.builder()
+        // 不把「未帶查詢字串」交給 SQL 的 :q IS NULL OR ... 去判斷：
+        // Supabase Transaction Pooler 搭配 prepareThreshold=0 (無 server-side prepared
+        // statement) 時，null 綁定參數在這個 LIKE/CONCAT 運算式裡會讓 PostgreSQL 型別推斷
+        // 出錯，導致 "function lower(bytea) does not exist"。改成在 Java 端分流，
+        // 讓 :q 這個綁定參數在有值時才會被送出，永遠不會是 null。
+        Page<ForbiddenKeyword> page = (q == null || q.isBlank())
+                ? forbiddenKeywordRepository.findAll(pageable)
+                : forbiddenKeywordRepository.findByKeywordContaining(q, pageable);
+
+        return page.map(f -> ForbiddenKeywordDto.builder()
                         .id(f.getId())
                         .keyword(f.getKeyword())
                         .createdBy(f.getCreatedBy())

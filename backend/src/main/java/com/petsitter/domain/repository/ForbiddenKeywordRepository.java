@@ -16,6 +16,7 @@ public interface ForbiddenKeywordRepository extends JpaRepository<ForbiddenKeywo
     Optional<ForbiddenKeyword> findByKeyword(String keyword);
     boolean existsByKeyword(String keyword);
 
-    @Query("SELECT f FROM ForbiddenKeyword f WHERE :q IS NULL OR LOWER(f.keyword) LIKE LOWER(CONCAT('%', :q, '%'))")
+    // 呼叫端 (SitterPublicProfileServiceImpl) 保證 q 不為 null/blank 才會呼叫這個查詢
+    @Query("SELECT f FROM ForbiddenKeyword f WHERE LOWER(f.keyword) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<ForbiddenKeyword> findByKeywordContaining(@Param("q") String q, Pageable pageable);
 }
