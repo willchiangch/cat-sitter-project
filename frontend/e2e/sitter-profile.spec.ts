@@ -6,6 +6,10 @@ test.describe('Sitter Public Profile & Forbidden Keywords Flow', () => {
   });
 
   test('should manage public profile and enforce forbidden keywords and gating', async ({ page }) => {
+    // 這支測試步驟特別多 (4次保存/多次角色切換/KYC/關鍵字管理，每個都是跨區真實API呼叫)，
+    // 光是成功的一次執行就逼近預設30s上限，拉寬到60s避免正常的網路延遲被誤判成失敗
+    test.setTimeout(60000);
+
     // 1. 保母登入（切換為保母）並填寫公開檔案
     await page.getByRole('button', { name: '切換為保母' }).click();
     await expect(page.locator('text=當前角色: 貓咪保母')).toBeVisible();
