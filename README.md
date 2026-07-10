@@ -85,6 +85,14 @@
 | `cat-sitter-media-cleanup` | `media/cleanup` | 每日 03:00 |
 | `cat-sitter-notifications-cleanup` | `notifications/cleanup` | 每日 04:00 |
 
+> **⚠️ 目前狀態為 `PAUSED`**：4 個 Job 已建立但手動暫停，尚未正式對外營運前不會自動執行。正式上線時需逐一恢復：
+> ```bash
+> for job in cat-sitter-orders-auto-complete cat-sitter-media-expiry-warning cat-sitter-media-cleanup cat-sitter-notifications-cleanup; do
+>   gcloud scheduler jobs resume "$job" --project=wd-pet-sitter --location=asia-east1
+> done
+> ```
+> 查詢目前狀態：`gcloud scheduler jobs list --project=wd-pet-sitter --location=asia-east1`
+
 ## 🛠️ 本地開發環境啟動
 
 ### 1. 啟動資料庫 (Docker)
