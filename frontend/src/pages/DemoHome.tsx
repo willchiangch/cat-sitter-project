@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useRole } from '../contexts/RoleContext';
+import { useRole, type Role } from '../contexts/RoleContext';
 
 // 測試用的 Mock Sitter / Owner / Visit / Order UUID，僅供這個 demo 導覽頁快速連結範例資料
 const mockParams = {
@@ -10,9 +10,55 @@ const mockParams = {
   kycRecordId: 'a1023000-0000-0000-0000-000000000000'
 };
 
+// 每個入口按鈕實際可用的角色 (依後端 @PreAuthorize / 頁面設計對照)，
+// 只顯示「目前角色能測」的按鈕，避免誤按到權限不符的功能而誤以為是功能壞了
+type DemoEntry = {
+  key: string;
+  label: string;
+  roles: Role[];
+  to: string;
+  testId?: string;
+};
+
+const allRoles: Role[] = ['sitter', 'client', 'admin'];
+
+const mainEntries: DemoEntry[] = [
+  { key: 'booking', label: '進入預約精靈 (飼主端)', roles: ['client'], to: `/booking/${mockParams.sitterId}` },
+  { key: 'sitter-orders', label: '進入訂單管理 (保母端)', roles: ['sitter'], to: '/sitter/orders' },
+  { key: 'owner-orders', label: '進入訂單管理 (飼主端)', roles: ['client'], to: '/owner/orders' },
+  { key: 'pets', label: '進入毛孩管理 (飼主端)', roles: ['client'], to: '/pets', testId: 'btn-go-pet-manager' },
+  { key: 'sitter-eval', label: '進入報價評估 (保母端)', roles: ['sitter'], to: '/sitter/eval' },
+  { key: 'sitter-plans', label: '進入方案設定 (保母端)', roles: ['sitter'], to: '/sitter/plans', testId: 'btn-go-sitter-plans' },
+  { key: 'gatekeeper', label: '進入門禁設定 (保母端)', roles: ['sitter'], to: '/sitter/gatekeeper', testId: 'btn-go-gatekeeper' },
+  { key: 'sitter-payment', label: '進入收款設定 (保母端)', roles: ['sitter'], to: '/sitter/payment-settings', testId: 'btn-go-sitter-payment' },
+  { key: 'sitter-profile', label: '進入公開檔案設定 (保母端)', roles: ['sitter'], to: '/sitter/profile-settings', testId: 'btn-go-sitter-profile-settings' },
+  { key: 'admin-keywords', label: '進入敏感詞管理 (管理端)', roles: ['admin'], to: '/admin/forbidden-keywords', testId: 'btn-go-admin-keywords' },
+  { key: 'admin-subscription', label: '進入訂閱方案管理 (管理端)', roles: ['admin'], to: '/admin/subscription', testId: 'btn-go-admin-subscription' },
+  { key: 'sitter-kyc', label: '進入 KYC 認證 (保母端)', roles: ['sitter'], to: '/sitter/kyc', testId: 'btn-go-sitter-kyc' },
+  { key: 'admin-kyc-list', label: '進入 KYC 審核清單 (管理端)', roles: ['admin'], to: '/admin/kyc', testId: 'btn-go-admin-kyc-list' },
+  { key: 'care-notes-manage', label: '進入照護管理 (保母端)', roles: ['sitter'], to: `/care-notes/manage/${mockParams.sitterId}/${mockParams.ownerId}` },
+  { key: 'care-notes-view', label: '進入照護檢視 (飼主端)', roles: ['client'], to: `/care-notes/view/${mockParams.sitterId}/${mockParams.ownerId}` },
+  { key: 'visit-reports-manage', label: '進入日誌回報 (保母端)', roles: ['sitter'], to: `/visit-reports/manage/${mockParams.visitId}` },
+  { key: 'visit-reports-view', label: '進入日誌檢視 (飼主端)', roles: ['client'], to: `/visit-reports/view/${mockParams.visitId}` },
+  { key: 'notifications', label: '進入通知中心 (共用)', roles: allRoles, to: '/notifications', testId: 'btn-go-notifications' },
+  { key: 'preferences', label: '進入通知偏好 (共用)', roles: allRoles, to: '/preferences', testId: 'btn-go-preferences' }
+];
+
+const quickEntries: DemoEntry[] = [
+  // 訂單詳情頁後端為 hasAnyRole('OWNER','SITTER')，飼主/保母皆可查看，非飼主獨有
+  { key: 'order-detail', label: '直接進入訂單詳情 (飼主端)', roles: ['client', 'sitter'], to: `/owner/orders/${mockParams.orderId}` },
+  { key: 'admin-resolve', label: '直接進入爭議調解 (管理端)', roles: ['admin'], to: `/admin/resolve/${mockParams.orderId}` },
+  { key: 'order-modify', label: '直接進入變更精靈 (飼主/保母)', roles: ['client', 'sitter'], to: `/orders/${mockParams.orderId}/modify` },
+  { key: 'sitter-quote', label: '直接進入變更報價 (保母端)', roles: ['sitter'], to: `/sitter/orders/${mockParams.orderId}/quote` },
+  { key: 'owner-modify-confirm', label: '直接進入變更確認 (飼主端)', roles: ['client'], to: `/owner/orders/${mockParams.orderId}/modification-confirm` },
+  { key: 'admin-kyc-detail', label: '直接進入 KYC 審核詳情 (管理端)', roles: ['admin'], to: `/admin/kyc/${mockParams.kycRecordId}` }
+];
+
 function DemoHome() {
   const { currentRole, setRole } = useRole();
   const navigate = useNavigate();
+  const visibleMainEntries = mainEntries.filter((entry) => entry.roles.includes(currentRole));
+  const visibleQuickEntries = quickEntries.filter((entry) => entry.roles.includes(currentRole));
 
   return (
     <div style={{ padding: '2rem 0', textAlign: 'center' }}>
@@ -78,167 +124,35 @@ function DemoHome() {
           </button>
         </div>
 
-        <button className="btn-primary" onClick={() => navigate(`/booking/${mockParams.sitterId}`)}>
-          進入預約精靈 (飼主端)
-        </button>
-        <button className="btn-primary" onClick={() => navigate('/sitter/orders')}>
-          進入訂單管理 (保母端)
-        </button>
-        <button className="btn-primary" onClick={() => navigate('/owner/orders')}>
-          進入訂單管理 (飼主端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/pets')}
-          data-testid="btn-go-pet-manager"
-        >
-          進入毛孩管理 (飼主端)
-        </button>
-        <button className="btn-primary" onClick={() => navigate('/sitter/eval')}>
-          進入報價評估 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/sitter/plans')}
-          data-testid="btn-go-sitter-plans"
-        >
-          進入方案設定 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/sitter/gatekeeper')}
-          data-testid="btn-go-gatekeeper"
-        >
-          進入門禁設定 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/sitter/payment-settings')}
-          data-testid="btn-go-sitter-payment"
-        >
-          進入收款設定 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/sitter/profile-settings')}
-          data-testid="btn-go-sitter-profile-settings"
-        >
-          進入公開檔案設定 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/admin/forbidden-keywords')}
-          data-testid="btn-go-admin-keywords"
-        >
-          進入敏感詞管理 (管理端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/admin/subscription')}
-          data-testid="btn-go-admin-subscription"
-        >
-          進入訂閱方案管理 (管理端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/sitter/kyc')}
-          data-testid="btn-go-sitter-kyc"
-        >
-          進入 KYC 認證 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/admin/kyc')}
-          data-testid="btn-go-admin-kyc-list"
-        >
-          進入 KYC 審核清單 (管理端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate(`/care-notes/manage/${mockParams.sitterId}/${mockParams.ownerId}`)}
-        >
-          進入照護管理 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate(`/care-notes/view/${mockParams.sitterId}/${mockParams.ownerId}`)}
-        >
-          進入照護檢視 (飼主端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate(`/visit-reports/manage/${mockParams.visitId}`)}
-        >
-          進入日誌回報 (保母端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate(`/visit-reports/view/${mockParams.visitId}`)}
-        >
-          進入日誌檢視 (飼主端)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/notifications')}
-          data-testid="btn-go-notifications"
-        >
-          進入通知中心 (共用)
-        </button>
-        <button
-          className="btn-primary"
-          onClick={() => navigate('/preferences')}
-          data-testid="btn-go-preferences"
-        >
-          進入通知偏好 (共用)
-        </button>
+        {visibleMainEntries.map((entry) => (
+          <button
+            key={entry.key}
+            className="btn-primary"
+            onClick={() => navigate(entry.to)}
+            {...(entry.testId ? { 'data-testid': entry.testId } : {})}
+          >
+            {entry.label}
+          </button>
+        ))}
 
-        <div
-          style={{
-            marginTop: '1.5rem',
-            borderTop: '1px solid var(--color-surface-high)',
-            paddingTop: '1.5rem'
-          }}
-        >
-          <h4 style={{ margin: '0 0 1rem 0' }}>功能直接 Demo 入口</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button
-              className="btn-primary"
-              onClick={() => navigate(`/owner/orders/${mockParams.orderId}`)}
-            >
-              直接進入訂單詳情 (飼主端)
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => navigate(`/admin/resolve/${mockParams.orderId}`)}
-            >
-              直接進入爭議調解 (管理端)
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => navigate(`/orders/${mockParams.orderId}/modify`)}
-            >
-              直接進入變更精靈 (飼主/保母)
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => navigate(`/sitter/orders/${mockParams.orderId}/quote`)}
-            >
-              直接進入變更報價 (保母端)
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => navigate(`/owner/orders/${mockParams.orderId}/modification-confirm`)}
-            >
-              直接進入變更確認 (飼主端)
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => navigate(`/admin/kyc/${mockParams.kycRecordId}`)}
-            >
-              直接進入 KYC 審核詳情 (管理端)
-            </button>
+        {visibleQuickEntries.length > 0 && (
+          <div
+            style={{
+              marginTop: '1.5rem',
+              borderTop: '1px solid var(--color-surface-high)',
+              paddingTop: '1.5rem'
+            }}
+          >
+            <h4 style={{ margin: '0 0 1rem 0' }}>功能直接 Demo 入口</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {visibleQuickEntries.map((entry) => (
+                <button key={entry.key} className="btn-primary" onClick={() => navigate(entry.to)}>
+                  {entry.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

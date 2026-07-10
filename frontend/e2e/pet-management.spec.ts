@@ -178,6 +178,12 @@ test.describe('毛孩資料與注意事項管理流程', () => {
   });
 
   test('TS-002-02 必填欄位卡控與新增毛孩', async ({ page }) => {
+    // 切換為飼主角色 (毛孩管理僅飼主角色可見)
+    const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
+    if (roleText?.includes('貓咪保母') || roleText?.includes('系統管理員')) {
+      await page.click('[data-testid="btn-role-toggle"]');
+    }
+
     // 進入毛孩管理頁面
     await page.click('[data-testid="btn-go-pet-manager"]');
 
@@ -199,6 +205,12 @@ test.describe('毛孩資料與注意事項管理流程', () => {
   });
 
   test('TS-002-03 注意事項共同編輯、異動日誌', async ({ page }) => {
+    // 切換為飼主角色 (毛孩管理僅飼主角色可見)
+    const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
+    if (roleText?.includes('貓咪保母') || roleText?.includes('系統管理員')) {
+      await page.click('[data-testid="btn-role-toggle"]');
+    }
+
     // 進入毛孩管理頁面
     await page.click('[data-testid="btn-go-pet-manager"]');
     await page.getByTestId('pet-card').filter({ hasText: '咪咪' }).click();
@@ -244,6 +256,12 @@ test.describe('毛孩資料與注意事項管理流程', () => {
   });
 
   test('TS-002-04 樂觀鎖衝突 (409) 提示', async ({ page }) => {
+    // 切換為飼主角色 (毛孩管理僅飼主角色可見)
+    const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
+    if (roleText?.includes('貓咪保母') || roleText?.includes('系統管理員')) {
+      await page.click('[data-testid="btn-role-toggle"]');
+    }
+
     // 進入毛孩管理頁面
     await page.click('[data-testid="btn-go-pet-manager"]');
     await page.getByTestId('pet-card').filter({ hasText: '咪咪' }).click();
@@ -273,6 +291,12 @@ test.describe('毛孩資料與注意事項管理流程', () => {
   });
 
   test('TS-002-05 進行中訂單阻擋刪除提示', async ({ page }) => {
+    // 切換為飼主角色 (毛孩管理僅飼主角色可見)
+    const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
+    if (roleText?.includes('貓咪保母') || roleText?.includes('系統管理員')) {
+      await page.click('[data-testid="btn-role-toggle"]');
+    }
+
     // 進入毛孩管理頁面
     await page.click('[data-testid="btn-go-pet-manager"]');
     await page.getByTestId('pet-card').filter({ hasText: '咪咪' }).click();

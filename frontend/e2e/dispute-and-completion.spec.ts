@@ -83,6 +83,9 @@ test.describe('Dispute and Completion Flow', () => {
   });
 
   test('should complete order from owner side', async ({ page }) => {
+    // 切換為飼主角色 (訂單管理清單頁僅飼主角色可見)
+    await page.getByRole('button', { name: '切換為飼主' }).click();
+
     // 進入飼主端訂單管理
     await page.getByRole('button', { name: '進入訂單管理 (飼主端)' }).click();
     await expect(page.locator('text=飼主訂單管理')).toBeVisible();
