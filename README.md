@@ -9,9 +9,9 @@
 - **Database**: PostgreSQL 16（本地開發用 Docker；正式環境為 Supabase Postgres, ap-southeast-2）
 - **Migration**: Flyway 11.x
 - **ORM**: Hibernate 7.x (Jakarta Persistence 3.2)
-- **Auth**: Spring Security 6 + JJWT 0.12.6 (Stateless JWT)
+- **Auth**: Spring Security 7 + JJWT 0.12.6 (Stateless JWT)
 - **Monitoring**: Spring Boot Actuator (健康檢查曝露限制 /actuator/health)
-- **OpenAPI**: Springdoc OpenAPI / Swagger UI (開發期匿名存取 /swagger-ui.html)
+- **OpenAPI**: Springdoc OpenAPI / Swagger UI (`/swagger-ui.html`、`/v3/api-docs` 僅非 prod profile 匿名開放，正式環境需驗證)
 
 ### 前端 (Frontend)
 - **Framework**: React 19 + Vite 8 + react-router (正式路由，`RequireAuth` 登入守衛)
@@ -29,7 +29,7 @@
   ├── backend/            # Java Spring Boot 核心引擎
   │   ├── src/main/java   # 業務邏輯 (Domain Model, Service, API)
   │   └── src/main/resources/db/migration # Flyway SQL 遷移腳本
-  ├── frontend/           # React PWA 前端專案 (開發中)
+  ├── frontend/           # React PWA 前端專案 (已部署正式環境)
   ├── docs/               # 專案文件、系統設計 (SD) 與系統分析 (SA)
   ├── .agent/brain/       # AI 助理開發進度持久化目錄 (task.md, walkthrough.md)
   ├── docker-compose.yml  # 本地 PostgreSQL 16 環境設定
@@ -75,6 +75,16 @@
 4. **資料庫**：正式環境使用 **Supabase Postgres**（`ap-southeast-2`），透過 Transaction Pooler（應用查詢）與 Session Pooler（Flyway migration）連線。
 5. **E2E 驗證**：對正式部署網址執行 Playwright 全量 E2E，跑完後（`if: always()`）呼叫內部端點軟刪除種子帳號測試訂單，避免持久化資料庫累積測試髒資料。
 
+### 排程任務 (Cloud Scheduler)
+`min-instances: 0` 的 Cloud Run 無法使用 Spring `@Scheduled`，內部 Cron 端點（`/api/internal/cron/**`，`X-Internal-Secret` 保護）改由 **GCP Cloud Scheduler**（`asia-east1`）主動觸發：
+
+| Job | 端點 | 頻率 (UTC) |
+| :--- | :--- | :--- |
+| `cat-sitter-orders-auto-complete` | `orders/auto-complete` | 每小時 |
+| `cat-sitter-media-expiry-warning` | `media/expiry-warning` | 每日 02:00 |
+| `cat-sitter-media-cleanup` | `media/cleanup` | 每日 03:00 |
+| `cat-sitter-notifications-cleanup` | `notifications/cleanup` | 每日 04:00 |
+
 ## 🛠️ 本地開發環境啟動
 
 ### 1. 啟動資料庫 (Docker)
@@ -119,8 +129,8 @@ npm run build
 
 ### 5. 開發進度追蹤
 本專案使用 AI 助理協同開發，詳細進度與待辦事項請參考：
-- [最新進度總結](file:///.agent/brain/walkthrough.md)
-- [待辦清單 (Task List)](file:///.agent/brain/task.md)
+- [最新進度總結](.agent/brain/walkthrough.md)
+- [待辦清單 (Task List)](.agent/brain/task.md)
 
 
 

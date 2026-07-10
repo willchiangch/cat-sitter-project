@@ -3,6 +3,7 @@ package com.petsitter.infrastructure.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
@@ -31,9 +32,13 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final InternalSecretFilter internalSecretFilter;
+    private final Environment environment;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // Swagger UI / OpenAPI 規格書只在非 prod 環境匿名開放，避免正式環境的完整 API 規格公開暴露給任何人
+        boolean isProd = environment.matchesProfiles("prod");
+
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
@@ -45,19 +50,20 @@ public class SecurityConfig {
                     response.getWriter().write("{\"error\":\"UNAUTHORIZED\",\"message\":\"請先登入系統\"}");
                 })
             )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/", "/index.html", "/favicon.ico", "/assets/**", "/static/**", "/*.js", "/*.css", "/*.png", "/*.svg", "/*.ico").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/sitters/*/plans").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/sitter/profile/*").permitAll()
-                .requestMatchers("/api/internal/**").hasRole("INTERNAL")
-
-                .requestMatchers("/error").permitAll()
-                .anyRequest().authenticated()
-            );
+            .authorizeHttpRequests(auth -> {
+                auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    .requestMatchers("/", "/index.html", "/favicon.ico", "/assets/**", "/static/**", "/*.js", "/*.css", "/*.png", "/*.svg", "/*.ico").permitAll()
+                    .requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers("/actuator/health").permitAll();
+                if (!isProd) {
+                    auth.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll();
+                }
+                auth.requestMatchers(HttpMethod.GET, "/api/sitters/*/plans").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/sitter/profile/*").permitAll()
+                    .requestMatchers("/api/internal/**").hasRole("INTERNAL")
+                    .requestMatchers("/error").permitAll()
+                    .anyRequest().authenticated();
+            });
 
         http.addFilterBefore(internalSecretFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
