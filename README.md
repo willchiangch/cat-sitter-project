@@ -6,7 +6,7 @@
 
 ### 後端 (Backend)
 - **Framework**: Spring Boot 4.0.6 (Java 21)
-- **Database**: PostgreSQL 16
+- **Database**: PostgreSQL 16（本地開發用 Docker；正式環境為 Supabase Postgres, ap-southeast-2）
 - **Migration**: Flyway 11.x
 - **ORM**: Hibernate 7.x (Jakarta Persistence 3.2)
 - **Auth**: Spring Security 6 + JJWT 0.12.6 (Stateless JWT)
@@ -14,9 +14,10 @@
 - **OpenAPI**: Springdoc OpenAPI / Swagger UI (開發期匿名存取 /swagger-ui.html)
 
 ### 前端 (Frontend)
-- **Framework**: React 19 + Vite 8
+- **Framework**: React 19 + Vite 8 + react-router (正式路由，`RequireAuth` 登入守衛)
 - **Design System**: Stitch "The Intuitive Concierge" (Editorial Aesthetic)
 - **Style**: Vanilla CSS + CSS Variables (No-Line Philosophy)
+- **PWA**: vite-plugin-pwa（`virtual:pwa-register` 手動註冊，偵測新版本自動 reload）
 - **Testing**: Playwright (E2E) + TS Strict Mode Enabled
 
 ---
@@ -63,6 +64,16 @@
 
 
 ---
+
+## 🌐 正式環境部署 (Production Deployment)
+
+前後端分離部署，`main` 分支 push 後由 GitHub Actions (`.github/workflows/deploy.yml`) 自動執行：
+
+1. **後端測試閘門**：`mvn test` 全部通過才會繼續 build（擋在 Docker build 之前）。
+2. **後端**：Docker image 建置後推送至 GCP Artifact Registry，部署至 **Cloud Run**（`asia-east1`，純 API，`--allow-unauthenticated`，機敏設定透過 GCP Secret Manager `--set-secrets` 注入）。
+3. **前端**：靜態資源建置後部署至 **Firebase Hosting**（`wd-pet-sitter.web.app`），`/api/**` 透過 `run` rewrite 同源代理至 Cloud Run，避免 CORS。
+4. **資料庫**：正式環境使用 **Supabase Postgres**（`ap-southeast-2`），透過 Transaction Pooler（應用查詢）與 Session Pooler（Flyway migration）連線。
+5. **E2E 驗證**：對正式部署網址執行 Playwright 全量 E2E，跑完後（`if: always()`）呼叫內部端點軟刪除種子帳號測試訂單，避免持久化資料庫累積測試髒資料。
 
 ## 🛠️ 本地開發環境啟動
 

@@ -50,3 +50,5 @@
 - [x] **SD-014: 訊息中心與推播通知** (✅ **Implemented**)
 - [x] **SD-018: 保母公開檔案與標籤管理** (✅ **Implemented**)
 - [x] **Admin Subscription API 手動開通** (✅ **Implemented**)
+- [x] **前後端分離部署 (Firebase Hosting + Cloud Run) + 正式路由/登入頁 + 訂單清單 API 化 + CI 後端測試閘門** (✅ **Implemented**，詳見 walkthrough.md 第 10 節)
+- [x] **正式環境上線後人工巡檢修復**（毛孩頭像上傳體驗、窄螢幕表單直排、/login 登入並發 409、PWA 更新後空白頁、E2E 逾時）(✅ **Implemented**，詳見 walkthrough.md 第 11 節)

@@ -243,4 +243,63 @@ Close Beta 不接線上支付 (SD-015)，早鳥優惠與補償方案由管理員
   - 通知信件發送攜帶 `expiryTime` 精確日期（`yyyy-MM-dd`），優化 UX。
 - **前端下沉**：`isPurged` 判定下沉至單一媒體級別 (Per-item DTO)，避免誤遮擋整份報告未過期媒體，report 級別 `isPurged` 僅用於頂端 Banner。
 
+---
+
+## 10. 前後端分離部署、正式路由/登入頁與訂單清單 API 化
+
+本節紀錄將 Demo Hub 架構升級為正式產品架構的完整過程：前端獨立部署至 Firebase Hosting、`react-router` 正式路由取代 `ViewState` 手動切換、新增正式登入頁、`OwnerOrders`/`SitterOrders` 由假資料改接真實清單 API，以及打開 CI 後端測試閘門。
+
+### 10.1 前後端分離部署 (Firebase Hosting + Cloud Run)
+- 前端獨立建置為靜態資源部署至 Firebase Hosting（`wd-pet-sitter.web.app`），`firebase.json` 設定 `/api/**` → Cloud Run `run` rewrite，同源代理避免 CORS。
+- 後端 `backend/Dockerfile` 恢復為純 API 服務，不再內嵌前端靜態資源。
+- `.github/workflows/deploy.yml` 新增 `Deploy Frontend to Firebase Hosting` 步驟，於 Cloud Run 部署完成後執行。
+
+### 10.2 正式路由與登入頁
+- 新增 `frontend/src/routes.tsx`：`App.tsx` 原本 25 個 `ViewState` case 全數轉為 `react-router` 路由，需要資源 id 的頁面改用 `useParams()`。
+- 新增 [`LoginPage.tsx`](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/pages/auth/LoginPage.tsx) 與 [`RequireAuth.tsx`](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/src/components/auth/RequireAuth.tsx) route guard。
+- `RoleContext.tsx` 的 role-toggle（供 E2E 使用）保留為 dev 快速切換工具，新增 `authMode`（`manual` / `seed`）判斷式，避免正式登入的 session 被自動種子登入覆蓋；新增 `isAuthLoading` 狀態，避免 `RequireAuth` 在自動登入完成前誤判為未登入而導致連環重導向。
+- 新增共用 `useCurrentUser.ts` hook（decode JWT 取得 `userId`/`role`），取代各頁面各自硬寫的假 UUID。
+
+### 10.3 訂單清單 API 化
+- 後端新增 `GET /api/orders/owner`、`GET /api/orders/sitter`（`OrderController`/`OrderQueryService`），回傳 `OrderSummaryDto`（含後端組好的 `scheduledDatesLabel` 摘要字串）。
+- `OwnerOrders.tsx`/`SitterOrders.tsx` 移除固定假資料陣列，改用 `useOwnerOrdersQuery`/`useSitterOrdersQuery` 串接真實清單。
+- **E2E 測試資料清理**：因 Supabase 為持久化資料庫，清單改真實資料後種子帳號測試訂單會越積越多。新增 `TestDataCleanupService` + `POST /api/internal/cron/test-data/cleanup-seed-orders`（沿用 `InternalSecretFilter` 保護），CI 於 Playwright 跑完後 (`if: always()`) 呼叫此端點軟刪除種子帳號訂單。
+
+### 10.4 CI 後端測試閘門
+- `.github/workflows/deploy.yml` 新增 `Run Backend Tests`（`mvn test`），擋在 Docker build 之前，取代先前 `Dockerfile` 用 `-DskipTests` 導致後端測試從未在 CI 執行過的缺口。
+- 修復兩個既有失敗測試：`MediaRetentionServiceTest`（稽核日誌 FK 違反，改用真實 admin user id）、`ServicePlanControllerTest`（斷言值對齊 `GlobalExceptionHandler` 實際回傳的 `MSG_DATA_CONCURRENCY_CONFLICT`）。
+- 修復 `application-local.yml` 被 `.gitignore` 排除、CI 從未取得 `jwt-secret`/`jwt-expiration` 導致 `@ActiveProfiles("local")` 測試全面 `ApplicationContext` 載入失敗的問題，於 `application.yml` 補上非機密的預設值。
+- 建立正式 `INTERNAL_CRON_SECRET`（GCP Secret Manager + GitHub Actions secret），取代先前 `/api/internal/**` 端點一直用原始碼硬寫預設密碼防護的安全缺口。
+
+### 10.5 意外發現並修復的正式環境 Bug
+- **`forbidden_keywords` 查詢 500 錯誤**：`GET /api/admin/forbidden-keywords`（不帶 `q` 參數）在正式環境會回傳 500（`function lower(bytea) does not exist`）。根因是 Supabase Transaction Pooler（`prepareThreshold=0`，無 server-side prepared statement）下，JPQL `WHERE :q IS NULL OR LOWER(f.keyword) LIKE ...` 對 `null` 參數型別推斷失敗。修復：`SitterPublicProfileServiceImpl.getForbiddenKeywords` 在 `q` 為 null/blank 時改呼叫 `findAll()`，`ForbiddenKeywordRepository` 移除 `:q IS NULL OR` 分支，並補上無 `q` 參數的回歸測試。
+
+---
+
+## 11. 正式環境上線後人工巡檢修復
+
+10 完成部署後，於正式環境 (`https://wd-pet-sitter.web.app`) 手動走查時發現並修復以下問題，皆已本地重現驗證後上線：
+
+### 11.1 毛孩頭像須「先儲存才能上傳」的體驗問題
+- **問題**：`PetManager.tsx` 新增毛孩流程中，點擊頭像會被 `isAdding` 擋下並跳錯誤提示，要求先送出基本資料表單才能上傳照片，原因是後端 `uploadPetAvatar(petId, file)` 需要已存在的 `petId`。
+- **修復**：新增流程改為先用 `URL.createObjectURL` 在本地暫存檔案並即時預覽，待「儲存基本資料」拿到新建 `petId` 後自動補傳（`handleSavePet` 內串接 `uploadAvatarMutation`），使用者體感一次完成選圖＋填資料＋存檔。
+
+### 11.2 窄螢幕（App 固定 390px 手機殼容器）表單文字逐字直排
+- **問題**：`PetManager.tsx` 新增毛孩表單原本用 `大頭照(150px) + 表單(1fr 1fr)` 三欄並排，但整個 App 由 `AppShell` 固定卡在 `--max-width-mobile: 390px` 容器內，換算下每個表單欄位僅剩約 40px 寬，中文 label（如「毛孩名字」）被迫逐字換行直排。
+- **修復**：改為大頭照獨立一列置中、表單欄位另起一列 2 欄，欄寬回到約 130px 正常顯示。
+
+### 11.3 `/login` 頁面與 RoleContext 自動種子登入並發衝突
+- **問題**：`RoleContext.tsx` 的自動種子登入 `useEffect` 未依路由排除，使用者在 `/login` 頁面手動登入時，會跟自動種子登入同時對同一組帳號打 `POST /api/auth/login`，後端對同帳號並發登入有樂觀鎖版本控制，輸的一方回 409（`MSG_DATA_CONCURRENCY_CONFLICT`），導致帳密正確卻顯示登入失敗——尤其容易在用種子帳號（`sitter/owner/admin@test.com`）手動驗證正式環境時踩到。
+- **修復**：`RoleContext.tsx` 的自動登入 effect 於 `window.location.pathname === '/login'` 時直接跳過。
+
+### 11.4 PWA Service Worker 未偵測更新，部署後開著的分頁變空白頁
+- **問題**：`vite-plugin-pwa` 預設自動注入的 `registerSW.js` 只單純 `navigator.serviceWorker.register()`，沒有偵測到新版本後 reload 的邏輯。部署後，先前已開啟過網站的分頁重新導覽時，SW 攔截 navigation 並吐出舊快取的 `index.html`（引用已被新版覆蓋、Firebase Hosting 上已不存在的舊 JS bundle hash），造成白畫面。以 Playwright 全新無痕 context 測試正常，但重現使用者「點連結變空白頁」的情境需要瀏覽器已有舊 SW 快取。
+- **修復**：`vite.config.ts` 設定 `injectRegister: false`，改於 `main.tsx` 用 `virtual:pwa-register` 手動註冊，`onNeedRefresh` 時呼叫 `window.location.reload()` 強制刷新，之後每次部署都會讓已開啟分頁自動跳到新版本。
+
+### 11.5 `sitter-profile.spec.ts` E2E 測試逾時（CI 連續失敗排查）
+- **問題**：本次部署後 CI 的 Playwright E2E 連續兩輪都在 `sitter-profile.spec.ts` 最後一步（還原公開檔案並儲存）逾時失敗。用 Playwright HTML report 與 trace 分析（`0-trace.network`）發現：此測試本身步驟極多（4 次保存／多次角色切換／KYC／關鍵字管理，每個都是跨區 Cloud Run↔Supabase 真實 API 呼叫），連成功的一次本地重跑都要 29–30 秒，卡在 Playwright 預設 30 秒測試逾時邊緣，並非功能性 regression。另有一次本地重現「開場即空白頁」，但後續 5 次冷啟動測試皆正常（無 reload loop），排除與 11.4 的 PWA 修復有關，判斷為單次網路抖動。
+- **修復**：於該測試內加上 `test.setTimeout(60000)`，本地重跑 3 次穩定通過，推上 CI 一次全綠（31/31，7m17s）。
+
+---
+
 
