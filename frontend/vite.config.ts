@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // 改用 virtual:pwa-register 手動註冊 (main.tsx)，偵測到新版本時強制 reload，
+      // 避免部署後開著的分頁繼續吃到舊快取的 app shell 而變成空白頁
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'WhiskerWatch',
