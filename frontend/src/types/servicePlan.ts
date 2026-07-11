@@ -4,6 +4,7 @@ export interface ServicePlan {
   name: string;
   price: number;
   dailyCapacity: number;
+  durationMinutes: number;
   defaultTasks: string[];
   applicablePetTypes: string[];
   description?: string;

@@ -29,6 +29,11 @@ public class ServicePlanDto {
     @Min(value = 1, message = "每日最大接單量不可小於 1")
     private Integer dailyCapacity;
 
+    @NotNull(message = "服務時長不可為空")
+    @Min(value = 1, message = "服務時長必須大於 0 分鐘")
+    @Builder.Default
+    private Integer durationMinutes = 60;
+
     @Builder.Default
     private List<String> defaultTasks = List.of();
 

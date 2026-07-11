@@ -199,11 +199,20 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
     }
   };
 
+  // 預設全選該方案適用的寵物，避免飼主每次都要手動一隻一隻點選
+  const getDefaultPetIds = (planId: string) => {
+    const plan = plans.find((p) => p.id === planId);
+    const allowedTypes = plan?.applicablePetTypes || [];
+    return pets
+      .filter((p) => allowedTypes.length === 0 || allowedTypes.includes(p.species))
+      .map((p) => p.id!);
+  };
+
   const addPlanConfig = (planId: string) => {
     setBooking((prev) => {
       const newConfigs = [
         ...prev.planConfigs,
-        { planId, schedules: [{ dates: [], timesPerDay: 1, petIds: [] }] }
+        { planId, schedules: [{ dates: [], timesPerDay: 1, petIds: getDefaultPetIds(planId) }] }
       ];
       setActiveCalendar({ planIndex: prev.planConfigs.length, scheduleIndex: 0 });
       return {
@@ -218,7 +227,10 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
     setBooking((prev) => {
       const newConfigs = [...prev.planConfigs];
       const plan = { ...newConfigs[planIndex] };
-      plan.schedules = [...plan.schedules, { dates: [], timesPerDay: 1, petIds: [] }];
+      plan.schedules = [
+        ...plan.schedules,
+        { dates: [], timesPerDay: 1, petIds: getDefaultPetIds(plan.planId) }
+      ];
       newConfigs[planIndex] = plan;
       setActiveCalendar({ planIndex, scheduleIndex: plan.schedules.length - 1 });
       return { ...prev, planConfigs: newConfigs };
@@ -363,7 +375,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                         fontSize: '1.1rem'
                       }}
                     >
-                      $ {plan.price} / 次
+                      $ {plan.price} / {plan.durationMinutes ?? 60} 分鐘
                     </span>
                   </div>
                   <p
@@ -1315,7 +1327,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                       }}
                     >
                       <div style={{ fontWeight: '800', fontSize: '0.875rem', marginBottom: '4px' }}>
-                        {plan?.name} (每天 {schedule.timesPerDay} 次)
+                        {plan?.name} (每次 {plan?.durationMinutes ?? 60} 分鐘 / 每天 {schedule.timesPerDay} 次)
                       </div>
                       <div
                         style={{

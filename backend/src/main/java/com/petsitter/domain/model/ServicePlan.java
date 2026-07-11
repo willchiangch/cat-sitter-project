@@ -31,6 +31,10 @@ public class ServicePlan extends BaseEntity {
     @Column(nullable = false)
     private Long price;
 
+    @Builder.Default
+    @Column(name = "duration_minutes", nullable = false)
+    private Integer durationMinutes = 60;
+
     // --- PRD-013 媒體保留規則 ---
     @Builder.Default
     @Column(name = "media_retention_days", nullable = false)

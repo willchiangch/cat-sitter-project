@@ -53,6 +53,7 @@ public class ServicePlanService {
                 .name(dto.getName())
                 .price(dto.getPrice().setScale(0, RoundingMode.HALF_UP).longValue())
                 .dailyCapacity(dto.getDailyCapacity())
+                .durationMinutes(dto.getDurationMinutes())
                 .defaultTasks(dto.getDefaultTasks() != null ? dto.getDefaultTasks() : List.of())
                 .applicablePetTypes(dto.getApplicablePetTypes() != null ? dto.getApplicablePetTypes() : List.of())
                 .description(dto.getDescription())
@@ -100,6 +101,7 @@ public class ServicePlanService {
         plan.setName(dto.getName());
         plan.setPrice(dto.getPrice().setScale(0, RoundingMode.HALF_UP).longValue());
         plan.setDailyCapacity(dto.getDailyCapacity());
+        plan.setDurationMinutes(dto.getDurationMinutes());
         plan.setDefaultTasks(dto.getDefaultTasks() != null ? dto.getDefaultTasks() : List.of());
         plan.setApplicablePetTypes(dto.getApplicablePetTypes() != null ? dto.getApplicablePetTypes() : List.of());
         plan.setDescription(dto.getDescription());
@@ -247,6 +249,7 @@ public class ServicePlanService {
                 .name(plan.getName())
                 .price(BigDecimal.valueOf(plan.getPrice()))
                 .dailyCapacity(plan.getDailyCapacity())
+                .durationMinutes(plan.getDurationMinutes())
                 .defaultTasks(plan.getDefaultTasks())
                 .applicablePetTypes(plan.getApplicablePetTypes())
                 .description(plan.getDescription())

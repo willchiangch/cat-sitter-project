@@ -181,9 +181,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       // 選擇趟次 (點擊 + 號變成 2 次)
       await page.click('[data-testid="client-booking-times-plus-0-0"]');
 
-      // 勾選寵物「咪咪」以符合必填防禦
-      await page.click('[data-testid="client-booking-pet-label-0-0-咪咪"]');
-      
+      // 照護對象預設全選，此處不需再手動勾選寵物「咪咪」
+
       const screenshot = await page.screenshot();
       await testInfo.attach('步驟 2: 方案配置完成', { body: screenshot, contentType: 'image/png' });
       await page.click('[data-testid="client-booking-btn-step1-next"]');
@@ -225,9 +224,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await helper.selectDate(0, 0, dates[1]);
       await page.click('[data-testid="client-booking-btn-confirm-date-0-0"]');
       await page.click('[data-testid="client-booking-times-plus-0-0"]'); // 500 * 2 * 2 = 2000
-      
-      // 勾選寵物「咪咪」
-      await page.click('[data-testid="client-booking-pet-label-0-0-咪咪"]');
+
+      // 照護對象預設全選，此處不需再手動勾選寵物「咪咪」
 
       // 新增第二個方案
       await page.click('[data-testid="client-booking-btn-add-plan"]');
@@ -248,9 +246,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await page.click('[data-testid="client-booking-btn-confirm-date-1-0"]');
       // 趟次預設為 1，不需點擊 plus
       await testInfo.attach('2-10-進階趟次', { body: await page.screenshot(), contentType: 'image/png' });
-      
-      // 勾選寵物「咪咪」
-      await page.click('[data-testid="client-booking-pet-label-1-0-咪咪"]');
+
+      // 照護對象預設全選，此處不需再手動勾選寵物「咪咪」
 
       // 方案 2 的 排程 2: 日期 4
       await page.click('[data-testid="client-booking-btn-add-schedule-1"]');
@@ -263,9 +260,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await page.click('[data-testid="client-booking-btn-confirm-date-1-1"]');
       await page.click('[data-testid="client-booking-times-plus-1-1"]');
       await testInfo.attach('2-13-額外趟次', { body: await page.screenshot(), contentType: 'image/png' });
-      
-      // 勾選寵物「咪咪」
-      await page.click('[data-testid="client-booking-pet-label-1-1-咪咪"]');
+
+      // 照護對象預設全選，此處不需再手動勾選寵物「咪咪」
 
       await page.click('[data-testid="client-booking-btn-step1-next"]');
       await testInfo.attach('2-14-進入摘要', { body: await page.screenshot(), contentType: 'image/png' });

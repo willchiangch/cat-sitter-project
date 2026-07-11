@@ -25,6 +25,7 @@ const SitterPlans: React.FC = () => {
   const [name, setName] = useState('');
   const [price, setPrice] = useState<number | ''>('');
   const [dailyCapacity, setDailyCapacity] = useState<number | ''>('');
+  const [durationMinutes, setDurationMinutes] = useState<number | ''>(60);
   const [applicablePetTypes, setApplicablePetTypes] = useState<string[]>([]);
   const [defaultTasks, setDefaultTasks] = useState<string[]>([]);
   const [description, setDescription] = useState('');
@@ -41,6 +42,7 @@ const SitterPlans: React.FC = () => {
       setName(plan.name);
       setPrice(plan.price);
       setDailyCapacity(plan.dailyCapacity);
+      setDurationMinutes(plan.durationMinutes ?? 60);
       setApplicablePetTypes(plan.applicablePetTypes);
       setDefaultTasks(plan.defaultTasks);
       setDescription(plan.description || '');
@@ -52,6 +54,7 @@ const SitterPlans: React.FC = () => {
       setName('');
       setPrice('');
       setDailyCapacity('');
+      setDurationMinutes(60);
       setApplicablePetTypes(['CAT']);
       setDefaultTasks(['基本餵食', '清理砂盆', '更換新鮮水']);
       setDescription('');
@@ -129,6 +132,10 @@ const SitterPlans: React.FC = () => {
       setFormError('每日最大接單量不可小於 1');
       return;
     }
+    if (durationMinutes === '' || durationMinutes < 1) {
+      setFormError('服務時長必須大於 0 分鐘');
+      return;
+    }
     if (applicablePetTypes.length === 0) {
       setFormError('請至少選擇一種適用寵物類型');
       return;
@@ -138,6 +145,7 @@ const SitterPlans: React.FC = () => {
       name,
       price: Number(price),
       dailyCapacity: Number(dailyCapacity),
+      durationMinutes: Number(durationMinutes),
       applicablePetTypes,
       defaultTasks: defaultTasks.filter((t) => t.trim() !== ''),
       description,
@@ -377,7 +385,7 @@ const SitterPlans: React.FC = () => {
                     </span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
                       {' '}
-                      / 次
+                      / {plan.durationMinutes ?? 60} 分鐘
                     </span>
                   </div>
                 </div>
@@ -764,6 +772,38 @@ const SitterPlans: React.FC = () => {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Duration */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
+                  服務時長 (分鐘) *
+                </label>
+                <input
+                  type="number"
+                  placeholder="60"
+                  value={durationMinutes}
+                  onChange={(e) =>
+                    setDurationMinutes(e.target.value === '' ? '' : Number(e.target.value))
+                  }
+                  style={{
+                    padding: '12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--color-surface-high)',
+                    backgroundColor: 'var(--color-surface-low)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.95rem'
+                  }}
+                  data-testid="sitter-plan-input-duration"
+                  min="1"
+                  required
+                />
               </div>
 
               {/* Applicable Pet Types */}
