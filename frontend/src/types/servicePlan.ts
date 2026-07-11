@@ -11,6 +11,7 @@ export interface ServicePlan {
   endDate?: string | null; // DATE - YYYY-MM-DD
   isRestricted: boolean;
   sortOrder?: number;
+  isActive?: boolean;
   version?: number;
 }
 

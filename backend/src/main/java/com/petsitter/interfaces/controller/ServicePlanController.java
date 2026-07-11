@@ -64,6 +64,22 @@ public class ServicePlanController {
         return ResponseEntity.ok(response);
     }
 
+    // 3-1. 上架/下架切換 (可逆狀態，與第 3 點的邏輯刪除分離)
+    @PatchMapping("/sitter/plans/{planId}/active")
+    @PreAuthorize("hasRole('SITTER')")
+    public ResponseEntity<Map<String, Object>> setPlanActive(
+            @PathVariable UUID planId,
+            @RequestBody Map<String, Boolean> body) {
+        UUID sitterId = TokenContext.getUserId();
+        boolean isActive = Boolean.TRUE.equals(body.get("isActive"));
+        ServicePlanDto result = servicePlanService.setPlanActive(planId, isActive, sitterId);
+        return ResponseEntity.ok(Map.of(
+                "code", 200,
+                "message", isActive ? "已上架" : "已下架",
+                "data", result
+        ));
+    }
+
     // 4. 方案排序調整
     @PostMapping("/sitter/plans/sort")
     @PreAuthorize("hasRole('SITTER')")

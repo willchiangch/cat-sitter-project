@@ -94,12 +94,17 @@ public class BookingService {
             orderItems.add(orderItem);
         }
 
+        int totalAmount = orderItems.stream()
+                .mapToInt(item -> item.getUnitPrice() * item.getQuantity())
+                .sum();
+
         Order order = Order.builder()
                 .owner(userRepository.findById(request.getOwnerId()).orElseThrow())
                 .sitter(userRepository.findById(request.getSitterId()).orElseThrow())
                 .planId(request.getItems().get(0).getPlanId()) // 保留首個方案作為主要方案
                 .status("PENDING")
                 .items(orderItems)
+                .totalAmount(totalAmount)
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
         

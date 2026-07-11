@@ -825,14 +825,14 @@ const PetManager: React.FC = () => {
                             color: 'var(--color-on-surface)'
                           }}
                         >
-                          <option value="CAT">貓咪 (CAT)</option>
-                          <option value="DOG">狗狗 (DOG)</option>
-                          <option value="BIRD">鳥類 (BIRD)</option>
-                          <option value="MOUSE">鼠類 (MOUSE)</option>
-                          <option value="RABBIT">兔子 (RABBIT)</option>
-                          <option value="REPTILE">爬蟲 (REPTILE)</option>
-                          <option value="INSECT">昆蟲 (INSECT)</option>
-                          <option value="OTHER">其他 (OTHER)</option>
+                          <option value="CAT">貓咪</option>
+                          <option value="DOG">狗狗</option>
+                          <option value="BIRD">鳥類</option>
+                          <option value="MOUSE">鼠類</option>
+                          <option value="RABBIT">兔子</option>
+                          <option value="REPTILE">爬蟲</option>
+                          <option value="INSECT">昆蟲</option>
+                          <option value="OTHER">其他</option>
                         </select>
                       </div>
 
@@ -863,8 +863,8 @@ const PetManager: React.FC = () => {
                             color: 'var(--color-on-surface)'
                           }}
                         >
-                          <option value="MALE">男生 (MALE)</option>
-                          <option value="FEMALE">女生 (FEMALE)</option>
+                          <option value="MALE">男生</option>
+                          <option value="FEMALE">女生</option>
                         </select>
                       </div>
 
@@ -1028,8 +1028,8 @@ const PetManager: React.FC = () => {
                   <div
                     style={{
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
+                      flexDirection: 'column',
+                      gap: '0.75rem',
                       marginBottom: '1.5rem',
                       borderBottom: '1px solid var(--color-surface-high)',
                       paddingBottom: '1rem'
@@ -1050,7 +1050,7 @@ const PetManager: React.FC = () => {
                       照護注意事項 (共同編輯)
                     </h3>
 
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button
                         onClick={() => setShowLogsModal(true)}
                         data-testid="btn-view-logs"

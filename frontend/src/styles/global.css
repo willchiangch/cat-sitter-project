@@ -48,6 +48,13 @@
 }
 
 /* Base Reset & Typography */
+*,
+*::before,
+*::after {
+  /* 沒有這行的話，width: 100% 的 input/textarea 疊加 padding+border 會溢出父層容器右側 */
+  box-sizing: border-box;
+}
+
 html,
 body {
   margin: 0;

@@ -4,6 +4,7 @@ import {
   createSitterPlan,
   updateSitterPlan,
   deleteSitterPlan,
+  setSitterPlanActive,
   sortSitterPlans,
   getActivePlansForOwner
 } from '../api/servicePlanApi';
@@ -56,6 +57,19 @@ export const useDeletePlanMutation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sitter-plans'] });
       queryClient.invalidateQueries({ queryKey: ['sitter-active-plans'] });
+    }
+  });
+};
+
+export const useSetPlanActiveMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<ServicePlan, Error, { planId: string; isActive: boolean }>({
+    mutationFn: ({ planId, isActive }) => setSitterPlanActive(planId, isActive),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['sitter-plans'] });
+      if (data.sitterId) {
+        queryClient.invalidateQueries({ queryKey: ['sitter-active-plans', data.sitterId] });
+      }
     }
   });
 };

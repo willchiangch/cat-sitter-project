@@ -225,7 +225,7 @@ test.describe('Gatekeeper 預約門禁與角色切換流程 E2E', () => {
     await page.click('button:has-text("模擬升級頂級版 (ULTIMATE)")');
 
     // 清單中目前已有一個 GLOBAL - BLACK 規則 (對象是 ow***@test.com)
-    await expect(page.locator('td').filter({ hasText: 'ow***@test.com' })).toBeVisible();
+    await expect(page.getByText('ow***@test.com')).toBeVisible();
 
     // 嘗試在同範圍 (GLOBAL) 對同對象新增一個 WHITE 規則
     await page.fill('[data-testid="input-target-email"]', 'owner@test.com');
@@ -252,14 +252,14 @@ test.describe('Gatekeeper 預約門禁與角色切換流程 E2E', () => {
     await page.click('button:has-text("新增門禁規則")');
 
     // 驗證是否出現在清單中 (共 2 筆)
-    await expect(page.locator('tbody tr')).toHaveCount(2);
-    
+    await expect(page.getByTestId('gatekeeper-rule-row')).toHaveCount(2);
+
     // 測試刪除規則
-    const deleteButton = page.locator('tbody tr').nth(1).locator('button');
+    const deleteButton = page.getByTestId('gatekeeper-rule-row').nth(1).locator('button');
     await deleteButton.click();
 
     // 刪除成功，清單回復為 1 筆
-    await expect(page.locator('tbody tr')).toHaveCount(1);
+    await expect(page.getByTestId('gatekeeper-rule-row')).toHaveCount(1);
   });
 
   test('TS-001-05 方案降級規則失效防禦', async ({ page }) => {

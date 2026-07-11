@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import {
@@ -38,8 +38,18 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 }) => {
   const { data: plans = [], isLoading, error } = useSitterActivePlansQuery(sitterId);
   const { data: profile, isLoading: isProfileLoading, error: profileError } = usePublicProfileQuery(sitterId);
+
+  // 偵測自我介紹文字是否超過 5 行 (被 line-clamp 裁切)，只有真的被裁切時才顯示「顯示更多」按鈕
+  useEffect(() => {
+    if (bioRef.current) {
+      setIsBioOverflowing(bioRef.current.scrollHeight > bioRef.current.clientHeight + 1);
+    }
+  }, [profile?.bio]);
   const { data: pets = [] } = usePetsQuery();
   const [step, setStep] = useState(1);
+  const [isBioExpanded, setIsBioExpanded] = useState(false);
+  const [isBioOverflowing, setIsBioOverflowing] = useState(false);
+  const bioRef = useRef<HTMLParagraphElement>(null);
   const [booking, setBooking] = useState<BookingState>({
     sitterId: sitterId,
     planConfigs: [],
@@ -52,6 +62,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   }, [sitterId]);
 
   const [isAddingPlan, setIsAddingPlan] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeCalendar, _setActiveCalendar] = useState<{
     planIndex: number;
     scheduleIndex: number;
@@ -145,6 +156,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   };
 
   const handleSubmitBooking = async () => {
+    if (isSubmitting) return;
     if (booking.planConfigs.length === 0) return;
     const ownerId = pets && pets.length > 0 ? pets[0].ownerId : null;
     if (!ownerId) {
@@ -175,12 +187,15 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
     };
 
     try {
+      setIsSubmitting(true);
       const idempotencyKey = crypto.randomUUID();
       const res = await createBooking(requestBody, idempotencyKey);
       alert(`預約已送出！訂單 ID: ${res.orderId || res}`);
     } catch (err: any) {
       console.error('送出預約失敗：', err);
       alert('送出預約失敗：' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1393,10 +1408,14 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
             className="btn-primary"
             style={{ flex: 2, padding: '12px', fontSize: '1rem' }}
             onClick={handleSubmitBooking}
-            disabled={profile?.gated || !profile?.isOpen}
+            disabled={profile?.gated || !profile?.isOpen || isSubmitting}
             data-testid="client-booking-btn-submit"
           >
-            確認並送出 <CheckCircle2 size={18} style={{ marginLeft: '8px' }} />
+            {isSubmitting ? '送出中...' : (
+              <>
+                確認並送出 <CheckCircle2 size={18} style={{ marginLeft: '8px' }} />
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -1461,16 +1480,43 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
               {profile?.displayName || '保母'}
             </h2>
             <p
+              ref={bioRef}
               data-testid="client-booking-sitter-bio"
               style={{
                 margin: '8px 0',
                 fontSize: '0.875rem',
                 color: 'var(--color-on-surface-variant)',
-                lineHeight: '1.5'
+                lineHeight: '1.5',
+                ...(isBioExpanded
+                  ? {}
+                  : {
+                      display: '-webkit-box',
+                      WebkitLineClamp: 5,
+                      WebkitBoxOrient: 'vertical' as const,
+                      overflow: 'hidden'
+                    })
               }}
             >
               {profile?.bio || '尚無自我介紹'}
             </p>
+            {isBioOverflowing && (
+              <button
+                onClick={() => setIsBioExpanded((prev) => !prev)}
+                data-testid="client-booking-sitter-bio-toggle"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary)',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  padding: 0,
+                  marginBottom: '8px'
+                }}
+              >
+                {isBioExpanded ? '收合' : '顯示更多'}
+              </button>
+            )}
             
             {/* 標籤 */}
             {profile?.tags && profile.tags.length > 0 && (

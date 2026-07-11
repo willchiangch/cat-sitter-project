@@ -271,7 +271,7 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
     ];
 
     let sortCalled = false;
-    let deleteCalled = false;
+    let deactivateCalled = false;
 
     await page.route('**/api/sitter/plans', async (route, request) => {
       if (request.method() === 'GET') {
@@ -299,14 +299,15 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
       }
     });
 
-    await page.route('**/api/sitter/plans/plan-1', async (route, request) => {
-      if (request.method() === 'DELETE') {
-        deleteCalled = true;
-        mockPlans = mockPlans.filter(p => p.id !== 'plan-1');
+    await page.route('**/api/sitter/plans/plan-1/active', async (route, request) => {
+      if (request.method() === 'PATCH') {
+        deactivateCalled = true;
+        const targetPlan = mockPlans.find(p => p.id === 'plan-1')!;
+        (targetPlan as any).isActive = false;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ code: 200, message: '刪除成功', data: null })
+          body: JSON.stringify({ code: 200, message: '已下架', data: { ...targetPlan } })
         });
       }
     });
@@ -333,9 +334,13 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
       await dialog.accept();
     });
     await page.click('[data-testid="sitter-plan-btn-delete-plan-1"]');
-    expect(deleteCalled).toBe(true);
+    expect(deactivateCalled).toBe(true);
 
-    // 檢查方案一卡片是否消失
-    await expect(page.getByTestId('sitter-plan-card-plan-1')).not.toBeVisible();
+    // 下架後卡片應仍保留在保母自己的清單中 (只是標示已下架)，而非直接消失
+    await expect(page.getByTestId('sitter-plan-card-plan-1')).toBeVisible();
+    await expect(page.getByTestId('sitter-plan-card-plan-1')).toContainText('已下架');
+
+    // 且應改為顯示「上架」按鈕，可重新上架
+    await expect(page.getByTestId('sitter-plan-btn-activate-plan-1')).toBeVisible();
   });
 });

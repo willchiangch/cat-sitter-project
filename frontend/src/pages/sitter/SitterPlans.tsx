@@ -3,18 +3,18 @@ import {
   useSitterPlansQuery,
   useCreatePlanMutation,
   useUpdatePlanMutation,
-  useDeletePlanMutation,
+  useSetPlanActiveMutation,
   useSortPlansMutation
 } from '../../hooks/useServicePlans';
 import type { ServicePlan } from '../../types/servicePlan';
-import { ArrowUp, ArrowDown, Plus, Trash2, Edit2, X, AlertCircle } from 'lucide-react';
+import { ArrowUp, ArrowDown, Plus, Trash2, Upload, Edit2, X, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 const SitterPlans: React.FC = () => {
   const { data: plans = [], isLoading, error } = useSitterPlansQuery();
   const createPlanMutation = useCreatePlanMutation();
   const updatePlanMutation = useUpdatePlanMutation();
-  const deletePlanMutation = useDeletePlanMutation();
+  const setPlanActiveMutation = useSetPlanActiveMutation();
   const sortPlansMutation = useSortPlansMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,18 +69,27 @@ const SitterPlans: React.FC = () => {
     setFormError(null);
   };
 
-  // 下架/邏輯刪除方案
-  const handleDelete = async (planId: string) => {
+  // 下架方案 (飼主端立即看不到，但保母端仍保留可隨時上架)
+  const handleDeactivate = async (planId: string) => {
     if (
       window.confirm(
-        '確定要下架此服務方案嗎？\n這將使飼主無法再預約此方案，但不會影響已建立的歷史訂單。'
+        '確定要下架此服務方案嗎？\n下架後飼主將無法再預約此方案，但不會影響已建立的歷史訂單，您隨時可以重新上架。'
       )
     ) {
       try {
-        await deletePlanMutation.mutateAsync(planId);
+        await setPlanActiveMutation.mutateAsync({ planId, isActive: false });
       } catch (err) {
         alert('下架失敗，請稍後再試。');
       }
+    }
+  };
+
+  // 重新上架方案
+  const handleActivate = async (planId: string) => {
+    try {
+      await setPlanActiveMutation.mutateAsync({ planId, isActive: true });
+    } catch (err) {
+      alert('上架失敗，請稍後再試。');
     }
   };
 
@@ -279,7 +288,11 @@ const SitterPlans: React.FC = () => {
               <div
                 key={plan.id}
                 className="card-layered"
-                style={{ position: 'relative', transition: 'all 0.2s ease-in-out' }}
+                style={{
+                  position: 'relative',
+                  transition: 'all 0.2s ease-in-out',
+                  opacity: plan.isActive === false ? 0.6 : 1
+                }}
                 data-testid={`sitter-plan-card-${plan.id}`}
               >
                 {/* Asymmetrical Top Layout */}
@@ -298,10 +311,27 @@ const SitterPlans: React.FC = () => {
                         fontSize: '1.25rem',
                         fontWeight: '800',
                         margin: '0 0 4px 0',
-                        color: 'var(--color-on-surface)'
+                        color: 'var(--color-on-surface)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
                       }}
                     >
                       {plan.name}
+                      {plan.isActive === false && (
+                        <span
+                          style={{
+                            fontSize: '0.7rem',
+                            fontWeight: '700',
+                            backgroundColor: 'var(--color-surface-high)',
+                            color: 'var(--color-on-surface-variant)',
+                            padding: '2px 8px',
+                            borderRadius: '9999px'
+                          }}
+                        >
+                          已下架
+                        </span>
+                      )}
                     </h3>
                     <div
                       style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}
@@ -501,25 +531,47 @@ const SitterPlans: React.FC = () => {
                     >
                       <Edit2 size={12} /> 編輯
                     </button>
-                    <button
-                      onClick={() => handleDelete(plan.id!)}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '6px 12px',
-                        border: 'none',
-                        background: 'rgba(176, 37, 0, 0.08)',
-                        color: 'var(--color-error)',
-                        borderRadius: '8px',
-                        fontSize: '0.8rem',
-                        cursor: 'pointer',
-                        fontWeight: '600'
-                      }}
-                      data-testid={`sitter-plan-btn-delete-${plan.id}`}
-                    >
-                      <Trash2 size={12} /> 下架
-                    </button>
+                    {plan.isActive === false ? (
+                      <button
+                        onClick={() => handleActivate(plan.id!)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '6px 12px',
+                          border: 'none',
+                          background: 'rgba(0, 107, 27, 0.08)',
+                          color: 'var(--color-tertiary)',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          fontWeight: '600'
+                        }}
+                        data-testid={`sitter-plan-btn-activate-${plan.id}`}
+                      >
+                        <Upload size={12} /> 上架
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleDeactivate(plan.id!)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '6px 12px',
+                          border: 'none',
+                          background: 'rgba(176, 37, 0, 0.08)',
+                          color: 'var(--color-error)',
+                          borderRadius: '8px',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          fontWeight: '600'
+                        }}
+                        data-testid={`sitter-plan-btn-delete-${plan.id}`}
+                      >
+                        <Trash2 size={12} /> 下架
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

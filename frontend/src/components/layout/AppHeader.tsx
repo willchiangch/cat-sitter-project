@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 import { useRole } from '../../contexts/RoleContext';
 import {
   useUnreadCountQuery,
@@ -129,21 +130,61 @@ const AppHeader: React.FC = () => {
           borderBottom: '1px solid var(--color-outline-variant)'
         }}
       >
-        {/* Logo */}
-        <div
-          onClick={() => navigate('/demo')}
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 700,
-            fontSize: '1.25rem',
-            color: 'var(--color-primary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}
-        >
-          🐾 WhiskerWatch
+        {/* 左側：返回上一頁 + Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {location.pathname !== '/demo' && (
+            <button
+              onClick={() => navigate(-1)}
+              aria-label="返回上一頁"
+              data-testid="btn-back"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-on-surface)'
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-low)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <ChevronLeft size={22} />
+            </button>
+          )}
+          <div
+            onClick={() => navigate('/demo')}
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              fontSize: '1.25rem',
+              color: 'var(--color-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            🐾 WhiskerWatch
+          </div>
+          {location.pathname !== '/demo' && (
+            <button
+              onClick={() => navigate('/demo')}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-on-surface-variant)',
+                fontSize: '0.7rem',
+                textDecoration: 'underline',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              返回 Demo 首頁
+            </button>
+          )}
         </div>
 
         {/* 右側小鈴鐺 */}

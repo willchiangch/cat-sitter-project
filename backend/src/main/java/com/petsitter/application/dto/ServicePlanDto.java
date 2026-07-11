@@ -44,5 +44,8 @@ public class ServicePlanDto {
     @Builder.Default
     private Integer sortOrder = 0;
 
+    @Builder.Default
+    private Boolean isActive = true;
+
     private Integer version;
 }

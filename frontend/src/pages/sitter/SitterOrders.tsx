@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Card from '../../components/ui/Card';
-import { useSitterOrdersQuery, useVerifyPaymentMutation, useRejectPaymentMutation } from '../../hooks/useOrders';
+import {
+  useSitterOrdersQuery,
+  useVerifyPaymentMutation,
+  useRejectPaymentMutation,
+  useConfirmOrderMutation
+} from '../../hooks/useOrders';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 type TabType = 'evaluating' | 'ongoing' | 'history';
 
@@ -10,9 +16,11 @@ const SitterOrders: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
 
+  const { userId: sitterId } = useCurrentUser();
   const { data: orders = [], isLoading } = useSitterOrdersQuery();
   const verifyMutation = useVerifyPaymentMutation();
   const rejectMutation = useRejectPaymentMutation();
+  const confirmMutation = useConfirmOrderMutation();
 
   const handleVerify = async (orderId: string) => {
     try {
@@ -21,6 +29,17 @@ const SitterOrders: React.FC = () => {
     } catch (err) {
       console.error(err);
       alert('操作失敗，請稍後再試。');
+    }
+  };
+
+  const handleConfirmOrder = async (orderId: string) => {
+    if (!window.confirm('確定要接下此訂單嗎？確認後將通知飼主進行付款。')) return;
+    try {
+      await confirmMutation.mutateAsync({ orderId, sitterId });
+      alert('已成功確認接單，訂單進入待付款狀態！');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || '確認接單失敗，請稍後再試。');
     }
   };
 
@@ -42,7 +61,7 @@ const SitterOrders: React.FC = () => {
     }
   };
 
-  const loading = verifyMutation.isPending || rejectMutation.isPending;
+  const loading = verifyMutation.isPending || rejectMutation.isPending || confirmMutation.isPending;
 
   const filteredOrders = orders.filter((order) => {
     if (activeTab === 'evaluating') return order.status === 'PENDING';
@@ -216,6 +235,27 @@ const SitterOrders: React.FC = () => {
                   $ {order.totalAmount.toLocaleString()}
                 </span>
               </div>
+
+              {/* 確認接單面板 (僅在 status === 'PENDING' 時顯示) */}
+              {order.status === 'PENDING' && (
+                <div
+                  style={{
+                    borderTop: '1px solid var(--color-surface-high)',
+                    paddingTop: '1.5rem',
+                    marginTop: '1rem'
+                  }}
+                >
+                  <button
+                    onClick={() => handleConfirmOrder(order.id)}
+                    disabled={loading}
+                    className="btn-primary"
+                    style={{ width: '100%', padding: '0.75rem' }}
+                    data-testid="btn-confirm-order"
+                  >
+                    {loading ? '處理中...' : '確認接單'}
+                  </button>
+                </div>
+              )}
 
               {/* 保母憑證核對面板 (僅在 status === 'PAID' 時顯示) */}
               {order.status === 'PAID' && (

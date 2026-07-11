@@ -71,4 +71,9 @@ public class ServicePlan extends BaseEntity {
     @Builder.Default
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
+
+    // 下架/上架狀態 (與 isDeleted 分離；isDeleted 保留供未來稽核用實體刪除用途)
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
 }

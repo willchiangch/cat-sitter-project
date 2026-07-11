@@ -140,6 +140,29 @@ public class ServicePlanService {
     }
 
     @Transactional
+    public ServicePlanDto setPlanActive(UUID planId, boolean isActive, UUID sitterId) {
+        ServicePlan plan = servicePlanRepository.findById(planId)
+                .orElseThrow(() -> new ServicePlanException(HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND", "方案不存在"));
+
+        if (plan.isDeleted()) {
+            throw new ServicePlanException(HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND", "方案不存在");
+        }
+
+        // IDOR 越權防禦
+        if (!plan.getSitter().getId().equals(sitterId)) {
+            throw new ServicePlanException(HttpStatus.FORBIDDEN, "FORBIDDEN", "無權限操作此方案");
+        }
+
+        plan.setActive(isActive);
+        ServicePlan savedPlan = servicePlanRepository.saveAndFlush(plan);
+
+        auditLogService.writeLog(sitterId, "SERVICE_PLAN_CRUD", isActive ? "ACTIVATE_SUCCESS" : "DEACTIVATE_SUCCESS",
+                String.format("%s service plan with ID: %s", isActive ? "Activated" : "Deactivated", planId));
+
+        return toDto(savedPlan);
+    }
+
+    @Transactional
     public void sortPlans(ServicePlanSortRequest request, UUID sitterId) {
         if (request.getPlanIds() == null || request.getPlanIds().isEmpty()) {
             return;
@@ -185,6 +208,8 @@ public class ServicePlanService {
         LocalDate now = LocalDate.now();
 
         return plans.stream()
+                // 已下架 (isActive = false) 的方案不對飼主顯示
+                .filter(ServicePlan::isActive)
                 // 3. 生效日期區間過濾：比對目前系統日期。若有設定且不在範圍內，則排除。
                 .filter(plan -> {
                     if (plan.getStartDate() != null && now.isBefore(plan.getStartDate())) {
@@ -229,6 +254,7 @@ public class ServicePlanService {
                 .endDate(plan.getEndDate())
                 .isRestricted(plan.isRestricted())
                 .sortOrder(plan.getSortOrder())
+                .isActive(plan.isActive())
                 .version(plan.getVersion())
                 .build();
     }
