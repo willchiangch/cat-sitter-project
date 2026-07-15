@@ -17,6 +17,10 @@ import java.util.Map;
 @AllArgsConstructor
 public class OrderSnapshot extends BaseEntity {
 
+    // PRD-008/PRD-013 只定義了照片張數(maxPhotos)與影片時長(maxVideoSeconds)兩個方案可調欄位，
+    // 沒有「影片支數」的分級規格，故建立快照時一律套用這個平台固定值，而非做成方案可設定欄位
+    public static final int DEFAULT_MAX_VIDEOS = 5;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false, unique = true)
     private Order order;

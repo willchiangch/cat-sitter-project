@@ -12,9 +12,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -25,7 +22,6 @@ public class EvaluationService {
     private final OrderRepository orderRepository;
     private final OrderSnapshotRepository orderSnapshotRepository;
     private final ServicePlanRepository servicePlanRepository;
-    private final VisitRepository visitRepository;
 
     @RequirePlan(PlanTier.FREE)
     @Transactional
@@ -43,35 +39,27 @@ public class EvaluationService {
             throw new ObjectOptimisticLockingFailureException(Order.class, orderId);
         }
 
-        ServicePlan plan = servicePlanRepository.findAll().stream()
-                .filter(p -> p.getSitter().getId().equals(sitterId))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("保母未設定服務方案"));
-
-        long visitCount = visitRepository.findAll().stream()
-                .filter(v -> v.getOrder().getId().equals(orderId))
-                .count();
-
-        BigDecimal unitPrice = BigDecimal.valueOf(plan.getPrice());
-        BigDecimal count = BigDecimal.valueOf(visitCount);
-        
-        int serverOriginalTotal = unitPrice.multiply(count).setScale(0, RoundingMode.HALF_UP).intValue();
+        // 訂單建立時 (BookingService.createBooking) 已依實際預約明細算好正確總額，
+        // 報價階段只需在這個基準上疊加保母的調整金額，不應該再抓「保母隨便一個方案」的單價重算，
+        // 否則多方案訂單、或保母有多個方案時，金額會整個算錯
+        int serverOriginalTotal = order.getTotalAmount();
         int serverFinalTotal = serverOriginalTotal + request.getAdjustmentAmount();
+
+        if (serverFinalTotal < 0) {
+            throw new IllegalArgumentException("報價調整後總額不可為負數");
+        }
 
         if (serverFinalTotal != request.getExpectedTotalAmount()) {
             log.error("Pricing mismatch! Server calculated: {}, Client expected: {}", serverFinalTotal, request.getExpectedTotalAmount());
             throw new PricingMismatchException("報價金額校驗失敗，可能方案價格已變更");
         }
 
-        // --- 建立 Snapshot (SD-006) ---
-        OrderItem serviceItem = new OrderItem();
-        serviceItem.setCategory("SERVICE");
-        serviceItem.setServiceName(plan.getName());
-        serviceItem.setUnitPrice(plan.getPrice().intValue());
-        serviceItem.setQuantity((int) visitCount);
-        serviceItem.setPlanId(plan.getId());
-        List<OrderItem> items = List.of(serviceItem);
+        // 多方案訂單以下單時的第一個方案為準 (沿用 BookingService.createBooking 的既有慣例)，
+        // 媒體保留規則快照也以這個主要方案為準
+        ServicePlan plan = servicePlanRepository.findById(order.getPlanId())
+                .orElseThrow(() -> new IllegalStateException("找不到訂單對應的服務方案"));
 
+        // --- 建立 Snapshot (SD-006) ---
         OrderSnapshot snapshot = OrderSnapshot.builder()
                 .order(order)
                 .snapshotPlanTitle(plan.getName())
@@ -80,10 +68,11 @@ public class EvaluationService {
                 .adjustmentAmount(request.getAdjustmentAmount())
                 .mediaRetentionDays(plan.getMediaRetentionDays())
                 .maxPhotos(plan.getMaxPhotos())
+                .maxVideos(OrderSnapshot.DEFAULT_MAX_VIDEOS)
                 .maxVideoSeconds(plan.getMaxVideoSeconds())
-                .snapshotData(items)
+                .snapshotData(order.getItems())
                 .build();
-        
+
         orderSnapshotRepository.save(snapshot);
 
         order.setStatus("PENDING_PAYMENT");
@@ -91,8 +80,8 @@ public class EvaluationService {
         order.setAdjustmentAmount(request.getAdjustmentAmount());
         order.setAdjustmentReason(request.getAdjustmentReason());
         order.setWaitingForOwnerAction(false);
-        order.setItems(items); // 同步更新訂單項目
-        
+        // 保留下單時的原始 items（內含每個方案各自的 dates/timesPerDay/petIds），不再用單一假項目覆蓋掉
+
         orderRepository.save(order);
 
         log.info("[EvaluationService] Quote successfully sent for order {}. Total: {}", orderId, serverFinalTotal);

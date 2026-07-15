@@ -2,9 +2,11 @@ package com.petsitter.application.service;
 
 import com.petsitter.application.exception.CapacityFullException;
 import com.petsitter.domain.model.Order;
+import com.petsitter.domain.model.OrderSnapshot;
 import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.domain.repository.OrderSnapshotRepository;
 import com.petsitter.domain.repository.ServicePlanRepository;
 import com.petsitter.domain.repository.VisitRepository;
 import com.petsitter.infrastructure.lock.AdvisoryLockService;
@@ -28,6 +30,7 @@ public class ConfirmOrderService {
     private final OrderRepository orderRepository;
     private final VisitRepository visitRepository;
     private final ServicePlanRepository servicePlanRepository;
+    private final OrderSnapshotRepository orderSnapshotRepository;
 
     @Transactional
     public void confirmOrder(UUID sitterId, UUID orderId) {
@@ -58,21 +61,16 @@ public class ConfirmOrderService {
                 .collect(Collectors.toList());
         advisoryLockService.acquireLocks(lockKeys);
 
-        // 4. 獲取方案與配額檢核
-        // 註：這裡假設訂單關聯的項目中可以溯源到 planId，暫以第一個 Visit 關聯的 Order 內的邏輯推導
-        // 真實系統應從 Order.items 解析或 Order 增加 planId 欄位。這裡先簡化處理。
-        // 我們假設測試中會建立對應的 Plan
-        ServicePlan plan = servicePlanRepository.findAll().stream()
-                .filter(p -> p.getSitter().getId().equals(sitterId))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("保母未設定服務方案"));
+        // 4. 獲取方案與配額檢核 (多方案訂單以下單時的第一個方案為準，沿用 BookingService.createBooking 的既有慣例)
+        ServicePlan plan = servicePlanRepository.findById(order.getPlanId())
+                .orElseThrow(() -> new IllegalStateException("找不到訂單對應的服務方案"));
 
         for (Visit visit : visits) {
             OffsetDateTime scheduledAt = visit.getScheduledAt();
             long bookedCount = visitRepository.countBookedVisitsBySitterIdAndDate(sitterId, scheduledAt);
-            
+
             log.info("[ConfirmOrderService] Date: {}, Booked: {}, Capacity: {}", scheduledAt.toLocalDate(), bookedCount, plan.getDailyCapacity());
-            
+
             if (bookedCount >= plan.getDailyCapacity()) {
                 throw new CapacityFullException("該日期預約已滿 (方案: " + plan.getName() + "): " + scheduledAt.toLocalDate());
             }
@@ -81,6 +79,21 @@ public class ConfirmOrderService {
         // 5. 更新狀態
         order.setStatus("PENDING_PAYMENT");
         orderRepository.save(order);
+
+        // 6. 原價快速接單也要建立方案快照，否則保母打卡後上傳照片/影片會因找不到快照而 404 (PRD-008)
+        OrderSnapshot snapshot = OrderSnapshot.builder()
+                .order(order)
+                .snapshotPlanTitle(plan.getName())
+                .snapshotUnitPrice(plan.getPrice().intValue())
+                .snapshotOriginalTotal(order.getTotalAmount())
+                .adjustmentAmount(0)
+                .mediaRetentionDays(plan.getMediaRetentionDays())
+                .maxPhotos(plan.getMaxPhotos())
+                .maxVideos(OrderSnapshot.DEFAULT_MAX_VIDEOS)
+                .maxVideoSeconds(plan.getMaxVideoSeconds())
+                .snapshotData(order.getItems())
+                .build();
+        orderSnapshotRepository.save(snapshot);
 
         log.info("[ConfirmOrderService] Order {} confirmed and moved to PENDING_PAYMENT", orderId);
     }
