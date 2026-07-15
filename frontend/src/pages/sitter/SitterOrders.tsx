@@ -1,26 +1,24 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Card from '../../components/ui/Card';
 import {
   useSitterOrdersQuery,
   useVerifyPaymentMutation,
-  useRejectPaymentMutation,
-  useConfirmOrderMutation
+  useRejectPaymentMutation
 } from '../../hooks/useOrders';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 type TabType = 'evaluating' | 'ongoing' | 'history';
 
 const SitterOrders: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('evaluating');
   const [rejectReason, setRejectReason] = useState('');
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
 
-  const { userId: sitterId } = useCurrentUser();
   const { data: orders = [], isLoading } = useSitterOrdersQuery();
   const verifyMutation = useVerifyPaymentMutation();
   const rejectMutation = useRejectPaymentMutation();
-  const confirmMutation = useConfirmOrderMutation();
 
   const handleVerify = async (orderId: string) => {
     try {
@@ -29,17 +27,6 @@ const SitterOrders: React.FC = () => {
     } catch (err) {
       console.error(err);
       alert('操作失敗，請稍後再試。');
-    }
-  };
-
-  const handleConfirmOrder = async (orderId: string) => {
-    if (!window.confirm('確定要接下此訂單嗎？確認後將通知飼主進行付款。')) return;
-    try {
-      await confirmMutation.mutateAsync({ orderId, sitterId });
-      alert('已成功確認接單，訂單進入待付款狀態！');
-    } catch (err: any) {
-      console.error(err);
-      alert(err.response?.data?.message || '確認接單失敗，請稍後再試。');
     }
   };
 
@@ -61,7 +48,7 @@ const SitterOrders: React.FC = () => {
     }
   };
 
-  const loading = verifyMutation.isPending || rejectMutation.isPending || confirmMutation.isPending;
+  const loading = verifyMutation.isPending || rejectMutation.isPending;
 
   const filteredOrders = orders.filter((order) => {
     if (activeTab === 'evaluating') return order.status === 'PENDING';
@@ -236,7 +223,7 @@ const SitterOrders: React.FC = () => {
                 </span>
               </div>
 
-              {/* 確認接單面板 (僅在 status === 'PENDING' 時顯示) */}
+              {/* 評估面板 (僅在 status === 'PENDING' 時顯示)：導去評估頁選擇原價接受/調整報價/拒絕 */}
               {order.status === 'PENDING' && (
                 <div
                   style={{
@@ -246,13 +233,12 @@ const SitterOrders: React.FC = () => {
                   }}
                 >
                   <button
-                    onClick={() => handleConfirmOrder(order.id)}
-                    disabled={loading}
+                    onClick={() => navigate(`/sitter/eval/${order.id}`)}
                     className="btn-primary"
                     style={{ width: '100%', padding: '0.75rem' }}
-                    data-testid="btn-confirm-order"
+                    data-testid="btn-go-order-eval"
                   >
-                    {loading ? '處理中...' : '確認接單'}
+                    查看並處理訂單
                   </button>
                 </div>
               )}

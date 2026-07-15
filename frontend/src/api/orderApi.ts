@@ -100,6 +100,46 @@ export const sendQuote = async (
   return response.data;
 };
 
+// 5-1. 保母報價評估頁 (OrderEvalView) 用的真實請求格式，對應後端 QuoteRequest DTO
+export interface SendQuoteRequest {
+  adjustmentAmount: number;
+  expectedTotalAmount: number;
+  adjustmentReason?: string;
+  version: number;
+}
+
+export const sendOrderQuote = async (
+  orderId: string,
+  sitterId: string,
+  request: SendQuoteRequest,
+  idempotencyKey: string
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(`/orders/${orderId}/quote`, request, {
+    params: { sitterId },
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
+  return response.data;
+};
+
+// 5-2. 保母拒絕接單 (PRD-006 AC-4 / SD-006 §2.3)
+export interface RejectOrderRequest {
+  rejectReason?: string;
+  version: number;
+}
+
+export const rejectOrder = async (
+  orderId: string,
+  sitterId: string,
+  request: RejectOrderRequest,
+  idempotencyKey: string
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(`/orders/${orderId}/reject`, request, {
+    params: { sitterId },
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
+  return response.data;
+};
+
 // 6. 飼主手動結案 (SD-009)
 export const completeOrder = async (
   orderId: string,
@@ -176,9 +216,11 @@ export interface BankAccountInfo {
 export interface OrderDetailResponseDto {
   id: string;
   ownerId: string;
+  ownerName?: string;
   sitterId: string;
   status: string;
   totalAmount: number;
+  version?: number;
   adjustmentAmount: number;
   adjustmentReason?: string;
   paymentProofUrl?: string;

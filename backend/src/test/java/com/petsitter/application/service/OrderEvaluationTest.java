@@ -136,7 +136,7 @@ class OrderEvaluationTest {
                 .adjustmentReason("連假加收")
                 .version(order.getVersion())
                 .build();
-        evaluationService.sendQuote(sitterId, orderId, quoteReq);
+        evaluationService.sendQuote(sitterId, orderId, quoteReq, "send-quote-test-1");
 
         // 3. 隨後修改原始方案單價 (從 500 改為 1000)
         ServicePlan plan = servicePlanRepository.findById(planId).orElseThrow();
@@ -176,7 +176,7 @@ class OrderEvaluationTest {
                 .build();
 
         // 3. Then: 預期系統拋出 SaaS 權限不足的自訂例外
-        assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq))
+        assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq, "send-quote-test-2"))
                 .isInstanceOf(AuthPlanLimitException.class)
                 .hasMessageContaining("當前方案不支援自訂報價");
     }
@@ -213,7 +213,7 @@ class OrderEvaluationTest {
                 .version(orderForSitter.getVersion()) // 帶入過期的 version
                 .build();
 
-        assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq))
+        assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq, "send-quote-test-3"))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 }

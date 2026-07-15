@@ -90,6 +90,7 @@ class OrderControllerTest {
         // When & Then
         mockMvc.perform(post("/api/orders/{orderId}/quote", orderId)
                 .with(user("test").roles("SITTER"))
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .param("sitterId", sitterId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -112,6 +113,7 @@ class OrderControllerTest {
         // When & Then
         mockMvc.perform(post("/api/orders/{orderId}/quote", orderId)
                 .with(user("test").roles("SITTER"))
+                .header("Idempotency-Key", UUID.randomUUID().toString())
                 .param("sitterId", sitterId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))

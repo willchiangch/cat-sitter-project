@@ -3,8 +3,7 @@ import {
   getMyOrdersAsOwner,
   getMyOrdersAsSitter,
   verifyPayment,
-  rejectPayment,
-  confirmOrder
+  rejectPayment
 } from '../api/orderApi';
 import type { OrderSummaryDto } from '../api/orderApi';
 
@@ -28,16 +27,6 @@ export const useVerifyPaymentMutation = () => {
   const queryClient = useQueryClient();
   return useMutation<{ status: string; message: string }, Error, string>({
     mutationFn: verifyPayment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders', 'sitter'] });
-    }
-  });
-};
-
-export const useConfirmOrderMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation<{ status: string; message: string }, Error, { orderId: string; sitterId: string }>({
-    mutationFn: ({ orderId, sitterId }) => confirmOrder(orderId, sitterId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', 'sitter'] });
     }

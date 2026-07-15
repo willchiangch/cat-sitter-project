@@ -27,7 +27,6 @@ const mainEntries: DemoEntry[] = [
   { key: 'sitter-orders', label: '進入訂單管理 (保母端)', roles: ['sitter'], to: '/sitter/orders' },
   { key: 'owner-orders', label: '進入訂單管理 (飼主端)', roles: ['client'], to: '/owner/orders' },
   { key: 'pets', label: '進入毛孩管理 (飼主端)', roles: ['client'], to: '/pets', testId: 'btn-go-pet-manager' },
-  { key: 'sitter-eval', label: '進入報價評估 (保母端)', roles: ['sitter'], to: '/sitter/eval' },
   { key: 'sitter-plans', label: '進入方案設定 (保母端)', roles: ['sitter'], to: '/sitter/plans', testId: 'btn-go-sitter-plans' },
   { key: 'gatekeeper', label: '進入門禁設定 (保母端)', roles: ['sitter'], to: '/sitter/gatekeeper', testId: 'btn-go-gatekeeper' },
   { key: 'sitter-payment', label: '進入收款設定 (保母端)', roles: ['sitter'], to: '/sitter/payment-settings', testId: 'btn-go-sitter-payment' },
@@ -50,6 +49,7 @@ const quickEntries: DemoEntry[] = [
   { key: 'admin-resolve', label: '直接進入爭議調解 (管理端)', roles: ['admin'], to: `/admin/resolve/${mockParams.orderId}` },
   { key: 'order-modify', label: '直接進入變更精靈 (飼主/保母)', roles: ['client', 'sitter'], to: `/orders/${mockParams.orderId}/modify` },
   { key: 'sitter-quote', label: '直接進入變更報價 (保母端)', roles: ['sitter'], to: `/sitter/orders/${mockParams.orderId}/quote` },
+  { key: 'sitter-eval', label: '直接進入報價評估 (保母端)', roles: ['sitter'], to: `/sitter/eval/${mockParams.orderId}` },
   { key: 'owner-modify-confirm', label: '直接進入變更確認 (飼主端)', roles: ['client'], to: `/owner/orders/${mockParams.orderId}/modification-confirm` },
   { key: 'admin-kyc-detail', label: '直接進入 KYC 審核詳情 (管理端)', roles: ['admin'], to: `/admin/kyc/${mockParams.kycRecordId}` }
 ];

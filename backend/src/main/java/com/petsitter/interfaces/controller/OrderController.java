@@ -3,6 +3,7 @@ package com.petsitter.interfaces.controller;
 import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.dto.ModificationPayloadDto;
 import com.petsitter.application.dto.QuoteRequest;
+import com.petsitter.application.dto.RejectOrderRequest;
 import com.petsitter.application.service.*;
 import com.petsitter.infrastructure.security.gating.PlanTier;
 import com.petsitter.infrastructure.security.gating.RequirePlan;
@@ -93,12 +94,27 @@ public class OrderController {
     @RequirePlan(PlanTier.FREE)
     @PostMapping("/{orderId}/quote")
     public ResponseEntity<Map<String, String>> sendQuote(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestParam UUID sitterId,
             @PathVariable UUID orderId,
             @Valid @RequestBody QuoteRequest request) {
-        
-        evaluationService.sendQuote(sitterId, orderId, request);
+
+        evaluationService.sendQuote(sitterId, orderId, request, idempotencyKey);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "報價已送出"));
+    }
+
+    /**
+     * 保母拒絕接單 (PRD-006 AC-4 / SD-006 §2.3)
+     */
+    @PostMapping("/{orderId}/reject")
+    public ResponseEntity<Map<String, String>> rejectOrder(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestParam UUID sitterId,
+            @PathVariable UUID orderId,
+            @RequestBody RejectOrderRequest request) {
+
+        evaluationService.rejectOrder(sitterId, orderId, request, idempotencyKey);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已拒絕此訂單"));
     }
 
     /**

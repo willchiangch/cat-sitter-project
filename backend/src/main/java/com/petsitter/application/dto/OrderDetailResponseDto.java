@@ -18,9 +18,11 @@ import java.util.UUID;
 public class OrderDetailResponseDto {
     private UUID id;
     private UUID ownerId;
+    private String ownerName;
     private UUID sitterId;
     private String status;
     private Integer totalAmount;
+    private Integer version;
     private Integer adjustmentAmount;
     private String adjustmentReason;
     private String paymentProofUrl;

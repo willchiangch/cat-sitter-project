@@ -78,6 +78,11 @@ function SitterModificationQuoteRoute() {
   return <SitterModificationQuote orderId={orderId!} />;
 }
 
+function OrderEvalViewRoute() {
+  const { orderId } = useParams<{ orderId: string }>();
+  return <OrderEvalView orderId={orderId!} />;
+}
+
 function OwnerModificationConfirmRoute() {
   const { orderId } = useParams<{ orderId: string }>();
   return <OwnerModificationConfirm orderId={orderId!} />;
@@ -100,7 +105,7 @@ function AppRoutes() {
 
           <Route element={<RequireRole roles={['sitter']} />}>
             <Route path="/sitter/orders" element={<SitterOrders />} />
-            <Route path="/sitter/eval" element={<OrderEvalView />} />
+            <Route path="/sitter/eval/:orderId" element={<OrderEvalViewRoute />} />
             <Route path="/sitter/plans" element={<SitterPlans />} />
             <Route path="/sitter/gatekeeper" element={<GatekeeperSettings />} />
             <Route path="/sitter/payment-settings" element={<SitterPaymentInfoSettings />} />
