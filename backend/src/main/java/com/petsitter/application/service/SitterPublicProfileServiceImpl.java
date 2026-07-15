@@ -230,7 +230,6 @@ public class SitterPublicProfileServiceImpl implements SitterPublicProfileServic
                 .serviceAreas(serviceAreas)
                 .isOpen(profile.isOpen())
                 .kycStatus(profile.getKycStatus())
-                .trustScore(profile.getTrustScore())
                 .version(profile.getVersion())
                 .isVisible(profile.isVisible())
                 .build();

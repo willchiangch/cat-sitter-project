@@ -12,6 +12,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class PublicProfileResponse {
+    // trustScore 依 PRD-001/SD-001 為內部極高隱私指標，不得對外揭露，此 DTO 故意不宣告該欄位
     private boolean gated;
     private UUID sitterId;
     private String displayName;
@@ -22,7 +23,6 @@ public class PublicProfileResponse {
     @JsonProperty("isOpen")
     private boolean isOpen;
     private String kycStatus;
-    private int trustScore;
     private Integer version;
     private Boolean isVisible;
 }

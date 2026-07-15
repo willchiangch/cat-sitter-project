@@ -15,7 +15,6 @@ export interface PublicProfileResponse {
   serviceAreas: ServiceArea[];
   isOpen: boolean;
   kycStatus?: string;
-  trustScore?: number;
   version?: number;
   isVisible?: boolean;
 }

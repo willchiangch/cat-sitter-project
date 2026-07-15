@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import App from './App';
 import RequireAuth from './components/auth/RequireAuth';
+import RequireRole from './components/auth/RequireRole';
 import LoginPage from './pages/auth/LoginPage';
 import DemoHome from './pages/DemoHome';
 
@@ -97,40 +98,45 @@ function AppRoutes() {
           <Route path="/" element={<Navigate to="/demo" replace />} />
           <Route path="/demo" element={<DemoHome />} />
 
-          <Route path="/sitter/orders" element={<SitterOrders />} />
-          <Route path="/sitter/eval" element={<OrderEvalView />} />
-          <Route path="/sitter/plans" element={<SitterPlans />} />
-          <Route path="/sitter/gatekeeper" element={<GatekeeperSettings />} />
-          <Route path="/sitter/payment-settings" element={<SitterPaymentInfoSettings />} />
-          <Route path="/sitter/kyc" element={<SitterKycSubmit />} />
-          <Route path="/sitter/profile-settings" element={<SitterProfileSettings />} />
-          <Route path="/sitter/orders/:orderId/quote" element={<SitterModificationQuoteRoute />} />
+          <Route element={<RequireRole roles={['sitter']} />}>
+            <Route path="/sitter/orders" element={<SitterOrders />} />
+            <Route path="/sitter/eval" element={<OrderEvalView />} />
+            <Route path="/sitter/plans" element={<SitterPlans />} />
+            <Route path="/sitter/gatekeeper" element={<GatekeeperSettings />} />
+            <Route path="/sitter/payment-settings" element={<SitterPaymentInfoSettings />} />
+            <Route path="/sitter/kyc" element={<SitterKycSubmit />} />
+            <Route path="/sitter/profile-settings" element={<SitterProfileSettings />} />
+            <Route path="/sitter/orders/:orderId/quote" element={<SitterModificationQuoteRoute />} />
+            <Route path="/care-notes/manage/:sitterId/:ownerId" element={<CareNoteManagerRoute />} />
+            <Route path="/visit-reports/manage/:visitId" element={<VisitReportManagerRoute />} />
+          </Route>
 
-          <Route path="/booking" element={<BookingRoute />} />
-          <Route path="/booking/:sitterId" element={<BookingRoute />} />
+          <Route element={<RequireRole roles={['client']} />}>
+            <Route path="/booking" element={<BookingRoute />} />
+            <Route path="/booking/:sitterId" element={<BookingRoute />} />
+            <Route path="/pets" element={<PetManager />} />
+            <Route path="/owner/orders" element={<OwnerOrders />} />
+            <Route
+              path="/owner/orders/:orderId/modification-confirm"
+              element={<OwnerModificationConfirmRoute />}
+            />
+            <Route path="/care-notes/view/:sitterId/:ownerId" element={<CareNoteViewRoute />} />
+            <Route path="/visit-reports/view/:visitId" element={<VisitReportViewRoute />} />
+          </Route>
 
-          <Route path="/pets" element={<PetManager />} />
+          {/* 訂單詳情頁後端為 hasAnyRole('OWNER','SITTER')，飼主/保母皆可查看，非飼主獨有 */}
+          <Route element={<RequireRole roles={['client', 'sitter']} />}>
+            <Route path="/owner/orders/:orderId" element={<OwnerOrderDetailRoute />} />
+            <Route path="/orders/:orderId/modify" element={<OrderModificationWizardRoute />} />
+          </Route>
 
-          <Route path="/owner/orders" element={<OwnerOrders />} />
-          <Route path="/owner/orders/:orderId" element={<OwnerOrderDetailRoute />} />
-          <Route
-            path="/owner/orders/:orderId/modification-confirm"
-            element={<OwnerModificationConfirmRoute />}
-          />
-
-          <Route path="/orders/:orderId/modify" element={<OrderModificationWizardRoute />} />
-
-          <Route path="/care-notes/manage/:sitterId/:ownerId" element={<CareNoteManagerRoute />} />
-          <Route path="/care-notes/view/:sitterId/:ownerId" element={<CareNoteViewRoute />} />
-
-          <Route path="/visit-reports/manage/:visitId" element={<VisitReportManagerRoute />} />
-          <Route path="/visit-reports/view/:visitId" element={<VisitReportViewRoute />} />
-
-          <Route path="/admin/resolve/:orderId" element={<AdminResolvePanelRoute />} />
-          <Route path="/admin/kyc" element={<AdminKycList />} />
-          <Route path="/admin/kyc/:kycRecordId" element={<AdminKycDetailRoute />} />
-          <Route path="/admin/forbidden-keywords" element={<AdminForbiddenKeywords />} />
-          <Route path="/admin/subscription" element={<AdminSubscriptionPage />} />
+          <Route element={<RequireRole roles={['admin']} />}>
+            <Route path="/admin/resolve/:orderId" element={<AdminResolvePanelRoute />} />
+            <Route path="/admin/kyc" element={<AdminKycList />} />
+            <Route path="/admin/kyc/:kycRecordId" element={<AdminKycDetailRoute />} />
+            <Route path="/admin/forbidden-keywords" element={<AdminForbiddenKeywords />} />
+            <Route path="/admin/subscription" element={<AdminSubscriptionPage />} />
+          </Route>
 
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/preferences" element={<PreferencesPage />} />
