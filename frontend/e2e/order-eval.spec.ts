@@ -19,6 +19,10 @@ test.describe('Order Evaluation Flow', () => {
 });
 
 test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
+  // 正式環境 CI 每個測試都會走一次真實登入，跨區延遲疊加時偶爾會逼近預設 30s 逾時
+  // (與 sitter-profile.spec.ts 同類狀況)，拉寬到 60s 緩解。
+  test.setTimeout(60000);
+
   const orderId = 'a1023000-0000-0000-0000-000000000000';
   let orderStatus = 'PENDING';
   let orderVersion = 0;
