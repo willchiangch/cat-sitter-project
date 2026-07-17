@@ -166,7 +166,7 @@ class CompletionServiceTest {
         );
 
         org.junit.jupiter.api.Assertions.assertThrows(
-                org.springframework.security.authentication.BadCredentialsException.class,
+                org.springframework.security.access.AccessDeniedException.class,
                 () -> completionService.resolveDisputedOrder(order.getId(), req));
 
         Order untouchedOrder = orderRepository.findById(order.getId()).orElseThrow();

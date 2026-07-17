@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Card from '../../components/ui/Card';
-import { modifyOrder } from '../../api/orderApi';
+import { modifyOrder, getOrderDetail } from '../../api/orderApi';
+import type { OrderItemDto } from '../../api/orderApi';
 
 interface OrderModificationWizardProps {
   orderId: string;
@@ -11,6 +12,15 @@ const OrderModificationWizard: React.FC<OrderModificationWizardProps> = ({ order
   const [isCancel, setIsCancel] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [existingItems, setExistingItems] = useState<OrderItemDto[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
+
+  useEffect(() => {
+    getOrderDetail(orderId)
+      .then((order) => setExistingItems(order.items))
+      .catch((err) => console.error('讀取訂單原始內容失敗', err))
+      .finally(() => setItemsLoading(false));
+  }, [orderId]);
 
   // 方案有效期間 Mock 限制：2026-05-01 到 2026-05-31
   const planStart = '2026-05-01';
@@ -36,12 +46,23 @@ const OrderModificationWizard: React.FC<OrderModificationWizardProps> = ({ order
       return;
     }
 
+    if (!isCancel && existingItems.length === 0) {
+      alert('讀取原始訂單內容失敗，請重新整理後再試');
+      setLoading(false);
+      return;
+    }
+
     try {
       const idempotencyKey = crypto.randomUUID();
-      const items = dates.map((d) => ({
-        servicePlanId: '3d498178-14c0-4376-b81e-7fb02e615dda', // mock service plan ID
-        scheduledDate: d
-      }));
+      // 保留原始項目的方案/單價/次數等欄位，僅替換新日期範圍，
+      // 避免送出前端自創的欄位形狀導致後端反序列化時把訂單內容清空
+      const items: OrderItemDto[] = isCancel
+        ? []
+        : existingItems.map((item) => ({
+            ...item,
+            dates,
+            quantity: dates.length * item.timesPerDay
+          }));
 
       await modifyOrder(
         orderId,
@@ -172,7 +193,7 @@ const OrderModificationWizard: React.FC<OrderModificationWizardProps> = ({ order
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || itemsLoading}
               className="btn-primary"
               style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}
               data-testid="modify-submit-btn"

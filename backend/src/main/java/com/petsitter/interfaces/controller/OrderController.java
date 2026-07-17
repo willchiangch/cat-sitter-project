@@ -51,28 +51,74 @@ public class OrderController {
     /**
      * 發起變更請求 (SD-016)
      */
+    @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
     @PostMapping("/{orderId}/modify")
     public ResponseEntity<Map<String, String>> modifyOrder(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID orderId,
             @RequestParam String requestedBy,
             @Valid @RequestBody ModificationPayloadDto request) {
-        
-        modificationService.proposeModification(orderId, request, requestedBy);
+
+        UUID requesterId = TokenContext.getUserId();
+        modificationService.proposeModification(requesterId, orderId, request, requestedBy);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "變更請求已提交"));
+    }
+
+    /**
+     * 查詢訂單目前進行中的變更請求 (PRD-016)
+     */
+    @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
+    @GetMapping("/{orderId}/modification")
+    public ResponseEntity<com.petsitter.application.dto.ModificationRequestDetailDto> getActiveModificationRequest(
+            @PathVariable UUID orderId) {
+        UUID requesterId = TokenContext.getUserId();
+        return ResponseEntity.ok(modificationService.getActiveModificationRequest(requesterId, orderId));
+    }
+
+    /**
+     * 保母審核變更並提供差額報價 (PRD-016 主流程 B)
+     */
+    @PreAuthorize("hasRole('SITTER')")
+    @PostMapping("/{orderId}/modification/quote")
+    public ResponseEntity<Map<String, String>> quoteModification(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @PathVariable UUID orderId,
+            @RequestParam UUID modRequestId,
+            @Valid @RequestBody com.petsitter.application.dto.ModificationQuoteRequest request) {
+
+        UUID sitterId = TokenContext.getUserId();
+        modificationService.quoteModification(sitterId, orderId, modRequestId, request.newTotalAmount(), request.version());
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "報價已送出，等待飼主確認"));
+    }
+
+    /**
+     * 保母拒絕變更請求 (PRD-016 主流程 B.3)
+     */
+    @PreAuthorize("hasRole('SITTER')")
+    @PostMapping("/{orderId}/modification/reject")
+    public ResponseEntity<Map<String, String>> rejectModification(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @PathVariable UUID orderId,
+            @RequestParam UUID modRequestId) {
+
+        UUID sitterId = TokenContext.getUserId();
+        modificationService.rejectModification(sitterId, orderId, modRequestId);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已拒絕此變更請求，訂單恢復原狀態"));
     }
 
     /**
      * 確認同意變更 (SD-016)
      */
+    @PreAuthorize("hasRole('OWNER')")
     @PostMapping("/{orderId}/modification/confirm")
     public ResponseEntity<Map<String, String>> confirmModification(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID orderId,
             @RequestParam UUID modRequestId,
-            @Valid @RequestBody ModificationPayloadDto request) {
-        
-        modificationService.confirmModification(orderId, modRequestId, request.getDates());
+            @Valid @RequestBody com.petsitter.application.dto.ConfirmModificationRequest request) {
+
+        UUID ownerId = TokenContext.getUserId();
+        modificationService.confirmModification(ownerId, orderId, modRequestId, request.agreedDiffAmount());
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "變更已生效"));
     }
 

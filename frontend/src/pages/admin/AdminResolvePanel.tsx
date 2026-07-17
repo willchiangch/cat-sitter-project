@@ -44,7 +44,7 @@ const AdminResolvePanel: React.FC<AdminResolvePanelProps> = ({ orderId }) => {
       alert('爭議已順利調解結案！');
     } catch (err) {
       console.error(err);
-      if (axios.isAxiosError(err) && err.response?.status === 401) {
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
         alert('二次驗證密碼錯誤！');
       } else {
         alert('調解失敗，請檢查權限或參數。');

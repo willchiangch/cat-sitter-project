@@ -48,20 +48,26 @@ class ModificationServiceTest {
     private Order order;
     private OrderSnapshot snapshot;
     private UUID orderId;
+    private UUID ownerId;
+    private UUID sitterId;
 
     @BeforeEach
     void setUp() {
         orderId = UUID.randomUUID();
-        User sitter = User.builder().id(UUID.randomUUID()).build();
+        ownerId = UUID.randomUUID();
+        sitterId = UUID.randomUUID();
+        User owner = User.builder().id(ownerId).build();
+        User sitter = User.builder().id(sitterId).build();
         order = Order.builder()
                 .id(orderId)
                 .status("CONFIRMED")
                 .totalAmount(1000) // 原價 2 天
+                .owner(owner)
                 .sitter(sitter)
                 .planId(UUID.randomUUID())
                 .items(new ArrayList<>())
                 .build();
-        
+
         snapshot = OrderSnapshot.builder()
                 .order(order)
                 .snapshotUnitPrice(500)
@@ -75,11 +81,11 @@ class ModificationServiceTest {
                 .totalDays(3) // 2 -> 3
                 .items(new ArrayList<>())
                 .build();
-        
+
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(snapshotRepo.findByOrderId(orderId)).thenReturn(Optional.of(snapshot));
 
-        modificationService.proposeModification(orderId, prop, "OWNER");
+        modificationService.proposeModification(ownerId, orderId, prop, "OWNER");
 
         assertThat(order.getStatus()).isEqualTo("MODIFYING");
         ArgumentCaptor<ModificationRequest> captor = ArgumentCaptor.forClass(ModificationRequest.class);
@@ -88,12 +94,28 @@ class ModificationServiceTest {
     }
 
     @Test
-    @DisplayName("退款路徑：減少天數應使訂單轉為 REFUND_VERIFY")
+    @DisplayName("非訂單當事人發起變更應被拒絕")
+    void should_RejectProposeModification_When_RequesterIsNotOrderParty() {
+        ModificationPayloadDto prop = ModificationPayloadDto.builder()
+                .totalDays(3)
+                .items(new ArrayList<>())
+                .build();
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+        UUID stranger = UUID.randomUUID();
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> modificationService.proposeModification(stranger, orderId, prop, "OWNER"));
+    }
+
+    @Test
+    @DisplayName("保母報價後，退款路徑：減少天數應使訂單轉為 REFUND_VERIFY")
     void should_TransitionToRefundVerify_WhenAmountDecreases() {
-        // Given: 減少 1 天，差額應為 -500
+        // Given: 保母已報價，差額為 -500
         UUID modReqId = UUID.randomUUID();
         ModificationRequest modReq = ModificationRequest.builder()
-                .id(modReqId).order(order).status("PENDING_REVIEW").diffAmount(-500).payload(new ArrayList<>()).build();
+                .id(modReqId).order(order).status("QUOTED").diffAmount(-500)
+                .payload(new ArrayList<>()).dates(List.of(LocalDate.now().toString())).build();
 
         when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
@@ -101,7 +123,7 @@ class ModificationServiceTest {
         when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
         // When
-        modificationService.confirmModification(orderId, modReqId, List.of(LocalDate.now()));
+        modificationService.confirmModification(ownerId, orderId, modReqId, -500);
 
         // Then
         assertThat(order.getStatus()).isEqualTo("REFUND_VERIFY");
@@ -112,8 +134,72 @@ class ModificationServiceTest {
                 eq(order.getSitter().getId()),
                 any(OffsetDateTime.class),
                 any(OffsetDateTime.class),
-                eq(orderId) 
+                eq(orderId)
         );
+    }
+
+    @Test
+    @DisplayName("同意金額與保母最新報價不符時應拒絕確認 (Zero-Trust)")
+    void should_RejectConfirm_When_AgreedAmountMismatchesQuote() {
+        UUID modReqId = UUID.randomUUID();
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(modReqId).order(order).status("QUOTED").diffAmount(-500).payload(new ArrayList<>()).build();
+
+        when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.petsitter.application.exception.PricingMismatchException.class,
+                () -> modificationService.confirmModification(ownerId, orderId, modReqId, -999));
+    }
+
+    @Test
+    @DisplayName("尚未經保母報價 (PENDING_REVIEW) 時不可確認")
+    void should_RejectConfirm_When_NotYetQuoted() {
+        UUID modReqId = UUID.randomUUID();
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(modReqId).order(order).status("PENDING_REVIEW").diffAmount(-500).payload(new ArrayList<>()).build();
+
+        when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> modificationService.confirmModification(ownerId, orderId, modReqId, -500));
+    }
+
+    @Test
+    @DisplayName("保母報價：應更新差額並轉為 QUOTED")
+    void should_QuoteModification_Successfully() {
+        UUID modReqId = UUID.randomUUID();
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(modReqId).order(order).status("PENDING_REVIEW").diffAmount(500).payload(new ArrayList<>()).build();
+        order.setVersion(1);
+
+        when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+        modificationService.quoteModification(sitterId, orderId, modReqId, 700, 1);
+
+        assertThat(modReq.getStatus()).isEqualTo("QUOTED");
+        assertThat(modReq.getDiffAmount()).isEqualTo(-300); // 700 - 1000
+    }
+
+    @Test
+    @DisplayName("保母拒絕變更：訂單應恢復為發起變更前的狀態")
+    void should_RejectModification_And_RestorePreviousStatus() {
+        UUID modReqId = UUID.randomUUID();
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(modReqId).order(order).status("PENDING_REVIEW").diffAmount(500)
+                .previousStatus("IN_PROGRESS").payload(new ArrayList<>()).build();
+        order.setStatus("MODIFYING");
+
+        when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+        modificationService.rejectModification(sitterId, orderId, modReqId);
+
+        assertThat(modReq.getStatus()).isEqualTo("REJECTED");
+        assertThat(order.getStatus()).isEqualTo("IN_PROGRESS");
     }
 
     @Test
@@ -124,12 +210,13 @@ class ModificationServiceTest {
         ModificationRequest modReq = ModificationRequest.builder()
                 .id(modReqId)
                 .order(order)
-                .status("PENDING_REVIEW")
+                .status("QUOTED")
                 .diffAmount(500)
                 .payload(new ArrayList<>())
                 .build();
 
         LocalDate d1 = LocalDate.of(2026, 6, 1);
+        modReq.setDates(List.of(d1.toString(), d1.plusDays(1).toString(), d1.plusDays(2).toString()));
         Visit doneVisit = Visit.builder().status("DONE").scheduledAt(d1.atStartOfDay().atOffset(ZoneOffset.UTC)).build();
         Visit pendingVisit = Visit.builder().status("PENDING").scheduledAt(d1.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC)).build();
 
@@ -138,7 +225,7 @@ class ModificationServiceTest {
         when(visitRepository.findByOrderId(orderId)).thenReturn(List.of(doneVisit, pendingVisit));
         when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
-        modificationService.confirmModification(orderId, modReqId, List.of(d1, d1.plusDays(1), d1.plusDays(2)));
+        modificationService.confirmModification(ownerId, orderId, modReqId, 500);
 
         ArgumentCaptor<Iterable<Visit>> deleteCaptor = ArgumentCaptor.forClass(Iterable.class);
         verify(visitRepository).deleteAll(deleteCaptor.capture());
@@ -148,6 +235,6 @@ class ModificationServiceTest {
         ArgumentCaptor<List<Visit>> saveCaptor = ArgumentCaptor.forClass(List.class);
         verify(visitRepository).saveAll(saveCaptor.capture());
         List<Visit> savedList = saveCaptor.getValue();
-        assertThat(savedList).hasSize(2); 
+        assertThat(savedList).hasSize(2);
     }
 }

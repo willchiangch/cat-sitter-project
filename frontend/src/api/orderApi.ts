@@ -14,21 +14,41 @@ export interface BookingRequest {
   idempotencyKey?: string;
 }
 
-export interface ModificationItem {
-  servicePlanId: string;
-  scheduledDate: string; // YYYY-MM-DD
+// 對齊後端 OrderItem 欄位，發起變更時的 items 必須是完整的 OrderItem 形狀，
+// 否則後端 Jackson 反序列化會靜默丟棄未知欄位，訂單內容會被清空
+export interface OrderItemDto {
+  category: string;
+  serviceName: string;
+  unitPrice: number;
+  quantity: number;
+  planId: string;
+  dates: string[];
+  timesPerDay: number;
+  petIds?: string[];
 }
 
 export interface ModificationPayloadDto {
-  items: ModificationItem[];
+  items: OrderItemDto[];
   totalDays: number;
   dates: string[]; // YYYY-MM-DD
 }
 
-export interface QuoteRequest {
-  adjustedAmount: number;
-  notes?: string;
-  sitterPasswordHash?: string;
+export interface ModificationRequestDetailDto {
+  id: string;
+  orderId: string;
+  status: string;
+  requestedBy: string;
+  diffAmount: number;
+  newTotalAmount: number;
+  currentOrderTotalAmount: number;
+  orderVersion: number;
+  dates: string[];
+  refundProofUrl?: string;
+}
+
+export interface ModificationQuoteRequest {
+  newTotalAmount: number;
+  version: number;
 }
 
 export interface AdminResolveRequest {
@@ -67,7 +87,7 @@ export const modifyOrder = async (
 export const confirmModification = async (
   orderId: string,
   modRequestId: string,
-  request: ModificationPayloadDto,
+  request: { agreedDiffAmount: number; version: number },
   idempotencyKey: string
 ): Promise<{ status: string; message: string }> => {
   const response = await axiosClient.post(`/orders/${orderId}/modification/confirm`, request, {
@@ -77,24 +97,48 @@ export const confirmModification = async (
   return response.data;
 };
 
+// 3b. 查詢訂單目前進行中的變更請求 (PRD-016)
+export const getActiveModificationRequest = async (
+  orderId: string
+): Promise<ModificationRequestDetailDto> => {
+  const response = await axiosClient.get(`/orders/${orderId}/modification`);
+  return response.data;
+};
+
+// 3c. 保母審核變更並提供差額報價 (PRD-016 主流程 B)
+export const quoteModification = async (
+  orderId: string,
+  modRequestId: string,
+  request: ModificationQuoteRequest,
+  idempotencyKey: string
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(`/orders/${orderId}/modification/quote`, request, {
+    params: { modRequestId },
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
+  return response.data;
+};
+
+// 3d. 保母拒絕變更請求 (PRD-016 主流程 B.3)
+export const rejectModification = async (
+  orderId: string,
+  modRequestId: string,
+  idempotencyKey: string
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(
+    `/orders/${orderId}/modification/reject`,
+    {},
+    { params: { modRequestId }, headers: { 'Idempotency-Key': idempotencyKey } }
+  );
+  return response.data;
+};
+
 // 4. 保母確認接單
 export const confirmOrder = async (
   orderId: string,
   sitterId: string
 ): Promise<{ status: string; message: string }> => {
   const response = await axiosClient.post(`/orders/${orderId}/confirm`, null, {
-    params: { sitterId }
-  });
-  return response.data;
-};
-
-// 5. 保母送出報價與調價 (SD-006)
-export const sendQuote = async (
-  orderId: string,
-  sitterId: string,
-  request: QuoteRequest
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/quote`, request, {
     params: { sitterId }
   });
   return response.data;
@@ -230,7 +274,7 @@ export interface OrderDetailResponseDto {
   paidAt?: string;
   completedAt?: string;
   payoutAt?: string;
-  items: any[];
+  items: OrderItemDto[];
   sitterPaymentInfo?: BankAccountInfo;
 }
 

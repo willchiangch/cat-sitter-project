@@ -9,7 +9,7 @@ import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.VisitRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,7 +95,9 @@ public class CompletionService {
 
         String adminEmail = SecurityContextHolder.getContext().getAuthentication().getName();
         if (!authService.verifyPassword(adminEmail, req.adminPassword())) {
-            throw new BadCredentialsException("二次驗證密碼錯誤");
+            // 故意用 403 而非 401：前端 axiosClient 對所有 401 都會觸發全域的
+            // refresh-token 靜默重試機制，會把「二次驗證密碼錯誤」誤判成 session 過期
+            throw new AccessDeniedException("二次驗證密碼錯誤");
         }
 
         OffsetDateTime now = OffsetDateTime.now();

@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Card from '../../components/ui/Card';
-import { sendQuote, uploadRefundProof } from '../../api/orderApi';
+import {
+  getActiveModificationRequest,
+  quoteModification,
+  rejectModification,
+  uploadRefundProof
+} from '../../api/orderApi';
+import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 interface SitterModificationQuoteProps {
   orderId: string;
@@ -9,15 +16,31 @@ interface SitterModificationQuoteProps {
 
 const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ orderId }) => {
   const { currentRole } = useRole();
-  const [adjustedAmount, setAdjustedAmount] = useState<number>(1800);
-  const [password, setPassword] = useState('');
+  const { userId: sitterId } = useCurrentUser();
+  const [modRequest, setModRequest] = useState<ModificationRequestDetailDto | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [newTotalAmount, setNewTotalAmount] = useState<number>(0);
   const [refundProofUrl, setRefundProofUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingReject, setLoadingReject] = useState(false);
   const [loadingProof, setLoadingProof] = useState(false);
   const [quoteSent, setQuoteSent] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [proofSent, setProofSent] = useState(false);
 
-  const sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda'; // 測試用保母 ID
+  useEffect(() => {
+    getActiveModificationRequest(orderId)
+      .then((detail) => {
+        setModRequest(detail);
+        setNewTotalAmount(detail.newTotalAmount);
+      })
+      .catch((err) => {
+        console.error(err);
+        setFetchError('找不到進行中的變更請求，可能已被處理或不存在。');
+      })
+      .finally(() => setFetchLoading(false));
+  }, [orderId]);
 
   const handleSendQuote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,24 +48,46 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
       alert('無保母權限，請先切換至保母角色！');
       return;
     }
-    if (password !== 'password') {
-      alert('二次驗證密碼錯誤！');
-      return;
-    }
+    if (!modRequest) return;
 
     setLoading(true);
     try {
-      await sendQuote(orderId, sitterId, {
-        adjustedAmount,
-        notes: '變更後金額微調'
-      });
+      const idempotencyKey = crypto.randomUUID();
+      await quoteModification(
+        orderId,
+        modRequest.id,
+        { newTotalAmount, version: modRequest.orderVersion },
+        idempotencyKey
+      );
       setQuoteSent(true);
-      alert('報價微調已成功送出！');
+      alert('報價已成功送出，等待飼主確認！');
     } catch (err) {
       console.error(err);
       alert('送出報價失敗，請檢查權限或參數。');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (currentRole !== 'sitter') {
+      alert('無保母權限，請先切換至保母角色！');
+      return;
+    }
+    if (!modRequest) return;
+    if (!window.confirm('確定要拒絕此變更請求嗎？訂單將恢復原狀態。')) return;
+
+    setLoadingReject(true);
+    try {
+      const idempotencyKey = crypto.randomUUID();
+      await rejectModification(orderId, modRequest.id, idempotencyKey);
+      setRejected(true);
+      alert('已拒絕此變更請求，訂單已恢復原狀態！');
+    } catch (err) {
+      console.error(err);
+      alert('拒絕變更失敗，請稍後再試。');
+    } finally {
+      setLoadingReject(false);
     }
   };
 
@@ -101,149 +146,180 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <Card>
-          <h3
-            style={{
-              margin: '0 0 1.5rem 0',
-              fontSize: '1.25rem',
-              fontFamily: 'var(--font-display)'
-            }}
-          >
-            變更報價調整
-          </h3>
-          {quoteSent ? (
+      {fetchLoading ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+      ) : fetchError || !modRequest ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }} data-testid="mod-quote-error">
+          {fetchError}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <Card>
+            <h3
+              style={{
+                margin: '0 0 1.5rem 0',
+                fontSize: '1.25rem',
+                fontFamily: 'var(--font-display)'
+              }}
+            >
+              變更報價審核
+            </h3>
             <div
               style={{
-                textAlign: 'center',
-                padding: '1rem',
-                color: 'var(--color-primary)',
-                fontWeight: '600'
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '0 0 1.25rem',
+                fontSize: '0.875rem',
+                color: 'var(--color-on-surface-variant)'
               }}
-              data-testid="quote-success-banner"
             >
-              ✓ 報價已送出 (總額: $ {adjustedAmount.toLocaleString()})
+              <span>目前訂單總額：</span>
+              <strong data-testid="mod-quote-current-total">
+                $ {modRequest.currentOrderTotalAmount.toLocaleString()}
+              </strong>
             </div>
-          ) : (
-            <form
-              onSubmit={handleSendQuote}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>微調後最終總額</label>
-                <input
-                  type="number"
-                  value={adjustedAmount}
-                  onChange={(e) => setAdjustedAmount(Number(e.target.value))}
-                  style={{
-                    padding: '0.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    border: 'none',
-                    backgroundColor: 'var(--color-surface-low)',
-                    color: 'var(--color-on-surface)'
-                  }}
-                  data-testid="quote-amount-input"
-                  required
-                />
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label
-                  style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--color-primary)' }}
+            {rejected ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '1rem',
+                  color: 'var(--color-on-surface-variant)',
+                  fontWeight: '600'
+                }}
+                data-testid="reject-success-banner"
+              >
+                ✓ 已拒絕此變更請求
+              </div>
+            ) : quoteSent ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '1rem',
+                  color: 'var(--color-primary)',
+                  fontWeight: '600'
+                }}
+                data-testid="quote-success-banner"
+              >
+                ✓ 報價已送出 (總額: $ {newTotalAmount.toLocaleString()})
+              </div>
+            ) : (
+              <form
+                onSubmit={handleSendQuote}
+                style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>變更後最終總額</label>
+                  <input
+                    type="number"
+                    value={newTotalAmount}
+                    onChange={(e) => setNewTotalAmount(Number(e.target.value))}
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      backgroundColor: 'var(--color-surface-low)',
+                      color: 'var(--color-on-surface)'
+                    }}
+                    data-testid="quote-amount-input"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || currentRole !== 'sitter'}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '1rem', marginTop: '0.5rem' }}
+                  data-testid="quote-submit-btn"
                 >
-                  🛡️ 二次安全認證密碼
-                </label>
-                <input
-                  type="password"
-                  placeholder="請輸入保母帳號密碼"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  {loading ? '送出報價中...' : '確認送出報價'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={loadingReject || currentRole !== 'sitter'}
                   style={{
-                    padding: '0.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    border: 'none',
+                    width: '100%',
+                    padding: '1rem',
                     backgroundColor: 'var(--color-surface-low)',
-                    color: 'var(--color-on-surface)'
+                    color: 'var(--color-on-surface-variant)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    fontWeight: '700',
+                    cursor: 'pointer'
                   }}
-                  data-testid="quote-password-input"
-                  required
-                />
-              </div>
+                  data-testid="reject-mod-btn"
+                >
+                  {loadingReject ? '處理中...' : '拒絕此變更請求'}
+                </button>
+              </form>
+            )}
+          </Card>
 
-              <button
-                type="submit"
-                disabled={loading || currentRole !== 'sitter'}
-                className="btn-primary"
-                style={{ width: '100%', padding: '1rem', marginTop: '0.5rem' }}
-                data-testid="quote-submit-btn"
-              >
-                {loading ? '送出報價中...' : '確認送出微調報價'}
-              </button>
-            </form>
-          )}
-        </Card>
-
-        <Card>
-          <h3
-            style={{
-              margin: '0 0 1.5rem 0',
-              fontSize: '1.25rem',
-              fontFamily: 'var(--font-display)'
-            }}
-          >
-            退款轉帳憑證上傳 (若涉及退款)
-          </h3>
-          {proofSent ? (
-            <div
+          <Card>
+            <h3
               style={{
-                textAlign: 'center',
-                padding: '1rem',
-                color: 'var(--color-primary)',
-                fontWeight: '600'
+                margin: '0 0 1.5rem 0',
+                fontSize: '1.25rem',
+                fontFamily: 'var(--font-display)'
               }}
-              data-testid="refund-proof-success-banner"
             >
-              ✓ 退款憑證已成功上傳
-            </div>
-          ) : (
-            <form
-              onSubmit={handleUploadProof}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>
-                  憑證 / 收據圖片網址 (GCP Storage)
-                </label>
-                <input
-                  type="text"
-                  placeholder="https://storage.googleapis.com/proof/refund_123.jpg"
-                  value={refundProofUrl}
-                  onChange={(e) => setRefundProofUrl(e.target.value)}
-                  style={{
-                    padding: '0.75rem',
-                    borderRadius: 'var(--radius-sm)',
-                    border: 'none',
-                    backgroundColor: 'var(--color-surface-low)',
-                    color: 'var(--color-on-surface)'
-                  }}
-                  data-testid="refund-proof-input"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loadingProof || currentRole !== 'sitter'}
-                className="btn-primary"
-                style={{ width: '100%', padding: '1rem', marginTop: '0.5rem' }}
-                data-testid="refund-proof-submit-btn"
+              退款轉帳憑證上傳 (若涉及退款)
+            </h3>
+            {proofSent ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '1rem',
+                  color: 'var(--color-primary)',
+                  fontWeight: '600'
+                }}
+                data-testid="refund-proof-success-banner"
               >
-                {loadingProof ? '上傳中...' : '確認上傳憑證'}
-              </button>
-            </form>
-          )}
-        </Card>
-      </div>
+                ✓ 退款憑證已成功上傳
+              </div>
+            ) : (
+              <form
+                onSubmit={handleUploadProof}
+                style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+                    憑證 / 收據圖片網址 (GCP Storage)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="https://storage.googleapis.com/proof/refund_123.jpg"
+                    value={refundProofUrl}
+                    onChange={(e) => setRefundProofUrl(e.target.value)}
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      backgroundColor: 'var(--color-surface-low)',
+                      color: 'var(--color-on-surface)'
+                    }}
+                    data-testid="refund-proof-input"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loadingProof || currentRole !== 'sitter'}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '1rem', marginTop: '0.5rem' }}
+                  data-testid="refund-proof-submit-btn"
+                >
+                  {loadingProof ? '上傳中...' : '確認上傳憑證'}
+                </button>
+              </form>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

@@ -53,6 +53,7 @@ class ModificationServiceIntegrationTest {
     private ModificationRequestRepository modRepo;
 
     private UUID orderId;
+    private UUID ownerId;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +65,7 @@ class ModificationServiceIntegrationTest {
 
         User owner = userRepository.save(User.builder().email("owner@test.com").passwordHash("hash").role("OWNER").build());
         User sitter = userRepository.save(User.builder().email("sitter@test.com").passwordHash("hash").role("SITTER").build());
+        ownerId = owner.getId();
         
         Order order = orderRepository.save(Order.builder()
                 .owner(owner)
@@ -107,7 +109,7 @@ class ModificationServiceIntegrationTest {
             executor.execute(() -> {
                 try {
                     latch.await();
-                    modificationService.proposeModification(orderId, prop, "OWNER");
+                    modificationService.proposeModification(ownerId, orderId, prop, "OWNER");
                     successCount.incrementAndGet();
                 } catch (DataIntegrityViolationException | IllegalStateException | org.springframework.orm.ObjectOptimisticLockingFailureException e) {
                     failureCount.incrementAndGet();
