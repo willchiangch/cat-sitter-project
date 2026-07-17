@@ -1,7 +1,9 @@
 package com.petsitter.application.service;
 
 import com.petsitter.application.dto.OrderDetailResponseDto;
+import com.petsitter.application.dto.OrderLedgerEntryDto;
 import com.petsitter.application.dto.OrderSummaryDto;
+import com.petsitter.application.dto.SitterLedgerResponse;
 import com.petsitter.domain.model.BankAccountInfo;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
@@ -14,6 +16,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -90,6 +95,33 @@ public class OrderQueryServiceImpl implements OrderQueryService {
         return orderRepository.findBySitterIdWithParties(sitterId).stream()
                 .map(this::toSummaryDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SitterLedgerResponse getSitterLedger(UUID sitterId, YearMonth month) {
+        OffsetDateTime from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime to = month.plusMonths(1).atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+
+        List<OrderLedgerEntryDto> entries = orderRepository
+                .findCompletedBySitterIdAndCompletedAtBetween(sitterId, from, to).stream()
+                .map(order -> OrderLedgerEntryDto.builder()
+                        .orderId(order.getId())
+                        .ownerName(order.getOwner().getFullName())
+                        .totalAmount(order.getTotalAmount())
+                        .paidAt(order.getPaidAt())
+                        .completedAt(order.getCompletedAt())
+                        .payoutAt(order.getPayoutAt())
+                        .build())
+                .toList();
+
+        int totalRevenue = entries.stream().mapToInt(OrderLedgerEntryDto::getTotalAmount).sum();
+
+        return SitterLedgerResponse.builder()
+                .yearMonth(month.toString())
+                .totalRevenue(totalRevenue)
+                .entries(entries)
+                .build();
     }
 
     private OrderSummaryDto toSummaryDto(Order order) {

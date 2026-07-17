@@ -98,6 +98,15 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Refresh token 找不到或無效"));
     }
 
+    /**
+     * 敏感操作二次驗證：核對指定使用者的密碼是否正確 (SD-009 NFR-003)
+     */
+    public boolean verifyPassword(String email, String rawPassword) {
+        return userRepository.findByEmail(email)
+                .map(user -> passwordEncoder.matches(rawPassword, user.getPasswordHash()))
+                .orElse(false);
+    }
+
     @Transactional
     public AuthResponse switchRole(User user, String targetRole) {
         log.info("[AuthService] Switching role for user: {} to targetRole: {}", user.getEmail(), targetRole);

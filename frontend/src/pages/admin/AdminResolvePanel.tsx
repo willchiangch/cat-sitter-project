@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import Card from '../../components/ui/Card';
 import { resolveDisputedOrder } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
@@ -26,8 +27,8 @@ const AdminResolvePanel: React.FC<AdminResolvePanelProps> = ({ orderId }) => {
       alert('請填寫調解原因');
       return;
     }
-    if (password !== 'password') {
-      alert('二次驗證密碼錯誤！');
+    if (!password.trim()) {
+      alert('請輸入二次驗證密碼');
       return;
     }
 
@@ -36,13 +37,18 @@ const AdminResolvePanel: React.FC<AdminResolvePanelProps> = ({ orderId }) => {
       await resolveDisputedOrder(orderId, {
         finalAmount,
         receiptUrl,
-        reason
+        reason,
+        adminPassword: password
       });
       setResolved(true);
       alert('爭議已順利調解結案！');
     } catch (err) {
       console.error(err);
-      alert('調解失敗，請檢查權限或參數。');
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        alert('二次驗證密碼錯誤！');
+      } else {
+        alert('調解失敗，請檢查權限或參數。');
+      }
     } finally {
       setLoading(false);
     }

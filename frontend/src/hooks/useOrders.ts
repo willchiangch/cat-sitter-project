@@ -2,10 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getMyOrdersAsOwner,
   getMyOrdersAsSitter,
+  getSitterLedger,
   verifyPayment,
   rejectPayment
 } from '../api/orderApi';
-import type { OrderSummaryDto } from '../api/orderApi';
+import type { OrderSummaryDto, SitterLedgerResponse } from '../api/orderApi';
 
 export const useOwnerOrdersQuery = () => {
   return useQuery<OrderSummaryDto[], Error>({
@@ -19,6 +20,14 @@ export const useSitterOrdersQuery = () => {
   return useQuery<OrderSummaryDto[], Error>({
     queryKey: ['orders', 'sitter'],
     queryFn: getMyOrdersAsSitter,
+    staleTime: 60 * 1000
+  });
+};
+
+export const useSitterLedgerQuery = (month: string) => {
+  return useQuery<SitterLedgerResponse, Error>({
+    queryKey: ['orders', 'sitter', 'ledger', month],
+    queryFn: () => getSitterLedger(month),
     staleTime: 60 * 1000
   });
 };

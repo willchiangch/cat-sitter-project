@@ -41,6 +41,13 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     boolean existsByPaymentIdempotencyKey(String paymentIdempotencyKey);
 
+    @Query("SELECT o FROM Order o JOIN FETCH o.owner WHERE o.sitter.id = :sitterId AND o.status = 'COMPLETED' " +
+           "AND o.completedAt >= :from AND o.completedAt < :to ORDER BY o.completedAt DESC")
+    List<Order> findCompletedBySitterIdAndCompletedAtBetween(
+            @Param("sitterId") UUID sitterId,
+            @Param("from") OffsetDateTime from,
+            @Param("to") OffsetDateTime to);
+
     @Query(value = """
         SELECT o.* FROM orders o
         JOIN order_snapshots os ON os.order_id = o.id

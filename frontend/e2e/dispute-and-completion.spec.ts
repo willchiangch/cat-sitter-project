@@ -69,8 +69,18 @@ test.describe('Dispute and Completion Flow', () => {
       });
     });
 
-    // 攔截管理員調解 API
+    // 攔截管理員調解 API — 二次驗證密碼改由後端核對，這裡模擬同樣的行為：
+    // adminPassword 不等於 'password' 時回 401，前端會顯示「二次驗證密碼錯誤」
     await page.route('**/api/orders/*/admin-resolve**', async (route) => {
+      const body = route.request().postDataJSON() as { adminPassword?: string };
+      if (body.adminPassword !== 'password') {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'MSG_AUTH_BAD_CREDENTIALS', message: '二次驗證密碼錯誤' })
+        });
+        return;
+      }
       orderStatus = 'COMPLETED';
       await route.fulfill({
         status: 200,

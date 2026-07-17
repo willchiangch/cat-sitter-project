@@ -146,6 +146,7 @@ public class OrderController {
     /**
      * 管理員強制結案 (Admin Resolve - SD-009)
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{orderId}/admin-resolve")
     public ResponseEntity<Map<String, String>> resolveDisputedOrder(
             @PathVariable UUID orderId,
@@ -257,5 +258,19 @@ public class OrderController {
     public ResponseEntity<List<OrderSummaryDto>> getMyOrdersAsSitter() {
         UUID sitterId = TokenContext.getUserId();
         return ResponseEntity.ok(orderQueryService.getMyOrdersAsSitter(sitterId));
+    }
+
+    /**
+     * 保母帳務總覽 (PRD-009 主流程 C)
+     */
+    @PreAuthorize("hasRole('SITTER')")
+    @GetMapping("/sitter/ledger")
+    public ResponseEntity<com.petsitter.application.dto.SitterLedgerResponse> getSitterLedger(
+            @RequestParam(required = false) String month) {
+        UUID sitterId = TokenContext.getUserId();
+        java.time.YearMonth targetMonth = month != null
+                ? java.time.YearMonth.parse(month)
+                : java.time.YearMonth.now();
+        return ResponseEntity.ok(orderQueryService.getSitterLedger(sitterId, targetMonth));
     }
 }

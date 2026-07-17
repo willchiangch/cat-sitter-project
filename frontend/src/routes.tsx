@@ -6,6 +6,7 @@ import LoginPage from './pages/auth/LoginPage';
 import DemoHome from './pages/DemoHome';
 
 import SitterOrders from './pages/sitter/SitterOrders';
+import SitterLedger from './pages/sitter/SitterLedger';
 import OrderEvalView from './pages/sitter/OrderEvalView';
 import PublicBookingPage from './pages/client/PublicBookingPage';
 import CareNoteManager from './pages/sitter/CareNoteManager';
@@ -105,6 +106,7 @@ function AppRoutes() {
 
           <Route element={<RequireRole roles={['sitter']} />}>
             <Route path="/sitter/orders" element={<SitterOrders />} />
+            <Route path="/sitter/ledger" element={<SitterLedger />} />
             <Route path="/sitter/eval/:orderId" element={<OrderEvalViewRoute />} />
             <Route path="/sitter/plans" element={<SitterPlans />} />
             <Route path="/sitter/gatekeeper" element={<GatekeeperSettings />} />

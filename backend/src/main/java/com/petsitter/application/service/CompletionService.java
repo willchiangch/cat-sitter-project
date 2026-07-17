@@ -9,6 +9,8 @@ import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.VisitRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ public class CompletionService {
     private final OrderRepository orderRepository;
     private final VisitRepository visitRepository;
     private final OrderLogRepository orderLogRepository;
+    private final AuthService authService;
 
     /**
      * 內部排程 API 觸發點 (SD-009 Scenario 1)
@@ -88,6 +91,11 @@ public class CompletionService {
 
         if (!"DISPUTED".equals(order.getStatus())) {
             throw new IllegalStateException("Only DISPUTED orders can be resolved");
+        }
+
+        String adminEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (!authService.verifyPassword(adminEmail, req.adminPassword())) {
+            throw new BadCredentialsException("二次驗證密碼錯誤");
         }
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -165,6 +173,9 @@ public class CompletionService {
                 .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
         if (!order.getOwner().getId().equals(ownerId)) {
             throw new IllegalArgumentException("無權操作此訂單");
+        }
+        if (!List.of("CONFIRMED", "IN_PROGRESS").contains(order.getStatus())) {
+            throw new IllegalStateException("此訂單狀態不可申報爭議");
         }
         order.setStatus("DISPUTED");
         order.setDisputed(true);

@@ -6,5 +6,6 @@ package com.petsitter.application.dto;
 public record AdminResolveRequest(
     Integer finalAmount,
     String receiptUrl,
-    String reason
+    String reason,
+    String adminPassword
 ) {}

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -59,6 +60,9 @@ class CompletionServiceTest {
 
     @Autowired
     private OrderLogRepository orderLogRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     private User owner;
     private User sitter;
@@ -118,17 +122,20 @@ class CompletionServiceTest {
 
     @Test
     @DisplayName("管理員強制結案：應紀錄差額、寫入財務時間並轉為 COMPLETED")
-    @WithMockUser(username = "admin_user", roles = "ADMIN")
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
     void should_ResolveDisputedOrder_ByAdmin() {
+        userRepository.save(User.builder().email("admin@test.com").passwordHash(passwordEncoder.encode("password")).role("ADMIN").build());
+
         Order order = createOrder("DISPUTED");
         order.setTotalAmount(1500);
         order.setDisputed(true);
         orderRepository.save(order);
 
         com.petsitter.application.dto.AdminResolveRequest req = new com.petsitter.application.dto.AdminResolveRequest(
-                1000, 
-                "gs://bucket/receipt.jpg", 
-                "雙方和解，扣除一天費用"
+                1000,
+                "gs://bucket/receipt.jpg",
+                "雙方和解，扣除一天費用",
+                "password"
         );
         completionService.resolveDisputedOrder(order.getId(), req);
 
@@ -136,9 +143,34 @@ class CompletionServiceTest {
         assertThat(resolvedOrder.getStatus()).isEqualTo("COMPLETED");
         assertThat(resolvedOrder.getTotalAmount()).isEqualTo(1000);
         assertThat(resolvedOrder.isDisputed()).isFalse();
-        
+
         long logCount = orderLogRepository.countByOrderIdAndActionType(order.getId(), "ADMIN_RESOLVED");
         assertThat(logCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("管理員強制結案：二次驗證密碼錯誤時應拒絕並維持 DISPUTED")
+    @WithMockUser(username = "admin@test.com", roles = "ADMIN")
+    void should_RejectResolve_When_AdminPasswordWrong() {
+        userRepository.save(User.builder().email("admin@test.com").passwordHash(passwordEncoder.encode("password")).role("ADMIN").build());
+
+        Order order = createOrder("DISPUTED");
+        order.setDisputed(true);
+        orderRepository.save(order);
+
+        com.petsitter.application.dto.AdminResolveRequest req = new com.petsitter.application.dto.AdminResolveRequest(
+                1000,
+                "gs://bucket/receipt.jpg",
+                "雙方和解，扣除一天費用",
+                "wrong-password"
+        );
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.security.authentication.BadCredentialsException.class,
+                () -> completionService.resolveDisputedOrder(order.getId(), req));
+
+        Order untouchedOrder = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(untouchedOrder.getStatus()).isEqualTo("DISPUTED");
     }
 
     private Order createOrder(String status) {

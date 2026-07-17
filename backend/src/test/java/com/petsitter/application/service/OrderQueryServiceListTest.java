@@ -17,6 +17,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -105,6 +107,31 @@ class OrderQueryServiceListTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getOwnerName()).isEqualTo("愛貓飼主");
+    }
+
+    @Test
+    @DisplayName("保母帳務總覽：只統計指定月份內已結案訂單的總收入，排除爭議中訂單")
+    void getSitterLedger_ReturnsCompletedOrdersWithinMonth_ExcludingDisputed() {
+        YearMonth targetMonth = YearMonth.of(2026, 7);
+
+        Order completedInMonth = createOrder(owner, sitter, "COMPLETED");
+        completedInMonth.setTotalAmount(2000);
+        completedInMonth.setCompletedAt(OffsetDateTime.parse("2026-07-15T00:00:00Z"));
+        orderRepository.save(completedInMonth);
+
+        Order completedOutsideMonth = createOrder(owner, sitter, "COMPLETED");
+        completedOutsideMonth.setTotalAmount(9999);
+        completedOutsideMonth.setCompletedAt(OffsetDateTime.parse("2026-06-30T23:59:59Z"));
+        orderRepository.save(completedOutsideMonth);
+
+        createOrder(owner, sitter, "DISPUTED");
+
+        var response = orderQueryService.getSitterLedger(sitter.getId(), targetMonth);
+
+        assertThat(response.getYearMonth()).isEqualTo("2026-07");
+        assertThat(response.getTotalRevenue()).isEqualTo(2000);
+        assertThat(response.getEntries()).hasSize(1);
+        assertThat(response.getEntries().get(0).getOrderId()).isEqualTo(completedInMonth.getId());
     }
 
     @Test

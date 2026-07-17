@@ -35,7 +35,7 @@ export interface AdminResolveRequest {
   finalAmount: number;
   receiptUrl?: string;
   reason: string;
-  adminPasswordHash?: string;
+  adminPassword: string;
 }
 
 // 1. 飼主送出預約申請
@@ -262,6 +262,27 @@ export const getMyOrdersAsOwner = async (): Promise<OrderSummaryDto[]> => {
 // 保母查詢自己的訂單清單
 export const getMyOrdersAsSitter = async (): Promise<OrderSummaryDto[]> => {
   const response = await axiosClient.get('/orders/sitter');
+  return response.data;
+};
+
+export interface OrderLedgerEntryDto {
+  orderId: string;
+  ownerName: string;
+  totalAmount: number;
+  paidAt?: string;
+  completedAt?: string;
+  payoutAt?: string;
+}
+
+export interface SitterLedgerResponse {
+  yearMonth: string;
+  totalRevenue: number;
+  entries: OrderLedgerEntryDto[];
+}
+
+// 保母帳務總覽 (PRD-009 主流程 C)，month 格式為 YYYY-MM，不帶則預設當月
+export const getSitterLedger = async (month?: string): Promise<SitterLedgerResponse> => {
+  const response = await axiosClient.get('/orders/sitter/ledger', { params: month ? { month } : {} });
   return response.data;
 };
 

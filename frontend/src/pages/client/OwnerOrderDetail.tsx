@@ -425,7 +425,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {status === 'CONFIRMED' && (
+          {(status === 'CONFIRMED' || status === 'IN_PROGRESS') && (
             <>
               <button
                 onClick={handleComplete}
