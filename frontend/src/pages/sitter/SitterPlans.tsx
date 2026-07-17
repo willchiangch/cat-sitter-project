@@ -10,6 +10,18 @@ import type { ServicePlan } from '../../types/servicePlan';
 import { ArrowUp, ArrowDown, Plus, Trash2, Upload, Edit2, X, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
+const PET_TYPE_LABELS: Record<string, string> = {
+  CAT: '🐱 貓咪',
+  DOG: '🐶 狗狗',
+  BIRD: '🐦 鳥類',
+  MOUSE: '🐭 鼠類',
+  RABBIT: '🐰 兔子',
+  REPTILE: '🦎 爬蟲',
+  INSECT: '🐛 昆蟲',
+  OTHER: '🐾 其他'
+};
+const PET_TYPE_OPTIONS = Object.keys(PET_TYPE_LABELS);
+
 const SitterPlans: React.FC = () => {
   const { data: plans = [], isLoading, error } = useSitterPlansQuery();
   const createPlanMutation = useCreatePlanMutation();
@@ -356,7 +368,7 @@ const SitterPlans: React.FC = () => {
                             borderRadius: '4px'
                           }}
                         >
-                          {type === 'CAT' ? '🐱 貓' : type === 'DOG' ? '🐶 狗' : type}
+                          {PET_TYPE_LABELS[type] ?? type}
                         </span>
                       ))}
                       <span
@@ -817,51 +829,32 @@ const SitterPlans: React.FC = () => {
                 >
                   適用寵物類型 *
                 </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleTogglePetType('CAT')}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      border: '1px solid var(--color-outline-variant)',
-                      backgroundColor: applicablePetTypes.includes('CAT')
-                        ? 'var(--color-primary)'
-                        : 'var(--color-surface-low)',
-                      color: applicablePetTypes.includes('CAT')
-                        ? 'white'
-                        : 'var(--color-on-surface)',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '700',
-                      transition: 'all 0.2s'
-                    }}
-                    data-testid="sitter-plan-checkbox-pet-CAT"
-                  >
-                    🐱 貓咪
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTogglePetType('DOG')}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      border: '1px solid var(--color-outline-variant)',
-                      backgroundColor: applicablePetTypes.includes('DOG')
-                        ? 'var(--color-primary)'
-                        : 'var(--color-surface-low)',
-                      color: applicablePetTypes.includes('DOG')
-                        ? 'white'
-                        : 'var(--color-on-surface)',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontWeight: '700',
-                      transition: 'all 0.2s'
-                    }}
-                    data-testid="sitter-plan-checkbox-pet-DOG"
-                  >
-                    🐶 狗狗
-                  </button>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {PET_TYPE_OPTIONS.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => handleTogglePetType(type)}
+                      style={{
+                        flex: '1 0 22%',
+                        padding: '10px',
+                        border: '1px solid var(--color-outline-variant)',
+                        backgroundColor: applicablePetTypes.includes(type)
+                          ? 'var(--color-primary)'
+                          : 'var(--color-surface-low)',
+                        color: applicablePetTypes.includes(type)
+                          ? 'white'
+                          : 'var(--color-on-surface)',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        transition: 'all 0.2s'
+                      }}
+                      data-testid={`sitter-plan-checkbox-pet-${type}`}
+                    >
+                      {PET_TYPE_LABELS[type]}
+                    </button>
+                  ))}
                 </div>
               </div>
 
