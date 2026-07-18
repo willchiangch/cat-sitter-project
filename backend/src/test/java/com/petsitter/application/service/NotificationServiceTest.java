@@ -131,8 +131,8 @@ class NotificationServiceTest {
         // When: 查詢偏好
         List<NotificationService.PreferenceDto> prefs = notificationService.getPreferences(userA.getId());
 
-        // Then: 應回傳預設的 4 個類別且設定無缺漏
-        assertThat(prefs).hasSize(4);
+        // Then: 應回傳預設的 5 個類別且設定無缺漏
+        assertThat(prefs).hasSize(5);
         
         // 驗證預設值對齊：SUBSCRIPTION_MAINTENANCE 的 Email 預設應為 false
         NotificationService.PreferenceDto subPref = prefs.stream()

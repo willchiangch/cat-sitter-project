@@ -25,6 +25,8 @@ import SitterModificationQuote from './pages/sitter/SitterModificationQuote';
 import OwnerModificationConfirm from './pages/client/OwnerModificationConfirm';
 import SitterPlans from './pages/sitter/SitterPlans';
 import SitterQuestionManager from './pages/sitter/SitterQuestionManager';
+import SitterTrustCircle from './pages/sitter/SitterTrustCircle';
+import SitterReferral from './pages/sitter/SitterReferral';
 import PetManager from './pages/client/PetManager';
 import { GatekeeperSettings } from './pages/sitter/GatekeeperSettings';
 import SitterPaymentInfoSettings from './pages/sitter/SitterPaymentInfoSettings';
@@ -90,6 +92,11 @@ function OrderEvalViewRoute() {
   return <OrderEvalView orderId={orderId!} />;
 }
 
+function SitterReferralRoute() {
+  const { ownerId } = useParams<{ ownerId: string }>();
+  return <SitterReferral ownerId={ownerId!} />;
+}
+
 function OwnerModificationConfirmRoute() {
   const { orderId } = useParams<{ orderId: string }>();
   return <OwnerModificationConfirm orderId={orderId!} />;
@@ -119,6 +126,8 @@ function AppRoutes() {
             <Route path="/sitter/eval/:orderId" element={<OrderEvalViewRoute />} />
             <Route path="/sitter/plans" element={<SitterPlans />} />
             <Route path="/sitter/questions" element={<SitterQuestionManager />} />
+            <Route path="/sitter/trust-circle" element={<SitterTrustCircle />} />
+            <Route path="/sitter/referral/:ownerId" element={<SitterReferralRoute />} />
             <Route path="/sitter/gatekeeper" element={<GatekeeperSettings />} />
             <Route path="/sitter/payment-settings" element={<SitterPaymentInfoSettings />} />
             <Route path="/sitter/kyc" element={<SitterKycSubmit />} />

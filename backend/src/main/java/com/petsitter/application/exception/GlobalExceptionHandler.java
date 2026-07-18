@@ -140,6 +140,13 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
     }
 
+    // --- PRD-010 信任圈與轉介例外攔截 ---
+    @ExceptionHandler(TrustCircleException.class)
+    public ResponseEntity<Map<String, String>> handleTrustCircle(TrustCircleException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
     // 樂觀鎖衝突防護 (409 VERSION_CONFLICT)
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

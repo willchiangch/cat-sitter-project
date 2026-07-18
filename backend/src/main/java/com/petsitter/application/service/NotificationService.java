@@ -137,7 +137,7 @@ public class NotificationService {
                 .collect(Collectors.toMap(NotificationPreference::getCategory, p -> p));
 
         List<PreferenceDto> result = new ArrayList<>();
-        List<String> categories = Arrays.asList("ORDER_AFFAIR", "ACCOUNT_AUTH", "SUBSCRIPTION_MAINTENANCE", "SERVICE_RECORD");
+        List<String> categories = Arrays.asList("ORDER_AFFAIR", "ACCOUNT_AUTH", "SUBSCRIPTION_MAINTENANCE", "SERVICE_RECORD", "REFERRAL");
         for (String category : categories) {
             NotificationPreference dbPref = dbPrefMap.get(category);
             if (dbPref != null) {

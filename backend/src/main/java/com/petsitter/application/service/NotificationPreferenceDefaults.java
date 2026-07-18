@@ -11,7 +11,8 @@ public final class NotificationPreferenceDefaults {
         "ORDER_AFFAIR", new PreferenceValue(true, true),
         "ACCOUNT_AUTH", new PreferenceValue(true, true),
         "SUBSCRIPTION_MAINTENANCE", new PreferenceValue(true, false),
-        "SERVICE_RECORD", new PreferenceValue(true, true)
+        "SERVICE_RECORD", new PreferenceValue(true, true),
+        "REFERRAL", new PreferenceValue(true, true)
     );
 
     @Value

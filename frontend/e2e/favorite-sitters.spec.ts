@@ -8,6 +8,21 @@ test.describe('PRD-019 我的最愛保母', () => {
   test('可搜尋保母並加入收藏，切換休息中狀態後清單同步顯示，移除後消失', async ({ page }) => {
     let favorites: any[] = [];
 
+    await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          accessToken: 'fake-token',
+          refreshToken: 'fake-refresh',
+          userId: '1031efbc-583a-4062-9a35-15706a3384c6',
+          email: 'owner@test.com',
+          fullName: '愛貓飼主',
+          role: 'CLIENT'
+        })
+      });
+    });
+
     await page.route('**/api/owner/favorites/search**', async (route) => {
       const url = new URL(route.request().url());
       const query = url.searchParams.get('query');
@@ -46,6 +61,7 @@ test.describe('PRD-019 我的最愛保母', () => {
     });
 
     await page.goto('/demo');
+    await page.getByRole('button', { name: '切換為飼主' }).click();
     await page.getByRole('button', { name: '進入我的最愛保母 (飼主端)' }).click();
 
     await expect(page.locator('text=尚未收藏任何保母')).toBeVisible();
@@ -106,7 +122,30 @@ test.describe('PRD-019 我的最愛保母', () => {
     });
 
     await page.route(url => url.pathname.includes('/api/sitters/') && url.pathname.endsWith('/plans'), async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 200, message: 'OK', data: [] }) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 200,
+          message: 'OK',
+          data: [
+            {
+              id: 'p1023000-0000-0000-0000-000000000001',
+              sitterId,
+              name: '基礎照顧',
+              price: 500,
+              dailyCapacity: 5,
+              defaultTasks: [],
+              applicablePetTypes: ['CAT', 'DOG'],
+              description: '基礎陪伴照顧',
+              startDate: '2026-01-01',
+              endDate: '2026-12-31',
+              isRestricted: false,
+              sortOrder: 0
+            }
+          ]
+        })
+      });
     });
 
     await page.route(url => url.pathname === `/api/sitters/${sitterId}/questions`, async (route) => {
@@ -142,6 +181,8 @@ test.describe('PRD-019 我的最愛保母', () => {
       await page.click('[data-testid="btn-role-toggle"]');
     }
     await page.click('text=進入預約精靈 (飼主端)');
+
+    await expect(page.getByTestId('client-booking-sitter-name')).toBeVisible({ timeout: 15000 });
 
     const heartBtn = page.getByTestId('client-booking-favorite-toggle');
     await expect(heartBtn).toBeVisible();

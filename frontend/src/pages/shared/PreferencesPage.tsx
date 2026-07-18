@@ -28,6 +28,8 @@ export const PreferencesPage: React.FC = () => {
         return '系統維護與訂閱通知';
       case 'SERVICE_RECORD':
         return '照護日誌與媒體通知';
+      case 'REFERRAL':
+        return '信任圈與轉介通知';
       default:
         return category;
     }
@@ -43,6 +45,8 @@ export const PreferencesPage: React.FC = () => {
         return '包含平台系統維護公告、重要更新通知，及個人訂閱服務狀態。';
       case 'SERVICE_RECORD':
         return '包含保母 Check-in/Check-out、服務中文字日誌、照片或影片上傳更新。';
+      case 'REFERRAL':
+        return '包含信任圈邀請、轉介推薦與被推薦的通知。';
       default:
         return '';
     }
