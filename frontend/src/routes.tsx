@@ -17,6 +17,7 @@ import CareNoteView from './pages/client/CareNoteView';
 import VisitReportManager from './pages/sitter/VisitReportManager';
 import VisitReportView from './pages/client/VisitReportView';
 import OwnerOrders from './pages/client/OwnerOrders';
+import FavoriteSitters from './pages/client/FavoriteSitters';
 import OwnerOrderDetail from './pages/client/OwnerOrderDetail';
 import AdminResolvePanel from './pages/admin/AdminResolvePanel';
 import OrderModificationWizard from './pages/client/OrderModificationWizard';
@@ -132,6 +133,7 @@ function AppRoutes() {
             <Route path="/booking/:sitterId" element={<BookingRoute />} />
             <Route path="/pets" element={<PetManager />} />
             <Route path="/owner/orders" element={<OwnerOrders />} />
+            <Route path="/owner/favorites" element={<FavoriteSitters />} />
             <Route
               path="/owner/orders/:orderId/modification-confirm"
               element={<OwnerModificationConfirmRoute />}

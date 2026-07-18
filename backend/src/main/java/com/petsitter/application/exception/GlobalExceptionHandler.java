@@ -133,6 +133,13 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
     }
 
+    // --- PRD-019 我的最愛保母例外攔截 ---
+    @ExceptionHandler(FavoriteSitterException.class)
+    public ResponseEntity<Map<String, String>> handleFavoriteSitter(FavoriteSitterException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
     // 樂觀鎖衝突防護 (409 VERSION_CONFLICT)
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {

@@ -10,7 +10,8 @@ import {
   Minus,
   CalendarX,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Heart
 } from 'lucide-react';
 import type { BookingState } from '../../types/booking';
 import { useSitterActivePlansQuery } from '../../hooks/useServicePlans';
@@ -18,6 +19,7 @@ import { usePetsQuery } from '../../hooks/usePets';
 import { createBooking } from '../../api/orderApi';
 import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
 import { useActiveQuestionsQuery } from '../../hooks/useQuestions';
+import { getMyFavorites, addFavoriteSitter, removeFavoriteSitter } from '../../api/favoriteApi';
 
 const formatDatesGroupedByYear = (dates: string[]) => {
   if (!dates || dates.length === 0) return null;
@@ -41,6 +43,37 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   const { data: profile, isLoading: isProfileLoading, error: profileError } = usePublicProfileQuery(sitterId);
   const { data: questions = [] } = useActiveQuestionsQuery(sitterId);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({});
+
+  // PRD-019: 公開頁面的收藏愛心圖示
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
+
+  useEffect(() => {
+    if (!sitterId) return;
+    getMyFavorites()
+      .then((favorites) => setIsFavorited(favorites.some((f) => f.sitterId === sitterId)))
+      .catch(() => {
+        /* 未登入飼主或非飼主角色時查詢會失敗，忽略即可，愛心維持未收藏樣式 */
+      });
+  }, [sitterId]);
+
+  const handleToggleFavorite = async () => {
+    if (isFavoriteLoading) return;
+    setIsFavoriteLoading(true);
+    try {
+      if (isFavorited) {
+        await removeFavoriteSitter(sitterId);
+        setIsFavorited(false);
+      } else {
+        await addFavoriteSitter(sitterId);
+        setIsFavorited(true);
+      }
+    } catch (err) {
+      console.error('收藏操作失敗：', err);
+    } finally {
+      setIsFavoriteLoading(false);
+    }
+  };
 
   const setSingleAnswer = (questionId: string, value: string) => {
     setQuestionAnswers((prev) => ({ ...prev, [questionId]: [value] }));
@@ -1616,13 +1649,34 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
               border: '2px solid var(--color-primary-light)'
             }}
           />
-          <div>
-            <h2
-              data-testid="client-booking-sitter-name"
-              style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-on-surface)' }}
-            >
-              {profile?.displayName || '保母'}
-            </h2>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h2
+                data-testid="client-booking-sitter-name"
+                style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-on-surface)' }}
+              >
+                {profile?.displayName || '保母'}
+              </h2>
+              <button
+                onClick={handleToggleFavorite}
+                disabled={isFavoriteLoading}
+                data-testid="client-booking-favorite-toggle"
+                aria-label={isFavorited ? '移除收藏' : '加入收藏'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'inline-flex'
+                }}
+              >
+                <Heart
+                  size={22}
+                  fill={isFavorited ? '#dc2626' : 'none'}
+                  color={isFavorited ? '#dc2626' : 'var(--color-on-surface-variant)'}
+                />
+              </button>
+            </div>
             <p
               ref={bioRef}
               data-testid="client-booking-sitter-bio"
