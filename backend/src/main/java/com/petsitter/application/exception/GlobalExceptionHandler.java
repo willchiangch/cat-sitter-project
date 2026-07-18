@@ -5,6 +5,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,6 +20,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "AUTH_FAILED", "message", "帳號或密碼錯誤"));
+    }
+
+    // 故意用 429 而非 401：避免撞上前端 axiosClient 全域的 refresh-token 靜默重試機制 (PRD-000 AC-4)
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<Map<String, String>> handleLocked(LockedException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("error", "ACCOUNT_LOCKED", "message", ex.getMessage()));
     }
 
     @ExceptionHandler(AuthenticationException.class)

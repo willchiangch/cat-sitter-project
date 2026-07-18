@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 
 const ROLE_CLAIM_TO_APP_ROLE: Record<string, string> = {
@@ -138,6 +139,22 @@ const LoginPage: React.FC = () => {
         >
           {loading ? '登入中...' : '登入'}
         </button>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: '0.8rem',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          <Link to="/register" data-testid="login-register-link">
+            建立新帳號
+          </Link>
+          <Link to="/forgot-password" data-testid="login-forgot-password-link">
+            忘記密碼？
+          </Link>
+        </div>
       </form>
     </div>
   );

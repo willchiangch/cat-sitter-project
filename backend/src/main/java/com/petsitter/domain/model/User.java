@@ -6,6 +6,8 @@ import jakarta.persistence.Table;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.time.OffsetDateTime;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -26,4 +28,11 @@ public class User extends BaseEntity {
 
     @Column(nullable = false)
     private String role; // OWNER, SITTER, ADMIN
+
+    @Builder.Default
+    @Column(name = "failed_login_attempts", nullable = false)
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
 }

@@ -1,8 +1,10 @@
 package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.dto.AuthResponse;
+import com.petsitter.application.dto.ForgotPasswordRequest;
 import com.petsitter.application.dto.LoginRequest;
 import com.petsitter.application.dto.RegisterRequest;
+import com.petsitter.application.dto.ResetPasswordRequest;
 import com.petsitter.application.dto.TokenRefreshRequest;
 import com.petsitter.application.dto.SwitchRoleRequest;
 import com.petsitter.application.service.AuthService;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -40,6 +43,18 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
         return ResponseEntity.ok(authService.refreshToken(request));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "若該信箱已註冊，重設密碼連結將寄送至該信箱"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "密碼已成功重設，請重新登入"));
     }
 
     @PostMapping("/switch-role")

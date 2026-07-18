@@ -38,6 +38,7 @@ test.describe('PRD-020 內部信用指標管理', () => {
       });
     });
 
+    await page.goto('/demo');
     await page.getByRole('button', { name: '切換為管理員' }).click();
     await page.getByRole('button', { name: '進入信用指標管理 (管理端)' }).click();
   });

@@ -1,24 +1,31 @@
 package com.petsitter.application.service;
 
 import com.petsitter.application.dto.AuthResponse;
+import com.petsitter.application.dto.ForgotPasswordRequest;
 import com.petsitter.application.dto.LoginRequest;
 import com.petsitter.application.dto.RegisterRequest;
+import com.petsitter.application.dto.ResetPasswordRequest;
 import com.petsitter.application.dto.TokenRefreshRequest;
+import com.petsitter.domain.model.PasswordResetToken;
 import com.petsitter.domain.model.RefreshToken;
 import com.petsitter.domain.model.User;
+import com.petsitter.domain.repository.PasswordResetTokenRepository;
 import com.petsitter.domain.repository.RefreshTokenRepository;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.infrastructure.security.JwtUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -35,9 +42,16 @@ public class AuthService {
     private final JwtUtils jwtUtils;
     private final AuthenticationManager authenticationManager;
     private final com.petsitter.domain.repository.ProfileRepository profileRepository;
+    private final LoginAttemptService loginAttemptService;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailService emailService;
+
+    @Value("${app.frontend-base-url}")
+    private String frontendBaseUrl;
 
     private static final long ACCESS_TOKEN_EXPIRY = 15 * 60 * 1000; // 15 mins
     private static final long REFRESH_TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
+    private static final long PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 30;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -58,15 +72,30 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
-
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("使用者不存在"));
+                .orElseThrow(() -> new BadCredentialsException("帳號或密碼錯誤"));
+
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new LockedException("嘗試次數過多，請於 10 分鐘後再試");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        } catch (BadCredentialsException e) {
+            loginAttemptService.registerFailedLoginAttempt(user.getId());
+            throw e;
+        }
+
+        if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
 
         return createAuthResponse(user);
     }
+
 
     @Transactional
     public AuthResponse refreshToken(TokenRefreshRequest request) {
@@ -199,5 +228,54 @@ public class AuthService {
             throw new RuntimeException("Refresh token 已過期或已被撤銷，請重新登入");
         }
         return token;
+    }
+
+    /**
+     * PRD-000：忘記密碼。刻意無論帳號是否存在都回傳同樣的成功訊息，避免被拿來列舉已註冊 email。
+     */
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+            PasswordResetToken resetToken = PasswordResetToken.builder()
+                    .user(user)
+                    .token(UUID.randomUUID().toString())
+                    .expiresAt(OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(PASSWORD_RESET_TOKEN_EXPIRY_MINUTES))
+                    .build();
+            passwordResetTokenRepository.save(resetToken);
+
+            String resetLink = frontendBaseUrl + "/reset-password?token=" + resetToken.getToken();
+            emailService.sendEmail(
+                    user.getEmail(),
+                    "WhiskerWatch 密碼重設",
+                    "<p>您好 " + user.getFullName() + "，</p>"
+                            + "<p>請點擊以下連結重設密碼，此連結將於 30 分鐘後失效：</p>"
+                            + "<p><a href=\"" + resetLink + "\">" + resetLink + "</a></p>"
+                            + "<p>若您並未申請重設密碼，請忽略此信件。</p>"
+            );
+        });
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken())
+                .orElseThrow(() -> new IllegalArgumentException("無效的重設連結"));
+
+        if (resetToken.isUsed()) {
+            throw new IllegalStateException("此重設連結已被使用過");
+        }
+        if (resetToken.getExpiresAt().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new IllegalStateException("此重設連結已過期，請重新申請");
+        }
+
+        User user = resetToken.getUser();
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        userRepository.save(user);
+
+        resetToken.setUsed(true);
+        passwordResetTokenRepository.save(resetToken);
+
+        refreshTokenRepository.deleteByUser(user);
     }
 }

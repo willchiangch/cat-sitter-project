@@ -32,6 +32,10 @@ app:
     jwt-expiration: 86400000 # 24 小時，與 application-prod.yml 一致，非機密不需要走環境變數
   crypto:
     key: ${APP_CRYPTO_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+  email:
+    resend-api-key: ${RESEND_API_KEY:}
+    from-address: ${EMAIL_FROM_ADDRESS:WhiskerWatch <onboarding@resend.dev>}
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
 
 management:
   endpoints:

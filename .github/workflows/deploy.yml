@@ -94,8 +94,8 @@ jobs:
             --memory=1Gi \
             --cpu=1 \
             --cpu-boost \
-            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }},SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }} \
-            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest,INTERNAL_CRON_SECRET=INTERNAL_CRON_SECRET:latest \
+            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }},SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }},FRONTEND_BASE_URL=https://${{ env.PROJECT_ID }}.web.app \
+            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest,INTERNAL_CRON_SECRET=INTERNAL_CRON_SECRET:latest,RESEND_API_KEY=resend-api:latest \
             --allow-unauthenticated \
             --quiet
 

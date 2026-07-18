@@ -69,8 +69,11 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     // /login 頁面本身就會送出真正的登入請求，這裡如果也對同一組種子帳號並發登入，
     // 後端的樂觀鎖會讓其中一個請求 409 (MSG_DATA_CONCURRENCY_CONFLICT)，
-    // 使用者可能會在帳密正確的情況下看到假的「登入失敗」
-    if (window.location.pathname === '/login') {
+    // 使用者可能會在帳密正確的情況下看到假的「登入失敗」。
+    // 註冊/忘記密碼/重設密碼頁面同樣是未登入狀態下的公開頁面，不需要（也不應該）
+    // 在背景偷偷用種子帳號登入。
+    const PUBLIC_AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password'];
+    if (PUBLIC_AUTH_PATHS.includes(window.location.pathname)) {
       finishInitialCheck();
       return;
     }

@@ -3,6 +3,9 @@ import App from './App';
 import RequireAuth from './components/auth/RequireAuth';
 import RequireRole from './components/auth/RequireRole';
 import LoginPage from './pages/auth/LoginPage';
+import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import DemoHome from './pages/DemoHome';
 
 import SitterOrders from './pages/sitter/SitterOrders';
@@ -99,6 +102,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<App />}>
