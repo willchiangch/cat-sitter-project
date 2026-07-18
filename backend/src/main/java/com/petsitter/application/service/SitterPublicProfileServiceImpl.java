@@ -186,7 +186,9 @@ public class SitterPublicProfileServiceImpl implements SitterPublicProfileServic
         boolean gated = false;
         boolean isSelf = currentUserIdOpt.isPresent() && currentUserIdOpt.get().equals(sitterId);
         if (!isSelf) {
-            if ("SUSPENDED".equals(profile.getKycStatus())) {
+            if (!"VERIFIED".equals(profile.getKycStatus())) {
+                // PRD-017 AC-4：未實名認證（UNVERIFIED/PENDING_REVIEW/REJECTED）與已停權
+                // (SUSPENDED) 的保母一樣，公開頁面不得正常顯示或被預約
                 gated = true;
             } else if (!profile.isVisible()) {
                 gated = true;

@@ -323,6 +323,31 @@ class SitterPublicProfileControllerTest {
                 .andExpect(jsonPath("$.displayName").value("保母休息中"))
                 .andExpect(jsonPath("$.bio").value(""));
 
+        // --- A2. 尚未實名認證保母 (PRD-017 AC-4) ---
+        User unverifiedSitter = User.builder()
+                .email("unverified@test.com")
+                .passwordHash("hash")
+                .role("SITTER")
+                .build();
+        userRepository.save(unverifiedSitter);
+
+        Profile unverifiedProfile = Profile.builder()
+                .userId(unverifiedSitter.getId())
+                .type("SITTER")
+                .kycStatus("UNVERIFIED")
+                .isOpen(true)
+                .isVisible(true)
+                .displayName("未認證保母")
+                .bio("我還沒認證")
+                .build();
+        profileRepository.save(unverifiedProfile);
+
+        // 匿名查詢未實名認證保母，應該回傳 gated = true
+        mockMvc.perform(get("/api/sitter/profile/" + unverifiedSitter.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gated").value(true))
+                .andExpect(jsonPath("$.displayName").value("保母休息中"));
+
         // --- B. 設定不可見保母 ---
         User invisibleSitter = User.builder()
                 .email("invisible@test.com")
