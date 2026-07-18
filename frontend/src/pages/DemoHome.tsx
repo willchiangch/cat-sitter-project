@@ -29,6 +29,7 @@ const mainEntries: DemoEntry[] = [
   { key: 'owner-orders', label: '進入訂單管理 (飼主端)', roles: ['client'], to: '/owner/orders' },
   { key: 'pets', label: '進入毛孩管理 (飼主端)', roles: ['client'], to: '/pets', testId: 'btn-go-pet-manager' },
   { key: 'sitter-plans', label: '進入方案設定 (保母端)', roles: ['sitter'], to: '/sitter/plans', testId: 'btn-go-sitter-plans' },
+  { key: 'sitter-questions', label: '進入事前問卷設定 (保母端)', roles: ['sitter'], to: '/sitter/questions', testId: 'btn-go-sitter-questions' },
   { key: 'gatekeeper', label: '進入門禁設定 (保母端)', roles: ['sitter'], to: '/sitter/gatekeeper', testId: 'btn-go-gatekeeper' },
   { key: 'sitter-payment', label: '進入收款設定 (保母端)', roles: ['sitter'], to: '/sitter/payment-settings', testId: 'btn-go-sitter-payment' },
   { key: 'sitter-profile', label: '進入公開檔案設定 (保母端)', roles: ['sitter'], to: '/sitter/profile-settings', testId: 'btn-go-sitter-profile-settings' },

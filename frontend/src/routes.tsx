@@ -23,6 +23,7 @@ import OrderModificationWizard from './pages/client/OrderModificationWizard';
 import SitterModificationQuote from './pages/sitter/SitterModificationQuote';
 import OwnerModificationConfirm from './pages/client/OwnerModificationConfirm';
 import SitterPlans from './pages/sitter/SitterPlans';
+import SitterQuestionManager from './pages/sitter/SitterQuestionManager';
 import PetManager from './pages/client/PetManager';
 import { GatekeeperSettings } from './pages/sitter/GatekeeperSettings';
 import SitterPaymentInfoSettings from './pages/sitter/SitterPaymentInfoSettings';
@@ -116,6 +117,7 @@ function AppRoutes() {
             <Route path="/sitter/ledger" element={<SitterLedger />} />
             <Route path="/sitter/eval/:orderId" element={<OrderEvalViewRoute />} />
             <Route path="/sitter/plans" element={<SitterPlans />} />
+            <Route path="/sitter/questions" element={<SitterQuestionManager />} />
             <Route path="/sitter/gatekeeper" element={<GatekeeperSettings />} />
             <Route path="/sitter/payment-settings" element={<SitterPaymentInfoSettings />} />
             <Route path="/sitter/kyc" element={<SitterKycSubmit />} />

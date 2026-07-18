@@ -61,6 +61,6 @@ test.describe('PRD-000 註冊與忘記密碼流程', () => {
 
   test('重設密碼頁缺少 token 時應提示重新申請', async ({ page }) => {
     await page.goto('/reset-password');
-    await expect(page.locator('text=重新申請')).toBeVisible();
+    await expect(page.getByRole('link', { name: '重新申請' })).toBeVisible();
   });
 });

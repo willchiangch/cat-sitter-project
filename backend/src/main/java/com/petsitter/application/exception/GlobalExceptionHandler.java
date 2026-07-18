@@ -126,6 +126,13 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
     }
 
+    // --- PRD-004 事前問卷例外攔截 ---
+    @ExceptionHandler(SitterQuestionException.class)
+    public ResponseEntity<Map<String, String>> handleSitterQuestion(SitterQuestionException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
     // 樂觀鎖衝突防護 (409 VERSION_CONFLICT)
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, String>> handleOptimisticLock(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
