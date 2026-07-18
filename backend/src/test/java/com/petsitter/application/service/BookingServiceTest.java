@@ -69,6 +69,9 @@ class BookingServiceTest {
     @Autowired
     private ProfileRepository profileRepository;
 
+    @Autowired
+    private SitterQuestionRepository sitterQuestionRepository;
+
     private UUID ownerId;
     private UUID sitterId;
     private UUID planId;
@@ -76,6 +79,7 @@ class BookingServiceTest {
     @BeforeEach
     void setUp() {
         subscriptionRepository.deleteAll();
+        sitterQuestionRepository.deleteAll();
         visitRepository.deleteAll();
         orderSnapshotRepository.deleteAll();
         orderRepository.deleteAll();
@@ -125,6 +129,7 @@ class BookingServiceTest {
                         .ownerId(ownerId)
                         .sitterId(sitterId)
                         .items(List.of(item))
+                        .expectedTotalAmount(500)
                         .idempotencyKey("concurrent-key-" + index)
                         .build());
             }));
@@ -150,10 +155,12 @@ class BookingServiceTest {
 
         UUID order1 = bookingService.createBooking(BookingRequest.builder()
                 .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+                .expectedTotalAmount(500)
                 .idempotencyKey("order-1").build());
 
         UUID order2 = bookingService.createBooking(BookingRequest.builder()
                 .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+                .expectedTotalAmount(500)
                 .idempotencyKey("order-2").build());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -216,6 +223,7 @@ class BookingServiceTest {
                 .ownerId(ownerId)
                 .sitterId(sitterId)
                 .items(List.of(item1, item2))
+                .expectedTotalAmount(2800) // (500*4) + (800*1)
                 .idempotencyKey("multi-plan-order")
                 .build());
 
@@ -230,5 +238,45 @@ class BookingServiceTest {
         long planBVisits = visits.stream().filter(v -> v.getPlanId().equals(planB.getId())).count();
         assertThat(planAVisits).isEqualTo(4);
         assertThat(planBVisits).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("PRD-004/005: 必填問卷題目未作答時應擋下送單 (AC-4)")
+    void should_RejectBooking_When_RequiredQuestionUnanswered() {
+        com.petsitter.domain.model.SitterQuestion question = sitterQuestionRepository.save(
+                com.petsitter.domain.model.SitterQuestion.builder()
+                        .sitter(userRepository.findById(sitterId).orElseThrow())
+                        .questionText("毛孩是否會攻擊人？")
+                        .answerType("RADIO")
+                        .options(List.of("會", "不會"))
+                        .required(true)
+                        .sortOrder(0)
+                        .isActive(true)
+                        .build());
+
+        com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
+                .planId(planId)
+                .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .timesPerDay(1)
+                .build();
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> bookingService.createBooking(BookingRequest.builder()
+                        .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+                        .expectedTotalAmount(500)
+                        .idempotencyKey("no-answer-key").build()));
+
+        UUID orderId = bookingService.createBooking(BookingRequest.builder()
+                .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+                .expectedTotalAmount(500)
+                .answers(List.of(com.petsitter.application.dto.QuestionnaireAnswerRequest.builder()
+                        .questionId(question.getId())
+                        .answerValues(List.of("不會"))
+                        .build()))
+                .idempotencyKey("with-answer-key").build());
+
+        Order savedOrder = orderRepository.findById(orderId).orElseThrow();
+        assertThat(savedOrder.getQuestionnaireAnswers()).hasSize(1);
+        assertThat(savedOrder.getQuestionnaireAnswers().get(0).getAnswerValues()).containsExactly("不會");
     }
 }

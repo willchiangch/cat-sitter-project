@@ -122,6 +122,7 @@ class OrderEvaluationTest {
         UUID orderId = bookingService.createBooking(BookingRequest.builder()
                 .sitterId(sitterId).ownerId(ownerId)
                 .items(List.of(item))
+                .expectedTotalAmount(500)
                 .idempotencyKey("quote-test-1").build());
 
         Order order = orderRepository.findById(orderId).orElseThrow();
@@ -165,6 +166,7 @@ class OrderEvaluationTest {
         UUID orderId = bookingService.createBooking(BookingRequest.builder()
                 .sitterId(sitterId).ownerId(ownerId)
                 .items(List.of(item))
+                .expectedTotalAmount(500)
                 .idempotencyKey("quote-test-2").build());
         Order order = orderRepository.findById(orderId).orElseThrow();
 
@@ -197,6 +199,7 @@ class OrderEvaluationTest {
         UUID orderId = bookingService.createBooking(BookingRequest.builder()
                 .sitterId(sitterId).ownerId(ownerId)
                 .items(List.of(item))
+                .expectedTotalAmount(500)
                 .idempotencyKey("quote-test-3").build());
                 
         Order orderForSitter = orderRepository.findById(orderId).orElseThrow();

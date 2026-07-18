@@ -31,6 +31,14 @@ public class Order extends BaseEntity {
     @Column(columnDefinition = "jsonb", nullable = false)
     private List<OrderItem> items; // 存放原始預約內容 JSON
 
+    /**
+     * PRD-004/005：飼主送出預約時對保母事前問卷的回覆快照
+     */
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<QuestionnaireAnswer> questionnaireAnswers = List.of();
+
     @Column(nullable = false)
     private String status;
 

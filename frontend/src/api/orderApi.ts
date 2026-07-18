@@ -7,10 +7,17 @@ export interface BookingItem {
   petIds?: string[];
 }
 
+export interface BookingQuestionnaireAnswer {
+  questionId?: string;
+  answerValues: string[];
+}
+
 export interface BookingRequest {
   sitterId: string;
   ownerId: string;
   items: BookingItem[];
+  answers?: BookingQuestionnaireAnswer[];
+  expectedTotalAmount?: number;
   idempotencyKey?: string;
 }
 

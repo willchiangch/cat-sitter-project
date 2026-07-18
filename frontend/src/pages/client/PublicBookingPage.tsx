@@ -17,6 +17,7 @@ import { useSitterActivePlansQuery } from '../../hooks/useServicePlans';
 import { usePetsQuery } from '../../hooks/usePets';
 import { createBooking } from '../../api/orderApi';
 import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
+import { useActiveQuestionsQuery } from '../../hooks/useQuestions';
 
 const formatDatesGroupedByYear = (dates: string[]) => {
   if (!dates || dates.length === 0) return null;
@@ -38,6 +39,22 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 }) => {
   const { data: plans = [], isLoading, error } = useSitterActivePlansQuery(sitterId);
   const { data: profile, isLoading: isProfileLoading, error: profileError } = usePublicProfileQuery(sitterId);
+  const { data: questions = [] } = useActiveQuestionsQuery(sitterId);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({});
+
+  const setSingleAnswer = (questionId: string, value: string) => {
+    setQuestionAnswers((prev) => ({ ...prev, [questionId]: [value] }));
+  };
+
+  const toggleCheckboxAnswer = (questionId: string, option: string) => {
+    setQuestionAnswers((prev) => {
+      const current = prev[questionId] || [];
+      const next = current.includes(option)
+        ? current.filter((v) => v !== option)
+        : [...current, option];
+      return { ...prev, [questionId]: next };
+    });
+  };
 
   // 偵測自我介紹文字是否超過 5 行 (被 line-clamp 裁切)，只有真的被裁切時才顯示「顯示更多」按鈕
   useEffect(() => {
@@ -173,6 +190,25 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
       return;
     }
 
+    // PRD-004 AC-4：必填問卷題目需在送出前強制驗證
+    const missingRequiredQuestion = questions.find((q) => {
+      if (!q.required) return false;
+      const values = questionAnswers[q.id!] || [];
+      return !values.some((v) => v.trim().length > 0);
+    });
+    if (missingRequiredQuestion) {
+      alert(`請填寫必填問題：「${missingRequiredQuestion.questionText}」`);
+      return;
+    }
+
+    const expectedTotalAmount = booking.planConfigs.reduce((acc, planConfig) => {
+      const plan = plans.find((p) => p.id === planConfig.planId);
+      const planTotal = planConfig.schedules.reduce((sAcc, schedule) => {
+        return sAcc + (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay;
+      }, 0);
+      return acc + planTotal;
+    }, 0);
+
     const requestBody = {
       ownerId: ownerId,
       sitterId: booking.sitterId,
@@ -183,7 +219,12 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
           timesPerDay: schedule.timesPerDay,
           petIds: schedule.petIds || []
         }))
-      )
+      ),
+      answers: questions.map((q) => ({
+        questionId: q.id,
+        answerValues: questionAnswers[q.id!] || []
+      })),
+      expectedTotalAmount
     };
 
     try {
@@ -1387,6 +1428,97 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
             </span>
           </div>
         </Card>
+
+        {questions.length > 0 && (
+          <Card style={{ marginBottom: '2rem' }} data-testid="client-booking-questionnaire">
+            <label
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                color: 'var(--color-on-surface-variant)',
+                textTransform: 'uppercase'
+              }}
+            >
+              保母的事前問卷
+            </label>
+            <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {questions.map((q) => (
+                <div key={q.id} data-testid={`booking-question-${q.id}`}>
+                  <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+                    {q.questionText}
+                    {q.required && <span style={{ color: '#dc2626' }}> *</span>}
+                  </div>
+
+                  {(q.answerType === 'RADIO') && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {q.options.map((option) => (
+                        <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                          <input
+                            type="radio"
+                            name={`question-${q.id}`}
+                            checked={(questionAnswers[q.id!] || [])[0] === option}
+                            onChange={() => setSingleAnswer(q.id!, option)}
+                            data-testid={`booking-question-${q.id}-option-${option}`}
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {q.answerType === 'CHECKBOX' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {q.options.map((option) => (
+                        <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                          <input
+                            type="checkbox"
+                            checked={(questionAnswers[q.id!] || []).includes(option)}
+                            onChange={() => toggleCheckboxAnswer(q.id!, option)}
+                            data-testid={`booking-question-${q.id}-option-${option}`}
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  {q.answerType === 'INPUT' && (
+                    <input
+                      type="text"
+                      value={(questionAnswers[q.id!] || [])[0] || ''}
+                      onChange={(e) => setSingleAnswer(q.id!, e.target.value)}
+                      data-testid={`booking-question-${q.id}-input`}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-outline-variant)',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  )}
+
+                  {q.answerType === 'TEXTAREA' && (
+                    <textarea
+                      value={(questionAnswers[q.id!] || [])[0] || ''}
+                      onChange={(e) => setSingleAnswer(q.id!, e.target.value)}
+                      rows={3}
+                      data-testid={`booking-question-${q.id}-textarea`}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-outline-variant)',
+                        resize: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <textarea
           placeholder="有什麼特別需要注意的地方嗎？"

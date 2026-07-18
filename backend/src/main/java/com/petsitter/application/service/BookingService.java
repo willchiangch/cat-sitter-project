@@ -1,13 +1,17 @@
 package com.petsitter.application.service;
 
 import com.petsitter.application.dto.BookingRequest;
+import com.petsitter.application.dto.QuestionnaireAnswerRequest;
 import com.petsitter.application.exception.CapacityFullException;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
+import com.petsitter.domain.model.QuestionnaireAnswer;
 import com.petsitter.domain.model.ServicePlan;
+import com.petsitter.domain.model.SitterQuestion;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ServicePlanRepository;
+import com.petsitter.domain.repository.SitterQuestionRepository;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.domain.repository.VisitRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +43,7 @@ public class BookingService {
     private final ServicePlanRepository servicePlanRepository;
     private final GatekeeperService gatekeeperService;
     private final ProfileRepository profileRepository;
+    private final SitterQuestionRepository sitterQuestionRepository;
 
     @Transactional
     public UUID createBooking(BookingRequest request) {
@@ -98,12 +105,21 @@ public class BookingService {
                 .mapToInt(item -> item.getUnitPrice() * item.getQuantity())
                 .sum();
 
+        // Zero-Trust Pricing (SD-005)：拒絕與前端試算金額不符的送單，避免方案價格
+        // 在飼主填表期間被異動卻無感沿用舊報價成交
+        if (!Integer.valueOf(totalAmount).equals(request.getExpectedTotalAmount())) {
+            throw new com.petsitter.application.exception.PricingMismatchException("報價金額校驗失敗，可能方案價格已變更，請重新整理頁面");
+        }
+
+        List<QuestionnaireAnswer> questionnaireAnswers = buildQuestionnaireAnswers(request.getSitterId(), request.getAnswers());
+
         Order order = Order.builder()
                 .owner(userRepository.findById(request.getOwnerId()).orElseThrow())
                 .sitter(userRepository.findById(request.getSitterId()).orElseThrow())
                 .planId(request.getItems().get(0).getPlanId()) // 保留首個方案作為主要方案
                 .status("PENDING")
                 .items(orderItems)
+                .questionnaireAnswers(questionnaireAnswers)
                 .totalAmount(totalAmount)
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
@@ -167,5 +183,43 @@ public class BookingService {
 
         visits.forEach(v -> v.setStatus("CONFIRMED"));
         visitRepository.saveAll(visits);
+    }
+
+    /**
+     * PRD-004 AC-4：必填問卷題目在預約提交時必須強制驗證是否有值。
+     * 停用中的題目已不會出現在飼主填寫的表單，因此驗證只針對目前啟用中的題目。
+     */
+    private List<QuestionnaireAnswer> buildQuestionnaireAnswers(UUID sitterId, List<QuestionnaireAnswerRequest> answers) {
+        List<SitterQuestion> activeQuestions =
+                sitterQuestionRepository.findBySitterIdAndIsDeletedFalseAndIsActiveTrueOrderBySortOrderAsc(sitterId);
+
+        if (activeQuestions.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, List<String>> answerMap = new HashMap<>();
+        if (answers != null) {
+            for (QuestionnaireAnswerRequest a : answers) {
+                answerMap.put(a.getQuestionId(), a.getAnswerValues());
+            }
+        }
+
+        List<QuestionnaireAnswer> snapshot = new java.util.ArrayList<>();
+        for (SitterQuestion question : activeQuestions) {
+            List<String> values = answerMap.get(question.getId());
+            boolean hasValue = values != null && values.stream().anyMatch(v -> v != null && !v.isBlank());
+
+            if (question.isRequired() && !hasValue) {
+                throw new IllegalArgumentException("問題「" + question.getQuestionText() + "」為必填，請填寫後再送出");
+            }
+
+            snapshot.add(new QuestionnaireAnswer(
+                    question.getId(),
+                    question.getQuestionText(),
+                    question.getAnswerType(),
+                    values == null ? List.of() : values));
+        }
+
+        return snapshot;
     }
 }
