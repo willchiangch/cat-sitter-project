@@ -135,11 +135,41 @@ public class AdminKycController {
     public ResponseEntity<Map<String, Object>> unsuspendSitter(
             @PathVariable UUID sitterId,
             @RequestHeader(value = "Idempotency-Key") String idempotencyKey) {
-        
+
         UUID adminId = TokenContext.getUserId();
         kycService.unsuspendSitter(sitterId, adminId, idempotencyKey);
-        
+
         return successResponse("已成功解除保母停權狀態，接單資格已恢復");
+    }
+
+    /**
+     * 內部信用指標管理清單 (PRD-020 主流程 E)：僅供管理後台使用，飼主/保母前台不可查看
+     */
+    @GetMapping("/sitters/trust-scores")
+    public ResponseEntity<Map<String, Object>> listSitterTrustScores() {
+        return ResponseEntity.ok(Map.of(
+                "code", 200,
+                "message", "OK",
+                "data", kycService.listSitterTrustScores()
+        ));
+    }
+
+    /**
+     * 管理員手動增減保母信用指標點數 (PRD-020 主流程 E / AC-5)
+     */
+    @PostMapping("/sitters/{sitterId}/trust-score/adjust")
+    public ResponseEntity<Map<String, Object>> adjustTrustScore(
+            @PathVariable UUID sitterId,
+            @RequestHeader(value = "Idempotency-Key") String idempotencyKey,
+            @RequestBody Map<String, Object> body) {
+
+        UUID adminId = TokenContext.getUserId();
+        int delta = ((Number) body.get("delta")).intValue();
+        String reason = (String) body.get("reason");
+
+        kycService.adjustTrustScore(sitterId, adminId, delta, reason, idempotencyKey);
+
+        return successResponse("信用指標已成功更新");
     }
 
     private ResponseEntity<Map<String, Object>> successResponse(String message) {

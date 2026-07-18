@@ -127,6 +127,37 @@ export const unsuspendSitter = async (sitterId: string, idempotencyKey: string):
   );
 };
 
+export interface SitterTrustScoreDto {
+  sitterId: string;
+  fullName: string;
+  email: string;
+  trustScore: number;
+  highRisk: boolean;
+  kycStatus: string;
+}
+
+export const listSitterTrustScores = async (): Promise<SitterTrustScoreDto[]> => {
+  const response = await axiosClient.get('/admin/sitters/trust-scores');
+  return response.data.data;
+};
+
+export const adjustTrustScore = async (
+  sitterId: string,
+  delta: number,
+  reason: string,
+  idempotencyKey: string
+): Promise<void> => {
+  await axiosClient.post(
+    `/admin/sitters/${sitterId}/trust-score/adjust`,
+    { delta, reason },
+    {
+      headers: {
+        'Idempotency-Key': idempotencyKey
+      }
+    }
+  );
+};
+
 export const updateSitterOpenStatus = async (isOpen: boolean): Promise<{ isOpen: boolean }> => {
   const response = await axiosClient.put('/sitter/kyc/open', { isOpen });
   return response.data.data;

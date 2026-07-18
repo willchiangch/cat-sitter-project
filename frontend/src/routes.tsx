@@ -25,6 +25,7 @@ import { GatekeeperSettings } from './pages/sitter/GatekeeperSettings';
 import SitterPaymentInfoSettings from './pages/sitter/SitterPaymentInfoSettings';
 import SitterKycSubmit from './pages/sitter/SitterKycSubmit';
 import AdminKycList from './pages/admin/AdminKycList';
+import AdminTrustScores from './pages/admin/AdminTrustScores';
 import AdminKycDetail from './pages/admin/AdminKycDetail';
 import SitterProfileSettings from './pages/sitter/SitterProfileSettings';
 import AdminForbiddenKeywords from './pages/admin/AdminForbiddenKeywords';
@@ -140,6 +141,7 @@ function AppRoutes() {
           <Route element={<RequireRole roles={['admin']} />}>
             <Route path="/admin/resolve/:orderId" element={<AdminResolvePanelRoute />} />
             <Route path="/admin/kyc" element={<AdminKycList />} />
+            <Route path="/admin/trust-scores" element={<AdminTrustScores />} />
             <Route path="/admin/kyc/:kycRecordId" element={<AdminKycDetailRoute />} />
             <Route path="/admin/forbidden-keywords" element={<AdminForbiddenKeywords />} />
             <Route path="/admin/subscription" element={<AdminSubscriptionPage />} />

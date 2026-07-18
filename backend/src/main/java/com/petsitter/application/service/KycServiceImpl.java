@@ -1,15 +1,18 @@
 package com.petsitter.application.service;
 
+import com.petsitter.application.dto.SitterTrustScoreDto;
 import com.petsitter.application.exception.KycException;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.SitterSuspendedEvent;
 import com.petsitter.domain.event.SitterUnsuspendedEvent;
 import com.petsitter.domain.model.KycRecord;
 import com.petsitter.domain.model.Profile;
+import com.petsitter.domain.model.User;
 import com.petsitter.domain.model.UserActionLog;
 import com.petsitter.domain.repository.KycRecordRepository;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.UserActionLogRepository;
+import com.petsitter.domain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -30,11 +34,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class KycServiceImpl implements KycService {
 
+    private static final int TRUST_SCORE_HIGH_RISK_THRESHOLD = 60;
+
     private final KycRecordRepository kycRecordRepository;
     private final ProfileRepository profileRepository;
+    private final UserRepository userRepository;
     private final MediaStorageService mediaStorageService;
     private final IdempotencyService idempotencyService;
     private final UserActionLogRepository userActionLogRepository;
+    private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -311,5 +319,48 @@ public class KycServiceImpl implements KycService {
         Profile profile = profileRepository.findByUserIdAndType(sitterId, "SITTER")
                 .orElseThrow(() -> new KycException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到該保母資料"));
         return profile.isOpen();
+    }
+
+    @Override
+    @Transactional
+    public void adjustTrustScore(UUID sitterId, UUID adminId, int delta, String reason, String idempotencyKey) {
+        log.info("Adjusting trust score for sitter: {} by admin: {}, delta: {}", sitterId, adminId, delta);
+
+        idempotencyService.checkAndConsume(idempotencyKey, adminId);
+
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new KycException(HttpStatus.BAD_REQUEST, "MSG_DATA_INVALID_INPUT", "異動原因不可為空");
+        }
+
+        Profile profile = profileRepository.findByUserIdAndType(sitterId, "SITTER")
+                .orElseThrow(() -> new KycException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到該保母資料"));
+
+        int previousScore = profile.getTrustScore();
+        profile.setTrustScore(previousScore + delta);
+        profileRepository.save(profile);
+
+        auditLogService.writeLog(adminId, "ADMIN_TRUST_SCORE_ADJUST", "SUCCESS",
+                String.format("sitterId=%s, delta=%+d, previousScore=%d, newScore=%d, reason=%s",
+                        sitterId, delta, previousScore, profile.getTrustScore(), reason));
+
+        log.info("Trust score for sitter {} adjusted from {} to {}", sitterId, previousScore, profile.getTrustScore());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SitterTrustScoreDto> listSitterTrustScores() {
+        return profileRepository.findAllSitterProfilesOrderByTrustScoreAsc().stream()
+                .map(profile -> {
+                    User user = userRepository.findById(profile.getUserId()).orElse(null);
+                    return SitterTrustScoreDto.builder()
+                            .sitterId(profile.getUserId())
+                            .fullName(user != null ? user.getFullName() : "")
+                            .email(user != null ? user.getEmail() : "")
+                            .trustScore(profile.getTrustScore())
+                            .highRisk(profile.getTrustScore() < TRUST_SCORE_HIGH_RISK_THRESHOLD)
+                            .kycStatus(profile.getKycStatus())
+                            .build();
+                })
+                .toList();
     }
 }

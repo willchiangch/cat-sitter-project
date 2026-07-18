@@ -36,6 +36,7 @@ const mainEntries: DemoEntry[] = [
   { key: 'admin-subscription', label: '進入訂閱方案管理 (管理端)', roles: ['admin'], to: '/admin/subscription', testId: 'btn-go-admin-subscription' },
   { key: 'sitter-kyc', label: '進入 KYC 認證 (保母端)', roles: ['sitter'], to: '/sitter/kyc', testId: 'btn-go-sitter-kyc' },
   { key: 'admin-kyc-list', label: '進入 KYC 審核清單 (管理端)', roles: ['admin'], to: '/admin/kyc', testId: 'btn-go-admin-kyc-list' },
+  { key: 'admin-trust-scores', label: '進入信用指標管理 (管理端)', roles: ['admin'], to: '/admin/trust-scores', testId: 'btn-go-admin-trust-scores' },
   { key: 'care-notes-manage', label: '進入照護管理 (保母端)', roles: ['sitter'], to: `/care-notes/manage/${mockParams.sitterId}/${mockParams.ownerId}` },
   { key: 'care-notes-view', label: '進入照護檢視 (飼主端)', roles: ['client'], to: `/care-notes/view/${mockParams.sitterId}/${mockParams.ownerId}` },
   { key: 'visit-reports-manage', label: '進入日誌回報 (保母端)', roles: ['sitter'], to: `/visit-reports/manage/${mockParams.visitId}` },
