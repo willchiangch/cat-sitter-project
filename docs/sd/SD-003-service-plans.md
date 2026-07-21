@@ -226,6 +226,23 @@ erDiagram
 
 ## API 設計
 
+### 0. `applicablePetTypes` 列舉值（須與 PRD-002 飼主寵物種類同步）
+`service_plans.applicable_pet_types` 是不受 DB CHECK 約束的 `JSONB` 陣列（純前端選項清單卡控），但**必須與飼主端建立寵物時的 `species` 選項集合保持一致**，否則會出現「飼主養的寵物種類，保母方案卻選不到」的跨模組資料落差。目前雙邊一致的合法值為：
+
+| Code | 顯示文字 |
+|------|---------|
+| `CAT` | 🐱 貓咪 |
+| `DOG` | 🐶 狗狗 |
+| `BIRD` | 🐦 鳥類 |
+| `MOUSE` | 🐭 鼠類 |
+| `RABBIT` | 🐰 兔子 |
+| `REPTILE` | 🦎 爬蟲 |
+| `INSECT` | 🐛 昆蟲 |
+| `OTHER` | 🐾 其他 |
+
+> [!NOTE]
+> 下方 Request/Response 範例沿用早期草稿的 `["CAT","DOG"]` 僅為範例值，不代表選項僅限貓狗——完整合法值以上表為準。前端實作於 `SitterPlans.tsx` 的 `PET_TYPE_LABELS`/`PET_TYPE_OPTIONS`，飼主端則對應 `PetManager.tsx` 的 `<select>` 選項，兩處若日後新增寵物種類須同步修改。
+
 ### 1. 建立服務方案
 * **Method & Path**：`POST /api/sitter/plans`
 * **說明**：保母新增自訂服務方案。

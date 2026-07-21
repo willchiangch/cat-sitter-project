@@ -25,6 +25,12 @@
   - 線上支付：`completed_at + 3 days` (金流撥款基準)。
   - 線下支付：同 `paid_at` (僅作帳務紀錄)。
 
+### 1.3 爭議申報狀態機防呆
+`disputeOrder()` 僅允許 `order.status ∈ {CONFIRMED, IN_PROGRESS}` 的訂單被申報爭議（其餘狀態如 `PENDING`/`COMPLETED`/已在 `DISPUTED` 中，一律拒絕並拋 `IllegalStateException`），同時比對 `order.owner.id == 呼叫者`，防止非本人飼主誤操作或重複申報。前端「申報爭議」按鈕的顯示條件（`OwnerOrderDetail.tsx`）須與此狀態集合保持一致，避免飼主在非法狀態下看到可點擊的按鈕才在送出後被後端拒絕。
+
+### 1.4 保母帳務總覽 (Sitter Ledger)
+保母可依月份查詢自己名下已結案訂單的營收總覽（PRD-009 主流程 C）。查詢範圍為 `orders.completed_at` 落在指定月份區間（`[月初, 次月月初)`），僅撈取 `COMPLETED` 狀態的訂單，回傳每筆訂單的金額與三個財務時間戳記（`paidAt`/`completedAt`/`payoutAt`）以及該月總營收。
+
 ---
 
 ## 2. API 定義
@@ -42,17 +48,40 @@
 - **Request Body**: `{ "category": "ENUM", "description": "...", "version": 1 }`
 
 ### 2.3 管理員強制結案 (Admin Resolve)
+- **Endpoint**: `POST /api/orders/{orderId}/admin-resolve`
+- **Auth**: `ROLE_ADMIN`（`@PreAuthorize("hasRole('ADMIN')")`，Controller 層即攔截，非僅依賴 Service 層邏輯判斷）
 ```json
 {
-  "finalTotalAmount": 900,
-  "evidenceUrls": ["gs://cat-sitter-bucket/disputes/uuid_1.jpg"],
-  "resolutionNote": "雙方同意減收 100 元",
-  "confirmPassword": "hashed_password",
-  "version": 1
+  "finalAmount": 900,
+  "receiptUrl": "gs://cat-sitter-bucket/disputes/uuid_1.jpg",
+  "reason": "雙方同意減收 100 元",
+  "adminPassword": "當前登入管理員的原始密碼（非雜湊值，用於二次驗證）"
+}
+```
+- **二次驗證邏輯**：後端以 `SecurityContextHolder` 取得目前登入管理員的 email，呼叫 `AuthService.verifyPassword(adminEmail, req.adminPassword())` 重新比對密碼雜湊；不符時拋 `AccessDeniedException` → **403**（而非 401）。前端 `axiosClient` 對所有 401 回應皆會觸發全域 refresh-token 靜默重試，若此處回 401 會讓「密碼錯誤」被誤判為 session 過期，導致使用者看到的錯誤訊息失真、甚至連正確密碼的後續請求都被連帶影響。
+
+### 2.4 保母帳務總覽 (Sitter Ledger)
+- **Endpoint**: `GET /api/orders/sitter/ledger?month=2026-07`
+- **Auth**: `ROLE_SITTER`
+- **Query Param**: `month`（`YYYY-MM`，省略則預設當月）
+```json
+{
+  "yearMonth": "2026-07",
+  "totalRevenue": 4500,
+  "entries": [
+    {
+      "orderId": "uuid",
+      "ownerName": "王小明",
+      "totalAmount": 1500,
+      "paidAt": "2026-07-02T10:00:00Z",
+      "completedAt": "2026-07-05T10:00:00Z",
+      "payoutAt": "2026-07-08T10:00:00Z"
+    }
+  ]
 }
 ```
 
-### 2.4 內部觸發端點 (Internal Cron Trigger)
+### 2.5 內部觸發端點 (Internal Cron Trigger)
 - **Endpoint**: `POST /api/internal/cron/orders/auto-complete`
 - **Auth**: `INTERNAL_ONLY` (由 SecurityConfig 控制)
 - **說明**: 供外部排程器（如 GCP Cloud Scheduler）呼叫，觸發自動結案邏輯。

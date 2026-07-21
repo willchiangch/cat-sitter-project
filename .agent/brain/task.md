@@ -52,3 +52,5 @@
 - [x] **Admin Subscription API 手動開通** (✅ **Implemented**)
 - [x] **前後端分離部署 (Firebase Hosting + Cloud Run) + 正式路由/登入頁 + 訂單清單 API 化 + CI 後端測試閘門** (✅ **Implemented**，詳見 walkthrough.md 第 10 節)
 - [x] **正式環境上線後人工巡檢修復**（毛孩頭像上傳體驗、窄螢幕表單直排、/login 登入並發 409、PWA 更新後空白頁、E2E 逾時）(✅ **Implemented**，詳見 walkthrough.md 第 11 節)
+- [x] **PRD/SA/SD 稽核落差修復批次**（2026-07-19，對照 `project_prd_audit_2026_07` 稽核結果逐項修復）：PRD-021 模板上限 10→3、PRD-003 適用寵物類型擴至 8 種、PRD-009 結案按鈕狀態判斷+disputeOrder 狀態機防呆+admin 二次驗證(403)+保母帳務總覽頁、PRD-016 變更欄位對齊+報價/拒絕機制+confirmModification 權限與 Zero-Trust 校驗、PRD-017 未實名保母公開頁/預約攔截、PRD-020 內部信用指標管理、PRD-000 登入失敗鎖定+註冊頁+忘記密碼(Resend)、PRD-004 事前問卷設定整模組、PRD-005 動態問卷渲染+Zero-Trust 價格核對、PRD-019 我的最愛保母整模組、PRD-010 信任圈與轉介機制整模組（✅ **Implemented**；**PRD-011 行事曆同步依使用者指示整個跳過**，尚未開始）
+- [x] **上述批次之 SD/TS 文件回補**（2026-07-21~22）：新建 SD-004/010/019/020 與對應 TS、補 TS-017，並更新 SD-000/003/005/009/016/021 與對應 TS 內容以對齊實作；複查時另修正 TS-003 自動化狀態長期未同步（16 個既有情境實為已自動化卻誤標 0/16）、SD-016 已規劃但未落地的密碼二次驗證描述、Idempotency-Key 未串接去重邏輯等既有落差 (✅ **Implemented**)

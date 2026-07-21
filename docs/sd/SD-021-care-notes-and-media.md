@@ -45,6 +45,9 @@
 - 模板上限與媒體上限必須由 **`cfg_system`** 表統一控管，嚴禁 hardcode。
 - 操作前計算 Hash (`Math.abs(sitterId.hashCode())` 或 `ownerId` 的組合)，傳入 `pg_advisory_xact_lock(:lockId)` 以進行事務級防護。
 
+> [!WARNING]
+> **已知落差（本次未修復）**：`SystemConfigService.getTemplateLimit()` 目前仍是 Java 常數寫死回傳 `3`（已由錯誤值 `10` 修正為 PRD-021 規定的 `3`），並非讀自 `cfg_system` 表——事實上本專案從未實作 `cfg_system` 這張表，此規則是沿用 `sd-skill` 通用範本的敘述，未落地為本專案的實際架構。本次僅修正數值錯誤，「應由設定表控管、嚴禁 hardcode」的原始設計要求仍未達成，屬既有技術債，非本次修復範圍。
+
 ### 1.6 稽核日誌 (Audit Log)
 所有對記事本、模板、媒體的操作，**全部寫入** `order_logs`。
 必須標註 `@Transactional(propagation = Propagation.REQUIRES_NEW)`，確保主事務 rollback 時，依然保留嘗試軌跡。
