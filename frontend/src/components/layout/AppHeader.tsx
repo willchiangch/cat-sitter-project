@@ -378,6 +378,22 @@ const AppHeader: React.FC = () => {
                 >
                   偏好設定
                 </button>
+                <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    navigate('/account-settings');
+                  }}
+                  data-testid={`${currentRole}-header-bell-account-settings`}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-on-surface-variant)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  帳號設定
+                </button>
               </div>
             </div>
           )}

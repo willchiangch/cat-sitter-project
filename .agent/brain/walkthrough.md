@@ -302,4 +302,72 @@ Close Beta 不接線上支付 (SD-015)，早鳥優惠與補償方案由管理員
 
 ---
 
+## 12. PRD-000 補齊：Email OTP 註冊驗證 + 帳號註銷（軟刪除）
+
+依使用者指示，按序實作 PRD-000 尚未落地的三項功能中的前兩項（第三項 Google OAuth 需使用者先在 Google Cloud Console 申請 OAuth 憑證，待後續進行）。
+
+### 12.1 Email OTP 註冊驗證 (PRD-000 AC-1)
+
+- **流程設計**：`POST /api/auth/register` 不再直接建立帳號並核發 Token，改為寄送 6 碼 OTP；新增獨立暫存表 `registration_otps`（`V20260723_01__create_registration_otps.sql`）存放待建立的帳號資料（含已雜湊密碼）與雜湊後的 OTP，通過 `POST /api/auth/register/verify-otp` 驗證後才正式寫入 `users` 並自動登入（核發雙 Token）。另提供 `POST /api/auth/register/resend-otp`（60 秒冷卻）。
+- **關鍵參數**：OTP 10 分鐘效期、60 秒重寄冷卻、5 次錯誤上限（`AuthService` 常數）。
+- **Bug 修復**：OTP 錯誤次數 (`attempts`) 原本會隨 `RegistrationException` 一起被交易回滾，鎖定機制形同虛設——比照既有 `LoginAttemptService` 的解法，抽成獨立 Bean `RegistrationOtpAttemptService`（`@Transactional(REQUIRES_NEW)`）確保錯誤次數獨立提交。
+- **前端**：`RegisterPage.tsx` 改為兩段式表單（填表單 → 輸入 OTP，含重寄倒數），驗證成功後比照 `LoginPage.tsx` 寫入 `localStorage` 並導向 `/demo`。
+- **測試**：`AuthControllerTest` 新增 7 個 OTP 情境（OTP_SENT 未建帳號、驗證成功建帳號、錯誤累加、超過上限鎖定、過期、重寄冷卻、Email 重複註冊），E2E 更新 `auth-register-and-password-reset.spec.ts`。
+
+### 12.2 帳號註銷（軟刪除）(PRD-000 AC-8)
+
+- **關鍵發現**：`User`（`BaseEntity.is_deleted`）已有軟刪除欄位，且 `SitterPublicProfileServiceImpl.getPublicProfile()` 早已檢查 `user.isDeleted()` 並回 404（`MSG_DATA_F11`）——公開頁 404 這項幾乎是現成的，沒有新增資料表也沒有改動該檔案。
+- **前置檢查**（使用者指示的嚴格版）：`OrderRepository.existsActiveOrderForParty` 檢查名下（`owner_id` 或 `sitter_id`）是否有任何非終態訂單（除 `COMPLETED`/`CANCELLED` 外皆算未結案），有則 409 `ACCOUNT_DEACTIVATION_BLOCKED`。
+- **不阻擋、改自動清除**：依使用者指示，「存在於別人的信任圈」與「被收藏為我的最愛」不擋註銷，改為 `TrustRelationshipRepository`/`FavoriteSitterRepository` 各自新增 `softDeleteByPartyId` 批次軟刪除。
+- **最終確認方式**：重新輸入密碼（沿用 SD-009 admin 二次驗證的 403 慣例——`AccessDeniedException`，避免撞上前端 axios 全域 401 refresh-token 重試機制）。
+- **`AuthService.login()`**：新增 `user.isDeleted()` 檢查，一律回傳既有「帳號或密碼錯誤」401，不透露帳號已註銷。
+- **前端**：新增 `frontend/src/pages/shared/AccountSettings.tsx`（`/account-settings` 路由），密碼確認註銷後清空本機 Token 並導回 `/login`。
+- **測試**：`AuthControllerTest` 新增 7 個情境、`SitterPublicProfileControllerTest` 新增 1 個 404 情境（驗證既有邏輯）、新增 E2E `account-deactivation.spec.ts`（2 情境）。
+- **已知限制（明確不做）**：PRD-000 提及「已註銷帳號 Email 30 天冷卻後可重新註冊」；`users.email` 為 DB 硬 UNIQUE 約束，要支援冷卻後複用需額外機制（背景 Job 改名/清空已註銷帳號 email）。現況為**已註銷帳號 Email 永久佔用、不可重新註冊**（比規格更嚴格，不影響資料安全），已記錄於 SD-000，待後續有需要再實作自動化解鎖。
+
+### 12.3 測試結果
+
+- 後端整合測試（`AuthControllerTest` 12+7、`SitterPublicProfileControllerTest` +1）與全量 `mvn test` 皆綠燈（過程中兩次遇到本地 Docker daemon 中途掉線的環境性 flaky，非程式碼問題，重跑後穩定通過）。
+- 前端 `npm run build`（TS 嚴格模式）通過；E2E `auth-register-and-password-reset.spec.ts`（5 情境）與新增 `account-deactivation.spec.ts`（2 情境）全數通過。
+- 文件回補：`SD-000-authentication-authorization.md`（新增 2 個序列圖、`registration_otps` 資料模型、3+1 個新 API 列入表格、備註區參數與已知限制）、`TS-000-authentication.md`（新增 TS-000-11~24 共 14 個測試情境）、README 模組狀態表 SD-000 說明列。
+
+---
+
+## 13. PRD-000 補齊完結：Google 第三方登入
+
+延續第 12 節，完成 PRD-000 三項待補功能中的最後一項。使用者已在 GCP 專案 `wd-pet-sitter` 建立 OAuth 2.0 用戶端（Web application 類型），提供 Client ID `1020176535925-78mcs53q25ku3s4ob6j0kpvp6tpu32cu.apps.googleusercontent.com`，Client Secret 檔案未放入 repo（本方案也用不到）。
+
+### 13.1 技術選型
+
+採 **Google Identity Services (GIS)** 前端官方按鈕 + 後端驗證 ID Token，而非傳統整頁跳轉的 Authorization Code 流程：
+- 不需要設定 Authorized redirect URI（只需 Authorized JavaScript origins，使用者已設定 `https://wd-pet-sitter.web.app` + `http://localhost:5173`）
+- 後端完全不使用 Client Secret，只需 Client ID 驗證 `aud`
+- Client ID 本身是設計上公開的值，且本地/正式共用同一組 Client，因此直接寫入 `application.yml` 版控預設值，`deploy.yml` 不需額外注入
+
+### 13.2 後端實作
+
+- 新增依賴 `com.google.api-client:google-api-client`（提供 `GoogleIdTokenVerifier`，官方處理 Google 公鑰 JWKS 抓取/快取/輪替，避免手刻 JWT 驗證的安全風險——這是本專案首次為了「驗證第三方簽發的身分權杖」而加函式庫，與 `EmailService` 手刻 HTTP 呼叫 Resend 的風險層級不同）。
+- 新增 `GoogleTokenVerifierService`：包裝 Google SDK 細節，回傳與 SDK 型別解耦的 `GoogleUserInfo` record，方便測試 mock（不需真的組出真實簽章 JWT）。
+- `AuthService.loginWithGoogle()`：
+  - 既有 Email → 直接自動綁定登入（Google 已驗證 Email 擁有權，視為可信；若該帳號已註銷則回 401，訊息與一般登入一致不透露註銷狀態）
+  - 新 Email 未帶 `role` → 回 `NEEDS_ROLE_SELECTION`（不建帳號）
+  - 新 Email 帶 `role`（僅接受 OWNER/SITTER）→ 建立帳號（密碼為隨機亂數雜湊，日後可用忘記密碼流程設定）並自動登入
+  - **未新增 `google_id` 欄位**：綁定純粹以 Email 比對，與密碼註冊流程對 Email 的信任程度一致。
+- `POST /api/auth/google`（`/api/auth/**` 已 permitAll，無需額外設定）。
+
+### 13.3 前端實作
+
+- `LoginPage.tsx` 用 `useEffect` 動態注入 GIS 腳本並在 `onload` 才初始化按鈕，腳本載入失敗時只是按鈕不出現（比照 PRD-000 對生物辨識「裝置不支援則隱藏」的既有降級精神），不影響頁面其他功能。
+- 新增角色選擇步驟（比照 `RegisterPage.tsx` 的兩段式 pattern），沿用同一個 ID Token 帶入選定角色再次呼叫後端。
+- 無條件掛上 `window.__handleGoogleCredential` 全域函式供 E2E 測試用 `page.evaluate()` 直接模擬「收到 Google credential」事件，完全不需要驅動真實 Google 彈窗（也不受 CI/沙盒環境能否連上 `accounts.google.com` 影響），對正式環境無副作用。
+
+### 13.4 測試結果
+
+- 後端整合測試新增 6 個 Google 登入情境（`GoogleTokenVerifierService` 用 `@MockitoBean` 取代），與全量 `mvn test` 皆綠燈。
+- 前端 `npm run build` 通過；新增 E2E `google-login.spec.ts`（2 情境）通過。
+- 額外執行過一次前端**全量** E2E（`npx playwright test` 不加篩選）作交叉驗證，發現 28 個既有情境失敗；追查後確認根因是本次工作階段**未啟動本機後端伺服器**（僅跑過 `mvn test` 的短命 Testcontainers，未 `mvn spring-boot:run` 提供持久化 `localhost:8080`），這些情境依賴 `/demo` 種子帳號自動登入打真實 `/api/auth/login`，與本次改動（僅動到 `LoginPage.tsx`）無關——本次新增/修改的 3 支 E2E 檔案（`auth-register-and-password-reset.spec.ts`、`account-deactivation.spec.ts`、`google-login.spec.ts`）皆已透過 `page.route()` 完整 mock，不受影響、全數通過。
+- 文件回補：`SD-000-authentication-authorization.md`（新增序列圖、`POST /api/auth/google` API 列、技術選型與 Client ID 設計理由備註）、`TS-000-authentication.md`（新增 TS-000-25~30 共 6 個測試情境）、README 模組狀態表 SD-000 說明列。**PRD-000 三項待補功能（Email OTP 註冊、帳號註銷、Google 登入）至此全數完成**。
+
+---
+
 

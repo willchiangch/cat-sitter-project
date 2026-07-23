@@ -2,6 +2,7 @@ package com.petsitter.domain.repository;
 
 import com.petsitter.domain.model.TrustRelationship;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -24,4 +25,8 @@ public interface TrustRelationshipRepository extends JpaRepository<TrustRelation
     @Query("SELECT r FROM TrustRelationship r WHERE r.isDeleted = false AND " +
            "((r.requester.id = :userA AND r.target.id = :userB) OR (r.requester.id = :userB AND r.target.id = :userA))")
     Optional<TrustRelationship> findBetween(@Param("userA") UUID userA, @Param("userB") UUID userB);
+
+    @Modifying
+    @Query("UPDATE TrustRelationship r SET r.isDeleted = true WHERE r.requester.id = :userId OR r.target.id = :userId")
+    int softDeleteByPartyId(@Param("userId") UUID userId);
 }

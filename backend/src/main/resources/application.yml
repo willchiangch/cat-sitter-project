@@ -36,6 +36,9 @@ app:
     resend-api-key: ${RESEND_API_KEY:}
     from-address: ${EMAIL_FROM_ADDRESS:WhiskerWatch <onboarding@resend.dev>}
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  google:
+    # Client ID 非機密（設計上會嵌入前端 JS），直接寫版控預設值方便本地開發免設定即可用
+    client-id: ${GOOGLE_CLIENT_ID:1020176535925-78mcs53q25ku3s4ob6j0kpvp6tpu32cu.apps.googleusercontent.com}
 
 management:
   endpoints:

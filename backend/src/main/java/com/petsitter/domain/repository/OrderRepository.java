@@ -41,6 +41,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     boolean existsByPaymentIdempotencyKey(String paymentIdempotencyKey);
 
+    @Query("SELECT COUNT(o) > 0 FROM Order o WHERE (o.owner.id = :userId OR o.sitter.id = :userId) " +
+           "AND o.isDeleted = false AND o.status NOT IN ('COMPLETED', 'CANCELLED')")
+    boolean existsActiveOrderForParty(@Param("userId") UUID userId);
+
     @Query("SELECT o FROM Order o JOIN FETCH o.owner WHERE o.sitter.id = :sitterId AND o.status = 'COMPLETED' " +
            "AND o.completedAt >= :from AND o.completedAt < :to ORDER BY o.completedAt DESC")
     List<Order> findCompletedBySitterIdAndCompletedAtBetween(

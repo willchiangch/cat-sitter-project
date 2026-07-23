@@ -60,7 +60,31 @@ public class AuditLogService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void writeUserActionLog(String funcCode, String actionType, UUID operatorId, UUID targetId, String targetTable) {
-        log.info("USER ACTION AUDIT LOG [REQUIRES_NEW] - FuncCode: {}, ActionType: {}, Operator: {}, TargetId: {}, TargetTable: {}", 
+        log.info("USER ACTION AUDIT LOG [REQUIRES_NEW] - FuncCode: {}, ActionType: {}, Operator: {}, TargetId: {}, TargetTable: {}",
+                 funcCode, actionType, operatorId, targetId, targetTable);
+        try {
+            com.petsitter.domain.model.UserActionLog auditLog = com.petsitter.domain.model.UserActionLog.builder()
+                    .funcCode(funcCode)
+                    .actionType(actionType)
+                    .operatorId(operatorId)
+                    .targetId(targetId)
+                    .targetTable(targetTable)
+                    .actionResult("SUCCESS")
+                    .build();
+            userActionLogRepository.save(auditLog);
+        } catch (Exception e) {
+            log.error("Failed to write user action log to database", e);
+        }
+    }
+
+    /**
+     * 與呼叫端共用同一交易（不用 REQUIRES_NEW）。
+     * operator_id/target_id 若指向「本次交易內才剛建立、尚未 commit」的使用者（如註冊當下），
+     * REQUIRES_NEW 會切到另一個連線／交易，在該交易眼中那筆使用者尚不存在，
+     * 會直接違反 log_user_action.operator_id 的 FK 約束；此方法讓稽核紀錄與主體資料一起 commit/rollback。
+     */
+    public void writeUserActionLogInline(String funcCode, String actionType, UUID operatorId, UUID targetId, String targetTable) {
+        log.info("USER ACTION AUDIT LOG [INLINE] - FuncCode: {}, ActionType: {}, Operator: {}, TargetId: {}, TargetTable: {}",
                  funcCode, actionType, operatorId, targetId, targetTable);
         try {
             com.petsitter.domain.model.UserActionLog auditLog = com.petsitter.domain.model.UserActionLog.builder()

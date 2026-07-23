@@ -407,6 +407,33 @@ class SitterPublicProfileControllerTest {
     }
 
     @Test
+    @DisplayName("Scenario 6b: 已註銷保母的公開檔案應回傳 404 (PRD-000 AC-8)")
+    void testGetProfile_ReturnsNotFound_When_SitterDeactivated() throws Exception {
+        User deletedSitter = User.builder()
+                .email("deletedsitter@test.com")
+                .passwordHash("hash")
+                .role("SITTER")
+                .isDeleted(true)
+                .build();
+        userRepository.save(deletedSitter);
+
+        Profile deletedProfile = Profile.builder()
+                .userId(deletedSitter.getId())
+                .type("SITTER")
+                .kycStatus("VERIFIED")
+                .isOpen(true)
+                .isVisible(true)
+                .displayName("已註銷保母")
+                .bio("我已經註銷帳號")
+                .build();
+        profileRepository.save(deletedProfile);
+
+        mockMvc.perform(get("/api/sitter/profile/" + deletedSitter.getId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("MSG_DATA_F11"));
+    }
+
+    @Test
     @DisplayName("Scenario 7: Admin 敏感詞管理")
     void testAdminForbiddenKeywords() throws Exception {
         TokenContext.setUserId(adminUser.getId());

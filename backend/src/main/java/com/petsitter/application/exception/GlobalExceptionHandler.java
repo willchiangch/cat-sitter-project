@@ -176,5 +176,33 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus())
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
     }
+
+    // --- PRD-000 Email OTP 註冊驗證例外攔截 ---
+    @ExceptionHandler(RegistrationException.class)
+    public ResponseEntity<Map<String, String>> handleRegistration(RegistrationException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    // --- PRD-000 AC-8 帳號註銷例外攔截 ---
+    @ExceptionHandler(AccountDeactivationException.class)
+    public ResponseEntity<Map<String, String>> handleAccountDeactivation(AccountDeactivationException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    // --- PRD-000 AC-5 Google 第三方登入例外攔截 ---
+    @ExceptionHandler(GoogleAuthException.class)
+    public ResponseEntity<Map<String, String>> handleGoogleAuth(GoogleAuthException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
+
+    // --- PRD-000 AC-6 生物辨識登入 (WebAuthn) 例外攔截 ---
+    @ExceptionHandler(WebAuthnException.class)
+    public ResponseEntity<Map<String, String>> handleWebAuthn(WebAuthnException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
 }
 

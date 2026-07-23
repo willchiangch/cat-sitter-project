@@ -39,6 +39,7 @@ import AdminForbiddenKeywords from './pages/admin/AdminForbiddenKeywords';
 import AdminSubscriptionPage from './pages/admin/AdminSubscriptionPage';
 import { NotificationsPage } from './pages/shared/NotificationsPage';
 import { PreferencesPage } from './pages/shared/PreferencesPage';
+import AccountSettings from './pages/shared/AccountSettings';
 
 // 以下頁面需要從網址取得目標資源 id (取代原本 App.tsx 的 mockParams 寫死值)
 
@@ -168,6 +169,7 @@ function AppRoutes() {
 
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/preferences" element={<PreferencesPage />} />
+          <Route path="/account-settings" element={<AccountSettings />} />
         </Route>
       </Route>
     </Routes>
