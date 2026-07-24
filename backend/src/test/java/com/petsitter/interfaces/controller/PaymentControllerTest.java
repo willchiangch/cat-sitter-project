@@ -8,6 +8,7 @@ import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.model.BankAccountInfo;
+import com.petsitter.domain.repository.OrderLogRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -72,6 +73,9 @@ class PaymentControllerTest {
     @Autowired
     private ProfileRepository profileRepository;
 
+    @Autowired
+    private OrderLogRepository orderLogRepository;
+
     @MockitoBean
     private MediaStorageService mediaStorageService;
 
@@ -87,6 +91,7 @@ class PaymentControllerTest {
 
     @BeforeEach
     void setUp() {
+        orderLogRepository.deleteAll();
         orderRepository.deleteAll();
         profileRepository.deleteAll();
         userRepository.deleteAll();
