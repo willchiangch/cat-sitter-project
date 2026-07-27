@@ -370,4 +370,52 @@ Close Beta 不接線上支付 (SD-015)，早鳥優惠與補償方案由管理員
 
 ---
 
+## 14. PRD-000 收尾：稽核修復 + 生物辨識登入 (WebAuthn) + 登出所有裝置 + CI 修復
+
+延續第 12、13 節，這一輪先用 `/sd-skill` + `/project-auditor` 對前三項 PRD-000 補完功能做了一次全面稽核，找出幾個落差並逐一修復；接著補上剩下的兩個小缺口（生物辨識登入、登出所有裝置）；最後 push 後 CI 曾經失敗一次，追查並修好。
+
+### 14.1 稽核發現與修復
+
+稽核比對 PRD-000 逐項驗收標準與 SD-000/程式碼實況，找到以下落差並當場修復：
+
+- **稽核日誌缺口**：`AuthService` 的 OTP 註冊建帳號、帳號註銷、Google 建帳號三處都沒有寫 `log_user_action`，但 SD-000 自己的文件早就規劃了 `func_code=AUTH_REGISTER/AUTH_DEACTIVATE`。補上呼叫後全量測試炸出 17 個失敗才抓到一個真實 bug：`log_user_action.operator_id` 對 `users(id)` 有 FK 約束，既有的 `writeUserActionLog` 是獨立 `REQUIRES_NEW` 交易——對「這筆使用者本身在同一交易內剛建立、還沒 commit」的兩個新場景（OTP 驗證、Google 建帳號）來說，`REQUIRES_NEW` 切到另一個交易/連線看不到還沒 commit 的新使用者，FK 檢查必定失敗。修法：新增 `AuditLogService.writeUserActionLogInline(...)`，讓稽核紀錄跟建帳號共用同一筆交易一起 commit/rollback；帳號註銷因為目標使用者是先前已 commit 的既有帳號，維持原本的 `REQUIRES_NEW` 沒問題。
+- **PRD-000 AC-2 服務條款勾選**：`RegisterPage.tsx` 加入「我已閱讀並同意《服務條款》與《隱私權政策》」checkbox，未勾選前送出按鈕 disabled，前端也加了防呆（表單送出時二次檢查）。
+- **SD-000 文件debt**：「錯誤代碼映射」段落原本引用不存在的 `DataMessageEnum`（純模板遺留文字），改成如實描述目前採用的自訂例外（`status`/`error`/`message`）模式與各情境對應表；`log_user_action` 章節也改成表格列出每個情境實際串接狀態，含尚未串接的 `AUTH_LOGIN` 誠實標記為既有缺口。
+- **併發雙擊送出邊界案例**：`verifyRegistrationOtp`/`loginWithGoogle` 新建帳號前的 `save` 改成 `saveAndFlush` 並包 `try/catch`，DB UNIQUE 撞號時回友善 400「電子郵件已存在」而非未映射的 500。
+- **`/account-settings` 可被發現**：`AppHeader.tsx` 通知鈴鐺下拉選單 footer 補上第三顆「帳號設定」按鈕，比照既有「進入通知中心」「偏好設定」的模式。
+
+### 14.2 登出所有裝置
+
+新增 `POST /api/auth/logout-all-devices`。規劃時發現一個既有架構事實：`AuthService.createRefreshToken()` 與 `switchRole()` 都會在建立新 refresh token 前先 `deleteByUser`——代表系統目前**同一帳號同時只保留一組 refresh token**，並非真正支援 PRD-000 講的「多裝置同時在線」。跟使用者確認過：**維持現況、不做架構升級**，本功能實質等同撤銷使用者目前唯一那組 session，已在 SD-000 記錄為已知限制，非本輪要解決的範圍。
+
+### 14.3 生物辨識登入 (WebAuthn, PRD-000 AC-6) 技術選型與實作
+
+- **函式庫**：`com.yubico:webauthn-server-core`（Yubico 官方 FIDO2 函式庫，處理 COSE/CBOR 解析、attestation/assertion 簽章驗證、sign count 防重放），延續「第三方憑證驗證一律用官方函式庫」慣例（同 `GoogleIdTokenVerifier` 的選型理由）。不用 Spring Security 6.4+ 實驗性 WebAuthn 模組，因為預設走 session-based 登入後行為，跟本專案 stateless JWT 簽發流程整合較繞。
+- **資料模型**：新增 `webauthn_credentials`（一人可綁多組裝置憑證）與 `webauthn_challenges`（`challenge_type` 區分 REGISTRATION/AUTHENTICATION，5 分鐘效期用完即刪，比照 `registration_otps`/`password_reset_tokens` 既有模式）。
+- **API**：`WebAuthnController` 5 支端點掛在 `/api/auth/webauthn/**`（沿用 `/api/auth/**` 既有 permitAll，register/* 兩支手動用 `TokenContext` 把關）；`login/options` 對不存在或未開通生物辨識的 Email 一律回傳合法但 `allowCredentials` 為空陣列的回應，不用 404/400 洩漏帳號資訊。
+- **前端相容性**：base64url ↔ ArrayBuffer 轉換刻意手刻，不依賴較新瀏覽器才有的 `PublicKeyCredential.parseCreationOptionsFromJSON()`（WebAuthn Level 3），因為 NFR-005 要求相容 Safari (iOS 15+)；未支援 WebAuthn 的裝置直接隱藏按鈕，比照既有 Google 按鈕降級精神。
+
+### 14.4 測試結果與過程中抓到的兩個真實 bug
+
+- 後端整合測試 15 個新情境（`WebAuthnControllerTest`）+ 全量 `mvn test` 207 個測試綠燈。
+- 為了不只是 mock 測過，額外起了一個**真正的本機後端 + 真 Postgres + Playwright CDP virtual authenticator**（`page.context().newCDPSession()` + `WebAuthn.enable` + `addVirtualAuthenticator`），跑了一次完整的真實生物辨識開通+登入簽章迴圈（`webauthn-login.spec.ts`），過程中抓到並修正：
+  1. Yubico 函式庫 `toCredentialsCreateJson()`/`toCredentialsGetJson()` 回傳的 JSON 其實包了一層 `{publicKey: {...}}`，不是原本以為的攤平格式，前端解析要多剝一層。
+  2. 自訂的 `CredentialRepository` 實作類別原本命名為 `WebAuthnCredentialRepositoryImpl`，撞上 Spring Data JPA「`*RepositoryImpl` 自動當成自訂實作片段」的命名慣例，造成 Bean 循環參照；改名為 `WebAuthnRpCredentialLookup` 解決。
+- 順便用這個真實後端跑了一次全量前端 E2E（55 個情境），52 通過、3 個失敗（`offline-payment`、`order-eval`、`trust-circle-and-referral`，皆非本次改動觸及的檔案），失敗特徵像是多個 Playwright worker 平行打同一個真 DB 造成的跨測試資料干擾，非本次改動造成。
+- 驗證後已清理：手動起的本機後端/前端/Postgres container 全部關閉移除。
+
+### 14.5 CI 修復：PaymentControllerTest `order_logs` 外鍵違反
+
+Push 後 GitHub Actions「Build and Deploy to GCP」的 `Run Backend Tests` 步驟失敗：`PaymentControllerTest.setUp` 拋出 `DataIntegrityViolationException`，訊息為 `order_logs_order_id_fkey` 違反。
+
+- **根因**：`PaymentControllerTest.setUp()` 只呼叫 `orderRepository.deleteAll()` 卻沒有先清 `order_logs`，但 `order_logs.order_id` 對 `orders` 有 FK。姊妹測試類別 `CompletionServiceTest`、`VisitReportControllerTest` 都已經有「先 `orderLogRepository.deleteAll()` 再 `orderRepository.deleteAll()`」的既有慣例，唯獨 `PaymentControllerTest` 一直沒補這行，本地單獨跑或先前 CI 執行順序都沒有剛好觸發，這次疑似因為新增了 `WebAuthnControllerTest` 這個新測試類別，讓 CI 全套件的測試類別執行順序跟著變動，才第一次真正踩到——**跟本輪 WebAuthn/登出所有裝置的功能程式碼本身無關**，是既有的測試孤立性 debt。
+- **修法**：`PaymentControllerTest` 補上 `OrderLogRepository` 注入 + `orderLogRepository.deleteAll()`（順序在 `orderRepository.deleteAll()` 之前），比照既有慣例。
+- 本地驗證：`PaymentControllerTest` 17/17 綠燈、全量 `mvn test` 207/207 綠燈。推送後 CI 重新跑過，`Build and Deploy to GCP` 全綠（含部署到 Cloud Run + Firebase Hosting）。
+
+### 14.6 文件回補
+
+`SD-000-authentication-authorization.md`（新增第 9 節登出所有裝置、第 10 節生物辨識登入序列圖與資料模型、錯誤代碼映射表重寫、`log_user_action` 現況表）、`TS-000-authentication.md`（新增 TS-000-31~34）、`RegisterPage.tsx`/`AccountSettings.tsx`/`AppHeader.tsx`/`LoginPage.tsx` 前端改動、README 模組狀態表 SD-000 說明列。**PRD-000 全部驗收標準與業務規則至此全數收斂**（僅「多裝置同時在線」維持第 14.2 節所述的已知限制）。
+
+---
+
 
