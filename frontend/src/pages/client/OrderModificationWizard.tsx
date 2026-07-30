@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Card from '../../components/ui/Card';
 import { modifyOrder, getOrderDetail } from '../../api/orderApi';
 import type { OrderItemDto } from '../../api/orderApi';
@@ -14,6 +14,7 @@ const OrderModificationWizard: React.FC<OrderModificationWizardProps> = ({ order
   const [status, setStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
   const [existingItems, setExistingItems] = useState<OrderItemDto[]>([]);
   const [itemsLoading, setItemsLoading] = useState(true);
+  const submitKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     getOrderDetail(orderId)
@@ -53,7 +54,9 @@ const OrderModificationWizard: React.FC<OrderModificationWizardProps> = ({ order
     }
 
     try {
-      const idempotencyKey = crypto.randomUUID();
+      if (!submitKeyRef.current) {
+        submitKeyRef.current = crypto.randomUUID();
+      }
       // 保留原始項目的方案/單價/次數等欄位，僅替換新日期範圍，
       // 避免送出前端自創的欄位形狀導致後端反序列化時把訂單內容清空
       const items: OrderItemDto[] = isCancel
@@ -72,13 +75,15 @@ const OrderModificationWizard: React.FC<OrderModificationWizardProps> = ({ order
           totalDays: dates.length,
           dates
         },
-        idempotencyKey
+        submitKeyRef.current
       );
 
+      submitKeyRef.current = null;
       setStatus('SUCCESS');
       alert('變更申請已成功提交！');
     } catch (err) {
       console.error(err);
+      submitKeyRef.current = null;
       setStatus('ERROR');
       alert('提交變更失敗，請重試。');
     } finally {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Card from '../../components/ui/Card';
 import {
   getActiveModificationRequest,
@@ -28,6 +28,8 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
   const [quoteSent, setQuoteSent] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [proofSent, setProofSent] = useState(false);
+  const quoteKeyRef = useRef<string | null>(null);
+  const rejectKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     getActiveModificationRequest(orderId)
@@ -52,17 +54,21 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
 
     setLoading(true);
     try {
-      const idempotencyKey = crypto.randomUUID();
+      if (!quoteKeyRef.current) {
+        quoteKeyRef.current = crypto.randomUUID();
+      }
       await quoteModification(
         orderId,
         modRequest.id,
         { newTotalAmount, version: modRequest.orderVersion },
-        idempotencyKey
+        quoteKeyRef.current
       );
+      quoteKeyRef.current = null;
       setQuoteSent(true);
       alert('報價已成功送出，等待飼主確認！');
     } catch (err) {
       console.error(err);
+      quoteKeyRef.current = null;
       alert('送出報價失敗，請檢查權限或參數。');
     } finally {
       setLoading(false);
@@ -79,12 +85,16 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
 
     setLoadingReject(true);
     try {
-      const idempotencyKey = crypto.randomUUID();
-      await rejectModification(orderId, modRequest.id, idempotencyKey);
+      if (!rejectKeyRef.current) {
+        rejectKeyRef.current = crypto.randomUUID();
+      }
+      await rejectModification(orderId, modRequest.id, rejectKeyRef.current);
+      rejectKeyRef.current = null;
       setRejected(true);
       alert('已拒絕此變更請求，訂單已恢復原狀態！');
     } catch (err) {
       console.error(err);
+      rejectKeyRef.current = null;
       alert('拒絕變更失敗，請稍後再試。');
     } finally {
       setLoadingReject(false);

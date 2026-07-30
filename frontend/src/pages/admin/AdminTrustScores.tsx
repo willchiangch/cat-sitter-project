@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Card from '../../components/ui/Card';
 import { listSitterTrustScores, adjustTrustScore } from '../../api/kycApi';
 import type { SitterTrustScoreDto } from '../../api/kycApi';
@@ -17,6 +17,7 @@ const AdminTrustScores: React.FC = () => {
   const [adjustMsg, setAdjustMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
+  const adjustKeyRef = useRef<string | null>(null);
 
   const fetchList = async () => {
     setLoading(true);
@@ -55,14 +56,18 @@ const AdminTrustScores: React.FC = () => {
 
     setAdjustLoading(true);
     try {
-      const idempotencyKey = 'trust-adjust-' + targetSitterId + '-' + Date.now();
-      await adjustTrustScore(targetSitterId, delta, reason, idempotencyKey);
+      if (!adjustKeyRef.current) {
+        adjustKeyRef.current = 'trust-adjust-' + targetSitterId + '-' + crypto.randomUUID();
+      }
+      await adjustTrustScore(targetSitterId, delta, reason, adjustKeyRef.current);
+      adjustKeyRef.current = null;
       setAdjustMsg({ type: 'success', text: '信用指標已成功更新' });
       setDelta(0);
       setReason('');
       await fetchList();
     } catch (err: any) {
       console.error(err);
+      adjustKeyRef.current = null;
       const msg = err.response?.data?.message || '異動失敗';
       setAdjustMsg({ type: 'error', text: msg });
     } finally {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -38,6 +38,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
   const [file, setFile] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const paymentProofKeyRef = useRef<string | null>(null);
 
   const { userId: ownerId } = useCurrentUser();
 
@@ -104,12 +105,16 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
 
     setSubmitLoading(true);
     try {
-      const idempotencyKey = generateUUID();
-      await submitPaymentProof(orderId, lastFive, disclaimerAgreed, file, idempotencyKey);
+      if (!paymentProofKeyRef.current) {
+        paymentProofKeyRef.current = generateUUID();
+      }
+      await submitPaymentProof(orderId, lastFive, disclaimerAgreed, file, paymentProofKeyRef.current);
+      paymentProofKeyRef.current = null;
       await fetchOrderDetail();
       alert('付款憑證提交成功，等待保母確認！');
     } catch (err: any) {
       console.error(err);
+      paymentProofKeyRef.current = null;
       const msg = err.response?.data?.message || '憑證提交失敗，請檢查格式或網路';
       setSubmitError(msg);
     } finally {

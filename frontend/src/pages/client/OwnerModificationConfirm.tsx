@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Card from '../../components/ui/Card';
 import {
   confirmModification,
@@ -24,6 +24,7 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
   const [loadingRefund, setLoadingRefund] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
   const [refundStatus, setRefundStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const confirmKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     getActiveModificationRequest(orderId)
@@ -54,18 +55,22 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
 
     setLoadingConfirm(true);
     try {
-      const idempotencyKey = crypto.randomUUID();
+      if (!confirmKeyRef.current) {
+        confirmKeyRef.current = crypto.randomUUID();
+      }
       await confirmModification(
         orderId,
         modRequest.id,
         { agreedDiffAmount, version: modRequest.orderVersion },
-        idempotencyKey
+        confirmKeyRef.current
       );
 
+      confirmKeyRef.current = null;
       setConfirmStatus('SUCCESS');
       alert('變更確認成功！');
     } catch (err) {
       console.error(err);
+      confirmKeyRef.current = null;
       setConfirmStatus('ERROR');
       alert('變更確認失敗，請重試。');
     } finally {

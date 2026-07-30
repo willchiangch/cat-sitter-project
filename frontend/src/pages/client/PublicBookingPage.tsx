@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import {
@@ -111,6 +112,8 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
     setBooking((prev) => ({ ...prev, sitterId }));
   }, [sitterId]);
 
+  const navigate = useNavigate();
+  const submitKeyRef = useRef<string | null>(null);
   const [isAddingPlan, setIsAddingPlan] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeCalendar, _setActiveCalendar] = useState<{
@@ -262,13 +265,17 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 
     try {
       setIsSubmitting(true);
-      const idempotencyKey = crypto.randomUUID();
-      const res = await createBooking(requestBody, idempotencyKey);
-      alert(`預約已送出！訂單 ID: ${res.orderId || res}`);
+      if (!submitKeyRef.current) {
+        submitKeyRef.current = crypto.randomUUID();
+      }
+      const res = await createBooking(requestBody, submitKeyRef.current);
+      submitKeyRef.current = null;
+      const orderId = res.orderId || res;
+      navigate(`/owner/orders/${orderId}`);
     } catch (err: any) {
       console.error('送出預約失敗：', err);
       alert('送出預約失敗：' + (err.response?.data?.message || err.message));
-    } finally {
+      submitKeyRef.current = null;
       setIsSubmitting(false);
     }
   };
@@ -1601,6 +1608,36 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 
   return (
     <div style={{ padding: '2rem 1.5rem' }}>
+      {/* 送出預約中的全螢幕載入遮罩，避免使用者以為沒反應而重複點擊 */}
+      {isSubmitting && (
+        <div
+          data-testid="client-booking-submitting-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1rem',
+            zIndex: 1000
+          }}
+        >
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              border: '4px solid rgba(255, 255, 255, 0.3)',
+              borderTopColor: '#fff',
+              animation: 'spin 0.8s linear infinite'
+            }}
+          />
+          <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>預約送出中，請稍候...</span>
+        </div>
+      )}
+
       {/* 警示 Banner */}
       {profile?.gated && (
         <div

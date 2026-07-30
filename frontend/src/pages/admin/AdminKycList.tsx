@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import { getPendingKycList, suspendSitter, unsuspendSitter } from '../../api/kycApi';
@@ -20,6 +20,8 @@ const AdminKycList: React.FC = () => {
   const [controlMsg, setControlMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
+  const suspendKeyRef = useRef<string | null>(null);
+  const unsuspendKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchPendingList();
@@ -54,8 +56,11 @@ const AdminKycList: React.FC = () => {
 
     setControlLoading(true);
     try {
-      const idempotencyKey = 'suspend-' + targetSitterId + '-' + Date.now();
-      await suspendSitter(targetSitterId, suspendReason, idempotencyKey);
+      if (!suspendKeyRef.current) {
+        suspendKeyRef.current = 'suspend-' + targetSitterId + '-' + crypto.randomUUID();
+      }
+      await suspendSitter(targetSitterId, suspendReason, suspendKeyRef.current);
+      suspendKeyRef.current = null;
       setControlMsg({
         type: 'success',
         text: `保母 ${targetSitterId} 已成功停權且強制關閉接單狀態。`
@@ -63,6 +68,7 @@ const AdminKycList: React.FC = () => {
       setSuspendReason('');
     } catch (err: any) {
       console.error(err);
+      suspendKeyRef.current = null;
       const msg = err.response?.data?.message || '停權操作失敗';
       setControlMsg({ type: 'error', text: msg });
     } finally {
@@ -79,14 +85,18 @@ const AdminKycList: React.FC = () => {
 
     setControlLoading(true);
     try {
-      const idempotencyKey = 'unsuspend-' + targetSitterId + '-' + Date.now();
-      await unsuspendSitter(targetSitterId, idempotencyKey);
+      if (!unsuspendKeyRef.current) {
+        unsuspendKeyRef.current = 'unsuspend-' + targetSitterId + '-' + crypto.randomUUID();
+      }
+      await unsuspendSitter(targetSitterId, unsuspendKeyRef.current);
+      unsuspendKeyRef.current = null;
       setControlMsg({
         type: 'success',
         text: `已成功解除保母 ${targetSitterId} 停權狀態，接單資格已恢復。`
       });
     } catch (err: any) {
       console.error(err);
+      unsuspendKeyRef.current = null;
       const msg = err.response?.data?.message || '解除停權失敗';
       setControlMsg({ type: 'error', text: msg });
     } finally {
