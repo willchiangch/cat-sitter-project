@@ -30,8 +30,9 @@
 | 4 | API：admin 呼叫 `GET /api/admin/kyc/pending` | 清單中可撈到剛提交的紀錄 | `recordId` 對應到該保母 |
 | 5 | UI：admin 於 `/admin/kyc` 進入該筆詳情，點擊「批准認證」 | 頁面顯示審核通過訊息並導回清單 | `Profile.kycStatus` 轉為 `VERIFIED` |
 | 6 | API：`PUT /api/sitter/kyc/open {isOpen:true}` | 開啟接單狀態成功（前置條件 `kycStatus=VERIFIED` 已滿足） | `Profile.isOpen=true` |
-| 7 | UI：`/sitter/plans` 建立 2-3 個服務方案（不同 `applicablePetTypes`/價格） | 方案清單顯示新建立的方案 | 每筆方案 `isActive=true` |
-| 8 | UI：以全新、未登入的瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 頁面顯示真實保母姓名、標籤與方案清單，**不是**「保母休息中」 | `GET /api/sitter/profile/{sitterId}` 匿名查詢回應 `gated=false`；`GET /api/sitters/{sitterId}/plans` 內容包含步驟 7 建立的方案名稱 |
+| 6.5 | API：`PUT /api/sitter/profile` 設定 `displayName`/`bio`/`tags`/`isVisible:true` | 公開檔案資料寫入成功 | `Profile.displayName` 非空字串（此欄位獨立於 `User.fullName`，未設定則公開頁 `<h1>` 是空的，實測時踩到這個坑） |
+| 7 | UI：`/sitter/plans` 建立 2-3 個服務方案（不同 `applicablePetTypes`/價格） | 方案清單顯示新建立的方案 | 每筆方案 `isActive=true`；**注意**：`openModal(null)` 新增方案時 `applicablePetTypes` 預設已勾選 `CAT`，不用再手動點擊，點擊反而會取消勾選 |
+| 8 | UI：以全新、未登入的瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 頁面顯示步驟 6.5 設定的顯示名稱、標籤與方案清單，**不是**「保母休息中」 | `GET /api/sitter/profile/{sitterId}` 匿名查詢回應 `gated=false`；`GET /api/sitters/{sitterId}/plans` 內容包含步驟 7 建立的方案名稱 |
 
 ---
 

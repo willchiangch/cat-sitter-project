@@ -110,6 +110,9 @@ jobs:
 
       # 9. 執行 Playwright E2E 測試
       - name: Install Playwright Browsers and Run Tests
+        env:
+          # frontend/e2e/journeys/ 打真後端 journey 測試，需要這把密鑰呼叫 /api/internal/test-data/provision-account
+          INTERNAL_CRON_SECRET: ${{ secrets.INTERNAL_CRON_SECRET }}
         run: |
           cd frontend
           npm ci
@@ -124,6 +127,14 @@ jobs:
           curl -sf -X POST \
             -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}" \
             "${{ env.BASE_URL }}/api/internal/cron/test-data/cleanup-seed-orders"
+
+      # 10.1 清理 frontend/e2e/journeys/ 真後端 journey 測試產生的 @e2e-journey.test 假帳號與關聯資料
+      - name: Cleanup E2E Journey Test Data
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}" \
+            "${{ env.BASE_URL }}/api/internal/cron/test-data/cleanup-e2e-journeys"
 
       # 11. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
       - name: Upload Playwright Report

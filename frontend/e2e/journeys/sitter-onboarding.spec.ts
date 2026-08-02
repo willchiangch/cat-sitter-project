@@ -1,4 +1,5 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
 import {
   provisionAndLogin,
@@ -7,6 +8,8 @@ import {
   loginAsSeedAdmin,
   apiAuthed
 } from './helpers';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * TS-JOURNEY-01：保母上架全流程。
@@ -44,7 +47,7 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });
       expect(statusRes.ok()).toBeTruthy();
       const statusBody = await statusRes.json();
-      expect(statusBody.kycStatus).toBe('PENDING_REVIEW');
+      expect(statusBody.data.kycStatus).toBe('PENDING_REVIEW');
     });
 
     // 3. API：admin 撈待審清單找到這筆申請
@@ -82,7 +85,7 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
     await test.step('確認保母 KYC 狀態已通過', async () => {
       const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });
       const statusBody = await statusRes.json();
-      expect(statusBody.kycStatus).toBe('VERIFIED');
+      expect(statusBody.data.kycStatus).toBe('VERIFIED');
     });
 
     // 6. API：開啟接單狀態
@@ -92,6 +95,27 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
         data: { isOpen: true }
       });
       expect(openRes.ok()).toBeTruthy();
+    });
+
+    // 6.5. API：設定公開檔案顯示名稱（Profile.displayName 預設是空的，SD-018 是獨立的資料欄位，
+    // 不會沿用 User.fullName，未設定的話公開頁的 <h1> 會是空字串）
+    const displayName = `Journey保母A公開顯示名稱-${Date.now()}`;
+    await test.step('保母設定公開檔案顯示名稱', async () => {
+      const selfRes = await request.get(`/api/sitter/profile/${sitter.userId}`, { headers: apiAuthed(sitter) });
+      expect(selfRes.ok()).toBeTruthy();
+      const selfProfile = await selfRes.json();
+      const updateRes = await request.put('/api/sitter/profile', {
+        headers: apiAuthed(sitter),
+        data: {
+          displayName,
+          bio: 'Journey A 自動化測試用保母自介',
+          isVisible: true,
+          tags: ['細心'],
+          serviceAreas: [],
+          version: selfProfile.version
+        }
+      });
+      expect(updateRes.ok()).toBeTruthy();
     });
 
     // 7. UI：建立多個服務方案
@@ -104,7 +128,8 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
         await page.getByTestId('sitter-plan-input-price').fill('600');
         await page.getByTestId('sitter-plan-input-capacity').fill('2');
         await page.getByTestId('sitter-plan-input-duration').fill('60');
-        await page.getByTestId('sitter-plan-checkbox-pet-CAT').click();
+        // 注意：openModal(null) 新增方案時預設就已勾選「CAT」（見 SitterPlans.tsx openModal），
+        // 這裡不用再點一次——點下去反而會把預設值切掉，導致「請至少選擇一種適用寵物類型」擋在儲存
         await page.getByTestId('sitter-plan-btn-save').click();
         await expect(page.getByText(planName)).toBeVisible({ timeout: 10000 });
       }
@@ -117,7 +142,7 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       const anonPage = await anonContext.newPage();
       await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
-      await expect(anonPage.getByTestId('public-profile-display-name')).toBeVisible();
+      await expect(anonPage.getByTestId('public-profile-display-name')).toHaveText(displayName);
       await expect(anonPage.getByTestId('public-profile-gated-banner')).not.toBeVisible();
       for (const planName of planNames) {
         await expect(anonPage.getByText(planName)).toBeVisible();
