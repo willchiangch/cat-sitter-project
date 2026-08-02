@@ -27,6 +27,12 @@ const decodeJwtRole = (token: string): string | null => {
 
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
+// 只允許同源相對路徑（單一 / 開頭、非 //），避免 redirect 參數被用來做開放重導向
+const getSafeRedirectTarget = (): string => {
+  const redirect = new URLSearchParams(window.location.search).get('redirect');
+  return redirect && /^\/(?!\/)/.test(redirect) ? redirect : '/demo';
+};
+
 const RegisterPage: React.FC = () => {
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [email, setEmail] = useState('');
@@ -83,7 +89,7 @@ const RegisterPage: React.FC = () => {
         localStorage.setItem('userRole', appRole);
       }
 
-      window.location.href = '/demo';
+      window.location.href = getSafeRedirectTarget();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || '驗證碼錯誤，請稍後再試');
     } finally {
@@ -223,7 +229,7 @@ const RegisterPage: React.FC = () => {
             </button>
 
             <Link
-              to="/login"
+              to={`/login${window.location.search}`}
               style={{ fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
             >
               已經有帳號了？返回登入

@@ -1,6 +1,7 @@
 package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.service.CompletionService;
+import com.petsitter.application.service.E2eJourneyDataCleanupService;
 import com.petsitter.application.service.NotificationCleanupService;
 import com.petsitter.application.service.TestDataCleanupService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class InternalCronController {
     private final NotificationCleanupService notificationCleanupService;
     private final com.petsitter.application.service.MediaRetentionService mediaRetentionService;
     private final TestDataCleanupService testDataCleanupService;
+    private final E2eJourneyDataCleanupService e2eJourneyDataCleanupService;
 
     /**
      * 外部排程器觸發自動結案
@@ -85,6 +87,21 @@ public class InternalCronController {
         return ResponseEntity.ok(Map.of(
                 "status", "SUCCESS",
                 "message", "Seed test order cleanup task completed",
+                "deletedCount", deletedCount
+        ));
+    }
+
+    /**
+     * CI 真後端 journey E2E 測試（frontend/e2e/journeys/）跑完後觸發，
+     * 硬刪除 @e2e-journey.test 網域產生的所有假帳號與關聯資料
+     */
+    @PostMapping("/test-data/cleanup-e2e-journeys")
+    public ResponseEntity<Map<String, Object>> cleanupE2eJourneyData() {
+        log.info("[InternalCronController] Received e2e journey test data cleanup trigger");
+        int deletedCount = e2eJourneyDataCleanupService.cleanup();
+        return ResponseEntity.ok(Map.of(
+                "status", "SUCCESS",
+                "message", "E2E journey test data cleanup task completed",
                 "deletedCount", deletedCount
         ));
     }

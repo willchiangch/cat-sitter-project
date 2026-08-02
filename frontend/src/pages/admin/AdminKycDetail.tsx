@@ -289,6 +289,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                   onClick={() => handleReview('APPROVE')}
                   disabled={actionLoading}
                   className="btn-primary"
+                  data-testid="admin-kyc-detail-approve-btn"
                   style={{
                     flex: 1,
                     padding: '12px',

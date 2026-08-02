@@ -36,6 +36,12 @@ const decodeJwtRole = (token: string): string | null => {
   }
 };
 
+// 只允許同源相對路徑（單一 / 開頭、非 //），避免 redirect 參數被用來做開放重導向
+const getSafeRedirectTarget = (): string => {
+  const redirect = new URLSearchParams(window.location.search).get('redirect');
+  return redirect && /^\/(?!\/)/.test(redirect) ? redirect : '/demo';
+};
+
 const applyAuthResponseAndRedirect = (data: { accessToken?: string; refreshToken?: string }) => {
   if (!data.accessToken) {
     throw new Error('登入失敗，請確認帳號密碼');
@@ -52,7 +58,7 @@ const applyAuthResponseAndRedirect = (data: { accessToken?: string; refreshToken
 
   // 用整頁重新整理讓 RoleContext 重新從 localStorage 初始化，
   // 避免它 mount 時的自動登入 useEffect 用種子帳號蓋掉這次真實登入
-  window.location.href = '/demo';
+  window.location.href = getSafeRedirectTarget();
 };
 
 const LoginPage: React.FC = () => {

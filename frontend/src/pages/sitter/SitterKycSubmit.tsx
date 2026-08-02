@@ -135,6 +135,7 @@ const SitterKycSubmit: React.FC = () => {
             當前認證狀態
           </span>
           <span
+            data-testid="sitter-kyc-status-badge"
             style={{
               padding: '6px 12px',
               borderRadius: '9999px',
@@ -370,6 +371,7 @@ const SitterKycSubmit: React.FC = () => {
               <input
                 type="file"
                 accept="image/*"
+                data-testid="sitter-kyc-id-front-input"
                 onChange={(e) => setIdCardFront(e.target.files?.[0] || null)}
                 style={{
                   width: '100%',
@@ -406,6 +408,7 @@ const SitterKycSubmit: React.FC = () => {
               <input
                 type="file"
                 accept="image/*"
+                data-testid="sitter-kyc-selfie-input"
                 onChange={(e) => setSelfie(e.target.files?.[0] || null)}
                 style={{
                   width: '100%',
@@ -443,6 +446,7 @@ const SitterKycSubmit: React.FC = () => {
               type="submit"
               disabled={submitting}
               className="btn-primary"
+              data-testid="sitter-kyc-submit-btn"
               style={{
                 padding: '12px',
                 fontSize: '1rem',

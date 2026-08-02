@@ -7,6 +7,7 @@ import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import DemoHome from './pages/DemoHome';
+import PublicSitterProfilePage from './pages/public/PublicSitterProfilePage';
 
 import SitterOrders from './pages/sitter/SitterOrders';
 import SitterLedger from './pages/sitter/SitterLedger';
@@ -115,6 +116,7 @@ function AppRoutes() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/sitter/:sitterId/profile" element={<PublicSitterProfilePage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<App />}>

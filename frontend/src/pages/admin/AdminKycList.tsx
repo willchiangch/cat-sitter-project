@@ -199,6 +199,7 @@ const AdminKycList: React.FC = () => {
                     {records.map((record) => (
                       <tr
                         key={record.recordId}
+                        data-testid="admin-kyc-row"
                         style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}
                       >
                         <td style={{ padding: '12px 10px', fontWeight: '500' }}>
@@ -214,6 +215,7 @@ const AdminKycList: React.FC = () => {
                           <button
                             className="btn-primary"
                             style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                            data-testid="admin-kyc-review-btn"
                             onClick={() => navigate(`/admin/kyc/${record.recordId}`)}
                           >
                             進入審查
@@ -310,6 +312,7 @@ const AdminKycList: React.FC = () => {
                   value={targetSitterId}
                   onChange={(e) => setTargetSitterId(e.target.value)}
                   placeholder="請輸入 sitterId"
+                  data-testid="admin-kyc-suspend-sitter-id-input"
                   style={{
                     width: '100%',
                     padding: '8px',
@@ -337,6 +340,7 @@ const AdminKycList: React.FC = () => {
                   value={suspendReason}
                   onChange={(e) => setSuspendReason(e.target.value.substring(0, 300))}
                   placeholder="例如：違反服務條款第七條，涉及私下交易..."
+                  data-testid="admin-kyc-suspend-reason-input"
                   rows={3}
                   style={{
                     width: '100%',
@@ -367,6 +371,7 @@ const AdminKycList: React.FC = () => {
                 <button
                   type="submit"
                   disabled={controlLoading}
+                  data-testid="admin-kyc-suspend-btn"
                   style={{
                     flex: 1,
                     padding: '10px 0',
@@ -385,6 +390,7 @@ const AdminKycList: React.FC = () => {
                   type="button"
                   disabled={controlLoading}
                   onClick={handleUnsuspend}
+                  data-testid="admin-kyc-unsuspend-btn"
                   style={{
                     flex: 1,
                     padding: '10px 0',
