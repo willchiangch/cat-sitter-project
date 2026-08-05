@@ -1,4 +1,10 @@
+import fs from 'fs';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import { fileURLToPath } from 'url';
 import type { APIRequestContext, Page, TestInfo } from '@playwright/test';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * 共用工具，給 frontend/e2e/journeys/ 底下的跨模組真後端 journey 測試使用。
@@ -172,6 +178,133 @@ export async function awaitNotification(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   throw new Error(`Timed out waiting for notification category=${options.category}`);
+}
+
+export interface BootstrappedSitter extends TestAccount {
+  planId: string;
+  planName: string;
+}
+
+/**
+ * 重跑 Journey A 驗證過的機械部分，純 API 兜出一個 VERIFIED + isOpen + 有一個上架方案的保母，
+ * 給 Journey B/C/D/E 當前置條件用（不重複走 UI，UI 部分已經在 Journey A 驗證過）。
+ */
+export async function bootstrapVerifiedSitter(
+  request: APIRequestContext,
+  scenario: string,
+  planNamePrefix: string
+): Promise<BootstrappedSitter> {
+  let sitter = await provisionAndLogin(request, scenario, 'SITTER', `Journey保母${scenario}`);
+  sitter = await switchRole(request, sitter, 'SITTER');
+
+  const kycRes = await request.post('/api/sitter/kyc', {
+    headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() },
+    multipart: {
+      idCardFront: {
+        name: 'front.jpg',
+        mimeType: 'image/jpeg',
+        buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-id-front.jpg'))
+      },
+      selfie: {
+        name: 'selfie.jpg',
+        mimeType: 'image/jpeg',
+        buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-selfie.jpg'))
+      }
+    }
+  });
+  if (!kycRes.ok()) {
+    throw new Error(`kyc submit failed (${kycRes.status()}): ${await kycRes.text()}`);
+  }
+
+  const admin = await loginAsSeedAdmin(request);
+  const pendingRes = await request.get('/api/admin/kyc/pending?page=0&size=50', { headers: apiAuthed(admin) });
+  const pendingBody = await pendingRes.json();
+  const record = pendingBody.data.content.find((r: any) => r.email === sitter.email);
+  if (!record) {
+    throw new Error(`pending kyc record not found for ${sitter.email}`);
+  }
+
+  const reviewRes = await request.post(`/api/admin/kyc/${record.recordId}/review`, {
+    headers: { ...apiAuthed(admin), 'Idempotency-Key': randomUUID() },
+    data: { action: 'APPROVE' }
+  });
+  if (!reviewRes.ok()) {
+    throw new Error(`kyc approve failed (${reviewRes.status()}): ${await reviewRes.text()}`);
+  }
+
+  const openRes = await request.put('/api/sitter/kyc/open', { headers: apiAuthed(sitter), data: { isOpen: true } });
+  if (!openRes.ok()) {
+    throw new Error(`open status failed (${openRes.status()}): ${await openRes.text()}`);
+  }
+
+  const selfRes = await request.get(`/api/sitter/profile/${sitter.userId}`, { headers: apiAuthed(sitter) });
+  const selfProfile = await selfRes.json();
+  const profileRes = await request.put('/api/sitter/profile', {
+    headers: apiAuthed(sitter),
+    data: {
+      displayName: `Journey保母${scenario}公開顯示名稱-${Date.now()}`,
+      bio: 'journey bootstrap sitter',
+      isVisible: true,
+      tags: ['細心'],
+      serviceAreas: [],
+      version: selfProfile.version
+    }
+  });
+  if (!profileRes.ok()) {
+    throw new Error(`profile update failed (${profileRes.status()}): ${await profileRes.text()}`);
+  }
+
+  const planName = `${planNamePrefix}-${Date.now()}`;
+  const planRes = await request.post('/api/sitter/plans', {
+    headers: apiAuthed(sitter),
+    data: {
+      name: planName,
+      price: 600,
+      dailyCapacity: 5,
+      durationMinutes: 60,
+      defaultTasks: ['基本餵食'],
+      applicablePetTypes: ['CAT'],
+      description: '',
+      isRestricted: false
+    }
+  });
+  if (!planRes.ok()) {
+    throw new Error(`plan create failed (${planRes.status()}): ${await planRes.text()}`);
+  }
+  const planBody = await planRes.json();
+
+  return { ...sitter, planId: planBody.data.id, planName };
+}
+
+/**
+ * 輪詢 GET /api/orders/{orderId} 直到狀態進入期望集合。
+ *
+ * 實測發現：飼主端送出預約後，緊接著（約 1 秒內）用保母帳號查 GET /api/orders/sitter
+ * 有機率查到空陣列，即使該筆訂單已經 201 建立成功——正式站底層連線池/查詢路徑在極短時間
+ * 內偶爾有讀寫不同步的情形。不能假設「動作 API 回應 200/201 後，下一個查詢就一定看得到」，
+ * 跨模組 journey 的每個狀態轉移之後都應該像這樣 poll 過一輪再繼續，不要直接切換身份就查列表頁。
+ */
+export async function awaitOrderStatus(
+  request: APIRequestContext,
+  account: TestAccount,
+  orderId: string,
+  expectedStatuses: string[],
+  timeoutMs = 15000
+): Promise<any> {
+  const intervalMs = 500;
+  const deadline = Date.now() + timeoutMs;
+  let last: any;
+  while (Date.now() < deadline) {
+    const res = await request.get(`/api/orders/${orderId}`, { headers: apiAuthed(account) });
+    if (res.ok()) {
+      last = await res.json();
+      if (expectedStatuses.includes(last.status)) return last;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error(
+    `Timed out waiting for order ${orderId} status in [${expectedStatuses.join(',')}], last=${JSON.stringify(last)}`
+  );
 }
 
 /** 比照 client-booking.spec.ts 的截圖慣例，附進 HTML 報告 */

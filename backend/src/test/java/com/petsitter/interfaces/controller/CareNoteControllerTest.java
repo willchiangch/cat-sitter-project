@@ -66,6 +66,8 @@ class CareNoteControllerTest {
     private User sitterA;
     private User ownerA;
     private User sitterB;
+    private User sitterNoSubscription;
+    private User ownerForNoSubscription;
 
     @BeforeEach
     void setUp() {
@@ -79,6 +81,13 @@ class CareNoteControllerTest {
         subscriptionRepository.save(Subscription.builder().sitter(sitterB).planTier("FREE").build());
 
         ownerA = userRepository.save(User.builder().email("ownerA@test.com").passwordHash("hash").role("OWNER").build());
+
+        // 刻意不建 subscriptions 資料列，模擬絕大多數新保母的正常狀態
+        // （正式流程沒有任何地方會自動幫保母開通訂閱，只有 admin 手動開通才會寫這張表）
+        sitterNoSubscription = userRepository.save(
+                User.builder().email("sitterNoSub@test.com").passwordHash("hash").role("SITTER").build());
+        ownerForNoSubscription = userRepository.save(
+                User.builder().email("ownerForNoSub@test.com").passwordHash("hash").role("OWNER").build());
     }
 
     @AfterEach
@@ -164,5 +173,29 @@ class CareNoteControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("Scenario 10: PlanGatingAspect 迴歸 — 保母沒有 subscriptions 資料列時視為 FREE，不應 403")
+    void should_Return200_When_SitterHasNoSubscriptionRow() throws Exception {
+        TokenContext.setUserId(sitterNoSubscription.getId());
+
+        mockMvc.perform(get("/api/care-notes/{sitterId}/{ownerId}", sitterNoSubscription.getId(), ownerForNoSubscription.getId())
+                .with(user(sitterNoSubscription.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        CareNoteRequest request = new CareNoteRequest();
+        request.setItems(List.of(
+                CareNoteItemDto.builder().sectionType("SERVICE").title("標題").content("內容").build()
+        ));
+
+        mockMvc.perform(put("/api/care-notes/{sitterId}/{ownerId}", sitterNoSubscription.getId(), ownerForNoSubscription.getId())
+                .header("Idempotency-Key", "idemp-key-no-subscription")
+                .with(user(sitterNoSubscription.getId().toString()).roles("SITTER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
     }
 }

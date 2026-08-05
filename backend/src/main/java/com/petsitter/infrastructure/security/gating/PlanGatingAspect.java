@@ -43,10 +43,14 @@ public class PlanGatingAspect {
         }
 
         // 2. 獲取目前方案
-        Subscription sub = subscriptionRepository.findBySitterId(sitterId)
-                .orElseThrow(() -> new AuthPlanLimitException("找不到保母訂閱資訊，無法驗證方案權限"));
-
-        PlanTier currentTier = PlanTier.fromString(sub.getPlanTier());
+        // 沒有 subscriptions 資料列（絕大多數新保母的正常狀態——正式訂閱流程只有 admin 手動開通
+        // 或保母自己呼叫 mock 端點才會寫入這張表，KYC 通過等一般流程都不會）視為 FREE 方案，
+        // 不是例外狀況：FREE 本來就該是所有人預設可用的最低層級，過去 orElseThrow 會讓所有
+        // 從未被 admin 手動開通過訂閱的保母連 @RequirePlan(FREE) 的功能都直接 403。
+        PlanTier currentTier = subscriptionRepository.findBySitterId(sitterId)
+                .map(Subscription::getPlanTier)
+                .map(PlanTier::fromString)
+                .orElse(PlanTier.FREE);
 
         // 3. 特殊邏輯：對於報價請求，如果涉及調價，強制要求 PRO 方案
         Object[] args = joinPoint.getArgs();
