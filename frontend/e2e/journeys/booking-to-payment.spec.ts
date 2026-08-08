@@ -6,6 +6,7 @@ import {
   setBrowserAuth,
   bootstrapVerifiedSitter,
   awaitOrderStatus,
+  pollUntil,
   apiAuthed
 } from './helpers';
 
@@ -66,7 +67,11 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await ownerPage.getByTestId('input-pet-name').fill('Journey測試貓B');
       await ownerPage.getByTestId('avatar-file-input').setInputFiles(path.join(__dirname, 'fixtures/pet-avatar.jpg'));
       await ownerPage.getByTestId('btn-save-pet').click();
-      await expect(ownerPage.getByText('Journey測試貓B')).toBeVisible({ timeout: 10000 });
+      // 存檔後 PetManager 會自動切到該寵物的編輯面板，畫面上同時有「寵物卡片」與
+      // 「編輯 XXX 的基本資料」兩處都含寵物名稱文字，用寬鬆的 getByText 會撞 strict mode
+      await expect(
+        ownerPage.getByTestId('pet-card').getByRole('heading', { name: 'Journey測試貓B' })
+      ).toBeVisible({ timeout: 10000 });
       await testInfo.attach('B-03-寵物建立完成', { body: await ownerPage.screenshot(), contentType: 'image/png' });
     });
 
@@ -138,6 +143,16 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await page.getByTestId('sitter-carenote-item-content').fill(careNoteContent);
       await page.getByTestId('sitter-carenote-save-btn').click();
       await testInfo.attach('B-08-保母寫入記事本', { body: await page.screenshot(), contentType: 'image/png' });
+
+      // 同 awaitOrderStatus 的教訓：保母存檔後，飼主緊接著查詢有機率撲空（見 pollUntil 註解），
+      // 先用 API poll 確認資料真的可讀了，再切去 UI 驗證顯示
+      await pollUntil(
+        async () => {
+          const res = await request.get(`/api/care-notes/${sitter.userId}/${owner.userId}`, { headers: apiAuthed(owner) });
+          return res.ok() ? res.json() : null;
+        },
+        (body) => JSON.stringify(body).includes(careNoteContent)
+      );
 
       await ownerPage.goto(`/care-notes/view/${sitter.userId}/${owner.userId}`);
       await expect(ownerPage.getByText(careNoteContent)).toBeVisible({ timeout: 10000 });

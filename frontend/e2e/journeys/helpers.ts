@@ -307,6 +307,32 @@ export async function awaitOrderStatus(
   );
 }
 
+/**
+ * 通用輪詢：重複執行 fn() 直到回傳 truthy 或逾時。
+ *
+ * 跟 awaitOrderStatus 一樣的教訓，但這次踩在完全不同的模組（照護記事本）上：
+ * 保母 PUT 記事本回應 200 後，飼主帳號緊接著（同一 test 內，前後不到 50ms）GET 同一份
+ * 記事本查到的還是舊內容，隔了約 2-3 秒後再查才看得到新內容。跟訂單那次合併起來看，
+ * 這比較像是正式環境本身的特性（可能跟 Cloud Run 多執行個體 + Supabase 連線池有關，
+ * 沒有再往下深究），不是單一端點的個案——**跨模組 journey 只要涉及「不同身份/session
+ * 幾乎同時讀寫同一筆資料」，都要假設有幾秒的不一致視窗，用 poll 代替立即斷言。**
+ */
+export async function pollUntil<T>(
+  fn: () => Promise<T>,
+  predicate: (value: T) => boolean,
+  timeoutMs = 15000,
+  intervalMs = 500
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  let last: T;
+  do {
+    last = await fn();
+    if (predicate(last)) return last;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  } while (Date.now() < deadline);
+  throw new Error(`pollUntil timed out after ${timeoutMs}ms, last value=${JSON.stringify(last)}`);
+}
+
 /** 比照 client-booking.spec.ts 的截圖慣例，附進 HTML 報告 */
 export async function attachScreenshot(page: Page, testInfo: TestInfo, name: string) {
   await testInfo.attach(name, { body: await page.screenshot(), contentType: 'image/png' });
