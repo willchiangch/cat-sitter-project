@@ -93,8 +93,9 @@ sequenceDiagram
 ### 4.1 開始行程 (Check-in)
 * **Method**: `POST`
 * **Path**: `/api/visits/{visitId}/start`
-* **說明**: 保母抵達現場點擊開始，觸發行程與訂單狀態流轉。
+* **說明**: 保母抵達現場點擊開始，觸發行程與訂單狀態流轉。**只更新 `Visit`/`Order` 狀態，不會建立 `VisitServiceReport` 資料列**（草稿要等保母第一次存檔 `PUT .../report` 才由 `getOrCreateDraftReport` 建立）。
 * **權限**: 僅限 `SITTER` 角色，且需為訂單之受託保母。
+* **2026-08 修復的迴歸缺陷**：`VisitReportService.getReport()` 保母分支過去在查無報告時直接丟 404，前端 `useVisitReportQuery` 接住 404 後回傳一個**寫死 `visitStatus: 'PENDING'`** 的 fallback DTO，導致 Check-in 之後（此時報告仍不存在）畫面永遠讀到這個寫死 fallback，永遠顯示「待執行」面板，保母完全進不去日誌編輯畫面。修法：查無報告時後端改回傳一個空白草稿 DTO，`visitStatus` 帶入 `visit.getStatus()` 真實值，不再讓前端用 404 去猜狀態。詳見 `VisitReportControllerTest.should_ReturnDraftReport_NotFound_When_SitterQueriesReportRightAfterStartVisit`。
 
 #### Request Header
 ```http

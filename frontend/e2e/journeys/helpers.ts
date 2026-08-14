@@ -307,6 +307,88 @@ export async function awaitOrderStatus(
   );
 }
 
+export interface ConfirmedOrderContext {
+  sitter: BootstrappedSitter;
+  owner: TestAccount;
+  orderId: string;
+}
+
+/**
+ * 純 API 重跑 Journey A（保母上架）+ Journey B（下單到付款）驗證過的機械部分，
+ * 兜出一筆 CONFIRMED 訂單，給 Journey C/D/E 當前置條件用，不重複走 UI。
+ */
+export async function bootstrapConfirmedOrder(
+  request: APIRequestContext,
+  scenario: string,
+  planNamePrefix: string
+): Promise<ConfirmedOrderContext> {
+  const sitter = await bootstrapVerifiedSitter(request, scenario, planNamePrefix);
+  const owner = await provisionAndLogin(request, scenario, 'OWNER', `Journey飼主${scenario}`);
+
+  const petRes = await request.post('/api/pets', {
+    headers: apiAuthed(owner),
+    data: { name: `Journey測試貓${scenario}`, species: 'CAT' }
+  });
+  if (!petRes.ok()) {
+    throw new Error(`pet create failed (${petRes.status()}): ${await petRes.text()}`);
+  }
+  const petBody = await petRes.json();
+  const petId = petBody.data.id;
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dateStr = tomorrow.toISOString().split('T')[0];
+
+  const bookingRes = await request.post('/api/orders/booking', {
+    headers: { ...apiAuthed(owner), 'Idempotency-Key': randomUUID() },
+    data: {
+      ownerId: owner.userId,
+      sitterId: sitter.userId,
+      items: [{ planId: sitter.planId, dates: [dateStr], timesPerDay: 1, petIds: [petId] }],
+      answers: [],
+      expectedTotalAmount: 600
+    }
+  });
+  if (!bookingRes.ok()) {
+    throw new Error(`booking failed (${bookingRes.status()}): ${await bookingRes.text()}`);
+  }
+  const { orderId } = await bookingRes.json();
+  await awaitOrderStatus(request, owner, orderId, ['PENDING']);
+
+  const confirmRes = await request.post(`/api/orders/${orderId}/confirm?sitterId=${sitter.userId}`, {
+    headers: apiAuthed(sitter)
+  });
+  if (!confirmRes.ok()) {
+    throw new Error(`confirm failed (${confirmRes.status()}): ${await confirmRes.text()}`);
+  }
+  await awaitOrderStatus(request, owner, orderId, ['PENDING_PAYMENT']);
+
+  const paymentRes = await request.post(`/api/orders/${orderId}/payment-proof`, {
+    headers: { ...apiAuthed(owner), 'Idempotency-Key': randomUUID() },
+    multipart: {
+      file: {
+        name: 'proof.jpg',
+        mimeType: 'image/jpeg',
+        buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-selfie.jpg'))
+      },
+      lastFive: '12345',
+      disclaimerAgreed: 'true'
+    }
+  });
+  if (!paymentRes.ok()) {
+    throw new Error(`payment-proof failed (${paymentRes.status()}): ${await paymentRes.text()}`);
+  }
+  await awaitOrderStatus(request, sitter, orderId, ['PAID']);
+
+  const verifyRes = await request.post(`/api/orders/${orderId}/verify-payment`, { headers: apiAuthed(sitter) });
+  if (!verifyRes.ok()) {
+    throw new Error(`verify-payment failed (${verifyRes.status()}): ${await verifyRes.text()}`);
+  }
+  await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
+
+  return { sitter, owner, orderId };
+}
+
 /**
  * 通用輪詢：重複執行 fn() 直到回傳 truthy 或逾時。
  *

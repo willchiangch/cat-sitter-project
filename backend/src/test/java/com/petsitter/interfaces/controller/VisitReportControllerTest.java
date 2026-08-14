@@ -616,6 +616,43 @@ class VisitReportControllerTest {
     }
 
     @Test
+    @DisplayName("Scenario 16d: 迴歸測試 — Check-in 後查報告不應 404，visitStatus 需反映真實狀態")
+    void should_ReturnDraftReport_NotFound_When_SitterQueriesReportRightAfterStartVisit() throws Exception {
+        // startVisit() 只更新 Visit/Order 狀態，不會建立 VisitServiceReport 資料列，
+        // getReport() 過去對保母分支查無報告直接丟 404，導致前端永遠拿到寫死 PENDING 的
+        // fallback，Check-in 後日誌編輯畫面永遠打不開
+        TokenContext.setUserId(sitter.getId());
+
+        Order confirmedOrder = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("CONFIRMED")
+                .planId(UUID.randomUUID())
+                .build());
+
+        Visit pendingVisit = visitRepository.save(Visit.builder()
+                .order(confirmedOrder)
+                .status("PENDING")
+                .planId(confirmedOrder.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+
+        mockMvc.perform(post("/api/visits/{visitId}/start", pendingVisit.getId())
+                .header("Idempotency-Key", "start-visit-key-regression")
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/visits/{visitId}/report", pendingVisit.getId())
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visitStatus").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.isEditable").value(true));
+    }
+
+    @Test
     @DisplayName("Scenario 16b: 後續日 Check-in 成功（訂單已為 IN_PROGRESS 狀態）")
     void should_StartVisit_OnSubsequentDay_Successfully() throws Exception {
         TokenContext.setUserId(sitter.getId());

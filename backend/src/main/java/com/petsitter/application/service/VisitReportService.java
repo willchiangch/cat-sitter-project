@@ -407,7 +407,23 @@ public class VisitReportService {
             return convertToDto(report, visit);
         } else {
             if (optReport.isEmpty()) {
-                throw new VisitReportException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "日誌尚未建立");
+                // startVisit() 只更新 Visit/Order 狀態，不會建立 VisitServiceReport 資料列
+                // （草稿要等保母第一次存檔才真的存在），這裡回傳一個空白草稿的合成 DTO，
+                // visitStatus 帶入真實 visit 狀態，而不是讓前端在 404 時自己猜一個寫死的
+                // PENDING——後者會導致 Check-in 後 visitStatus 永遠停在 PENDING，畫面卡死
+                // 在待執行面板，保母永遠進不去編輯畫面。
+                return VisitServiceReportDto.builder()
+                        .reportId(null)
+                        .visitId(visitId)
+                        .status("DRAFT")
+                        .content("")
+                        .submittedAt(null)
+                        .media(List.of())
+                        .isEditable("IN_PROGRESS".equals(visit.getStatus()))
+                        .version(0)
+                        .visitStatus(visit.getStatus())
+                        .isPurged(false)
+                        .build();
             }
             return convertToDto(optReport.get(), visit);
         }
