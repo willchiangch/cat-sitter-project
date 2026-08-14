@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getMyOrdersAsOwner,
   getMyOrdersAsSitter,
+  getOrderVisits,
   getSitterLedger,
   verifyPayment,
   rejectPayment
 } from '../api/orderApi';
-import type { OrderSummaryDto, SitterLedgerResponse } from '../api/orderApi';
+import type { OrderSummaryDto, SitterLedgerResponse, VisitSummaryDto } from '../api/orderApi';
 
 export const useOwnerOrdersQuery = () => {
   return useQuery<OrderSummaryDto[], Error>({
@@ -21,6 +22,16 @@ export const useSitterOrdersQuery = () => {
     queryKey: ['orders', 'sitter'],
     queryFn: getMyOrdersAsSitter,
     staleTime: 60 * 1000
+  });
+};
+
+// 訂單底下的行程清單，供 CONFIRMED/IN_PROGRESS 訂單串接打卡/日誌回報頁面 (SD-008)
+export const useOrderVisitsQuery = (orderId: string, enabled: boolean) => {
+  return useQuery<VisitSummaryDto[], Error>({
+    queryKey: ['orders', orderId, 'visits'],
+    queryFn: () => getOrderVisits(orderId),
+    enabled,
+    staleTime: 30 * 1000
   });
 };
 

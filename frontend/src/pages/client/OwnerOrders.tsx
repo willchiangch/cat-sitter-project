@@ -16,6 +16,7 @@ const OwnerOrders: React.FC = () => {
       return [
         'PENDING',
         'CONFIRMED',
+        'IN_PROGRESS',
         'MODIFYING',
         'REFUND_VERIFY',
         'PENDING_PAYMENT',

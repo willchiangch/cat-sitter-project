@@ -3,10 +3,16 @@ package com.petsitter.interfaces.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.service.EvaluationService;
+import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
+import com.petsitter.domain.model.Visit;
+import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
+import com.petsitter.domain.repository.VisitRepository;
+import com.petsitter.infrastructure.security.TokenContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,9 +29,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -58,21 +67,57 @@ class OrderControllerTest {
     @Autowired
     private SubscriptionRepository subscriptionRepository;
 
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private VisitRepository visitRepository;
+
     @MockitoBean
     private EvaluationService evaluationService;
 
     private UUID sitterId;
     private UUID orderId;
+    private UUID ownerId;
+    private UUID realOrderId;
+    private UUID visitId;
 
     @BeforeEach
     void setUp() {
         subscriptionRepository.deleteAll();
+        orderRepository.deleteAll();
         userRepository.deleteAll();
 
         User sitter = User.builder().email("sitter@test.com").passwordHash("hash").role("SITTER").build();
         userRepository.save(sitter);
         this.sitterId = sitter.getId();
         this.orderId = UUID.randomUUID();
+
+        User owner = userRepository.save(User.builder().email("owner-orderdetail@test.com").passwordHash("hash").role("OWNER").build());
+        this.ownerId = owner.getId();
+
+        Order realOrder = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("CONFIRMED")
+                .planId(UUID.randomUUID())
+                .build());
+        this.realOrderId = realOrder.getId();
+
+        Visit visit = visitRepository.save(Visit.builder()
+                .order(realOrder)
+                .status("PENDING")
+                .planId(realOrder.getPlanId())
+                .snapshotPlanTitle("測試方案")
+                .scheduledAt(OffsetDateTime.now())
+                .build());
+        this.visitId = visit.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TokenContext.clear();
     }
 
     @Test
@@ -118,5 +163,39 @@ class OrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("GET /{orderId}/visits：保母查詢自己訂單的行程清單成功")
+    void should_ReturnVisits_When_SitterQueriesOwnOrder() throws Exception {
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(get("/api/orders/{orderId}/visits", realOrderId)
+                .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(visitId.toString()))
+                .andExpect(jsonPath("$[0].status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("GET /{orderId}/visits：飼主查詢自己訂單的行程清單成功")
+    void should_ReturnVisits_When_OwnerQueriesOwnOrder() throws Exception {
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(get("/api/orders/{orderId}/visits", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(visitId.toString()));
+    }
+
+    @Test
+    @DisplayName("GET /{orderId}/visits：BOLA 防護 — 非訂單雙方查詢應被拒絕")
+    void should_Return403_When_UnrelatedUserQueriesVisits() throws Exception {
+        User unrelated = userRepository.save(User.builder().email("unrelated-orderdetail@test.com").passwordHash("hash").role("SITTER").build());
+        TokenContext.setUserId(unrelated.getId());
+
+        mockMvc.perform(get("/api/orders/{orderId}/visits", realOrderId)
+                .with(user(unrelated.getId().toString()).roles("SITTER")))
+                .andExpect(status().isForbidden());
     }
 }

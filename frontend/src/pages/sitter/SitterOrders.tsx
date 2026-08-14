@@ -4,11 +4,63 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import Card from '../../components/ui/Card';
 import {
   useSitterOrdersQuery,
+  useOrderVisitsQuery,
   useVerifyPaymentMutation,
   useRejectPaymentMutation
 } from '../../hooks/useOrders';
 
 type TabType = 'evaluating' | 'ongoing' | 'history';
+
+// 訂單成立後的行程清單，串接打卡/日誌回報頁面 (SD-008)。訂單列表/詳情本身不帶 visitId，
+// 只能靠 GET /api/orders/{orderId}/visits 另外查
+const SitterOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
+  const navigate = useNavigate();
+  const { data: visits = [], isLoading } = useOrderVisitsQuery(orderId, true);
+
+  if (isLoading) return null;
+  if (visits.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        borderTop: '1px solid var(--color-surface-high)',
+        paddingTop: '1rem',
+        marginTop: '1rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem'
+      }}
+    >
+      <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--color-on-surface)' }}>行程</h4>
+      {visits.map((visit) => (
+        <div
+          key={visit.id}
+          data-testid="sitter-order-visit-item"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: 'var(--color-surface-low)',
+            borderRadius: '8px',
+            fontSize: '0.875rem'
+          }}
+        >
+          <span>{new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/visit-reports/manage/${visit.id}`)}
+            className="btn-primary"
+            data-testid="sitter-order-visit-link"
+            style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+          >
+            {visit.status === 'PENDING' ? '打卡 / 回報' : '查看日誌'}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const SitterOrders: React.FC = () => {
   const navigate = useNavigate();
@@ -53,9 +105,14 @@ const SitterOrders: React.FC = () => {
   const filteredOrders = orders.filter((order) => {
     if (activeTab === 'evaluating') return order.status === 'PENDING';
     if (activeTab === 'ongoing')
-      return ['PENDING_PAYMENT', 'PAID', 'CONFIRMED', 'MODIFYING', 'REFUND_VERIFY'].includes(
-        order.status
-      );
+      return [
+        'PENDING_PAYMENT',
+        'PAID',
+        'CONFIRMED',
+        'IN_PROGRESS',
+        'MODIFYING',
+        'REFUND_VERIFY'
+      ].includes(order.status);
     return order.status === 'COMPLETED' || order.status === 'CANCELLED';
   });
 
@@ -241,6 +298,11 @@ const SitterOrders: React.FC = () => {
                     查看並處理訂單
                   </button>
                 </div>
+              )}
+
+              {/* 行程打卡/日誌回報入口 (成立後才有實際行程可打卡，CONFIRMED/IN_PROGRESS 皆顯示) */}
+              {(order.status === 'CONFIRMED' || order.status === 'IN_PROGRESS') && (
+                <SitterOrderVisitList orderId={order.id} />
               )}
 
               {/* 保母憑證核對面板 (僅在 status === 'PAID' 時顯示) */}

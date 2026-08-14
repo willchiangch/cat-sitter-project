@@ -144,6 +144,23 @@ Idempotency-Key: <UUID> (必填)
 
 ---
 
+### 4.3 查詢訂單行程清單 (2026-08 補上)
+* **Method**: `GET`
+* **Path**: `/api/orders/{orderId}/visits`（掛在 `OrderController`，非 `VisitReportController`，因為是以訂單為查詢主體）
+* **說明**：補上這支之前，`CONFIRMED`/`IN_PROGRESS` 訂單的前端頁面（`SitterOrders`/`OwnerOrderDetail`）完全沒有取得 `visitId` 的管道，導致本節 4.1/4.2 的 Check-in/Check-out 與日誌回報頁面在正式環境事實上只有 `DemoHome.tsx` 寫死的假 `visitId` 連結可以到，真實使用者從訂單列表點不進去——跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-03`）設計階段發現此缺口後一併補上。
+* **權限**：`OWNER`/`SITTER` 皆可，沿用 `getOrderDetail` 同一套 BOLA 驗證（僅訂單雙方可查）。
+
+#### Response (200 OK)
+```json
+[
+  { "id": "2624511e-...", "status": "PENDING", "scheduledAt": "2026-08-05T00:00:00Z", "finishedAt": null }
+]
+```
+* 前端 `SitterOrders.tsx`（CONFIRMED/IN_PROGRESS 卡片）與 `OwnerOrderDetail.tsx`（同狀態）依此清單渲染行程列表，導向 `/visit-reports/manage|view/{visitId}`。
+* 同時修正 `SitterOrders.tsx`/`OwnerOrders.tsx` 的「進行中」分頁篩選漏了 `IN_PROGRESS` 狀態（保母打卡後訂單反而在三個分頁都找不到）。
+
+---
+
 ## 5. 異常錯誤代碼
 
 對應處理例外時應回傳之 `HttpStatus` 與錯誤代碼：

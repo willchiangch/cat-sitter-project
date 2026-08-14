@@ -291,6 +291,19 @@ export const getOrderDetail = async (orderId: string): Promise<OrderDetailRespon
   return response.data;
 };
 
+export interface VisitSummaryDto {
+  id: string;
+  status: string; // PENDING, IN_PROGRESS, DONE, CLOSED_BY_SYSTEM
+  scheduledAt: string;
+  finishedAt?: string;
+}
+
+// 查詢訂單底下的行程清單，用來串接打卡/日誌回報頁面 (SD-008)
+export const getOrderVisits = async (orderId: string): Promise<VisitSummaryDto[]> => {
+  const response = await axiosClient.get(`/orders/${orderId}/visits`);
+  return response.data;
+};
+
 export interface OrderSummaryDto {
   id: string;
   ownerId: string;

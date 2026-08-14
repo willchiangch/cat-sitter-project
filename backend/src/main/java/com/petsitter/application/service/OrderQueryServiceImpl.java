@@ -4,12 +4,15 @@ import com.petsitter.application.dto.OrderDetailResponseDto;
 import com.petsitter.application.dto.OrderLedgerEntryDto;
 import com.petsitter.application.dto.OrderSummaryDto;
 import com.petsitter.application.dto.SitterLedgerResponse;
+import com.petsitter.application.dto.VisitSummaryDto;
 import com.petsitter.domain.model.BankAccountInfo;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.Profile;
+import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ProfileRepository;
+import com.petsitter.domain.repository.VisitRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -29,24 +32,14 @@ public class OrderQueryServiceImpl implements OrderQueryService {
 
     private final OrderRepository orderRepository;
     private final ProfileRepository profileRepository;
+    private final VisitRepository visitRepository;
 
     @Override
     @Transactional(readOnly = true)
     public OrderDetailResponseDto getOrderDetail(UUID orderId, UUID requesterId) {
         log.info("Querying order details for order: {}, requester: {}", orderId, requesterId);
 
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到對應的訂單: " + orderId));
-
-        // BOLA 安全性檢核：請求者必須是訂單的飼主或保母
-        boolean isOwner = order.getOwner().getId().equals(requesterId);
-        boolean isSitter = order.getSitter().getId().equals(requesterId);
-
-        if (!isOwner && !isSitter) {
-            log.error("BOLA Violation: User {} tried to query details for order {} owned by {} and assigned to {}", 
-                    requesterId, orderId, order.getOwner().getId(), order.getSitter().getId());
-            throw new AccessDeniedException("權限不足：您非此訂單的飼主或服務保母");
-        }
+        Order order = requireOrderParty(orderId, requesterId);
 
         // 依訂單狀態過濾並注入保母匯款帳戶資訊 (僅 PENDING_PAYMENT 與 PAID 開放)
         BankAccountInfo bankAccountInfo = null;
@@ -79,6 +72,40 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .items(order.getItems())
                 .sitterPaymentInfo(bankAccountInfo)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VisitSummaryDto> getOrderVisits(UUID orderId, UUID requesterId) {
+        requireOrderParty(orderId, requesterId);
+
+        return visitRepository.findByOrderId(orderId).stream()
+                .sorted(java.util.Comparator.comparing(Visit::getScheduledAt))
+                .map(visit -> VisitSummaryDto.builder()
+                        .id(visit.getId())
+                        .status(visit.getStatus())
+                        .scheduledAt(visit.getScheduledAt())
+                        .finishedAt(visit.getFinishedAt())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * BOLA 安全性檢核：請求者必須是訂單的飼主或保母，共用於 getOrderDetail/getOrderVisits
+     */
+    private Order requireOrderParty(UUID orderId, UUID requesterId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到對應的訂單: " + orderId));
+
+        boolean isOwner = order.getOwner().getId().equals(requesterId);
+        boolean isSitter = order.getSitter().getId().equals(requesterId);
+
+        if (!isOwner && !isSitter) {
+            log.error("BOLA Violation: User {} tried to access order {} owned by {} and assigned to {}",
+                    requesterId, orderId, order.getOwner().getId(), order.getSitter().getId());
+            throw new AccessDeniedException("權限不足：您非此訂單的飼主或服務保母");
+        }
+        return order;
     }
 
     @Override

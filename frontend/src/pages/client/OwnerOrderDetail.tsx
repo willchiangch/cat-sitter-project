@@ -11,10 +11,52 @@ import {
 } from '../../api/orderApi';
 import type { OrderDetailResponseDto } from '../../api/orderApi';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useOrderVisitsQuery } from '../../hooks/useOrders';
 
 interface OwnerOrderDetailProps {
   orderId: string;
 }
+
+// 訂單成立後的行程清單唯讀檢視，串接日誌檢視頁面 (SD-008)。訂單詳情本身不帶 visitId，
+// 只能靠 GET /api/orders/{orderId}/visits 另外查
+const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
+  const navigate = useNavigate();
+  const { data: visits = [], isLoading } = useOrderVisitsQuery(orderId, true);
+
+  if (isLoading || visits.length === 0) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+      <h4 style={{ margin: '0 0 0.25rem 0' }}>行程</h4>
+      {visits.map((visit) => (
+        <div
+          key={visit.id}
+          data-testid="owner-order-visit-item"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: 'var(--color-surface-low)',
+            borderRadius: '8px',
+            fontSize: '0.875rem'
+          }}
+        >
+          <span>{new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/visit-reports/view/${visit.id}`)}
+            className="btn-primary"
+            data-testid="owner-order-visit-link"
+            style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+          >
+            查看日誌
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -432,6 +474,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {(status === 'CONFIRMED' || status === 'IN_PROGRESS') && (
             <>
+              <OwnerOrderVisitList orderId={orderId} />
               <button
                 onClick={handleComplete}
                 disabled={loading}

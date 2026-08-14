@@ -287,6 +287,20 @@ public class OrderController {
     }
 
     /**
+     * 查詢訂單底下的行程清單，供前端串接打卡/日誌回報頁面（SD-008）。
+     * CONFIRMED 之後訂單列表/詳情頁本身不帶 visitId，需要靠這支端點才找得到對應的
+     * /visit-reports/manage|view/{visitId} 頁面。
+     */
+    @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
+    @GetMapping("/{orderId}/visits")
+    public ResponseEntity<List<com.petsitter.application.dto.VisitSummaryDto>> getOrderVisits(
+            @PathVariable UUID orderId) {
+
+        UUID requesterId = TokenContext.getUserId();
+        return ResponseEntity.ok(orderQueryService.getOrderVisits(orderId, requesterId));
+    }
+
+    /**
      * 飼主查詢自己的訂單清單
      */
     @PreAuthorize("hasRole('OWNER')")
