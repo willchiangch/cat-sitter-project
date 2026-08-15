@@ -170,7 +170,9 @@ export async function awaitNotification(
     const res = await request.get(`/api/notifications${query}`, { headers: apiAuthed(account) });
     if (res.ok()) {
       const body = await res.json();
-      const found = (body.content ?? []).find(
+      // GET /api/notifications 回傳 { code, message, data: { content, page, ... } }，
+      // 不是把 content 攤平在最外層，body.content 永遠是 undefined。
+      const found = (body.data?.content ?? []).find(
         (n: any) => n.category === options.category && (!options.predicate || options.predicate(n))
       );
       if (found) return found;

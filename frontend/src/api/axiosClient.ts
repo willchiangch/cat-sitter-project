@@ -30,6 +30,14 @@ axiosClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // axios instance 預設帶 Content-Type: application/json；當 body 是 FormData 時，
+    // axios 的 transformRequest 一偵測到 Content-Type 含 application/json 就會把 FormData
+    // 轉成 JSON.stringify(formDataToJSON(data))，File 物件序列化後變成 {}，等於整包檔案內容
+    // 憑空消失，後端收到的永遠是空檔案。這裡統一刪掉 Content-Type，讓瀏覽器自己補上正確
+    // 帶 boundary 的 multipart/form-data，不用每個上傳呼叫點各自記得覆寫。
+    if (config.data instanceof FormData) {
+      config.headers.delete('Content-Type');
+    }
     return config;
   },
   (error) => Promise.reject(error)

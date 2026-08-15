@@ -633,6 +633,7 @@ CREATE INDEX idx_idempotency_keys_created ON idempotency_keys(created_at);
 - **Auth**: `ROLE_SITTER`
 - **Response (201 Created)**: `{"code": 201, "data": {"mediaId": "uuid", "mediaUrl": "url"}}`
 - **Response (400 超限)**: `{"code": 400, "message": "媒體已達上限"}`
+- **2026-08 修復的迴歸缺陷**：前端 `careApi.ts` 呼叫此端點沒有覆寫 axios 的預設 `Content-Type: application/json`（與 [SD-022](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-022-care-log.md) 4.2 節的照護日誌媒體上傳同一根因），axios 偵測到 Content-Type 含 `application/json` 時會把 `FormData` 強制 `JSON.stringify`，`File` 序列化後變 `{}`，正式站上傳一律 400。已在共用 `axiosClient.ts` 的 request interceptor 統一修復：偵測 `FormData` body 就刪除 Content-Type，交給瀏覽器自動補上正確 boundary。
 
 ### 4.10 刪除媒體
 - **Method & Path**: `DELETE /api/care-media/{mediaId}`

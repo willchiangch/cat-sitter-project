@@ -262,6 +262,7 @@ CREATE INDEX idx_service_report_media_report ON service_report_media(report_id, 
     }
   }
   ```
+* **2026-08 修復的迴歸缺陷**：前端 `visitReportApi.ts` 呼叫此端點時沒有覆寫 axios 的預設 `Content-Type: application/json`，而共用的 `axiosClient` 實例又把這個 header 設成 instance 層級預設值。axios 的 `transformRequest` 只要偵測到 Content-Type 含 `application/json`，就算 body 是 `FormData` 也會強制 `JSON.stringify(formDataToJSON(data))`，`File` 物件序列化後變成 `{}`，導致正式站上傳照片/影片一律 400（實際送出的 body 是 `{"file":{},"mediaType":"IMAGE","caption":"..."}`）。這個路徑完全沒被既有 mock 測試蓋到（mock 不檢查 request body），是跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-03`）第一次打真後端才抓到。修法在 `axiosClient.ts` 的 request interceptor 統一處理：偵測到 `config.data instanceof FormData` 就刪除 Content-Type header，讓瀏覽器自己補上帶正確 boundary 的 `multipart/form-data`，不用每個上傳呼叫點各自記得覆寫。同一根因也修復了 [SD-021](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-021-care-notes-and-media.md) 的 Care Notes 媒體上傳。
 
 ### 4.3 刪除媒體檔案 (邏輯刪除)
 * **Method**: `DELETE`
