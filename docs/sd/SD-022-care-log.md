@@ -388,3 +388,6 @@ public boolean isExpired(VisitServiceReport report, Visit visit) {
 
 ### 6.3 業務 audit log
 每次狀態變更與媒體修改均需呼叫 `AuditLogService` 將行為軌跡寫入 `order_logs`。寫入日誌之格式須包含 `Correlation-ID` 以便全鏈路排查。
+
+### 6.4 草稿 get-or-create 併發防護 (2026-08 修復)
+`saveDraft()`（4.1）與上傳媒體（4.2）都會呼叫內部 `getOrCreateDraftReport()`：查無草稿列就建立一筆。這兩個動作在真實使用情境下常常前後腳發生（打完文字先存草稿，馬上接著傳照片），若兩個請求幾乎同時抵達，各自的查詢都可能讀到「尚未存在」而同時嘗試 `INSERT`，`visit_id` 的 UNIQUE constraint 會讓其中一個 transaction rollback，使用者剛存的文字或剛傳的照片就無聲消失（無明顯錯誤提示，因為前端沒有攔截這種失敗路徑）。這個問題在 mock 測試環境下不會發生（mock 不會有真正的 DB 併發），是跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-03`）打真後端才抓到。修法：`getOrCreateDraftReport()` 內用 `pg_advisory_xact_lock`（沿用 [SD-021](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-021-care-notes-and-media.md) 1.5 節既有的 Advisory Lock 慣例，key 為 `visitId` 的 hash）把同一 `visitId` 的 get-or-create 序列化，鎖隨 transaction 結束自動釋放。迴歸測試見 `VisitReportControllerTest.should_KeepBothWrites_When_SaveDraftAndUploadMediaRaceOnFreshVisit`。

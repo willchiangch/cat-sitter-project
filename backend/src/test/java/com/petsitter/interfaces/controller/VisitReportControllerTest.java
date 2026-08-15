@@ -27,6 +27,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -650,6 +655,68 @@ class VisitReportControllerTest {
                 .andExpect(jsonPath("$.data.visitStatus").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.isEditable").value(true));
+    }
+
+    @Test
+    @DisplayName("Scenario 16e: 迴歸測試 — 存草稿與上傳媒體同時抵達不應互相蓋掉（get-or-create 併發競爭）")
+    void should_KeepBothWrites_When_SaveDraftAndUploadMediaRaceOnFreshVisit() throws Exception {
+        // saveDraft() 與 uploadMedia() 對同一個尚未有 VisitServiceReport 資料列的 visit，
+        // 都會呼叫 getOrCreateDraftReport()。前端「打完字存草稿後馬上點上傳照片」是很自然的
+        // 操作節奏，兩個請求幾乎同時抵達時，各自的 SELECT 都可能查到「還不存在」而同時嘗試
+        // INSERT，其中一個會撞 visit_id 的 UNIQUE constraint 導致整個 transaction rollback，
+        // 使用者剛存的文字內容或剛傳的照片就無聲消失。修法：getOrCreateDraftReport() 內用
+        // pg_advisory_xact_lock 把同一 visitId 的 get-or-create 序列化。
+        TokenContext.setUserId(sitter.getId());
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", "content".getBytes());
+        when(mediaStorageService.uploadReportMedia(any(), any(), any(), any(), any()))
+                .thenReturn("https://storage.googleapis.com/test/pro/race.jpg");
+
+        String draftContent = "併發測試日誌內容";
+        CountDownLatch readyLatch = new CountDownLatch(2);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> saveDraftResult = pool.submit(() -> {
+                TokenContext.setUserId(sitter.getId());
+                readyLatch.countDown();
+                startLatch.await();
+                return mockMvc.perform(put("/api/visits/{visitId}/report", visit.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("content", draftContent, "version", 0)))
+                        .with(user(sitter.getId().toString()).roles("SITTER")))
+                        .andReturn().getResponse().getStatus();
+            });
+            Future<Integer> uploadMediaResult = pool.submit(() -> {
+                TokenContext.setUserId(sitter.getId());
+                readyLatch.countDown();
+                startLatch.await();
+                return mockMvc.perform(multipart("/api/visits/{visitId}/media", visit.getId())
+                        .file(file)
+                        .header("Idempotency-Key", "race-upload-key")
+                        .param("mediaType", "IMAGE")
+                        .param("caption", "併發測試照片")
+                        .with(user(sitter.getId().toString()).roles("SITTER")))
+                        .andReturn().getResponse().getStatus();
+            });
+
+            readyLatch.await(5, TimeUnit.SECONDS);
+            startLatch.countDown();
+
+            int saveDraftStatus = saveDraftResult.get(10, TimeUnit.SECONDS);
+            int uploadMediaStatus = uploadMediaResult.get(10, TimeUnit.SECONDS);
+
+            org.assertj.core.api.Assertions.assertThat(saveDraftStatus).isEqualTo(200);
+            org.assertj.core.api.Assertions.assertThat(uploadMediaStatus).isEqualTo(200);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        mockMvc.perform(get("/api/visits/{visitId}/report", visit.getId())
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").value(draftContent))
+                .andExpect(jsonPath("$.data.media.length()").value(1));
     }
 
     @Test

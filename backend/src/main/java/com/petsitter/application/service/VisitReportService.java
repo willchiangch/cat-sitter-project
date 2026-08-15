@@ -9,6 +9,7 @@ import com.petsitter.domain.model.ServiceReportMedia;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.model.VisitServiceReport;
 import com.petsitter.application.event.VisitNotificationEvent;
+import com.petsitter.domain.repository.AdvisoryLockRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.OrderSnapshotRepository;
 import com.petsitter.domain.repository.ServiceReportMediaRepository;
@@ -50,6 +51,7 @@ public class VisitReportService {
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AdvisoryLockRepository advisoryLockRepository;
 
     // 懶加載逾期判定
     public boolean isExpired(VisitServiceReport report, Visit visit) {
@@ -62,6 +64,13 @@ public class VisitReportService {
 
     // 取得或建立草稿
     private VisitServiceReport getOrCreateDraftReport(UUID visitId, UUID sitterId) {
+        // saveDraft() 與 uploadMedia() 都會呼叫本方法，前端「打完字存草稿後馬上點上傳照片」
+        // 是很自然的操作節奏，兩個請求幾乎同時抵達時，各自的 SELECT 都可能查到「還不存在」，
+        // 導致兩邊都嘗試 INSERT，其中一個會撞 visit_id 的 UNIQUE constraint 而整個 transaction
+        // rollback，使用者剛存的內容或剛傳的照片就這樣無聲消失。用 pg_advisory_xact_lock
+        // 把同一 visitId 的 get-or-create 序列化，鎖隨 transaction 結束自動釋放。
+        advisoryLockRepository.acquireXactLock(Math.abs(visitId.hashCode()));
+
         Optional<VisitServiceReport> optReport = reportRepository.findByVisitId(visitId);
         if (optReport.isPresent()) {
             return optReport.get();
