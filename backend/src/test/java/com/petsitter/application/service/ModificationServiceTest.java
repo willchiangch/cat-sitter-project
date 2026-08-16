@@ -237,4 +237,42 @@ class ModificationServiceTest {
         List<Visit> savedList = saveCaptor.getValue();
         assertThat(savedList).hasSize(2);
     }
+
+    @Test
+    @DisplayName("迴歸測試：飼主確認變更後（REFUND_VERIFY），保母仍應查得到已轉終態的變更請求以便上傳退款憑證")
+    void should_ReturnModificationRequest_When_OrderIsRefundVerifyAfterConfirm() {
+        // confirmModification() 成功後 modReq.status 會被設為終態 M_DONE，
+        // 過去 getActiveModificationRequest() 只認 PENDING_REVIEW/QUOTED，
+        // 保母端頁面（含退款憑證上傳表單）重新整理就會查無資料 404，
+        // 事實上永遠上傳不了退款憑證
+        order.setStatus("REFUND_VERIFY");
+        UUID modReqId = UUID.randomUUID();
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(modReqId).order(order).status("M_DONE").diffAmount(-500)
+                .newTotalAmount(500).payload(new ArrayList<>()).dates(List.of()).build();
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(modRepo.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(modReq));
+
+        var dto = modificationService.getActiveModificationRequest(sitterId, orderId);
+
+        assertThat(dto.getId()).isEqualTo(modReqId);
+        assertThat(dto.getDiffAmount()).isEqualTo(-500);
+        verify(modRepo, never()).findByOrderIdAndStatusIn(any(), any());
+    }
+
+    @Test
+    @DisplayName("訂單本身無任何變更協商關聯狀態時，查詢變更請求應拋錯而非誤傳歷史資料")
+    void should_ThrowIllegalState_When_OrderHasNoNegotiationRelatedStatus() {
+        order.setStatus("CONFIRMED");
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(modRepo.findByOrderIdAndStatusIn(orderId, List.of("PENDING_REVIEW", "QUOTED")))
+                .thenReturn(Optional.empty());
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> modificationService.getActiveModificationRequest(sitterId, orderId));
+
+        verify(modRepo, never()).findByOrderIdOrderByCreatedAtDesc(any());
+    }
 }

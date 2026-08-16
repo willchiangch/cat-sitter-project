@@ -229,29 +229,23 @@ export const resolveDisputedOrder = async (
 };
 
 // 9. 保母上傳退款憑證 (SD-016)
+// 身份改由後端從 JWT (TokenContext) 取得，不再由前端傳 sitterId (BOLA 修復)
 export const uploadRefundProof = async (
   orderId: string,
-  sitterId: string,
   refundProofUrl: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/modification/refund-proof`,
-    { refundProofUrl },
-    {
-      params: { sitterId }
-    }
-  );
+  const response = await axiosClient.post(`/orders/${orderId}/modification/refund-proof`, {
+    refundProofUrl
+  });
   return response.data;
 };
 
 // 10. 飼主確認收到退款 (SD-016)
+// 身份改由後端從 JWT (TokenContext) 取得，不再由前端傳 ownerId (BOLA 修復)
 export const confirmRefund = async (
-  orderId: string,
-  ownerId: string
+  orderId: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/modification/refund-confirm`, null, {
-    params: { ownerId }
-  });
+  const response = await axiosClient.post(`/orders/${orderId}/modification/refund-confirm`, null);
   return response.data;
 };
 

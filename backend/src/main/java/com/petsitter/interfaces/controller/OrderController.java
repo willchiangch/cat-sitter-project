@@ -203,12 +203,17 @@ public class OrderController {
 
     /**
      * 保母上傳退款憑證 (SD-016)
+     * 2026-08 修復 BOLA：身份過去吃前端傳的 sitterId query param（未驗證呼叫者是否真的是該
+     * sitterId 本人），任何已登入使用者只要知道目標訂單的真實 sitterId 就能冒充該保母上傳
+     * 憑證。改為與同檔案內 propose/quote/reject/confirm 四支端點一致的作法：角色限制 +
+     * TokenContext.getUserId() 取真實身份。
      */
+    @PreAuthorize("hasRole('SITTER')")
     @PostMapping("/{orderId}/modification/refund-proof")
     public ResponseEntity<Map<String, String>> uploadRefundProof(
             @PathVariable UUID orderId,
-            @RequestParam UUID sitterId,
             @RequestBody Map<String, String> payload) {
+        UUID sitterId = TokenContext.getUserId();
         String refundProofUrl = payload.get("refundProofUrl");
         modificationService.uploadRefundProof(orderId, sitterId, refundProofUrl);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "退款憑證已成功上傳"));
@@ -216,11 +221,14 @@ public class OrderController {
 
     /**
      * 飼主確認收到退款 (SD-016)
+     * 2026-08 修復 BOLA：同上，過去吃前端傳的 ownerId query param，該訂單的保母本來就合法
+     * 看得到 ownerId，等於保母自己就能呼叫此端點冒充飼主「確認已收到退款」，繞過這一步驟
+     * 原本設計要飼主本人二次確認才能放行的把關意義。
      */
+    @PreAuthorize("hasRole('OWNER')")
     @PostMapping("/{orderId}/modification/refund-confirm")
-    public ResponseEntity<Map<String, String>> confirmRefund(
-            @PathVariable UUID orderId,
-            @RequestParam UUID ownerId) {
+    public ResponseEntity<Map<String, String>> confirmRefund(@PathVariable UUID orderId) {
+        UUID ownerId = TokenContext.getUserId();
         modificationService.confirmRefund(orderId, ownerId);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已確認收到退款，訂單變更生效"));
     }

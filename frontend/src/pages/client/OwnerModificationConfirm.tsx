@@ -7,7 +7,6 @@ import {
 } from '../../api/orderApi';
 import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 interface OwnerModificationConfirmProps {
   orderId: string;
@@ -15,7 +14,6 @@ interface OwnerModificationConfirmProps {
 
 const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ orderId }) => {
   const { currentRole } = useRole();
-  const { userId: ownerId } = useCurrentUser();
   const [modRequest, setModRequest] = useState<ModificationRequestDetailDto | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -85,7 +83,7 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
     }
     setLoadingRefund(true);
     try {
-      await confirmRefund(orderId, ownerId);
+      await confirmRefund(orderId);
       setRefundStatus('SUCCESS');
       alert('已確認收到退款，訂單變更正式生效！');
     } catch (err) {

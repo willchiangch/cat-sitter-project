@@ -302,7 +302,46 @@ const SitterOrders: React.FC = () => {
 
               {/* 行程打卡/日誌回報入口 (成立後才有實際行程可打卡，CONFIRMED/IN_PROGRESS 皆顯示) */}
               {(order.status === 'CONFIRMED' || order.status === 'IN_PROGRESS') && (
-                <SitterOrderVisitList orderId={order.id} />
+                <>
+                  <SitterOrderVisitList orderId={order.id} />
+                  <button
+                    onClick={() => navigate(`/orders/${order.id}/modify`)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      backgroundColor: 'var(--color-surface-low)',
+                      color: 'var(--color-on-surface-variant)',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      marginTop: '0.75rem'
+                    }}
+                    data-testid="btn-go-modification-wizard"
+                  >
+                    申請訂單變更 (改期 / 取消)
+                  </button>
+                </>
+              )}
+
+              {/* 訂單變更協商入口 (MODIFYING 待報價/待飼主確認，REFUND_VERIFY 待上傳退款憑證) */}
+              {(order.status === 'MODIFYING' || order.status === 'REFUND_VERIFY') && (
+                <div
+                  style={{
+                    borderTop: '1px solid var(--color-surface-high)',
+                    paddingTop: '1.5rem',
+                    marginTop: '1rem'
+                  }}
+                >
+                  <button
+                    onClick={() => navigate(`/sitter/orders/${order.id}/quote`)}
+                    className="btn-primary"
+                    style={{ width: '100%', padding: '0.75rem' }}
+                    data-testid="btn-go-modification-quote"
+                  >
+                    處理訂單變更協商
+                  </button>
+                </div>
               )}
 
               {/* 保母憑證核對面板 (僅在 status === 'PAID' 時顯示) */}

@@ -322,7 +322,8 @@ export interface ConfirmedOrderContext {
 export async function bootstrapConfirmedOrder(
   request: APIRequestContext,
   scenario: string,
-  planNamePrefix: string
+  planNamePrefix: string,
+  datesOverride?: string[]
 ): Promise<ConfirmedOrderContext> {
   const sitter = await bootstrapVerifiedSitter(request, scenario, planNamePrefix);
   const owner = await provisionAndLogin(request, scenario, 'OWNER', `Journey飼主${scenario}`);
@@ -340,15 +341,18 @@ export async function bootstrapConfirmedOrder(
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const dateStr = tomorrow.toISOString().split('T')[0];
+  // Journey D 退款分支需要「原始訂單天數 > 修改後天數」才能觸發退款差額，
+  // 用 datesOverride 讓呼叫方兜出多天的原始訂單，預設仍是單天（沿用 Journey B/C 行為）
+  const dates = datesOverride ?? [dateStr];
 
   const bookingRes = await request.post('/api/orders/booking', {
     headers: { ...apiAuthed(owner), 'Idempotency-Key': randomUUID() },
     data: {
       ownerId: owner.userId,
       sitterId: sitter.userId,
-      items: [{ planId: sitter.planId, dates: [dateStr], timesPerDay: 1, petIds: [petId] }],
+      items: [{ planId: sitter.planId, dates, timesPerDay: 1, petIds: [petId] }],
       answers: [],
-      expectedTotalAmount: 600
+      expectedTotalAmount: 600 * dates.length
     }
   });
   if (!bookingRes.ok()) {

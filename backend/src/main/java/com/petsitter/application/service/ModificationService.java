@@ -205,8 +205,23 @@ public class ModificationService {
             throw new IllegalArgumentException("無權操作此訂單");
         }
 
-        ModificationRequest modReq = modRepo.findByOrderIdAndStatusIn(orderId, List.of("PENDING_REVIEW", "QUOTED"))
-                .orElseThrow(() -> new IllegalStateException("此訂單目前沒有進行中的變更請求"));
+        // confirmModification() 一旦成功就把 modReq.status 設成終態 M_DONE，訂單則依差額轉
+        // PENDING_PAYMENT/REFUND_VERIFY。若只認 PENDING_REVIEW/QUOTED 兩種狀態，飼主一確認，
+        // 保母端 SitterModificationQuote 頁面（含退款憑證上傳表單）只要重新整理就會 404，
+        // 退款流程恰好就是「飼主先確認、保母才需要上傳憑證」，導致保母事實上永遠上傳不了退款
+        // 憑證。訂單處於這三個「協商相關」狀態時，改直接撈該訂單最新一筆變更請求（不論其
+        // status），讓已確認但退補款尚未走完的流程依然讀得到資料。
+        List<String> negotiationRelatedStatuses = List.of("MODIFYING", "PENDING_PAYMENT", "REFUND_VERIFY");
+        ModificationRequest modReq;
+        if (negotiationRelatedStatuses.contains(order.getStatus())) {
+            List<ModificationRequest> history = modRepo.findByOrderIdOrderByCreatedAtDesc(orderId);
+            modReq = history.isEmpty() ? null : history.get(0);
+        } else {
+            modReq = modRepo.findByOrderIdAndStatusIn(orderId, List.of("PENDING_REVIEW", "QUOTED")).orElse(null);
+        }
+        if (modReq == null) {
+            throw new IllegalStateException("此訂單目前沒有進行中的變更請求");
+        }
 
         return com.petsitter.application.dto.ModificationRequestDetailDto.builder()
                 .id(modReq.getId())

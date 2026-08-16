@@ -3,10 +3,12 @@ package com.petsitter.interfaces.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.service.EvaluationService;
+import com.petsitter.domain.model.ModificationRequest;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.model.Visit;
+import com.petsitter.domain.repository.ModificationRequestRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -73,6 +75,9 @@ class OrderControllerTest {
     @Autowired
     private VisitRepository visitRepository;
 
+    @Autowired
+    private ModificationRequestRepository modRequestRepository;
+
     @MockitoBean
     private EvaluationService evaluationService;
 
@@ -84,6 +89,7 @@ class OrderControllerTest {
 
     @BeforeEach
     void setUp() {
+        modRequestRepository.deleteAll();
         subscriptionRepository.deleteAll();
         orderRepository.deleteAll();
         userRepository.deleteAll();
@@ -197,5 +203,72 @@ class OrderControllerTest {
         mockMvc.perform(get("/api/orders/{orderId}/visits", realOrderId)
                 .with(user(unrelated.getId().toString()).roles("SITTER")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("迴歸測試 (BOLA)：退款憑證上傳過去吃前端傳的 sitterId query param，" +
+            "飼主角色呼叫應被角色守門擋下 (403)，不該只靠身份比對")
+    void should_Return403_When_OwnerCallsRefundProofEndpoint() throws Exception {
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refundProofUrl\":\"https://storage.googleapis.com/test/proof.jpg\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("迴歸測試 (BOLA)：確認收到退款過去吃前端傳的 ownerId query param，" +
+            "保母角色呼叫應被角色守門擋下 (403)")
+    void should_Return403_When_SitterCallsRefundConfirmEndpoint() throws Exception {
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-confirm", realOrderId)
+                .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("迴歸測試 (BOLA)：退款憑證上傳身份改由 TokenContext 取得，" +
+            "以真實保母身份呼叫應成功寫入，不再依賴前端傳入的 sitterId")
+    void should_UploadRefundProof_Successfully_UsingTokenContextIdentity() throws Exception {
+        ModificationRequest modReq = modRequestRepository.save(ModificationRequest.builder()
+                .order(orderRepository.findById(realOrderId).get())
+                .status("M_DONE")
+                .requestedBy("OWNER")
+                .diffAmount(-500)
+                .payload(List.of())
+                .build());
+
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                .with(user(sitterId.toString()).roles("SITTER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refundProofUrl\":\"https://storage.googleapis.com/test/proof.jpg\"}"))
+                .andExpect(status().isOk());
+
+        var saved = modRequestRepository.findById(modReq.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(saved.getRefundProofUrl())
+                .isEqualTo("https://storage.googleapis.com/test/proof.jpg");
+    }
+
+    @Test
+    @DisplayName("迴歸測試 (BOLA)：確認收到退款身份改由 TokenContext 取得，" +
+            "以真實飼主身份呼叫應成功轉為 CONFIRMED")
+    void should_ConfirmRefund_Successfully_UsingTokenContextIdentity() throws Exception {
+        Order order = orderRepository.findById(realOrderId).get();
+        order.setStatus("REFUND_VERIFY");
+        orderRepository.save(order);
+
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-confirm", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isOk());
+
+        var saved = orderRepository.findById(realOrderId).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(saved.getStatus()).isEqualTo("CANCELLED");
     }
 }

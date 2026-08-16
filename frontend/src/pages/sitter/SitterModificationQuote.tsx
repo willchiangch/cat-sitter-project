@@ -8,7 +8,6 @@ import {
 } from '../../api/orderApi';
 import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 interface SitterModificationQuoteProps {
   orderId: string;
@@ -16,7 +15,6 @@ interface SitterModificationQuoteProps {
 
 const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ orderId }) => {
   const { currentRole } = useRole();
-  const { userId: sitterId } = useCurrentUser();
   const [modRequest, setModRequest] = useState<ModificationRequestDetailDto | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -109,7 +107,7 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
     }
     setLoadingProof(true);
     try {
-      await uploadRefundProof(orderId, sitterId, refundProofUrl);
+      await uploadRefundProof(orderId, refundProofUrl);
       setProofSent(true);
       alert('退款憑證已成功上傳！');
     } catch (err) {

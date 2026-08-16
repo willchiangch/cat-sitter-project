@@ -476,6 +476,21 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
             <>
               <OwnerOrderVisitList orderId={orderId} />
               <button
+                onClick={() => navigate(`/orders/${orderId}/modify`)}
+                disabled={loading}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  backgroundColor: 'var(--color-surface-high)',
+                  color: 'var(--color-on-surface-variant)',
+                  boxShadow: 'none'
+                }}
+                data-testid="btn-go-modification-wizard"
+              >
+                申請訂單變更 (改期 / 取消)
+              </button>
+              <button
                 onClick={handleComplete}
                 disabled={loading}
                 className="btn-primary"
@@ -500,6 +515,17 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                 申報爭議
               </button>
             </>
+          )}
+
+          {(status === 'MODIFYING' || status === 'REFUND_VERIFY') && (
+            <button
+              onClick={() => navigate(`/owner/orders/${orderId}/modification-confirm`)}
+              className="btn-primary"
+              style={{ width: '100%', padding: '1rem' }}
+              data-testid="btn-go-modification-confirm"
+            >
+              查看並確認訂單變更
+            </button>
           )}
 
           {status === 'DISPUTED' && (

@@ -58,6 +58,8 @@ stateDiagram-v2
   "refundProofUrl": null
 }
 ```
+- **2026-08 修復的迴歸缺陷**：原本查詢邏輯只認 `ModificationRequest.status ∈ {PENDING_REVIEW, QUOTED}`。但 `confirmModification()`（2.6）成功後會把 `status` 設為終態 `M_DONE`，而退款分支恰好是**飼主先確認、保母才需要上傳退款憑證**（訂單此時已轉 `REFUND_VERIFY`）——保母端 `SitterModificationQuote` 頁面只要重新整理或重新導航進來就會查無資料、顯示「找不到進行中的變更請求」，實務上永遠上傳不了退款憑證。修法：當 `Order.status ∈ {MODIFYING, PENDING_PAYMENT, REFUND_VERIFY}`（即訂單仍處於變更協商相關狀態）時，改直接撈該訂單最新一筆變更請求（不限 `status`），讓已確認但退補款尚未走完的流程依然讀得到資料；其餘狀態維持原本只認 `PENDING_REVIEW`/`QUOTED` 的行為。詳見 `ModificationServiceTest.should_ReturnModificationRequest_When_OrderIsRefundVerifyAfterConfirm`。
+- **同批修復：真實入口缺失**：`SitterOrders.tsx`（`MODIFYING`/`REFUND_VERIFY` 訂單）與 `OwnerOrderDetail.tsx`（`MODIFYING`/`REFUND_VERIFY` 訂單）過去完全沒有導向本節三個變更協商頁面的按鈕，僅 `DemoHome.tsx` 有寫死假 orderId 的展示連結，真實使用者的訂單一旦進入協商狀態便無法從訂單列表/詳情頁點進去處理——跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-04`）設計階段發現此缺口後一併補上對應按鈕。
 
 ### 2.3 審核變更並提供差額報價 (保母)
 - **Endpoint**: `POST /api/orders/{orderId}/modification/quote?modRequestId={id}`
@@ -82,6 +84,8 @@ stateDiagram-v2
 ### 2.5 上傳退款憑證 (保母)
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-proof`
 - **Headers**: `Idempotency-Key: UUID`
+- **權限**: `ROLE_SITTER`，身份取自 `TokenContext.getUserId()`
+- **2026-08 修復的 BOLA 缺陷**：本端點與 2.7 過去完全沒有 `@PreAuthorize`，身份也不是從 JWT (`TokenContext`) 取得，而是直接信任前端傳來的 `sitterId` query param——只驗證「這個 sitterId 是不是該訂單的保母」，沒驗證「呼叫者是不是這個 sitterId 本人」。該訂單的保母本來就合法看得到自己訂單的 `ownerId`（見 2.7），等於保母能自行呼叫 2.7 冒充飼主完成退款確認，繞過飼主二次確認的把關意義；反之任何已登入使用者只要知道目標訂單的真實 `sitterId` 也能冒充該保母呼叫本端點。已改為與 2.1-2.4/2.6 一致的作法：角色守門 + `TokenContext.getUserId()`，前端不再傳 `sitterId`/`ownerId`。詳見 `OrderControllerTest` 內以 `迴歸測試 (BOLA)` 為前綴的 4 支測試。
 
 ### 2.6 確認同意變更 (飼主)
 - **Endpoint**: `POST /api/orders/{orderId}/modification/confirm?modRequestId={id}`
@@ -100,6 +104,7 @@ stateDiagram-v2
 ### 2.7 確認收到退款 (飼主) [新增]
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-confirm`
 - **Headers**: `Idempotency-Key: UUID`
+- **權限**: `ROLE_OWNER`，身份取自 `TokenContext.getUserId()`（2026-08 修復 BOLA，說明見 2.5）
 - **邏輯**: 解除 `REFUND_VERIFY` 狀態，依據變更請求內容，將訂單狀態正式轉回 `CONFIRMED` 或 `CANCELLED`。
 
 ---
