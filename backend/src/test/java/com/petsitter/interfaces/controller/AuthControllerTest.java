@@ -207,6 +207,29 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("迴歸測試：同一 email 已有一筆 pending OTP 列時重新註冊應成功覆寫，不因 Hibernate " +
+            "flush 順序 (INSERT 先於 DELETE) 撞 UNIQUE constraint 而失敗")
+    void should_Register_Successfully_When_PendingOtpAlreadyExistsForSameEmail() throws Exception {
+        String email = "re-register@test.com";
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRegisterRequest(email, "password123", "First Try", "OWNER"))))
+                .andExpect(status().isOk());
+        assertTrue(registrationOtpRepository.findByEmail(email).isPresent());
+
+        // 使用者第一次沒收到信或想重試，用同個 email 再註冊一次
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(buildRegisterRequest(email, "password456", "Second Try", "OWNER"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OTP_SENT"));
+
+        assertTrue(registrationOtpRepository.findByEmail(email).isPresent());
+        assertEquals("Second Try", registrationOtpRepository.findByEmail(email).get().getFullName());
+    }
+
+    @Test
     @DisplayName("OTP 驗證成功應建立使用者並取得 Token (PRD-000 AC-1)")
     void should_VerifyOtp_Successfully_And_CreateUser_And_ReturnToken() throws Exception {
         String email = "verify@test.com";

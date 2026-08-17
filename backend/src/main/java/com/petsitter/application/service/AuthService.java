@@ -95,6 +95,13 @@ public class AuthService {
         String otpCode = generateOtpCode();
         registrationOtpRepository.findByEmail(request.getEmail())
                 .ifPresent(registrationOtpRepository::delete);
+        // Hibernate 預設 flush 順序是 INSERT 先於 DELETE，若不強制先把上面的刪除
+        // flush 出去，下面新建的列會在舊列真正被刪除前就嘗試 INSERT，撞
+        // registration_otps_email_key 的 UNIQUE constraint 而整個 transaction rollback，
+        // 使用者只要曾經註冊過一次（建立過 pending OTP 列），之後想用同個 email 重新註冊
+        // 就會卡死在「資料處理異常」，直到那筆 OTP 過期。同樣的坑在
+        // SitterPublicProfileServiceImpl.txUpdateProfile() 已經用 flush() 處理過。
+        registrationOtpRepository.flush();
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         RegistrationOtp registrationOtp = RegistrationOtp.builder()
