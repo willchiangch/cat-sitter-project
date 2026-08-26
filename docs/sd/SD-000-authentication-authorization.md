@@ -181,6 +181,9 @@ sequenceDiagram
 > [!IMPORTANT]
 > `registration_otps.attempts` 的累加必須透過獨立 Bean `RegistrationOtpAttemptService` 以 `@Transactional(propagation = REQUIRES_NEW)` 執行——原因與 `LoginAttemptService` 相同：`verifyRegistrationOtp()` 驗證失敗時最終會拋出 `RegistrationException`，若寫入跟該方法共用同一筆交易，錯誤次數會隨例外一起被 rollback，導致鎖定機制永遠不會生效。
 
+> [!IMPORTANT]
+> **2026-08 修復的迴歸缺陷**：上圖「同 email 先刪舊行」這一步過去雖然程式碼確實有呼叫 `delete()`，但緊接著的 `saveAndFlush(新資料)` 會撞 `registration_otps_email_key` 的 UNIQUE constraint 而整個 transaction rollback——**Hibernate 預設 flush 順序是 INSERT 先於 DELETE**，同一筆 flush 裡新資料的 INSERT 會在舊資料真正被刪除前就執行。影響：任何人只要曾經觸發過一次註冊（建立過 pending OTP 列），第一次沒收到信想重試、或單純想用同個 email 重新註冊，會卡死在 `DATA_ERROR`，直到那筆 OTP 過期（10 分鐘）才能再試。修法：`delete()` 之後立刻呼叫 `registrationOtpRepository.flush()`，強制先把刪除語句送出，同樣的坑 `SitterPublicProfileServiceImpl.txUpdateProfile()` 早已用同一手法處理過。迴歸測試見 `AuthControllerTest.should_Register_Successfully_When_PendingOtpAlreadyExistsForSameEmail`。
+
 ### 7. 帳號註銷流程 (PRD-000 AC-8)
 ```mermaid
 sequenceDiagram
