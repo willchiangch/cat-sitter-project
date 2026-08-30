@@ -1,5 +1,8 @@
 package com.petsitter.interfaces.controller;
 
+import com.petsitter.domain.model.User;
+import com.petsitter.domain.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +15,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,6 +38,39 @@ class InternalCronControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @BeforeEach
+    void setUp() {
+        userRepository.deleteAll();
+    }
+
+    @Test
+    @DisplayName("迴歸測試：cleanup-e2e-journeys 應保留 journey-manual-* 人工測試帳號，只刪自動化測試帳號")
+    void should_KeepManualAccount_And_DeleteAutomatedAccount_When_CleanupE2eJourneys() throws Exception {
+        User manual = userRepository.save(User.builder()
+                .email("journey-manual-sitter-1@e2e-journey.test")
+                .passwordHash("hash")
+                .fullName("人工測試保母")
+                .role("SITTER")
+                .build());
+        User automated = userRepository.save(User.builder()
+                .email("journey-a-sitter-1786000000-abc123@e2e-journey.test")
+                .passwordHash("hash")
+                .fullName("自動化測試保母")
+                .role("SITTER")
+                .build());
+
+        mockMvc.perform(post("/api/internal/cron/test-data/cleanup-e2e-journeys")
+                        .header("X-Internal-Secret", "local-secret-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+
+        assertThat(userRepository.findById(manual.getId())).isPresent();
+        assertThat(userRepository.findById(automated.getId())).isEmpty();
+    }
 
     @Test
     @DisplayName("Auto-complete: 不帶 Secret Header 應回傳 401")

@@ -30,6 +30,11 @@ import java.util.UUID;
 public class E2eJourneyDataCleanupService {
 
     private static final String EMAIL_PATTERN = "%@e2e-journey.test";
+    // journey-manual-* 是給人工手動測試用、寫在 README 裡的長效帳號（見 provision-account
+    // 的用法），跟自動化測試用完即丟的 journey-{scenario}-{role}-{timestamp}-{random} 帳號
+    // 共用同一個網域，過去沒有排除，導致每次 CI 跑完自動清理，人工測試帳號也一起被砍掉，
+    // README 上的帳密隔天就登不進去。
+    private static final String MANUAL_ACCOUNT_PATTERN = "journey-manual-%@e2e-journey.test";
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -73,8 +78,10 @@ public class E2eJourneyDataCleanupService {
     }
 
     private List<UUID> findTestUserIds() {
-        List<?> rows = entityManager.createNativeQuery("SELECT id FROM users WHERE email LIKE :pattern")
+        List<?> rows = entityManager.createNativeQuery(
+                        "SELECT id FROM users WHERE email LIKE :pattern AND email NOT LIKE :manualPattern")
                 .setParameter("pattern", EMAIL_PATTERN)
+                .setParameter("manualPattern", MANUAL_ACCOUNT_PATTERN)
                 .getResultList();
         return rows.stream().map(row -> UUID.fromString(row.toString())).toList();
     }
