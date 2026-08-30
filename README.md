@@ -97,6 +97,54 @@
 > ```
 > 查詢目前狀態：`gcloud scheduler jobs list --project=wd-pet-sitter --location=asia-east1`
 
+## 🧪 正式站手動測試
+
+> ⚠️ 本 repo 為 public，以下帳密會公開曝露，僅供 Close Beta 階段內部測試使用。正式對外營運前務必更換 `admin@test.com` 的密碼（全系統唯一一組管理員帳號，見下方）。
+
+正式站：**https://wd-pet-sitter.web.app**
+
+### 測試帳號
+
+| 角色 | Email | 密碼 | 備註 |
+| :--- | :--- | :--- | :--- |
+| 管理員 | `admin@test.com` | `password` | 全系統唯一固定種子帳號 |
+| 飼主（免 OTP） | `journey-manual-owner-1@e2e-journey.test` | `ManualTest-2026!` | 走 `/api/internal/test-data/provision-account` 建立，無 KYC/方案前置狀態 |
+| 保母（免 OTP） | `journey-manual-sitter-1@e2e-journey.test` | `ManualTest-2026!` | 同上，尚未做 KYC/開通接單 |
+
+`@e2e-journey.test` 網域的帳號可隨時用 `POST /api/internal/cron/test-data/cleanup-e2e-journeys`（帶 `X-Internal-Secret`）連同其他測試資料一併硬刪除。真正的 Email OTP 註冊流程（`/register`）目前只能用 `entersoal@gmail.com` 收信測試——Resend 帳號仍是測試模式，寄給其他信箱一律無聲失敗（見 `docs/sd/SD-000-authentication-authorization.md`）。
+
+### 標準流程網址清單
+
+**一、保母上架**
+1. `/register`（或用上表保母帳號登入）
+2. `/sitter/kyc` — 上傳證件正反面 + 自拍，送出審核
+3. `/login` 用 admin 帳號 → `/admin/kyc` — 審核通過
+4. `/sitter/profile-settings` — 開啟接單、填公開檔案
+5. `/sitter/plans` — 建立服務方案
+6. `/sitter/{sitterId}/profile`（無痕視窗開，驗證匿名公開頁）
+
+**二、飼主下單到付款**
+7. `/pets` — 建立寵物資料
+8. `/booking/{sitterId}` — 選方案/日期，送出預約
+9. `/sitter/orders`（保母，「評估中」分頁）— 接受或報價
+10. `/owner/orders/{orderId}`（飼主）— 上傳付款憑證
+11. `/sitter/orders`（保母，「進行中」分頁）— 核對入帳
+12. `/care-notes/manage/{sitterId}/{ownerId}`（保母）與 `/care-notes/view/{sitterId}/{ownerId}`（飼主）
+
+**三、服務執行到結案**
+13. `/sitter/orders` → 進行中分頁點行程連結 — Check-in、寫日誌、上傳照片、Check-out、送出報告
+14. `/owner/orders/{orderId}` → 點行程連結 — 查看日誌
+15. `/owner/orders/{orderId}` — 確認結案
+
+**四（選測）：訂單變更協商**
+16. `/owner/orders/{orderId}` — 申請訂單變更
+17. `/sitter/orders/{orderId}/quote` — 保母報價/拒絕
+18. `/owner/orders/{orderId}/modification-confirm` — 飼主確認差額/確認退款
+
+對應的自動化版本見 `frontend/e2e/journeys/*.spec.ts` 與 `docs/test-scenario/TS-JOURNEY-01~05`。
+
+---
+
 ## 🛠️ 本地開發環境啟動
 
 ### 1. 啟動資料庫 (Docker)
