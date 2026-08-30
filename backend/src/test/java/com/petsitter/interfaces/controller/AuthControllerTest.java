@@ -483,6 +483,27 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.refreshToken").value(refreshToken));
     }
 
+    @Test
+    @DisplayName("迴歸測試：無效/查無的 Refresh Token 應回傳有清楚訊息的 401，而非沒有 message 欄位的裸 500")
+    void should_Return401_WithMessage_When_RefreshTokenInvalid() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"not-a-real-token\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("REFRESH_TOKEN_INVALID"))
+                .andExpect(jsonPath("$.message").value("Refresh token 找不到或無效"));
+    }
+
+    @Test
+    @DisplayName("迴歸測試：空白 Refresh Token 應回傳繁體中文訊息，不落回套件內建的預設驗證訊息")
+    void should_Return400_WithTraditionalChineseMessage_When_RefreshTokenBlank() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("refreshToken 不得為空"));
+    }
+
     // --- PRD-000 AC-8 帳號註銷（軟刪除）---
 
     @Test

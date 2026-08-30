@@ -260,7 +260,8 @@ public class AuthService {
                             .role(role)
                             .build();
                 })
-                .orElseThrow(() -> new RuntimeException("Refresh token 找不到或無效"));
+                .orElseThrow(() -> new com.petsitter.application.exception.AuthException(
+                        org.springframework.http.HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "Refresh token 找不到或無效"));
     }
 
     /**
@@ -461,7 +462,8 @@ public class AuthService {
     private RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().isBefore(Instant.now()) || token.isRevoked()) {
             refreshTokenRepository.delete(token);
-            throw new RuntimeException("Refresh token 已過期或已被撤銷，請重新登入");
+            throw new com.petsitter.application.exception.AuthException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_EXPIRED", "Refresh token 已過期或已被撤銷，請重新登入");
         }
         return token;
     }

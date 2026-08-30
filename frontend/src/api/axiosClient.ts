@@ -23,6 +23,27 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
+// 這些端點本身就是「登入前/未認證」流程，401 代表的是帳密錯誤、OTP 錯誤等真正的業務
+// 失敗，不是「access token 過期」。過去沒有排除這些端點，導致登入打錯密碼時，攔截器誤判
+// 成 token 過期，拿 localStorage 裡殘留、跟這次登入無關的 refreshToken 去打 /auth/refresh，
+// 真正的登入失敗原因被這次多餘的 refresh 呼叫蓋掉（refresh 失敗顯示成不相干的 500 或
+// 「must not be blank」，使用者完全看不到「帳號或密碼錯誤」）。
+const PUBLIC_AUTH_PATH_PREFIXES = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/google',
+  '/auth/webauthn/login'
+];
+
+const isPublicAuthEndpoint = (url?: string): boolean => {
+  if (!url) return false;
+  const path = url.startsWith('http') ? new URL(url).pathname.replace(/^\/api/, '') : url;
+  return PUBLIC_AUTH_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
+};
+
 // Request Interceptor
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -49,7 +70,11 @@ axiosClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isPublicAuthEndpoint(originalRequest.url)
+    ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

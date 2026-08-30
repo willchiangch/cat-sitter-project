@@ -204,5 +204,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus())
                 .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
     }
+
+    // --- SD-000 Refresh Token 例外攔截 ---
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<Map<String, String>> handleAuth(AuthException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(Map.of("error", ex.getError(), "message", ex.getMessage()));
+    }
 }
 

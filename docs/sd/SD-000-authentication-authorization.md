@@ -46,6 +46,8 @@ sequenceDiagram
     BE-->>FE: ApiResponse { accessToken }
     FE->>BE: 使用新 Token 重試原請求
 ```
+> [!IMPORTANT]
+> **2026-08 修復的迴歸缺陷**：`axiosClient.ts` 的全域 response 攔截器過去對「任何」401 一律觸發上圖的刷新流程，沒有排除 `/auth/login`/`/auth/register`/`/auth/refresh`/`/auth/forgot-password`/`/auth/reset-password`/`/auth/google`/`/auth/webauthn/login` 這些**登入前、本身就會合法回 401 的公開端點**（例如帳密打錯）。實際影響：使用者打錯密碼時，攔截器誤判成「access token 過期」，改去用 localStorage 裡殘留、跟這次登入完全無關的 refreshToken 打 `/api/auth/refresh`，真正的登入失敗原因（帳號或密碼錯誤）被這次多餘的 refresh 呼叫蓋掉；當時 `AuthService.refreshToken()`/`verifyExpiration()` 對無效/過期 token 又是丟未接住的裸 `RuntimeException`（無對應 `@ExceptionHandler`），最終顯示成沒有 `message` 欄位的裸 500，使用者只會看到 axios 自己兜的「Request failed with status code 500」，完全看不出真正原因；第二次重試時 localStorage 已被攔截器清空，改撞上 `TokenRefreshRequest.refreshToken` 唯一沒寫自訂訊息的 `@NotBlank`，落回 Hibernate Validator 套件內建、跟語系解析有關、不保證是繁體中文的預設驗證訊息。三處一併修復：攔截器新增 `isPublicAuthEndpoint()` 白名單直接放行、`RuntimeException` 改為有 `HttpStatus`/錯誤碼/繁中訊息的 `AuthException`（`GlobalExceptionHandler` 新增對應 handler）、`TokenRefreshRequest` 補上 `message = "refreshToken 不得為空"`。迴歸測試見 `AuthControllerTest.should_Return401_WithMessage_When_RefreshTokenInvalid`、`should_Return400_WithTraditionalChineseMessage_When_RefreshTokenBlank`。
 
 ### 3. 授權請求流程 (Authorization Filter)
 ```mermaid
