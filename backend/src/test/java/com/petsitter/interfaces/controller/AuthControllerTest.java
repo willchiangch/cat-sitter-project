@@ -14,11 +14,13 @@ import com.petsitter.application.service.GoogleUserInfo;
 import com.petsitter.domain.model.FavoriteSitter;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
+import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.model.RegistrationOtp;
 import com.petsitter.domain.model.TrustRelationship;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.FavoriteSitterRepository;
 import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.RegistrationOtpRepository;
 import com.petsitter.domain.repository.TrustRelationshipRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -83,6 +85,9 @@ class AuthControllerTest {
     private UserRepository userRepository;
 
     @Autowired
+    private ProfileRepository profileRepository;
+
+    @Autowired
     private SubscriptionRepository subscriptionRepository;
 
     @Autowired
@@ -122,6 +127,7 @@ class AuthControllerTest {
         subscriptionRepository.deleteAll();
         passwordResetTokenRepository.deleteAll();
         registrationOtpRepository.deleteAll();
+        profileRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -238,6 +244,30 @@ class AuthControllerTest {
 
         assertTrue(userRepository.existsByEmail(email));
         assertTrue(registrationOtpRepository.findByEmail(email).isEmpty());
+    }
+
+    @Test
+    @DisplayName("迴歸測試：OTP 驗證通過建立保母帳號時，應一併建立 Profile(type=SITTER)，" +
+            "不能只靠從未被前端呼叫過的 /api/auth/switch-role 才懶加載，否則保母註冊後送 KYC 必定 404")
+    void should_CreateSitterProfile_When_VerifyOtp_ForSitterRole() throws Exception {
+        String email = "sitterprofile@test.com";
+        String responseJson = registerAndVerify(email, "password123", "New Sitter", "SITTER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(responseJson, "$.userId"));
+
+        Profile profile = profileRepository.findByUserIdAndType(userId, "SITTER").orElse(null);
+        assertTrue(profile != null, "SITTER 角色註冊完成後應該已經存在 Profile(type=SITTER)");
+        assertEquals("UNVERIFIED", profile.getKycStatus());
+    }
+
+    @Test
+    @DisplayName("迴歸測試：OTP 驗證通過建立飼主帳號時，應一併建立 Profile(type=CLIENT)")
+    void should_CreateClientProfile_When_VerifyOtp_ForOwnerRole() throws Exception {
+        String email = "ownerprofile@test.com";
+        String responseJson = registerAndVerify(email, "password123", "New Owner", "OWNER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(responseJson, "$.userId"));
+
+        assertTrue(profileRepository.findByUserIdAndType(userId, "CLIENT").isPresent(),
+                "OWNER 角色註冊完成後應該已經存在 Profile(type=CLIENT)");
     }
 
     @Test
@@ -742,6 +772,8 @@ class AuthControllerTest {
 
         User created = userRepository.findByEmail("googlenewrole@test.com").orElseThrow();
         assertEquals("OWNER", created.getRole());
+        // 迴歸測試：Google 首次登入選角色建帳號，同樣要一併建立 Profile，跟 OTP 註冊路徑一致
+        assertTrue(profileRepository.findByUserIdAndType(created.getId(), "CLIENT").isPresent());
     }
 
     @Test

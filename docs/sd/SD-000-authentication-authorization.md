@@ -164,6 +164,7 @@ sequenceDiagram
         SVC-->>FE: 400 OTP_INVALID
     else OTP 正確
         SVC->>DB: 建立 users（狀態即為可登入）、刪除該筆 registration_otps
+        SVC->>DB: 依 role 一併建立對應 Profile（2026-09 修復，詳見 SD-001）
         SVC-->>FE: 200 {accessToken, refreshToken}（驗證成功即自動登入）
     end
     deactivate SVC

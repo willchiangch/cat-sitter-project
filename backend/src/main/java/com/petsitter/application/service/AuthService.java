@@ -160,6 +160,11 @@ public class AuthService {
         registrationOtpRepository.delete(registrationOtp);
         auditLogService.writeUserActionLogInline("AUTH_REGISTER", "CREATE", user.getId(), user.getId(), "users");
 
+        String profileType = mapUserRoleToProfileType(user.getRole());
+        if (profileType != null) {
+            ensureProfileExists(user.getId(), profileType);
+        }
+
         return createAuthResponse(user);
     }
 
@@ -281,24 +286,7 @@ public class AuthService {
             throw new IllegalArgumentException("無效的目標角色");
         }
 
-        // Lazy initialization of Profile
-        try {
-            if (profileRepository.findByUserIdAndType(user.getId(), targetRole).isEmpty()) {
-                log.info("[AuthService] Lazy initializing profile type: {} for user: {}", targetRole, user.getId());
-                com.petsitter.domain.model.Profile profile = com.petsitter.domain.model.Profile.builder()
-                        .userId(user.getId())
-                        .type(targetRole)
-                        .trustScore(100)
-                        .kycStatus("UNVERIFIED")
-                        .build();
-                profileRepository.saveAndFlush(profile);
-            }
-        } catch (org.springframework.dao.DataIntegrityViolationException e) {
-            // 併發衝突防禦：若已被另一執行緒建立，重新查詢即可，不拋錯
-            log.info("[AuthService] Profile initialization race conflict resolved dynamically for user: {} role: {}", user.getId(), targetRole);
-            profileRepository.findByUserIdAndType(user.getId(), targetRole)
-                    .orElseThrow(() -> e);
-        }
+        ensureProfileExists(user.getId(), targetRole);
 
         // 1. 註銷舊的 refresh token
         refreshTokenRepository.deleteByUser(user);
@@ -326,6 +314,45 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .role(targetRole)
                 .build();
+    }
+
+    /**
+     * Lazy-create 一筆 Profile（SD-001 懶加載設計）。原本只有 switchRole() 會呼叫到這段邏輯，
+     * 但前端從來沒有任何地方呼叫過 /api/auth/switch-role——真實使用者從 OTP 註冊/Google 登入
+     * 建立帳號後，Profile 永遠不會被建立，導致保母角色第一次送出 KYC 就 404「找不到該保母資料」
+     * （KycServiceImpl.submitKyc() 等十餘處都用 orElseThrow）。2026-09 修復：註冊/Google 登入
+     * 當下角色已確定，不需要等一個從未被呼叫的「switch」動作，直接在建立 User 的同一個
+     * transaction 內一併建好對應的 Profile。
+     */
+    private void ensureProfileExists(UUID userId, String profileType) {
+        try {
+            if (profileRepository.findByUserIdAndType(userId, profileType).isEmpty()) {
+                log.info("[AuthService] Lazy initializing profile type: {} for user: {}", profileType, userId);
+                com.petsitter.domain.model.Profile profile = com.petsitter.domain.model.Profile.builder()
+                        .userId(userId)
+                        .type(profileType)
+                        .trustScore(100)
+                        .kycStatus("UNVERIFIED")
+                        .build();
+                profileRepository.saveAndFlush(profile);
+            }
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // 併發衝突防禦：若已被另一執行緒建立，重新查詢即可，不拋錯
+            log.info("[AuthService] Profile initialization race conflict resolved dynamically for user: {} type: {}", userId, profileType);
+            profileRepository.findByUserIdAndType(userId, profileType)
+                    .orElseThrow(() -> e);
+        }
+    }
+
+    /**
+     * User.role（OWNER/SITTER/ADMIN）對應到 Profile.type（CLIENT/SITTER）的既有慣例
+     * （switchRole() 的 targetRole 一直是用 CLIENT 代表飼主角色，不是 OWNER）。ADMIN 沒有
+     * 對應的 Profile 概念，回傳 null。
+     */
+    private String mapUserRoleToProfileType(String userRole) {
+        if ("OWNER".equals(userRole)) return "CLIENT";
+        if ("SITTER".equals(userRole)) return "SITTER";
+        return null;
     }
 
     /**
@@ -412,6 +439,12 @@ public class AuthService {
             throw new IllegalArgumentException("電子郵件已存在");
         }
         auditLogService.writeUserActionLogInline("AUTH_REGISTER", "CREATE", newUser.getId(), newUser.getId(), "users");
+
+        String profileType = mapUserRoleToProfileType(newUser.getRole());
+        if (profileType != null) {
+            ensureProfileExists(newUser.getId(), profileType);
+        }
+
         return toGoogleLoginResponse(createAuthResponse(newUser));
     }
 
