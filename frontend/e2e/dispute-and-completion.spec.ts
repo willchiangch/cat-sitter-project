@@ -153,20 +153,25 @@ test.describe('Dispute and Completion Flow', () => {
     await page.getByTestId('admin-resolve-reason').fill('已扣除未打卡時段之費用。');
     
     // 二次驗證密碼輸入錯誤
+    // 注意：handleResolve 是先 await API 再跳 alert，屬於非同步對話框——
+    // click() 只等點擊動作本身完成，不會等到 alert 真的跳出來。若沿用
+    // page.once('dialog', ...) 掛好就 click 的寫法，下一步立刻覆蓋掉監聽器，
+    // 會接到「這次」的對話框而非「上一次」的，斷言必定跑掉。改成明確等對話框
+    // 事件本身出現後才繼續，徹底消除這個時序競爭。
     await page.getByTestId('admin-resolve-password').fill('wrongpassword');
-    page.once('dialog', async dialog => {
-      expect(dialog.message()).toContain('二次驗證密碼錯誤');
-      await dialog.accept();
-    });
+    const wrongPasswordDialogPromise = page.waitForEvent('dialog');
     await page.getByTestId('admin-resolve-submit-btn').click();
+    const wrongPasswordDialog = await wrongPasswordDialogPromise;
+    expect(wrongPasswordDialog.message()).toContain('二次驗證密碼錯誤');
+    await wrongPasswordDialog.accept();
 
     // 二次驗證密碼輸入正確
     await page.getByTestId('admin-resolve-password').fill('password');
-    page.once('dialog', async dialog => {
-      expect(dialog.message()).toContain('爭議已順利調解結案');
-      await dialog.accept();
-    });
+    const resolvedDialogPromise = page.waitForEvent('dialog');
     await page.getByTestId('admin-resolve-submit-btn').click();
+    const resolvedDialog = await resolvedDialogPromise;
+    expect(resolvedDialog.message()).toContain('爭議已順利調解結案');
+    await resolvedDialog.accept();
 
     // 驗證成功 banner
     await expect(page.getByTestId('admin-resolved-banner')).toBeVisible();
