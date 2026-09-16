@@ -289,9 +289,14 @@ public class KycServiceImpl implements KycService {
     }
 
     private String getObjectKeyByMediaType(KycRecord record, String mediaType) {
-        if ("ID_CARD_FRONT".equalsIgnoreCase(mediaType)) {
+        // 全站唯一實際傳入的值是 "id-front"/"selfie"（見 submitKyc() 上傳時的 type 參數，
+        // 以及 frontend/src/api/kycApi.ts 的 mediaType 型別）。這裡原本誤寫成
+        // "ID_CARD_FRONT"，equalsIgnoreCase 對 "id-front" 永遠是 false（連字號 vs 底線），
+        // 導致 admin 與保母本人預覽證件正面照時一律 400「無效的媒體類型」，
+        // "selfie" 因為字面剛好一致才沒暴露這個洞。
+        if ("id-front".equalsIgnoreCase(mediaType)) {
             return record.getIdCardFrontKey();
-        } else if ("SELFIE".equalsIgnoreCase(mediaType)) {
+        } else if ("selfie".equalsIgnoreCase(mediaType)) {
             return record.getSelfieKey();
         } else {
             throw new KycException(HttpStatus.BAD_REQUEST, "MSG_DATA_INVALID_INPUT", "無效的媒體類型");

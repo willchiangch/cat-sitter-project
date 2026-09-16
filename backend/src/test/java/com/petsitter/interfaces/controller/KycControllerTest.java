@@ -243,6 +243,51 @@ class KycControllerTest {
     }
 
     @Test
+    @DisplayName("迴歸測試：管理員取得證件正面照簽名網址應成功，不能因為媒體類型字串命名" +
+            "不一致（\"id-front\" vs 內部誤寫的 \"ID_CARD_FRONT\"）而回 400")
+    void should_GenerateAdminSignedUrl_ForIdFront() throws Exception {
+        TokenContext.setUserId(admin.getId());
+
+        KycRecord record = KycRecord.builder()
+                .sitterId(sitter.getId())
+                .idCardFrontKey("kyc/sitter/front.jpg")
+                .selfieKey("kyc/sitter/selfie.jpg")
+                .status("PENDING")
+                .build();
+        kycRecordRepository.save(record);
+
+        when(mediaStorageService.generateSignedUrl(eq("kyc/sitter/front.jpg"), any()))
+                .thenReturn("https://storage.googleapis.com/bucket/kyc/sitter/front.jpg?signed=1");
+
+        mockMvc.perform(get("/api/admin/kyc/" + sitter.getId() + "/media/id-front")
+                .with(user(admin.getEmail()).roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.signedUrl").value("https://storage.googleapis.com/bucket/kyc/sitter/front.jpg?signed=1"));
+    }
+
+    @Test
+    @DisplayName("迴歸測試：保母本人取得自己證件正面照簽名網址應成功")
+    void should_GenerateSitterOwnSignedUrl_ForIdFront() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+
+        KycRecord record = KycRecord.builder()
+                .sitterId(sitter.getId())
+                .idCardFrontKey("kyc/sitter/front.jpg")
+                .selfieKey("kyc/sitter/selfie.jpg")
+                .status("PENDING")
+                .build();
+        kycRecordRepository.save(record);
+
+        when(mediaStorageService.generateSignedUrl(eq("kyc/sitter/front.jpg"), any()))
+                .thenReturn("https://storage.googleapis.com/bucket/kyc/sitter/front.jpg?signed=1");
+
+        mockMvc.perform(get("/api/sitter/kyc/media/id-front")
+                .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.signedUrl").exists());
+    }
+
+    @Test
     @DisplayName("管理員查詢待審核 KYC 紀錄列表 (200 OK)")
     void should_GetPendingKycRecords_ForAdmin() throws Exception {
         TokenContext.setUserId(admin.getId());
