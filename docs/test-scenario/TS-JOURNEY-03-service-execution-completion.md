@@ -31,7 +31,7 @@
 | 5 | UI：點擊「結束服務」 | 行程完工 | `POST /api/visits/{visitId}/end` 200，`Visit=DONE`；**注意**：此按鈕背後有 `window.confirm()`，需要主動 accept 對話框，不然點了跟沒點一樣 |
 | 6 | UI：點擊「送出報告」 | 報告正式送出 | `POST /visits/{visitId}/report/submit` 200，`report.status=SUBMITTED` |
 | 7 | UI：飼主 `/owner/orders/{orderId}` 點行程清單裡的「查看日誌」連結 | 導向 `/visit-reports/view/{visitId}`，看得到文字與照片 | 連結同樣來自 `GET /api/orders/{orderId}/visits` |
-| 8 | UI：飼主點擊「確認結案」 | 訂單正式結案 | `POST /api/orders/{orderId}/complete` 200，`Order=COMPLETED`；**注意**：此按鈕同樣有 `window.confirm()` |
+| 8 | UI：飼主點擊「確認結案」 | 訂單正式結案；結案前徽章為「服務進行中」、結案後為「已結案」（中文，U5） | `POST /api/orders/{orderId}/complete` 200，`Order=COMPLETED`；**注意**：此按鈕同樣有 `window.confirm()` |
 
 ---
 
@@ -47,3 +47,10 @@
 
 * **資料清理**：本測試建立的帳號、訂單、行程、日誌媒體皆落在 `@e2e-journey.test` 網域，由 CI 跑完後呼叫 `cleanup-e2e-journeys` 統一硬刪除（含 GCS 上的日誌照片物件）。
 * **前置依賴**：`bootstrapConfirmedOrder` helper 重跑 Journey A（`bootstrapVerifiedSitter`）+ Journey B（建寵物、下單、快速接單、付款、核對入帳）的機械部分，若這兩條路徑本身失敗，這裡也會連帶失敗。
+
+---
+
+## 五、本測試發現並修復的真實 bug
+
+**飼主訂單詳情徽章顯示英文 `IN_PROGRESS`（2026-10，驗收 P6 / Backlog 第 3 批 U5）**：步驟 8 結案前截圖的徽章是英文 `IN_PROGRESS`。`StatusBadge` 只對照 6 種訂單狀態，其他狀態落到 default 直接印狀態碼；行程清單「（DONE）」、評估頁提示也直接印英文。修法：集中到 `statusLabels.ts` 一份中文對照表（SD-FRONTEND-SPEC §6.4），所有狀態文字都從這裡取。迴歸：步驟 8 斷言結案前「服務進行中」、結案後「已結案」；mock `e2e/order-status-labels.spec.ts`。
+

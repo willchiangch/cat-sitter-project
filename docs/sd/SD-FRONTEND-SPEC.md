@@ -135,3 +135,16 @@ frontend/
 ### 6.3 字體規範 (Typography)
 *   **Display & Headlines**: `Plus Jakarta Sans` - 用於品牌時刻與大標題，展現權威與親和力。
 *   **Body & Labels**: `Manrope` - 高功能性無襯線字體，優化長時間閱讀保母日誌的清晰度。
+
+### 6.4 狀態顯示文字（中文對照表，2026-10）
+畫面上任何狀態碼都不得直接顯示英文，一律經由 `src/components/ui/statusLabels.ts` 轉換；新增狀態碼時只改這個檔案。查無對照時顯示「未知狀態」。訂單徽章元件 `StatusBadge`（`data-testid="order-status-badge"`、`data-status=<狀態碼>`）只負責顏色。
+
+| 類別 | 狀態碼 → 顯示文字 |
+| :--- | :--- |
+| 訂單 `orders.status` | `PENDING` 待評估、`PENDING_PAYMENT` 待付款、`PAID` 已付款、`CONFIRMED` 已確認、`IN_PROGRESS` 服務進行中、`MODIFYING` 變更協商中、`REFUND_VERIFY` 待確認退款、`COMPLETED` 已結案、`CANCELLED` 已取消、`DISPUTED` 爭議處理中 |
+| 行程 `visits.status` | `PENDING`/`CONFIRMED` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消 |
+| 保母認證 `profiles.kyc_status` | `UNVERIFIED` 未認證、`PENDING_REVIEW` 審核中、`VERIFIED` 已認證、`REJECTED` 被駁回、`SUSPENDED` 已停權 |
+| KYC 申請 `kyc_records.status`（管理端） | `PENDING` 待審核、`APPROVED` 已通過、`REJECTED` 被駁回 |
+
+2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。迴歸：`e2e/order-status-labels.spec.ts`（10 種訂單狀態逐一比對、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
+

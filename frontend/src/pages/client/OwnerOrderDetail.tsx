@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
+import { visitStatusLabel } from '../../components/ui/statusLabels';
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
 import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
@@ -44,7 +45,7 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
           }}
         >
           <span>
-            {new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）
+            {new Date(visit.scheduledAt).toLocaleDateString()}（{visitStatusLabel(visit.status)}）
           </span>
           <button
             type="button"

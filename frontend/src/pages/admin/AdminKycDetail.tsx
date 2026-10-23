@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card';
 import { getKycDetail, getAdminMediaUrl, reviewKyc } from '../../api/kycApi';
 import type { KycRecordDetailDto } from '../../api/kycApi';
 import { useRole } from '../../contexts/RoleContext';
+import { kycRecordStatusLabel } from '../../components/ui/statusLabels';
 
 interface AdminKycDetailProps {
   kycRecordId: string;
@@ -252,7 +253,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                   ...getKycBadgeStyle(detail.kycStatus)
                 }}
               >
-                {getKycStatusText(detail.kycStatus)}
+                {kycRecordStatusLabel(detail.kycStatus)}
               </span>
             </div>
           </div>
@@ -526,19 +527,6 @@ const getKycBadgeStyle = (status: string) => {
         backgroundColor: 'var(--color-surface-high)',
         color: 'var(--color-on-surface-variant)'
       };
-  }
-};
-
-const getKycStatusText = (status: string) => {
-  switch (status) {
-    case 'PENDING':
-      return '待審核 (PENDING)';
-    case 'APPROVED':
-      return '已通過 (APPROVED)';
-    case 'REJECTED':
-      return '被駁回 (REJECTED)';
-    default:
-      return status;
   }
 };
 

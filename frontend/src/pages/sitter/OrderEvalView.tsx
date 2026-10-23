@@ -7,6 +7,7 @@ import { ChevronLeft, PlusCircle, MinusCircle } from 'lucide-react';
 import { getOrderDetail, confirmOrder, sendOrderQuote, rejectOrder } from '../../api/orderApi';
 import type { OrderDetailResponseDto } from '../../api/orderApi';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { orderStatusLabel } from '../../components/ui/statusLabels';
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -161,7 +162,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
       <div
         style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
       >
-        此訂單目前狀態為「{order.status}」，非待評估狀態，無法在此頁面操作。
+        此訂單目前狀態為「{orderStatusLabel(order.status)}」，非待評估狀態，無法在此頁面操作。
       </div>
     );
   }

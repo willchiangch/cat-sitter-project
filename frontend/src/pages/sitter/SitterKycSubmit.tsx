@@ -4,6 +4,7 @@ import { getSitterKycStatus, submitKyc, getSitterMediaUrl } from '../../api/kycA
 import type { KycStatusDto } from '../../api/kycApi';
 import { useQueryClient } from '@tanstack/react-query';
 import { KYC_STATUS_QUERY_KEY } from '../../hooks/useKyc';
+import { profileKycStatusLabel } from '../../components/ui/statusLabels';
 
 const SitterKycSubmit: React.FC = () => {
   const queryClient = useQueryClient();
@@ -149,7 +150,7 @@ const SitterKycSubmit: React.FC = () => {
               ...getStatusBadgeStyle(kycStatus)
             }}
           >
-            {getStatusText(kycStatus)}
+            {profileKycStatusLabel(kycStatus)}
           </span>
         </div>
 
@@ -487,23 +488,6 @@ const getStatusBadgeStyle = (status: string) => {
       return { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171' };
     default:
       return {};
-  }
-};
-
-const getStatusText = (status: string) => {
-  switch (status) {
-    case 'UNVERIFIED':
-      return '未認證';
-    case 'PENDING_REVIEW':
-      return '審核中';
-    case 'VERIFIED':
-      return '已認證';
-    case 'REJECTED':
-      return '被駁回';
-    case 'SUSPENDED':
-      return '已停權';
-    default:
-      return status;
   }
 };
 

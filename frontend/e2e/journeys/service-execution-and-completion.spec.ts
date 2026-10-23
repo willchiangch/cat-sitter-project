@@ -100,6 +100,8 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
     await step('C-08 飼主確認結案', ownerPage, async () => {
       await ownerPage.goto(`/owner/orders/${orderId}`);
       await expect(ownerPage.getByTestId('complete-order-btn')).toBeVisible({ timeout: 10000 });
+      // U5（驗收 P6）：徽章過去直接顯示英文 IN_PROGRESS
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('服務進行中');
       await snap(ownerPage, 'C-08 結案前訂單詳情');
       await ownerPage.getByTestId('complete-order-btn').click();
       await expectDialog(ownerDialogs, /訂單已順利結案/);
@@ -107,6 +109,7 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       // 結案後頁面不一定重抓訂單，reload 後才是真正的 COMPLETED 畫面
       await ownerPage.reload();
       await expect(ownerPage.getByTestId('completed-status-banner')).toBeVisible({ timeout: 10000 });
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已結案');
     });
 
     await ownerContext.close();
