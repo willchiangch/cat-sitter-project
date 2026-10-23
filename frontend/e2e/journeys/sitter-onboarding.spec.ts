@@ -32,7 +32,16 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
 
     // 2. UI：提交 KYC
     await step('A-02 保母提交 KYC 證件與自拍照', page, async () => {
+      // TS #2：switch-role 後 lazy 建立的 Profile 必須是 UNVERIFIED。徽章在 status API 回來前
+      // 也會 fallback 成「未認證」（SitterKycSubmit.tsx kycStatus 預設值），所以先等真實回應再斷言徽章
+      const initialStatus = page.waitForResponse(
+        (r) => r.url().includes('/api/sitter/kyc/status') && r.request().method() === 'GET'
+      );
       await page.goto('/sitter/kyc');
+      const initialStatusRes = await initialStatus;
+      expect(initialStatusRes.ok()).toBeTruthy();
+      expect((await initialStatusRes.json()).data.kycStatus).toBe('UNVERIFIED');
+      await expect(page.getByTestId('sitter-kyc-status-badge')).toHaveText('未認證');
       await page
         .getByTestId('sitter-kyc-id-front-input')
         .setInputFiles(path.join(__dirname, 'fixtures/kyc-id-front.jpg'));
