@@ -11,6 +11,9 @@ import { test, expect, type Page, type Request } from '@playwright/test';
  * 3. 步驟中間需要額外截圖時用 snap()，不要再直接 testInfo.attach(page.screenshot())。
  * 4. 頁面上的 window.alert/confirm 一律用 trackDialogs() 接手：原生對話框不會出現在截圖裡，
  *    本專案操作結果幾乎都用 alert() 呈現，不接手的話「操作後截圖」只會截到操作前的畫面。
+ * 5. 截圖前會等可見的 <img> 載入完成（上限 5 秒）。逾時仍在載入的 src 記在 manifest 的
+ *    note.imagesPending，載入失敗（404/無權限，naturalWidth=0）的記在 note.imagesBroken，
+ *    驗收時看到截圖缺圖，先查這兩個欄位判斷是產品 bug 還是截太早。
  *
  * 所有附件依呼叫順序自動編號（01-、02-…），報告裡的順序 = 實際發生順序。
  * 檔案同時落地在 test-results/<test>/evidence/，並寫一份 manifest.jsonl（給驗收 agent 逐步比對 TS 文件用）。
@@ -75,13 +78,53 @@ async function waitForNetworkQuiet(page: Page, quietMs = 300, maxMs = 5000) {
   }
 }
 
-/** 截圖前等畫面穩定：xhr/fetch 靜止、按鈕/頁面不在「處理中...」、React commit 完成、字型載入 */
-async function settle(page: Page) {
+interface ImageStatus {
+  /** 5 秒內仍未載入完成（img.complete=false）的 src */
+  imagesPending?: string[];
+  /** 已結束但沒有畫面（complete=true、naturalWidth=0：404、無權限、src 空字串）的 src */
+  imagesBroken?: string[];
+}
+
+const IMAGE_WAIT_MS = 5000;
+
+/**
+ * 等可見的 <img> 都載入完成（上限 IMAGE_WAIT_MS）。網路靜止只看 xhr/fetch，圖片不在內，
+ * 過去 A-02、B-07、C-04、D1 都截到「圖片還在載入的黑塊/空白」，分不出是 bug 還是截太早。
+ * 逾時不丟錯（截圖仍有價值），但把沒載入/載入失敗的 src 回傳，寫進 manifest 的 note 欄位。
+ */
+async function waitForImages(page: Page): Promise<ImageStatus> {
+  const allSettled = () =>
+    Array.from(document.images)
+      .filter((img) => img.checkVisibility())
+      .every((img) => img.complete);
+  await page
+    .waitForFunction(allSettled, undefined, { timeout: IMAGE_WAIT_MS, polling: 100 })
+    .catch(() => {});
+  const status = await page
+    .evaluate(() => {
+      const visible = Array.from(document.images).filter((img) => img.checkVisibility());
+      return {
+        imagesPending: visible.filter((img) => !img.complete).map((img) => img.src),
+        imagesBroken: visible
+          .filter((img) => img.complete && img.naturalWidth === 0)
+          .map((img) => img.src)
+      };
+    })
+    .catch(() => ({ imagesPending: [], imagesBroken: [] }));
+  const result: ImageStatus = {};
+  if (status.imagesPending.length) result.imagesPending = status.imagesPending;
+  if (status.imagesBroken.length) result.imagesBroken = status.imagesBroken;
+  return result;
+}
+
+/** 截圖前等畫面穩定：xhr/fetch 靜止、按鈕/頁面不在「處理中...」、圖片載入、React commit 完成、字型載入 */
+async function settle(page: Page): Promise<ImageStatus> {
   await page.waitForLoadState('domcontentloaded');
   await waitForNetworkQuiet(page);
   await expect(page.getByText(BUSY_TEXT).and(page.locator(`:not(#${ECHO_ID})`)))
     .toHaveCount(0, { timeout: 10000 })
     .catch(() => {});
+  const images = await waitForImages(page);
   // 資料回來後 React 還要 commit + paint，等兩個 animation frame（等的是 render flush，不是固定秒數）
   await page
     .evaluate(
@@ -92,6 +135,7 @@ async function settle(page: Page) {
     )
     .catch(() => {});
   await page.evaluate(() => document.fonts.ready).catch(() => {});
+  return images;
 }
 
 /**
@@ -112,7 +156,8 @@ async function record(
   label: string,
   ext: string,
   body: Buffer | string,
-  page?: Page
+  page?: Page,
+  note?: ImageStatus
 ) {
   const info = test.info();
   const idx = nextIndex();
@@ -130,7 +175,8 @@ async function record(
     label,
     file,
     url: page && !page.isClosed() ? page.url() : undefined,
-    at: new Date().toISOString()
+    at: new Date().toISOString(),
+    note: note && Object.keys(note).length ? note : undefined
   };
   fs.appendFileSync(path.join(dir, 'manifest.jsonl'), JSON.stringify(line) + '\n');
   return file;
@@ -138,7 +184,7 @@ async function record(
 
 export async function snap(page: Page, label: string) {
   if (page.isClosed()) return;
-  await settle(page);
+  const imageStatus = await settle(page);
   const unclip = await page.addStyleTag({ content: UNCLIP_CSS }).catch(() => null);
   let body: Buffer;
   try {
@@ -146,7 +192,7 @@ export async function snap(page: Page, label: string) {
   } finally {
     await unclip?.evaluate((n) => (n as Element).remove()).catch(() => {});
   }
-  await record('screenshot', label, 'png', body, page);
+  await record('screenshot', label, 'png', body, page, imageStatus);
   // 對話框回顯只屬於「這一張」截圖，截完就移除，避免下一張截到過期訊息
   await page.evaluate((id) => document.getElementById(id)?.remove(), ECHO_ID).catch(() => {});
 }
