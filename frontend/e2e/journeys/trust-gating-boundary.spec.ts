@@ -3,7 +3,14 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
-import { provisionAndLogin, switchRole, apiAuthed, loginAsSeedAdmin, bootstrapConfirmedOrder, awaitOrderStatus } from './helpers';
+import {
+  provisionAndLogin,
+  switchRole,
+  apiAuthed,
+  loginAsSeedAdmin,
+  bootstrapConfirmedOrder,
+  awaitOrderStatus
+} from './helpers';
 import { step, apiStep } from '../support/evidence';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,8 +64,12 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
     await step('未登入訪客打開此保母的公開頁，應被 gate', anonPage, async () => {
       await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
-      await expect(anonPage.getByTestId('public-profile-gated-banner')).toBeVisible({ timeout: 10000 });
-      await expect(anonPage.getByTestId('public-profile-display-name')).not.toHaveText(/Journey保母E1/);
+      await expect(anonPage.getByTestId('public-profile-gated-banner')).toBeVisible({
+        timeout: 10000
+      });
+      await expect(anonPage.getByTestId('public-profile-display-name')).not.toHaveText(
+        /Journey保母E1/
+      );
       await expect(anonPage.getByTestId('public-profile-plan-item')).not.toBeVisible();
       await expect(anonPage.getByTestId('public-profile-book-now-btn')).not.toBeVisible();
     });
@@ -75,12 +86,25 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
     await anonContext.close();
   });
 
-  test('保母停權後，公開頁被 gate，但停權前已存在的進行中訂單不受影響', async ({ request, browser }) => {
-    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆 CONFIRMED 訂單（此時保母仍為正常 VERIFIED 狀態）', async () => {
-      return bootstrapConfirmedOrder(request, 'e2', 'Journey方案E2');
-    });
+  test('保母停權後，公開頁被 gate，但停權前已存在的進行中訂單不受影響', async ({
+    request,
+    browser
+  }) => {
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：兜出一筆 CONFIRMED 訂單（此時保母仍為正常 VERIFIED 狀態）',
+      async () => {
+        return bootstrapConfirmedOrder(request, 'e2', 'Journey方案E2');
+      }
+    );
 
     await apiStep('Admin 將此保母停權', async () => {
+      // 停權前先確認 isOpen=true，下面的 isOpen=false 才證明得了是停權造成的轉移
+      const openBeforeRes = await request.get('/api/sitter/kyc/open', {
+        headers: apiAuthed(sitter)
+      });
+      expect(openBeforeRes.ok()).toBeTruthy();
+      expect((await openBeforeRes.json()).data.isOpen).toBe(true);
+
       const admin = await loginAsSeedAdmin(request);
       const suspendRes = await request.post(`/api/admin/sitters/${sitter.userId}/suspend`, {
         headers: { ...apiAuthed(admin), 'Idempotency-Key': randomUUID() },
@@ -89,35 +113,70 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       if (!suspendRes.ok()) {
         throw new Error(`suspend failed (${suspendRes.status()}): ${await suspendRes.text()}`);
       }
-      return { status: suspendRes.status() };
+
+      // TS 測試 2 #2：kycStatus → SUSPENDED、isOpen → false（KycServiceImpl.suspendSitter）
+      const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });
+      expect(statusRes.ok()).toBeTruthy();
+      const kycStatus = (await statusRes.json()).data.kycStatus;
+      expect(kycStatus).toBe('SUSPENDED');
+      const openRes = await request.get('/api/sitter/kyc/open', { headers: apiAuthed(sitter) });
+      expect(openRes.ok()).toBeTruthy();
+      const isOpen = (await openRes.json()).data.isOpen;
+      expect(isOpen).toBe(false);
+      return { status: suspendRes.status(), kycStatus, isOpen };
     });
 
     const anonContext = await browser.newContext();
     const anonPage = await anonContext.newPage();
-    await step('未登入訪客打開此保母的公開頁，應被 gate（停權跟未過審共用同一套 gating 邏輯）', anonPage, async () => {
-      await anonPage.goto(`/sitter/${sitter.userId}/profile`);
+    await step(
+      '未登入訪客打開此保母的公開頁，應被 gate（停權跟未過審共用同一套 gating 邏輯）',
+      anonPage,
+      async () => {
+        await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
-      await expect(anonPage.getByTestId('public-profile-gated-banner')).toBeVisible({ timeout: 10000 });
+        await expect(anonPage.getByTestId('public-profile-gated-banner')).toBeVisible({
+          timeout: 10000
+        });
+        await expect(anonPage.getByTestId('public-profile-display-name')).not.toHaveText(
+          /Journey保母e2/
+        );
+        await expect(anonPage.getByTestId('public-profile-plan-item')).not.toBeVisible();
+        await expect(anonPage.getByTestId('public-profile-book-now-btn')).not.toBeVisible();
+      }
+    );
+
+    await apiStep('匿名查詢停權保母公開檔案 API，應回 gated=true', async () => {
+      const profileRes = await anonContext.request.get(`/api/sitter/profile/${sitter.userId}`);
+      expect(profileRes.ok()).toBeTruthy();
+      const profile = await profileRes.json();
+      expect(profile.gated).toBe(true);
+      expect(profile.displayName).toBe('保母休息中');
+      return profile;
     });
     await anonContext.close();
 
-    await apiStep('停權前已存在的 CONFIRMED 訂單，Check-in 仍應正常成功（邊界：停權不影響進行中訂單）', async () => {
-      const visitsRes = await request.get(`/api/orders/${orderId}/visits`, { headers: apiAuthed(sitter) });
-      if (!visitsRes.ok()) {
-        throw new Error(`get visits failed (${visitsRes.status()}): ${await visitsRes.text()}`);
+    await apiStep(
+      '停權前已存在的 CONFIRMED 訂單，Check-in 仍應正常成功（邊界：停權不影響進行中訂單）',
+      async () => {
+        const visitsRes = await request.get(`/api/orders/${orderId}/visits`, {
+          headers: apiAuthed(sitter)
+        });
+        if (!visitsRes.ok()) {
+          throw new Error(`get visits failed (${visitsRes.status()}): ${await visitsRes.text()}`);
+        }
+        const visits = await visitsRes.json();
+        const visitId = visits[0].id;
+
+        const startRes = await request.post(`/api/visits/${visitId}/start`, {
+          headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() }
+        });
+        // 這裡刻意用「明確斷言 200」把這個目前程式碼的真實行為釘進測試——
+        // 如果之後有人不小心把停權邏輯擴大成連 Check-in 都擋，這支測試會直接紅燈提醒
+        expect(startRes.ok()).toBeTruthy();
+
+        const order = await awaitOrderStatus(request, owner, orderId, ['IN_PROGRESS']);
+        return { checkIn: await startRes.json(), order };
       }
-      const visits = await visitsRes.json();
-      const visitId = visits[0].id;
-
-      const startRes = await request.post(`/api/visits/${visitId}/start`, {
-        headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() }
-      });
-      // 這裡刻意用「明確斷言 200」把這個目前程式碼的真實行為釘進測試——
-      // 如果之後有人不小心把停權邏輯擴大成連 Check-in 都擋，這支測試會直接紅燈提醒
-      expect(startRes.ok()).toBeTruthy();
-
-      const order = await awaitOrderStatus(request, owner, orderId, ['IN_PROGRESS']);
-      return { checkIn: await startRes.json(), order };
-    });
+    );
   });
 });
