@@ -24,6 +24,12 @@
 * **自動化對應**: `PaymentControllerTest.should_RestoreInProgress_When_SupplementVerified`、`should_RestoreConfirmed_When_SupplementVerified`、`should_KeepInitialPayment_And_ExposeSupplementProof_When_SupplementUploaded`、`should_ClearOnlySupplementFields_When_SupplementRejected`、`should_Return409_When_SupplementReusesInitialIdempotencyKey`。
 * **E2E 覆蓋範圍**：Journey D 補款分支只覆蓋 `CONFIRMED` 發起的路徑（核帳後回 `CONFIRMED`、首次付款後五碼 `12345` 與 `paidAt` 不變、核對面板顯示補款後五碼 `54321`）。`IN_PROGRESS` 中發起變更需要先讓訂單進入服務中（當日打卡），journey 的訂單日期是明天、無法在測試內打卡，成本過高，**刻意只以上述 JUnit 覆蓋**。
 
+## Scenario 1c: 補款核帳通知文案 (2026-10，C5 迴歸)
+* **Given**: 同 Scenario 1b，補款憑證已上傳（訂單 `PAID`）。
+* **When**: 保母核對入帳。
+* **Then**: 飼主收到一筆 `ORDER_AFFAIR` 通知，標題「補款已確認」、內容含「補款」且**不含**「交易正式成立」；首次付款核帳仍是「付款已確認／交易正式成立」。
+* **自動化對應**: `PaymentControllerTest.should_SendSupplementWording_When_SupplementVerified`、`should_VerifyPayment_Successfully`（首次付款文案）。
+
 ## Scenario 2: 線下退款憑證核銷 (退款路徑)
 * **Given**: 狀態為 `MODIFYING`。保母報價退款 200 元，飼主點擊 `confirm`。
 * **When**: 訂單進入 `REFUND_VERIFY`。保母上傳 `gs://` 憑證，飼主點擊【確認收到款項】。
@@ -102,3 +108,5 @@
 **補款核帳後狀態一律回 `CONFIRMED`、補款覆寫首次付款紀錄（2026-10，E2E 修復回合「另外發現」）**：`PaymentService.verifyPayment()` 不分首次付款或補款，一律 `status = CONFIRMED` 並覆寫 `paid_at`；`submitPaymentProof()` 把補款憑證直接寫進 `orders.payment_proof_url/last_five/payment_idempotency_key/disclaimer_agreed_at`，`rejectPayment()` 駁回補款時更會把這些欄位清成 null。結果：(1) `IN_PROGRESS` 中發起變更的訂單補款後被退回「已確認未開始」，跟拒絕變更依 `previous_status` 復原的設計不一致（PRD-016 C.3 退款分支已明訂恢復 `CONFIRMED` 或 `IN_PROGRESS`，補款分支原本沒寫，本次補上同一規則）；(2) 首次付款的憑證、後五碼、免責同意時間、付款確認時間在訂單上就消失了，只剩 order log。修法見 SD-016 §4.3：補款紀錄改存 `modification_requests.supplement_*`（Flyway `V20261024_01`），核帳回 `previous_status`。迴歸見 Scenario 1b。
 
 **退款確認、無差額變更也寫死 `CONFIRMED`（2026-10，Backlog 第 2 批 C3）**：B2 修完補款後，同類寫法還留在 `ModificationService`：`confirmRefund()` 只要變更後仍有預約項目就一律 `CONFIRMED`，`confirmModification()` 差額為 0 的分支也直接 `CONFIRMED`。PRD-016 C.3 退款分支明文「恢復 `CONFIRMED` 或 `IN_PROGRESS`」、無差額為「直接恢復」，`IN_PROGRESS` 中發起的變更走這兩條路都會被退回「已確認未開始」（自動結案排程、打卡入口都依狀態判斷）。修法：三條結清路徑（拒絕、退款確認、無差額）共用 `ModificationService.restoreStatus()`，讀發起變更時快照的 `previous_status`，舊資料 fallback `CONFIRMED`；整筆取消仍為 `CANCELLED`。迴歸見 Scenario 2b。
+
+**補款核帳也發「交易正式成立」通知（2026-10，Backlog 第 2 批 C5）**：`NotificationListener.onPaymentVerified()` 不分首次付款或補款，一律通知飼主「您的訂單付款已通過保母確認，交易正式成立。」。補款發生在訂單早已成立之後，這句話會讓飼主誤以為是另一筆新交易。修法：`PaymentVerifiedEvent` 加 `supplement` 旗標（由 `SupplementPaymentResolver.findOpenSupplement()` 判定），補款改發「補款已確認／變更內容正式生效」；category 維持 `ORDER_AFFAIR`，不新增通知類別，因此偏好設定與 SD-014 類別清單不需調整。迴歸見 Scenario 1c。

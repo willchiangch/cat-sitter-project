@@ -205,7 +205,7 @@ public class PaymentService {
         ));
 
         // 發布事件
-        eventPublisher.publishEvent(new PaymentVerifiedEvent(orderId, sitterId));
+        eventPublisher.publishEvent(new PaymentVerifiedEvent(orderId, sitterId, supplement.isPresent()));
         log.info("Successfully verified payment for order: {}", orderId);
     }
 

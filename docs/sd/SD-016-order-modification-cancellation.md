@@ -201,6 +201,7 @@ sequenceDiagram
   - `orders.payment_proof_url / payment_proof_last_five / payment_idempotency_key / disclaimer_agreed_at / paid_at` 只代表**首次付款**，補款上傳、核帳、駁回都不會動到。
 - **`POST /payment-proof`（補款階段）**：寫入上述 `supplement_*` 欄位，`Order.status → PAID`。
 - **`POST /verify-payment`（補款階段）**：`supplement_verified_at = now()`，`Order.status → previousStatus`（null 時 fallback `CONFIRMED`），與 2.4 拒絕變更同一套復原規則；`paid_at` 不變。過去一律寫死 `CONFIRMED` 並覆寫 `paid_at`，`IN_PROGRESS` 中發起的變更補款後會被退回「已確認未開始」。
+- **核帳通知（2026-10，C5）**：`PaymentVerifiedEvent.supplement = true`，飼主收到「補款已確認／您的訂單變更補款已通過保母確認，變更內容正式生效。」，category 沿用 `ORDER_AFFAIR`（同屬訂單事務，偏好設定不新增類別）。過去補款與首次付款共用「交易正式成立」文案，訂單早已成立，語意錯誤。迴歸：`PaymentControllerTest.should_SendSupplementWording_When_SupplementVerified`。
 - **`POST /reject-payment`（補款階段）**：只清 `supplement_proof_key/last_five/idempotency_key/submitted_at`，`Order.status → PENDING_PAYMENT`，首次付款資料保留。
 - **DTO**：`paymentProofLastFive`/`hasPaymentProof` 反映「目前階段」的憑證——補款 `PAID` 時是補款憑證；補款 `PENDING_PAYMENT`（尚未上傳或已被駁回）時為空；其餘為首次付款憑證。保母核對面板因此看到補款憑證與 `amountDue` 差額。
 - **相容舊資料**：2026-10 前已提交的補款憑證是直接覆寫在 `orders` 上，`supplement_proof_key` 為 null；這類訂單在 `PAID` 時 DTO/簽名仍沿用 `orders` 欄位，核帳一樣依 `previousStatus` 復原。

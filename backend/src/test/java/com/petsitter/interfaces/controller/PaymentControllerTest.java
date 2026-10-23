@@ -152,6 +152,16 @@ class PaymentControllerTest {
         }
     }
 
+    /** 等非同步監聽器寫完飼主的通知後回傳（只會有一筆） */
+    private com.petsitter.domain.model.Notification awaitOwnerNotification() throws InterruptedException {
+        awaitAsyncNotificationPersisted();
+        var list = notificationRepository.findAll().stream()
+                .filter(n -> n.getUserId().equals(owner.getId()))
+                .toList();
+        assertEquals(1, list.size());
+        return list.get(0);
+    }
+
     @AfterEach
     void tearDown() {
         TokenContext.clear();
@@ -319,7 +329,9 @@ class PaymentControllerTest {
         // 驗證非同步通知有觸發
         org.mockito.Mockito.verify(notificationListener, org.mockito.Mockito.timeout(5000).times(1))
                 .onPaymentVerified(any());
-        awaitAsyncNotificationPersisted();
+        var notification = awaitOwnerNotification();
+        assertEquals("付款已確認", notification.getTitle());
+        assertTrue(notification.getContent().contains("交易正式成立"));
     }
 
     @Test
@@ -763,6 +775,25 @@ class PaymentControllerTest {
         assertInitialPaymentUntouched(updated);
         assertNotNull(modificationRequestRepository.findById(mod.getId()).orElseThrow().getSupplementVerifiedAt());
         awaitAsyncNotificationPersisted();
+    }
+
+    @Test
+    @DisplayName("C5 迴歸：補款核帳的通知不可再說「交易正式成立」，應為補款確認文案（category 仍為 ORDER_AFFAIR）")
+    void should_SendSupplementWording_When_SupplementVerified() throws Exception {
+        var mod = givenSupplementPending("CONFIRMED");
+        markSupplementSubmitted(mod);
+        TokenContext.setUserId(sitter.getId());
+
+        mockMvc.perform(post("/api/orders/{orderId}/verify-payment", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        var notification = awaitOwnerNotification();
+        assertEquals("補款已確認", notification.getTitle());
+        assertTrue(notification.getContent().contains("補款"));
+        assertFalse(notification.getContent().contains("交易正式成立"));
+        assertEquals("ORDER_AFFAIR", notification.getCategory());
+        assertEquals("OWNER", notification.getRoleTarget());
     }
 
     @Test

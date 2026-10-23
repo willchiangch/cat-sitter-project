@@ -47,15 +47,20 @@ public class NotificationListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaymentVerified(PaymentVerifiedEvent event) {
-        log.info("Async notification - Payment Verified for Order: {}, Sitter: {}", 
-                event.orderId(), event.sitterId());
+        log.info("Async notification - Payment Verified for Order: {}, Sitter: {}, supplement: {}",
+                event.orderId(), event.sitterId(), event.supplement());
         
         Order order = orderRepository.findById(event.orderId()).orElse(null);
         if (order != null) {
+            // 補款核帳時訂單早已成立，只是變更差額結清；沿用 ORDER_AFFAIR（同屬訂單事務，偏好設定不需新增類別）
+            String title = event.supplement() ? "補款已確認" : "付款已確認";
+            String content = event.supplement()
+                    ? "您的訂單變更補款已通過保母確認，變更內容正式生效。"
+                    : "您的訂單付款已通過保母確認，交易正式成立。";
             notificationService.createNotification(
                     order.getOwner().getId(),
-                    "付款已確認",
-                    "您的訂單付款已通過保母確認，交易正式成立。",
+                    title,
+                    content,
                     "ORDER_AFFAIR",
                     "/client/orders",
                     "OWNER"

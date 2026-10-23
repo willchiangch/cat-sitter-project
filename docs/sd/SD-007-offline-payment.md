@@ -701,7 +701,8 @@ public record UpdateSitterPaymentInfoRequest(
   ```java
   package com.petsitter.domain.event;
   import java.util.UUID;
-  public record PaymentVerifiedEvent(UUID orderId, UUID sitterId) {}
+  // supplement = 訂單變更補款核帳 (SD-016 §4.3)，通知文案不同
+  public record PaymentVerifiedEvent(UUID orderId, UUID sitterId, boolean supplement) {}
   ```
 - **`PaymentRejectedEvent.java`**
   ```java
@@ -745,7 +746,9 @@ public class NotificationListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaymentVerified(PaymentVerifiedEvent event) {
         log.info("Async notification - Payment Verified for Order: {}", event.orderId());
-        // 呼叫通知服務發信給飼主
+        // 呼叫通知服務發信給飼主（category ORDER_AFFAIR）：
+        //  - 首次付款：「付款已確認」/「您的訂單付款已通過保母確認，交易正式成立。」
+        //  - 補款 (event.supplement())：「補款已確認」/「您的訂單變更補款已通過保母確認，變更內容正式生效。」
     }
 
     @Async
