@@ -26,7 +26,9 @@ public interface MediaStorageService {
     String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file);
 
     /**
-     * 上傳付款憑證 (SD-007)
+     * 上傳付款憑證 (SD-007 §5.1)。財務憑證含飼主轉帳帳號/姓名等個資，一律以私有物件上傳，
+     * 只回傳 Object Key（例如 payment-proofs/2026-10-24/{orderId}_{uuid}.jpg），
+     * 讀取時一律透過 {@link #generateSignedUrl} 取短效簽名網址，不得回傳公開網址。
      */
     String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file);
 
@@ -58,4 +60,27 @@ public interface MediaStorageService {
      * @return 簽名 URL
      */
     String generateSignedUrl(String objectKey, java.time.Duration ttl);
+
+    /**
+     * 將 DB 內存放的媒體參照轉為 Object Key。2026-10 之前的付款憑證存的是公開網址
+     * (https://storage.googleapis.com/{bucket}/payment-proofs/...)，新資料存的是 Object Key，
+     * 讀取端一律先過這裡再簽名，兩種格式都能相容。
+     */
+    String resolveObjectKey(String storedRef);
+
+    /**
+     * 列出指定前綴下的所有 Object Key（供一次性遷移/維運端點使用）
+     */
+    java.util.List<String> listObjectKeys(String prefix);
+
+    /**
+     * 該物件目前是否帶有 allUsers READER ACL（任何人可公開讀取）
+     */
+    boolean isPubliclyReadable(String objectKey);
+
+    /**
+     * 移除該物件的 allUsers ACL，使其變成私有物件
+     * @return 是否真的有移除（原本就不是公開的回 false）
+     */
+    boolean revokePublicRead(String objectKey);
 }

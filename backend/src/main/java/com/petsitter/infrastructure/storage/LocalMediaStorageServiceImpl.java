@@ -126,9 +126,10 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
             Path targetFilePath = targetDirPath.resolve(targetFilename);
             file.transferTo(targetFilePath);
             
-            String fileUrl = localBaseUrl + "/" + subDirName + "/" + targetFilename;
-            log.info("Local payment proof uploaded: {}", fileUrl);
-            return fileUrl;
+            // 與 GCS 實作一致只回傳 Object Key，讀取時透過 generateSignedUrl 換成可存取網址 (SD-007 §5.1)
+            String objectKey = subDirName + "/" + targetFilename;
+            log.info("Local payment proof uploaded: {}", objectKey);
+            return objectKey;
         } catch (IOException e) {
             log.error("Failed to upload local payment proof", e);
             throw new RuntimeException("Local payment proof upload failed", e);
@@ -209,6 +210,31 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
             log.error("Failed to delete local media: {}", mediaUrl, e);
             throw new RuntimeException("Local media deletion failed", e);
         }
+    }
+
+    @Override
+    public String resolveObjectKey(String storedRef) {
+        if (storedRef == null) {
+            return null;
+        }
+        String prefix = localBaseUrl + "/";
+        return storedRef.startsWith(prefix) ? storedRef.substring(prefix.length()) : storedRef;
+    }
+
+    @Override
+    public java.util.List<String> listObjectKeys(String prefix) {
+        // 本機檔案系統沒有 ACL 概念，遷移端點在本機一律視為無物件需要處理
+        return java.util.List.of();
+    }
+
+    @Override
+    public boolean isPubliclyReadable(String objectKey) {
+        return false;
+    }
+
+    @Override
+    public boolean revokePublicRead(String objectKey) {
+        return false;
     }
 
     @Override

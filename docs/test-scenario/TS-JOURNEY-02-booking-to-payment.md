@@ -27,8 +27,8 @@
 | 3 | UI：`/pets` 建立寵物（名稱必填，物種預設 CAT）+ 上傳頭像 | 寵物卡片顯示新建資料與頭像 | `POST /api/pets` 201；頭像是建檔後另外 `POST /api/pets/{id}/avatar`，要等寵物卡片的 `<img>` 出現且已載入（`naturalWidth>0`）才算完成，只等卡片出現會截到名字首字佔位 |
 | 4 | UI：`/booking/{sitterId}` 選方案卡片 → 選一個未來日期 → 確認日期 → 下一步 → 送出 | 訂單建立成功，送出成功後頁面會自動導向 `/owner/orders/{orderId}` | `POST /api/orders/booking` 201，訂單狀態 `PENDING`；**注意**：只 `await` 點擊送出按鈕不代表送單完成，click() 只保證事件派發，要等這個導向真的發生才代表非同步送單流程跑完 |
 | 5 | UI：保母 `/sitter/orders`「評估中」分頁找到訂單 → 進入評估頁 → 原價直接接受 | 訂單狀態轉為待付款；導回 `/sitter/orders` 後（不重新整理）該訂單不在「評估中」，「進行中」分頁顯示「待付款」 | `POST /api/orders/{orderId}/confirm`（快速接單路徑）後 `Order=PENDING_PAYMENT`；**注意**：此按鈕背後有 `window.confirm()` 對話框，Playwright 預設會自動 dismiss（回傳 false）導致函式提早 return 什麼都不會發生，測試需要主動註冊 `page.on('dialog', d => d.accept())` |
-| 6 | UI：飼主 `/owner/orders/{orderId}` 上傳付款憑證（圖片+末五碼+同意勾選） | 訂單狀態轉為已付款待核對 | `POST /api/orders/{orderId}/payment-proof` 200，`Order=PAID` |
-| 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板 → 確認入帳 | 訂單正式成立 | `POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED` |
+| 6 | UI：飼主 `/owner/orders/{orderId}` 上傳付款憑證（圖片+末五碼+同意勾選） | 訂單狀態轉為已付款待核對；reload 後看得到自己的憑證預覽 | `POST /api/orders/{orderId}/payment-proof` 200，`Order=PAID`；憑證 `<img>` 的 `src` 是 `storage.googleapis.com/<bucket>/payment-proofs/...?...X-Goog-Signature=...` 簽名網址且 `naturalWidth>0` (SD-007 §4.7) |
+| 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板（後五碼 `12345`、憑證預覽）→ 確認入帳 | 訂單正式成立 | 核對面板憑證預覽為簽名網址且已載入；`POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED` |
 | 8 | UI：保母在 `/care-notes/manage/{sitterId}/{ownerId}` 新增一則「其他說明」項目並儲存；飼主在 `/care-notes/view/{sitterId}/{ownerId}` 確認看得到 | 雙方都能看到同一份記事本內容 | `PUT` 記事本 API 200，飼主端查詢包含剛寫入的內容 |
 
 ---
@@ -49,6 +49,8 @@
 修法：`PlanGatingAspect` 查不到訂閱資料列時不再 `throw`，改為視為 `PlanTier.FREE` 繼續往下判斷（FREE 本來就該是所有人預設可用的最低層級）。已補上 `CareNoteControllerTest.should_Return200_When_SitterHasNoSubscriptionRow` 迴歸測試，全量 `mvn test` 208 個測試綠燈。
 
 **保母接單後列表仍顯示「待評估」（2026-10-23，證據稽核發現）**：步驟 5 的截圖右上已回顯「已成功接單」，畫面卻仍停在「評估中」分頁、徽章「待評估」；trace 顯示 `POST /confirm` 200 之後完全沒有重抓 `GET /api/orders/sitter`。根因是 `OrderEvalView.tsx` 成功後直接 `navigate`，沒有 invalidate React Query，而 `useSitterOrdersQuery` 的 `staleTime` 是 60 秒。舊版測試只靠 `awaitOrderStatus` 輪詢 API、下一步又重新 `goto`，所以一直沒抓到。修法：接單 / 送報價 / 婉拒成功後先 `invalidateQueries({ queryKey: ['orders'] })` 再導頁（見 SD-006 §5）。迴歸：步驟 5 改成不 reload、直接切「進行中」分頁斷言「待付款」；另在 `frontend/e2e/order-eval.spec.ts` 補一支 mock 版前端迴歸測試。
+
+**付款憑證公開可讀（2026-10，安全/個資）**：步驟 7 的憑證預覽過去是 `storage.googleapis.com` 永久公開網址（物件帶 `allUsers READER`），任何人拿到網址都看得到飼主的轉帳截圖。改為私有物件 + 10 分鐘簽名網址，只有訂單飼主/保母能取得 (SD-007 §4.7)。迴歸：步驟 6/7 斷言預覽 `src` 帶 `X-Goog-Signature` 且圖片真的載入；後端 `PaymentControllerTest` 覆蓋 403/200/DTO 不外洩。
 
 ---
 

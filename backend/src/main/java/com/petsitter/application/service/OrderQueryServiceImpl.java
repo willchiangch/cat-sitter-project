@@ -68,7 +68,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .version(order.getVersion())
                 .adjustmentAmount(order.getAdjustmentAmount())
                 .adjustmentReason(order.getAdjustmentReason())
-                .paymentProofUrl(order.getPaymentProofUrl())
+                .hasPaymentProof(hasText(order.getPaymentProofUrl()))
                 .paymentProofLastFive(order.getPaymentProofLastFive())
                 .disclaimerAgreed(order.isDisclaimerAgreed())
                 .disclaimerAgreedAt(order.getDisclaimerAgreedAt())
@@ -167,7 +167,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .status(order.getStatus())
                 .totalAmount(order.getTotalAmount())
                 .amountDue(resolveAmountDue(order))
-                .paymentProofUrl(order.getPaymentProofUrl())
+                .hasPaymentProof(hasText(order.getPaymentProofUrl()))
                 .paymentProofLastFive(order.getPaymentProofLastFive())
                 .scheduledDatesLabel(buildScheduledDatesLabel(order.getItems()))
                 .build();
@@ -192,6 +192,10 @@ public class OrderQueryServiceImpl implements OrderQueryService {
             }
         }
         return order.getTotalAmount();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String buildScheduledDatesLabel(List<OrderItem> items) {

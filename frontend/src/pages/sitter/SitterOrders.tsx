@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../../components/ui/StatusBadge';
 import Card from '../../components/ui/Card';
+import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
   useSitterOrdersQuery,
   useOrderVisitsQuery,
@@ -46,7 +47,9 @@ const SitterOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
             fontSize: '0.875rem'
           }}
         >
-          <span>{new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）</span>
+          <span>
+            {new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）
+          </span>
           <button
             type="button"
             onClick={() => navigate(`/visit-reports/manage/${visit.id}`)}
@@ -379,11 +382,14 @@ const SitterOrders: React.FC = () => {
                     )}
                     <div>
                       飼主轉帳後五碼：
-                      <strong style={{ color: 'var(--color-primary)' }}>
+                      <strong
+                        data-testid="verify-last-five"
+                        style={{ color: 'var(--color-primary)' }}
+                      >
                         {order.paymentProofLastFive}
                       </strong>
                     </div>
-                    {order.paymentProofUrl && (
+                    {order.hasPaymentProof && (
                       <div>
                         <div
                           style={{
@@ -393,8 +399,8 @@ const SitterOrders: React.FC = () => {
                         >
                           轉帳憑證預覽：
                         </div>
-                        <img
-                          src={order.paymentProofUrl}
+                        <PaymentProofImage
+                          orderId={order.id}
                           alt="Owner Payment Proof"
                           style={{
                             maxWidth: '100%',

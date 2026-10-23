@@ -271,7 +271,8 @@ export interface OrderDetailResponseDto {
   version?: number;
   adjustmentAmount: number;
   adjustmentReason?: string;
-  paymentProofUrl?: string;
+  // 是否有可檢視的付款憑證。憑證是私有物件，圖片網址要另外呼叫 getPaymentProofSignedUrl 取 (SD-007 §4.7)
+  hasPaymentProof?: boolean;
   paymentProofLastFive?: string;
   disclaimerAgreed: boolean;
   disclaimerAgreedAt?: string;
@@ -285,6 +286,17 @@ export interface OrderDetailResponseDto {
 // 取得訂單詳情 (SD-007)
 export const getOrderDetail = async (orderId: string): Promise<OrderDetailResponseDto> => {
   const response = await axiosClient.get(`/orders/${orderId}`);
+  return response.data;
+};
+
+export interface PaymentProofSignedUrl {
+  signedUrl: string;
+  expiresInSeconds: number;
+}
+
+// 取得付款憑證的短效簽名網址 (SD-007 §4.7)，僅訂單飼主/保母可取得
+export const getPaymentProofSignedUrl = async (orderId: string): Promise<PaymentProofSignedUrl> => {
+  const response = await axiosClient.get(`/orders/${orderId}/payment-proof/signed-url`);
   return response.data;
 };
 
@@ -310,7 +322,7 @@ export interface OrderSummaryDto {
   status: string;
   totalAmount: number;
   amountDue?: number; // 定義同 OrderDetailResponseDto.amountDue
-  paymentProofUrl?: string;
+  hasPaymentProof?: boolean; // 定義同 OrderDetailResponseDto.hasPaymentProof
   paymentProofLastFive?: string;
   scheduledDatesLabel: string;
 }
@@ -344,7 +356,9 @@ export interface SitterLedgerResponse {
 
 // 保母帳務總覽 (PRD-009 主流程 C)，month 格式為 YYYY-MM，不帶則預設當月
 export const getSitterLedger = async (month?: string): Promise<SitterLedgerResponse> => {
-  const response = await axiosClient.get('/orders/sitter/ledger', { params: month ? { month } : {} });
+  const response = await axiosClient.get('/orders/sitter/ledger', {
+    params: month ? { month } : {}
+  });
   return response.data;
 };
 

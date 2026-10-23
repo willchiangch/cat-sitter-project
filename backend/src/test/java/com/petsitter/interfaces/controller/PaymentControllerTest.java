@@ -76,6 +76,9 @@ class PaymentControllerTest {
     @Autowired
     private OrderLogRepository orderLogRepository;
 
+    @Autowired
+    private com.petsitter.domain.repository.NotificationRepository notificationRepository;
+
     @MockitoBean
     private MediaStorageService mediaStorageService;
 
@@ -131,6 +134,21 @@ class PaymentControllerTest {
         TokenContext.clear();
     }
 
+    /**
+     * 監聽器是 @Async，verify(timeout) 只保證方法被呼叫，不保證通知已寫入。不等它寫完，
+     * 下一支測試 setUp 的 userRepository.deleteAll() 可能撞上剛插入的 notifications 外鍵而失敗
+     * （新增測試後執行順序改變才暴露）。
+     */
+    private void awaitAsyncNotificationPersisted() throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (notificationRepository.count() == 0) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("非同步通知 5 秒內未寫入");
+            }
+            Thread.sleep(50);
+        }
+    }
+
     @AfterEach
     void tearDown() {
         TokenContext.clear();
@@ -183,9 +201,10 @@ class PaymentControllerTest {
     void should_UploadPaymentProof_Successfully() throws Exception {
         TokenContext.setUserId(owner.getId());
 
-        String mockImageUrl = "https://storage.googleapis.com/bucket/proofs/123.jpg";
+        // 2026-10 起 uploadPaymentProof 回傳私有物件的 Object Key，而非公開網址 (SD-007 §5.1)
+        String mockObjectKey = "payment-proofs/2026-10-24/" + order.getId() + "_proof.jpg";
         when(mediaStorageService.uploadPaymentProof(eq(owner.getId()), eq(order.getId()), any()))
-                .thenReturn(mockImageUrl);
+                .thenReturn(mockObjectKey);
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "proof.jpg", MediaType.IMAGE_JPEG_VALUE, "fake image content".getBytes()
@@ -205,13 +224,14 @@ class PaymentControllerTest {
         assertNotNull(updatedOrder);
         assertEquals("PAID", updatedOrder.getStatus());
         assertEquals("12345", updatedOrder.getPaymentProofLastFive());
-        assertEquals(mockImageUrl, updatedOrder.getPaymentProofUrl());
+        assertEquals(mockObjectKey, updatedOrder.getPaymentProofUrl());
         assertTrue(updatedOrder.isDisclaimerAgreed());
         assertNotNull(updatedOrder.getDisclaimerAgreedAt());
 
         // 驗證非同步通知有觸發
         org.mockito.Mockito.verify(notificationListener, org.mockito.Mockito.timeout(5000).times(1))
                 .onPaymentProofSubmitted(any());
+        awaitAsyncNotificationPersisted();
     }
 
     @Test
@@ -296,6 +316,7 @@ class PaymentControllerTest {
         // 驗證非同步通知有觸發
         org.mockito.Mockito.verify(notificationListener, org.mockito.Mockito.timeout(5000).times(1))
                 .onPaymentVerified(any());
+        awaitAsyncNotificationPersisted();
     }
 
     @Test
@@ -330,6 +351,7 @@ class PaymentControllerTest {
         // 驗證非同步通知有觸發
         org.mockito.Mockito.verify(notificationListener, org.mockito.Mockito.timeout(5000).times(1))
                 .onPaymentRejected(any());
+        awaitAsyncNotificationPersisted();
     }
 
     @Test
@@ -503,5 +525,167 @@ class PaymentControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.message").value("Idempotency-Key 長度不得超過 100 字元"));
+    }
+
+    // ===== 付款憑證私有化 + 簽名網址 (SD-007 §4.7, TS-007 B1 迴歸) =====
+
+    private static final String LEGACY_PUBLIC_URL_PREFIX = "https://storage.googleapis.com/cat-sitter-media-bucket/";
+
+    private void givenPaidOrderWithProof(String storedRef) {
+        order.setStatus("PAID");
+        order.setPaymentProofUrl(storedRef);
+        order.setPaymentProofLastFive("12345");
+        orderRepository.save(order);
+        // 模擬 GCS 實作的 resolveObjectKey：剝掉舊資料的公開網址前綴
+        when(mediaStorageService.resolveObjectKey(any())).thenAnswer(inv -> {
+            String ref = inv.getArgument(0);
+            return ref.startsWith(LEGACY_PUBLIC_URL_PREFIX) ? ref.substring(LEGACY_PUBLIC_URL_PREFIX.length()) : ref;
+        });
+        when(mediaStorageService.generateSignedUrl(any(), any())).thenAnswer(inv ->
+                "https://storage.googleapis.com/cat-sitter-media-bucket/" + inv.getArgument(0)
+                        + "?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=abc");
+    }
+
+    @Test
+    @DisplayName("B1 迴歸：非訂單當事人取付款憑證簽名網址應 403，且不得觸發簽名")
+    void should_Return403_When_NonPartyRequestsPaymentProofSignedUrl() throws Exception {
+        givenPaidOrderWithProof("payment-proofs/2026-10-24/" + order.getId() + "_a.jpg");
+        TokenContext.setUserId(otherUser.getId());
+
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(otherUser.getEmail()).roles("OWNER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).generateSignedUrl(any(), any());
+    }
+
+    @Test
+    @DisplayName("B1 迴歸：訂單飼主與保母都能取得付款憑證的 10 分鐘簽名網址")
+    void should_ReturnSignedUrl_When_OrderPartyRequestsPaymentProof() throws Exception {
+        String objectKey = "payment-proofs/2026-10-24/" + order.getId() + "_a.jpg";
+        givenPaidOrderWithProof(objectKey);
+
+        TokenContext.setUserId(owner.getId());
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signedUrl").value(org.hamcrest.Matchers.containsString("X-Goog-Signature=")))
+                .andExpect(jsonPath("$.expiresInSeconds").value(600));
+
+        TokenContext.setUserId(sitter.getId());
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signedUrl").value(org.hamcrest.Matchers.containsString(objectKey)));
+
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.times(2))
+                .generateSignedUrl(eq(objectKey), eq(java.time.Duration.ofMinutes(10)));
+    }
+
+    @Test
+    @DisplayName("B1 迴歸：舊資料存的是公開網址，仍以解析出的 Object Key 簽名")
+    void should_SignResolvedObjectKey_When_LegacyPublicUrlStored() throws Exception {
+        String objectKey = "payment-proofs/2026-09-01/" + order.getId() + "_legacy.jpg";
+        givenPaidOrderWithProof(LEGACY_PUBLIC_URL_PREFIX + objectKey);
+        TokenContext.setUserId(sitter.getId());
+
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(mediaStorageService).generateSignedUrl(eq(objectKey), any());
+    }
+
+    @Test
+    @DisplayName("B1 迴歸：憑證參照不在 payment-proofs/ 底下時拒絕簽名 (409)，避免變成任意物件簽名器")
+    void should_RefuseToSign_When_ProofRefOutsidePaymentProofPrefix() throws Exception {
+        givenPaidOrderWithProof("kyc/" + sitter.getId() + "/id-front.jpg");
+        TokenContext.setUserId(owner.getId());
+
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isConflict());
+
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).generateSignedUrl(any(), any());
+    }
+
+    @Test
+    @DisplayName("B1 迴歸：訂單詳情與保母清單 DTO 不再回傳憑證網址，只回 hasPaymentProof")
+    void should_NotLeakProofUrl_In_OrderDtos() throws Exception {
+        givenPaidOrderWithProof(LEGACY_PUBLIC_URL_PREFIX + "payment-proofs/2026-09-01/" + order.getId() + "_legacy.jpg");
+
+        TokenContext.setUserId(owner.getId());
+        String detail = mockMvc.perform(get("/api/orders/{orderId}", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasPaymentProof").value(true))
+                .andExpect(jsonPath("$.paymentProofLastFive").value("12345"))
+                .andExpect(jsonPath("$.paymentProofUrl").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertFalse(detail.contains("payment-proofs/"), "訂單詳情不得含憑證物件路徑: " + detail);
+
+        TokenContext.setUserId(sitter.getId());
+        String list = mockMvc.perform(get("/api/orders/sitter")
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].hasPaymentProof").value(true))
+                .andExpect(jsonPath("$[0].paymentProofUrl").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertFalse(list.contains("payment-proofs/"), "保母訂單清單不得含憑證物件路徑: " + list);
+    }
+
+    @Test
+    @DisplayName("B1 迴歸：沒有憑證的訂單 hasPaymentProof=false，取簽名網址回 409")
+    void should_Return409_When_OrderHasNoPaymentProof() throws Exception {
+        TokenContext.setUserId(owner.getId());
+
+        mockMvc.perform(get("/api/orders/{orderId}", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasPaymentProof").value(false));
+
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("B1 遷移端點：預設 dry-run 只回報公開物件不修改；dryRun=false 只對公開物件移除 ACL")
+    void should_RevokeOnlyPublicProofs_And_DefaultToDryRun() throws Exception {
+        String publicKey = "payment-proofs/2026-09-01/a.jpg";
+        String privateKey = "payment-proofs/2026-10-24/b.jpg";
+        when(mediaStorageService.listObjectKeys("payment-proofs/")).thenReturn(java.util.List.of(publicKey, privateKey));
+        when(mediaStorageService.isPubliclyReadable(publicKey)).thenReturn(true);
+        when(mediaStorageService.isPubliclyReadable(privateKey)).thenReturn(false);
+        when(mediaStorageService.revokePublicRead(publicKey)).thenReturn(true);
+
+        mockMvc.perform(post("/api/internal/maintenance/payment-proofs/revoke-public-acl")
+                        .header("X-Internal-Secret", "local-secret-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dryRun").value(true))
+                .andExpect(jsonPath("$.scanned").value(2))
+                .andExpect(jsonPath("$.publicFound").value(1))
+                .andExpect(jsonPath("$.revoked").value(0))
+                .andExpect(jsonPath("$.publicKeys[0]").value(publicKey));
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).revokePublicRead(any());
+
+        mockMvc.perform(post("/api/internal/maintenance/payment-proofs/revoke-public-acl")
+                        .param("dryRun", "false")
+                        .header("X-Internal-Secret", "local-secret-123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dryRun").value(false))
+                .andExpect(jsonPath("$.revoked").value(1))
+                .andExpect(jsonPath("$.failed").value(0));
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.times(1)).revokePublicRead(publicKey);
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).revokePublicRead(privateKey);
+    }
+
+    @Test
+    @DisplayName("B1 遷移端點：不帶 X-Internal-Secret 應 401")
+    void should_Return401_When_RevokeAclWithoutSecret() throws Exception {
+        mockMvc.perform(post("/api/internal/maintenance/payment-proofs/revoke-public-acl").param("dryRun", "false"))
+                .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).listObjectKeys(any());
     }
 }

@@ -71,7 +71,7 @@ test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
           totalAmount: 2400,
           adjustmentAmount: 0,
           disclaimerAgreed: orderStatus !== 'PENDING_PAYMENT',
-          paymentProofUrl: paymentProofUrl,
+          hasPaymentProof: Boolean(paymentProofUrl),
           paymentProofLastFive: paymentProofLastFive,
           items: [],
           sitterPaymentInfo: orderStatus === 'CONFIRMED' ? null : sitterPaymentInfo
@@ -93,7 +93,7 @@ test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
             sitterName: '本地測試保母',
             status: orderStatus,
             totalAmount: 2400,
-            paymentProofUrl: paymentProofUrl,
+            hasPaymentProof: Boolean(paymentProofUrl),
             paymentProofLastFive: paymentProofLastFive,
             scheduledDatesLabel: '2026-05-25 ~ 2026-05-29 (共 5 天)'
           }
@@ -126,6 +126,18 @@ test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
         body: JSON.stringify({ status: 'SUCCESS', message: '付款憑證提交成功，等待保母確認！' })
       });
     });
+
+    // Mock 付款憑證簽名網址 (SD-007 §4.7)：DTO 不再帶憑證網址，前端另外取簽名網址
+    await page.route(
+      '**/api/orders/a1023000-0000-0000-0000-000000000000/payment-proof/signed-url',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ signedUrl: paymentProofUrl, expiresInSeconds: 600 })
+        });
+      }
+    );
 
     // Mock Verify Payment
     await page.route('**/api/orders/a1023000-0000-0000-0000-000000000000/verify-payment', async (route) => {

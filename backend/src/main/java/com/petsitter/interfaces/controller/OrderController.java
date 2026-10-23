@@ -34,6 +34,7 @@ public class OrderController {
     private final ModificationService modificationService;
     private final PaymentService paymentService;
     private final OrderQueryService orderQueryService;
+    private final PaymentProofAccessService paymentProofAccessService;
 
     /**
      * 飼主送出預約申請
@@ -251,6 +252,21 @@ public class OrderController {
         UUID ownerId = TokenContext.getUserId();
         paymentService.submitPaymentProof(ownerId, orderId, lastFive, file, disclaimerAgreed, idempotencyKey);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "付款憑證已上傳，等待保母核對"));
+    }
+
+    /**
+     * 取得付款憑證的短效簽名網址 (SD-007 §4.7)。憑證是私有物件，僅訂單飼主/保母可取得，
+     * 非當事人回 403 (BOLA)。
+     */
+    @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
+    @GetMapping("/{orderId}/payment-proof/signed-url")
+    public ResponseEntity<Map<String, Object>> getPaymentProofSignedUrl(@PathVariable UUID orderId) {
+        UUID requesterId = TokenContext.getUserId();
+        PaymentProofAccessService.SignedProofUrl result = paymentProofAccessService.generateSignedUrl(requesterId, orderId);
+        return ResponseEntity.ok(Map.of(
+                "signedUrl", result.signedUrl(),
+                "expiresInSeconds", result.expiresInSeconds()
+        ));
     }
 
     /**

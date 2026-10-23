@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
-import type { APIRequestContext, APIResponse, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+import type { APIRequestContext, APIResponse, Locator, Page } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -463,4 +464,24 @@ export async function pollUntil<T>(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   } while (Date.now() < deadline);
   throw new Error(`pollUntil timed out after ${timeoutMs}ms, last value=${JSON.stringify(last)}`);
+}
+
+/**
+ * 付款憑證預覽 (SD-007 §4.7，B1 迴歸)：憑證是私有 GCS 物件，<img> 只能是後端簽發的 V4 簽名網址
+ * (https://storage.googleapis.com/<bucket>/payment-proofs/...?X-Goog-...&X-Goog-Signature=...)，
+ * 不能是不帶簽名的公開路徑；而且圖片要真的載入成功（私有物件若誤用公開網址會 403 變破圖）。
+ */
+export async function expectSignedPaymentProof(scope: Locator | Page) {
+  const img = scope.getByTestId('payment-proof-preview');
+  await expect(img).toHaveAttribute(
+    'src',
+    /^https:\/\/storage\.googleapis\.com\/[^?]+\/payment-proofs\/[^?]+\?.*X-Goog-Signature=/
+  );
+  await expect
+    .poll(() =>
+      img.evaluate(
+        (el) => (el as HTMLImageElement).complete && (el as HTMLImageElement).naturalWidth > 0
+      )
+    )
+    .toBe(true);
 }

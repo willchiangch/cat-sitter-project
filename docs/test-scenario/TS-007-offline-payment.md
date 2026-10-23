@@ -98,6 +98,14 @@
 | 2 | 第三方飼主 C 嘗試呼叫 `POST /api/orders/{orderId}/payment-proof` | 提示權限不足 | API Status: 403 Forbidden (BOLA 防護) |
 | 3.1 | 訂單飼主 A 嘗試呼叫 `POST /api/orders/{orderId}/verify-payment` | 提示權限不足 | API Status: 403 Forbidden (SITTER 專屬 API) |
 | 3.2 | 訂單飼主 A 嘗試呼叫 `POST /api/orders/{orderId}/reject-payment` | 提示權限不足 (對稱越權測試) | API Status: 403 Forbidden (SITTER 專屬 API) |
+| 4 | 第三方飼主 C 呼叫 `GET /api/orders/{orderId}/payment-proof/signed-url` | 拿不到憑證 | API Status: 403 Forbidden，且**不得呼叫簽名** (`generateSignedUrl` never) |
+| 5 | 訂單飼主 A、保母 B 各呼叫一次同一端點 | 拿到憑證檢視網址 | 200，`signedUrl` 為簽名網址、`expiresInSeconds=600`，簽的是 `payment-proofs/...` Object Key |
+| 6 | DB 存的是舊公開網址 `https://storage.googleapis.com/{bucket}/payment-proofs/...` | 仍可檢視 | 簽名對象為剝掉前綴後的 Object Key（相容舊資料） |
+| 7 | DB 憑證參照不在 `payment-proofs/` 下（如 `kyc/...`） | 拒絕 | 409，不得簽名（防止變成任意物件簽名器） |
+| 8 | 飼主 `GET /api/orders/{orderId}`、保母 `GET /api/orders/sitter` | 只看到「有憑證」與後五碼 | `hasPaymentProof=true`，回應中**不存在** `paymentProofUrl` 欄位、也不含 `payment-proofs/` 字串 |
+| 9 | `POST /api/internal/maintenance/payment-proofs/revoke-public-acl`（預設 / `dryRun=false` / 無 secret） | 遷移端點 | 預設 dry-run 只回報不改；`dryRun=false` 只對公開物件移除 ACL；無 secret 401 |
+
+E2E（真後端）：Journey B 步驟 6/7、Journey D 補款核對步驟斷言 `payment-proof-preview` 的 `src` 符合 `https://storage.googleapis.com/<bucket>/payment-proofs/...?...X-Goog-Signature=...`，且圖片 `naturalWidth>0`（真的載得出來）。
 
 ---
 
@@ -142,6 +150,14 @@
 | 2 | 保母呼叫 `GET /api/sitter/payment-info` | 畫面顯示解密後的明文個人收款帳戶 | API Status: 200 OK<br/>JSON 返回正確的解密欄位 (bankCode, bankBranch, bankAccount, bankPayeeName) |
 | 3 | 飼主嘗試呼叫 `PUT /api/sitter/payment-info` 更新保母收款帳戶 | 提示權限不足 | API Status: 403 Forbidden<br/>BOLA 防護：阻擋 OWNER 身分更新保母收款資訊 |
 | 4 | 飼主嘗試呼叫 `GET /api/sitter/payment-info` 查詢保母收款帳戶 | 提示權限不足 | API Status: 403 Forbidden<br/>BOLA 防護：阻擋 OWNER 身分讀取保母收款資訊 |
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**付款憑證公開可讀（2026-10，E2E 證據稽核追查時發現）**：`GcsMediaStorageServiceImpl.uploadPaymentProof()` 走 `uploadPublic()`，物件帶 `allUsers READER` ACL，DB 存、DTO 回傳的都是 `https://storage.googleapis.com/<bucket>/payment-proofs/...` 永久公開網址——轉帳截圖含飼主銀行帳號、戶名、金額，任何人拿到網址（瀏覽器歷史、轉貼、log）就能看，且無法撤銷。同專案 KYC 證件照早就是私有 + 簽名網址，付款憑證漏掉了。修法：上傳改私有、DB 存 Object Key、DTO 改回 `hasPaymentProof`、新增 BOLA 保護的簽名網址端點 (SD-007 §4.7)，前端 `PaymentProofImage` 改用簽名網址；既有公開物件用 SD-007 §5.1.1 的一次性遷移端點移除 ACL。迴歸：上表步驟 4–9（`PaymentControllerTest`）、`MediaStorageObjectKeyTest`、Journey B/D 簽名網址斷言。
+
+**測試穩定性**：`PaymentControllerTest` 的上傳/核帳/駁回測試只 `verify(timeout)` 非同步監聽器「被呼叫」，沒等通知寫入；新增測試改變執行順序後，下一支 `setUp()` 的 `userRepository.deleteAll()` 撞上剛插入的 notifications 外鍵而失敗。改為等通知真的寫入再結束該測試。
 
 ---
 

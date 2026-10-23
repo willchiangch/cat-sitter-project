@@ -5,9 +5,15 @@ import {
   getOrderVisits,
   getSitterLedger,
   verifyPayment,
-  rejectPayment
+  rejectPayment,
+  getPaymentProofSignedUrl
 } from '../api/orderApi';
-import type { OrderSummaryDto, SitterLedgerResponse, VisitSummaryDto } from '../api/orderApi';
+import type {
+  OrderSummaryDto,
+  PaymentProofSignedUrl,
+  SitterLedgerResponse,
+  VisitSummaryDto
+} from '../api/orderApi';
 
 export const useOwnerOrdersQuery = () => {
   return useQuery<OrderSummaryDto[], Error>({
@@ -35,6 +41,19 @@ export const useOrderVisitsQuery = (orderId: string, enabled: boolean) => {
   });
 };
 
+// 付款憑證簽名網址 (SD-007 §4.7)。簽名 10 分鐘過期且補款時憑證會換一張，不保留快取：
+// 每次掛載都重拿，避免先閃出上一張憑證或拿到過期網址
+export const usePaymentProofSignedUrlQuery = (orderId: string, enabled: boolean) => {
+  return useQuery<PaymentProofSignedUrl, Error>({
+    queryKey: ['orders', orderId, 'payment-proof-signed-url'],
+    queryFn: () => getPaymentProofSignedUrl(orderId),
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false
+  });
+};
+
 export const useSitterLedgerQuery = (month: string) => {
   return useQuery<SitterLedgerResponse, Error>({
     queryKey: ['orders', 'sitter', 'ledger', month],
@@ -55,7 +74,11 @@ export const useVerifyPaymentMutation = () => {
 
 export const useRejectPaymentMutation = () => {
   const queryClient = useQueryClient();
-  return useMutation<{ status: string; message: string }, Error, { orderId: string; rejectReason: string }>({
+  return useMutation<
+    { status: string; message: string },
+    Error,
+    { orderId: string; rejectReason: string }
+  >({
     mutationFn: ({ orderId, rejectReason }) => rejectPayment(orderId, rejectReason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', 'sitter'] });

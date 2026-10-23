@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
+import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
   completeOrder,
   disputeOrder,
@@ -42,7 +43,9 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
             fontSize: '0.875rem'
           }}
         >
-          <span>{new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）</span>
+          <span>
+            {new Date(visit.scheduledAt).toLocaleDateString()}（{visit.status}）
+          </span>
           <button
             type="button"
             onClick={() => navigate(`/visit-reports/view/${visit.id}`)}
@@ -150,7 +153,13 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
       if (!paymentProofKeyRef.current) {
         paymentProofKeyRef.current = generateUUID();
       }
-      await submitPaymentProof(orderId, lastFive, disclaimerAgreed, file, paymentProofKeyRef.current);
+      await submitPaymentProof(
+        orderId,
+        lastFive,
+        disclaimerAgreed,
+        file,
+        paymentProofKeyRef.current
+      );
       paymentProofKeyRef.current = null;
       await fetchOrderDetail();
       alert('付款憑證提交成功，等待保母確認！');
@@ -182,7 +191,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
     );
   }
 
-  const { status, totalAmount, sitterPaymentInfo, paymentProofUrl, paymentProofLastFive } = order;
+  const { status, totalAmount, sitterPaymentInfo, hasPaymentProof, paymentProofLastFive } = order;
   const isPaymentStage = status === 'PENDING_PAYMENT' || status === 'PAID';
   const amountDue = order.amountDue ?? totalAmount;
   // 訂單變更補款：totalAmount 已是變更後新總額，飼主只需匯差額 (PRD-016 主流程 C.3)
@@ -495,15 +504,15 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
               <div>
                 轉帳後五碼：<strong>{paymentProofLastFive}</strong>
               </div>
-              {paymentProofUrl && (
+              {hasPaymentProof && (
                 <div style={{ marginTop: '0.75rem' }}>
                   <div
                     style={{ marginBottom: '0.25rem', color: 'var(--color-on-surface-variant)' }}
                   >
                     憑證預覽：
                   </div>
-                  <img
-                    src={paymentProofUrl}
+                  <PaymentProofImage
+                    orderId={orderId}
                     alt="Payment Proof"
                     style={{
                       maxWidth: '100%',

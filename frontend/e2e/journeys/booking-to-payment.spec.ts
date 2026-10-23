@@ -7,7 +7,8 @@ import {
   bootstrapVerifiedSitter,
   awaitOrderStatus,
   pollUntil,
-  apiAuthed
+  apiAuthed,
+  expectSignedPaymentProof
 } from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
@@ -151,12 +152,17 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       // 舊版 API poll 到 PAID 就直接截圖，畫面可能還停在付款表單；reload 後斷言 PAID 畫面再截
       await ownerPage.reload();
       await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toHaveCount(0, { timeout: 10000 });
+      // B1 迴歸：飼主看自己的憑證也要走簽名網址
+      await expectSignedPaymentProof(ownerPage);
     });
 
     await step('B-07 保母核對入帳', page, async () => {
       await page.goto('/sitter/orders');
       await page.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(page.getByTestId('btn-verify-payment')).toBeVisible({ timeout: 10000 });
+      // B1 迴歸：保母核對面板的憑證預覽必須顯示，且是簽名網址而非公開路徑
+      await expect(page.getByTestId('verify-last-five')).toHaveText('12345');
+      await expectSignedPaymentProof(page.getByTestId('payment-verification-panel'));
       await snap(page, 'B-07 核對入帳前');
       await page.getByTestId('btn-verify-payment').click();
       await expectDialog(sitterDialogs, /入帳核對確認成功/);

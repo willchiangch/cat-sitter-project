@@ -4,6 +4,7 @@ import com.google.auth.ServiceAccountSigner;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.storage.Acl;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
@@ -116,7 +117,9 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
         String fileUuid = UUID.randomUUID().toString();
         String targetFilename = orderId + "_" + fileUuid + (extension != null ? "." + extension : "");
         String objectName = "payment-proofs/" + dateStr + "/" + targetFilename;
-        return uploadPublic(objectName, file);
+        // 2026-10 起改私有物件 + 簽名網址 (SD-007 §5.1)：過去走 uploadPublic 帶 allUsers READER，
+        // 任何人拿到網址就能看到飼主的轉帳截圖（含帳號、姓名、金額）
+        return uploadPrivate(objectName, file);
     }
 
     @Override
@@ -143,6 +146,40 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
         String objectName = mediaUrl.startsWith(prefix) ? mediaUrl.substring(prefix.length()) : mediaUrl;
         boolean deleted = storage.delete(BlobId.of(bucketName, objectName));
         log.info("GCS delete object={}, deleted={}", objectName, deleted);
+    }
+
+    @Override
+    public String resolveObjectKey(String storedRef) {
+        if (storedRef == null) {
+            return null;
+        }
+        String prefix = publicUrlPrefix();
+        return storedRef.startsWith(prefix) ? storedRef.substring(prefix.length()) : storedRef;
+    }
+
+    @Override
+    public List<String> listObjectKeys(String prefix) {
+        List<String> keys = new java.util.ArrayList<>();
+        for (Blob blob : storage.list(bucketName, Storage.BlobListOption.prefix(prefix)).iterateAll()) {
+            keys.add(blob.getName());
+        }
+        return keys;
+    }
+
+    @Override
+    public boolean isPubliclyReadable(String objectKey) {
+        return storage.getAcl(BlobId.of(bucketName, objectKey), Acl.User.ofAllUsers()) != null;
+    }
+
+    @Override
+    public boolean revokePublicRead(String objectKey) {
+        boolean revoked = storage.deleteAcl(BlobId.of(bucketName, objectKey), Acl.User.ofAllUsers());
+        log.info("GCS revoke allUsers ACL object={}, revoked={}", objectKey, revoked);
+        return revoked;
+    }
+
+    private String publicUrlPrefix() {
+        return "https://storage.googleapis.com/" + bucketName + "/";
     }
 
     @Override

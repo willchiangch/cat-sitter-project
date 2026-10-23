@@ -41,6 +41,7 @@
 - **清空 `payment_idempotency_key`** (重設為 `null`)：這能確保被駁回後，飼主重新提交付款憑證時可以帶入新的 `Idempotency-Key`，避免觸發舊資料鎖定而無法再次上傳。
 - 強制將 `disclaimer_agreed` 重設為 `false`，將 `disclaimer_agreed_at` 重設為 `null`。這能確保飼主若需重新上傳，必須再度勾選免責聲明，以在法務審計中留下最新、最正確的時間戳記。
 - **檔案生命週期**：付款憑證屬於財務舉證，因此在 GCS Lifecycle 中排除（永不刪除）。駁回時系統不主動刪除 GCS 實體圖片，僅切斷資料庫的關聯。該部分列為已知技術債。
+- **存取權限 (2026-10 修正)**：憑證一律為私有物件，`payment_proof_url` 欄位存的是 Object Key（舊資料是公開網址，讀取時相容），檢視時透過 §4.7 端點換取短效簽名網址。駁回後留在 GCS 的舊憑證同樣是私有的。
 
 ### 1.4 正規校驗與防呆
 - **後五碼**：必須為 5 碼且全為數字字元（`^\d{5}$`）。
@@ -87,7 +88,7 @@ sequenceDiagram
     Note over SVC: 3. 狀態檢查：確保狀態為 PENDING_PAYMENT
     Note over SVC: 4. 參數驗證：file 規格、lastFive 正則、disclaimerAgreed == true
 
-    SVC->>GCS: uploadPaymentProof(ownerId, orderId, file)
+    SVC->>GCS: uploadPaymentProof(ownerId, orderId, file)（私有物件，回傳 Object Key）
     GCS-->>SVC: 返回 image_url
 
     SVC->>DB: 更新 orders 狀態為 PAID, 寫入 payment_proof_url, <br/>payment_proof_last_five, disclaimer_agreed, disclaimer_agreed_at, <br/>payment_idempotency_key
@@ -315,6 +316,7 @@ ALTER TABLE profiles ADD COLUMN bank_account_info JSONB;
 #### `Order.java`
 - 移除 `@Column(unique = true)` 以免與 Flyway 的局部過濾唯一約束 (Filtered Unique Index) 語意重複或干擾。
 ```java
+// 2026-10 起存私有 GCS Object Key；之前的資料是公開網址，讀取時經 resolveObjectKey 正規化 (§4.7)
 @Column(name = "payment_proof_url")
 private String paymentProofUrl;
 
@@ -565,6 +567,7 @@ public class BankAccountInfoCryptoConverter implements AttributeConverter<BankAc
 - **說明**：本端點為本次新增，放置於 `OrderController.java`，支援 BOLA 身分驗證。
 - **Auth**: `@PreAuthorize("hasAnyRole('OWNER', 'SITTER')")`
 - **呼叫服務**：呼叫新建的 `OrderQueryService.java` 進行查詢、BOLA 身分驗證與隱私過濾。
+- **`hasPaymentProof`（2026-10 取代 `paymentProofUrl`）**：是否有可檢視的付款憑證。DTO 不再回傳憑證網址（過去是任何人可讀的 GCS 公開網址），前端看到 `true` 再呼叫 §4.7 取簽名網址。`GET /api/orders/owner`、`GET /api/orders/sitter` 清單 DTO 同理。
 - **`amountDue`（2026-10 新增）**：飼主本次應匯金額。首次付款等於 `totalAmount`；訂單變更補款（SD-016 §4.2）時是差額而非新總額。付款頁與保母核對面板一律以此欄位為「應付/應收」，`totalAmount` 只作為訂單總額顯示。
 - **Headers**:
   - `Authorization: Bearer <JWT>`
@@ -580,7 +583,7 @@ public class BankAccountInfoCryptoConverter implements AttributeConverter<BankAc
   "amountDue": 1500,
   "adjustmentAmount": 0,
   "adjustmentReason": null,
-  "paymentProofUrl": null,
+  "hasPaymentProof": false,
   "paymentProofLastFive": null,
   "disclaimerAgreed": false,
   "disclaimerAgreedAt": null,
@@ -608,6 +611,23 @@ public class BankAccountInfoCryptoConverter implements AttributeConverter<BankAc
 }
 ```
 
+### 4.7 取得付款憑證短效簽名網址（2026-10 新增）
+- **Method**: `GET`
+- **Path**: `/api/orders/{orderId}/payment-proof/signed-url`
+- **Auth**: `@PreAuthorize("hasAnyRole('OWNER', 'SITTER')")`，並由 `PaymentProofAccessService` 做 BOLA 檢核：呼叫者必須是該訂單的飼主或保母，否則 **403**（不會呼叫簽名）。管理員目前沒有檢視憑證的畫面，不開放。
+- **行為**：取訂單目前要檢視的憑證參照 → `MediaStorageService.resolveObjectKey()` 正規化（相容舊資料的公開網址）→ 只接受 `payment-proofs/` 前綴的 key（其他一律 409，避免本端點被當成任意物件簽名器）→ `generateSignedUrl(key, 10 分鐘)`，與 KYC 證件照 (SD-017 §2.3) 同一套 V4 簽名機制。
+- **錯誤**：訂單無憑證 → 409 `STATE_CONFLICT`；非當事人 → 403 `FORBIDDEN`。
+
+**Response (200 OK)**:
+```json
+{
+  "signedUrl": "https://storage.googleapis.com/cat-sitter-media-bucket/payment-proofs/2026-10-24/{orderId}_{uuid}.jpg?X-Goog-Algorithm=GOOG4-RSA-SHA256&...&X-Goog-Signature=...",
+  "expiresInSeconds": 600
+}
+```
+
+前端 `PaymentProofImage` 元件（飼主訂單詳情、保母核對面板共用）每次掛載都重新取網址，不快取。
+
 ---
 
 ## 5. 跨服務與介面變更
@@ -623,10 +643,17 @@ String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file);
 1. **`LocalMediaStorageServiceImpl`** (本地模擬環境)：
    - 將檔案儲存至本地 `/tmp/cat-sitter/payment-proofs/{ownerId}/{orderId}_{uuid}.{ext}`，並回傳本地存取路徑。
 2. **`GcsMediaStorageServiceImpl`** (生產環境 GCP)：
-   - 將檔案上傳至 GCS 儲存桶。
+   - 將檔案以**私有物件**上傳至 GCS 儲存桶（2026-10 前誤用 `uploadPublic` 帶 `allUsers READER` ACL），回傳 Object Key 而非網址。
    - **路徑格式對齊 (對齊 SD-GLOBAL-SPEC.md §4.1 例外)**：
      - `/{bucket}/payment-proofs/{date}/{orderId}_{file_uuid}`。
      - **永久保存聲明**：該路徑前綴將被配置於 GCS Bucket 檔案生命週期規則 (Lifecycle Rule) 的排除清單中，使該目錄下的財務憑證永不被刪除。
+3. **讀取相關介面（2026-10 新增）**：`resolveObjectKey(storedRef)`（公開網址 → key；key 原樣回傳）、`listObjectKeys(prefix)`、`isPubliclyReadable(key)`、`revokePublicRead(key)`。後三者只給 §5.1.1 遷移端點用，Local 實作一律回空/false。
+
+#### 5.1.1 既有公開憑證的私有化遷移（一次性、可重複執行）
+- **端點**：`POST /api/internal/maintenance/payment-proofs/revoke-public-acl?dryRun=true|false`，需 `X-Internal-Secret`（同 `/api/internal/**` 慣例）。**預設 `dryRun=true`**，只回報不修改。
+- **範圍**：掃 GCS `payment-proofs/` 前綴下**所有物件**（不是只掃 DB）：被駁回的憑證 DB 參照已清空但物件仍在、仍是公開的。對帶 `allUsers` ACL 的物件呼叫 `deleteAcl(allUsers)`；已私有的略過，因此可重複執行。
+- **回應**：`{ dryRun, scanned, publicFound, revoked, failed, publicKeys[≤200], failures[] }`。
+- **DB 不需遷移**：舊資料的公開網址由 `resolveObjectKey` 在讀取時正規化，不改 `payment_proof_url` 內容。
 
 ### 5.2 SitterProfileController 與 Request DTO 新建
 於 `com.petsitter.interfaces.controller` 包中，新建 `SitterProfileController.java` 控制器，集中管理保母 Profile 相關設定端點，落實權限控管與單一職責原則。
@@ -667,7 +694,7 @@ public record UpdateSitterPaymentInfoRequest(
   ```java
   package com.petsitter.domain.event;
   import java.util.UUID;
-  public record PaymentProofSubmittedEvent(UUID orderId, UUID ownerId, String paymentProofUrl) {}
+  public record PaymentProofSubmittedEvent(UUID orderId, UUID ownerId, String paymentProofObjectKey) {}
   ```
 - **`PaymentVerifiedEvent.java`**
   ```java
@@ -798,7 +825,7 @@ public class OrderDetailResponseDto {
     private Integer amountDue; // 本次應付金額：首次付款 = totalAmount；訂單變更補款 = 差額 (SD-016 §4.2)
     private Integer adjustmentAmount;
     private String adjustmentReason;
-    private String paymentProofUrl;
+    private boolean hasPaymentProof; // 2026-10 取代 paymentProofUrl，不回傳憑證網址 (§4.7)
     private String paymentProofLastFive;
     private boolean disclaimerAgreed;
     private OffsetDateTime disclaimerAgreedAt;
@@ -818,6 +845,8 @@ public class OrderDetailResponseDto {
 - 新增與修改之 API 拒絕採用 `@RequestParam UUID` 的傳遞方式。
 - 一律透過 `TokenContext` (或 Spring Security 框架) 提取經數位簽章校驗的 JWT `userId`，並在 Service 層或 QueryService 層嚴格檢查 `order.getOwner().getId()` 或 `order.getSitter().getId()` 是否與當前操作者 ID 相符。
 - 在 Controller 宣告上，雙身分限制均使用 `@PreAuthorize("hasAnyRole('OWNER', 'SITTER')")` 或 `@PreAuthorize("hasRole('SITTER')")`。
+
+- **付款憑證影像 (2026-10)**：憑證物件私有，只有訂單 owner/sitter 能透過 §4.7 換 10 分鐘簽名網址；訂單 DTO 不含任何憑證網址。
 
 ### 6.2 冪等性防護 (Idempotency)
 - 飼主付款憑證上傳介面要求強制的 `Idempotency-Key`。

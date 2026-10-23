@@ -113,12 +113,12 @@ public class PaymentService {
             order.setPaymentIdempotencyKey(idempotencyKey);
         }
 
-        // 6. 上傳至媒體儲存庫
-        String imageUrl = mediaStorageService.uploadPaymentProof(ownerId, orderId, file);
+        // 6. 上傳至媒體儲存庫（私有物件，回傳 Object Key；檢視時另行簽名，SD-007 §4.7）
+        String proofObjectKey = mediaStorageService.uploadPaymentProof(ownerId, orderId, file);
 
         // 7. 更新欄位與狀態為 PAID
         order.setStatus("PAID");
-        order.setPaymentProofUrl(imageUrl);
+        order.setPaymentProofUrl(proofObjectKey);
         order.setPaymentProofLastFive(lastFive);
         order.setDisclaimerAgreed(true);
         order.setDisclaimerAgreedAt(OffsetDateTime.now(ZoneOffset.UTC));
@@ -128,11 +128,11 @@ public class PaymentService {
         // 8. 寫入審計日誌
         auditLogService.writeOrderLog(order, ownerId.toString(), "PAYMENT_PROOF_SUBMITTED", Map.of(
                 "lastFive", lastFive,
-                "url", imageUrl
+                "objectKey", proofObjectKey
         ));
 
         // 9. 發布事件 (監聽器非同步處理通知發送)
-        eventPublisher.publishEvent(new PaymentProofSubmittedEvent(orderId, ownerId, imageUrl));
+        eventPublisher.publishEvent(new PaymentProofSubmittedEvent(orderId, ownerId, proofObjectKey));
         log.info("Successfully submitted payment proof for order: {}", orderId);
     }
 

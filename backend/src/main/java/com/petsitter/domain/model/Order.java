@@ -76,6 +76,10 @@ public class Order extends BaseEntity {
     @Column(name = "idempotency_key", unique = true)
     private String idempotencyKey;
 
+    /**
+     * 付款憑證參照。2026-10 起存私有 GCS Object Key (payment-proofs/...)；更早的資料是公開網址，
+     * 讀取時一律經 MediaStorageService.resolveObjectKey() 正規化後簽名，不得直接回傳給前端 (SD-007 §4.7)
+     */
     @Column(name = "payment_proof_url")
     private String paymentProofUrl;
 

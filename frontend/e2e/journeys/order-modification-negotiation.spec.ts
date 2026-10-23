@@ -1,7 +1,12 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
-import { bootstrapConfirmedOrder, setBrowserAuth, awaitOrderStatus } from './helpers';
+import {
+  bootstrapConfirmedOrder,
+  setBrowserAuth,
+  awaitOrderStatus,
+  expectSignedPaymentProof
+} from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -99,6 +104,8 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(sitterPage.getByTestId('btn-verify-payment')).toBeVisible({ timeout: 10000 });
       // 迴歸 (P8)：保母核對時也要看到應收的是差額 $600，而不是預估總額 $1,200
       await expect(sitterPage.getByTestId('verify-amount-due')).toContainText('$ 600');
+      // B1 迴歸：補款憑證預覽必須顯示，且是簽名網址而非公開路徑
+      await expectSignedPaymentProof(sitterPage.getByTestId('payment-verification-panel'));
       await snap(sitterPage, '核對入帳前');
       await sitterPage.getByTestId('btn-verify-payment').click();
       await expectDialog(sitterDialogs, /入帳核對確認成功/);

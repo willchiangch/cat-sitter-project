@@ -28,8 +28,8 @@ public class NotificationListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaymentProofSubmitted(PaymentProofSubmittedEvent event) {
-        log.info("Async notification - Payment Proof Submitted for Order: {}, Owner: {}, URL: {}", 
-                event.orderId(), event.ownerId(), event.paymentProofUrl());
+        log.info("Async notification - Payment Proof Submitted for Order: {}, Owner: {}, objectKey: {}", 
+                event.orderId(), event.ownerId(), event.paymentProofObjectKey());
         
         Order order = orderRepository.findById(event.orderId()).orElse(null);
         if (order != null) {

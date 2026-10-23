@@ -19,7 +19,7 @@ test.describe('Dispute and Completion Flow', () => {
           totalAmount: 2400,
           adjustmentAmount: 0,
           disclaimerAgreed: true,
-          paymentProofUrl: null,
+          hasPaymentProof: false,
           paymentProofLastFive: null,
           items: [],
           sitterPaymentInfo: null
@@ -41,7 +41,7 @@ test.describe('Dispute and Completion Flow', () => {
             sitterName: '本地測試保母',
             status: orderStatus,
             totalAmount: 2400,
-            paymentProofUrl: null,
+            hasPaymentProof: false,
             paymentProofLastFive: null,
             scheduledDatesLabel: '2026-05-25 ~ 2026-05-29 (共 5 天)'
           }
