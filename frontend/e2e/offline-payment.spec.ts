@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockDemoSession } from './support/mockSession';
 
 test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
   let orderStatus = 'PENDING_PAYMENT';
@@ -12,6 +13,13 @@ test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
   let paymentProofUrl = '';
 
   test.beforeEach(async ({ page }) => {
+    // 假 token 打真後端的 header API 會 401 → refresh 失敗清 token → 換頁被 RequireAuth 導去 /login，
+    // 共用 mock 先攔通知 / KYC 狀態；頁面 API 仍由本檔 route（後註冊者優先）
+    await mockDemoSession(page, 'sitter');
+    // 訂單詳情會查行程清單；未 mock 時假 token 401 → refresh 失敗清 token
+    await page.route('**/api/orders/a1023000-0000-0000-0000-000000000000/visits', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
     // 每次測試前重置狀態
     orderStatus = 'PENDING_PAYMENT';
     sitterPaymentInfo = {

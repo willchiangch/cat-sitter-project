@@ -65,4 +65,5 @@
 - **測試類別**: [FavoriteSitterServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/FavoriteSitterServiceTest.java)
 - **E2E 對應**: [favorite-sitters.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/favorite-sitters.spec.ts)
 - **執行指令**: `mvn test -Dtest=FavoriteSitterServiceTest`
+- **mock E2E 前置（2026-10，Backlog 第 4 批 E1）**：`favorite-sitters.spec.ts` 以假 token 進 Demo，必須先呼叫 `e2e/support/mockSession.ts` 的 `mockDemoSession()` 攔 AppHeader 每頁都打的通知 / KYC 狀態 API。漏攔的 API 打到真後端會 401 → axios refresh 也 401 → 清掉 accessToken，下一次換頁被 `RequireAuth`（C1 起訂閱 location）導去 `/login?redirect=...`。這是測試 mock 不完整，不是產品 bug：真實使用者只有 refresh token 真的失效時才會被清 token 並導去登入。
 - **最後驗證日期**: 2026-07-18

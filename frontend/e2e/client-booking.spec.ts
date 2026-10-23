@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockDemoSession } from './support/mockSession';
 import { step } from './support/evidence';
 
 class CalendarHelper {
@@ -94,6 +95,13 @@ test.describe('TS-005 飼主預約精靈流程', () => {
   ];
 
   test.beforeEach(async ({ page }) => {
+    // 假 token 打真後端的 header API 會 401 → refresh 失敗清 token → 換頁被 RequireAuth 導去 /login，
+    // 共用 mock 先攔通知 / KYC 狀態；頁面 API 仍由本檔 route（後註冊者優先）
+    await mockDemoSession(page, 'sitter');
+    // 預約頁會查收藏狀態（愛心）；未 mock 時假 token 401 → refresh 失敗清 token
+    await page.route('**/api/owner/favorites', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
     // 1. Mock Auto Login
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
       await route.fulfill({

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockDemoSession } from './support/mockSession';
 
 test.describe('Service Execution & Check-in Flow E2E', () => {
   let visitStatus = 'PENDING';
@@ -6,6 +7,9 @@ test.describe('Service Execution & Check-in Flow E2E', () => {
   let reportContent = '';
 
   test.beforeEach(async ({ page }) => {
+    // 假 token 打真後端的 header API 會 401 → refresh 失敗清 token → 換頁被 RequireAuth 導去 /login，
+    // 共用 mock 先攔通知 / KYC 狀態；頁面 API 仍由本檔 route（後註冊者優先）
+    await mockDemoSession(page, 'sitter');
     // 每次測試前重置狀態
     visitStatus = 'PENDING';
     reportStatus = 'DRAFT';

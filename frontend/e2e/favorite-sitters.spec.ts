@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockDemoSession } from './support/mockSession';
 
 const sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda';
 
@@ -7,6 +8,9 @@ test.describe('PRD-019 我的最愛保母', () => {
 
   test('可搜尋保母並加入收藏，切換休息中狀態後清單同步顯示，移除後消失', async ({ page }) => {
     let favorites: any[] = [];
+    // 假 token 打真後端的 header API 會 401 → refresh 失敗清 token → 換頁被 RequireAuth 導去 /login，
+    // 共用 mock 先攔通知 / KYC 狀態；頁面 API 仍由本檔 route（後註冊者優先）
+    await mockDemoSession(page, 'sitter');
 
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
       await route.fulfill({
@@ -90,6 +94,9 @@ test.describe('PRD-019 我的最愛保母', () => {
 
   test('保母公開預約頁可點擊愛心加入/移除收藏', async ({ page }) => {
     let isFavorited = false;
+    // 假 token 打真後端的 header API 會 401 → refresh 失敗清 token → 換頁被 RequireAuth 導去 /login，
+    // 共用 mock 先攔通知 / KYC 狀態；頁面 API 仍由本檔 route（後註冊者優先）
+    await mockDemoSession(page, 'sitter');
 
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
       await route.fulfill({

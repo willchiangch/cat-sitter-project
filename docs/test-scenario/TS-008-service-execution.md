@@ -11,6 +11,8 @@
 
 ## 測試環境與種子資料準備
 
+- **mock E2E 前置（2026-10，Backlog 第 4 批 E1）**：`frontend/e2e/service-execution.spec.ts` 以假 token 進 Demo，必須先呼叫 `e2e/support/mockSession.ts` 的 `mockDemoSession()` 攔 AppHeader 每頁都打的通知 / KYC 狀態 API。漏攔的 API 打到真後端會 401 → axios refresh 也 401 → 清掉 accessToken，下一次換頁被 `RequireAuth`（C1 起訂閱 location）導去 `/login?redirect=...`。這是測試 mock 不完整，不是產品 bug：真實使用者只有 refresh token 真的失效時才會被清 token 並導去登入。
+
 為了在測試環境中執行驗證，需準備以下預填種子資料：
 * **保母使用者**:
   - `id`: `3d498178-14c0-4376-b81e-7fb02e615dda`
