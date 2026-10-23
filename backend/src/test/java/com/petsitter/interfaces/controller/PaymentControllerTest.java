@@ -79,6 +79,9 @@ class PaymentControllerTest {
     @Autowired
     private com.petsitter.domain.repository.NotificationRepository notificationRepository;
 
+    @Autowired
+    private com.petsitter.domain.repository.ModificationRequestRepository modificationRequestRepository;
+
     @MockitoBean
     private MediaStorageService mediaStorageService;
 
@@ -687,5 +690,209 @@ class PaymentControllerTest {
         mockMvc.perform(post("/api/internal/maintenance/payment-proofs/revoke-public-acl").param("dryRun", "false"))
                 .andExpect(status().isUnauthorized());
         org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).listObjectKeys(any());
+    }
+
+    // ===== 訂單變更補款 (PRD-016 C.3 / SD-016 §4.2, TS-016 B2 迴歸) =====
+
+    private static final String INITIAL_PROOF_KEY = "payment-proofs/2026-10-01/initial.jpg";
+    private static final String SUPPLEMENT_PROOF_KEY = "payment-proofs/2026-10-24/supplement.jpg";
+    private static final OffsetDateTime INITIAL_PAID_AT = OffsetDateTime.parse("2026-10-01T02:00:00Z");
+    private static final OffsetDateTime INITIAL_DISCLAIMER_AT = OffsetDateTime.parse("2026-10-01T01:00:00Z");
+
+    /**
+     * 首次付款已核帳（憑證 11111、paidAt 固定），之後從 previousStatus 發起變更、飼主確認差額 +600，
+     * 訂單停在 PENDING_PAYMENT 等補款
+     */
+    private com.petsitter.domain.model.ModificationRequest givenSupplementPending(String previousStatus) {
+        order.setStatus("PENDING_PAYMENT");
+        order.setTotalAmount(1200);
+        order.setPaymentProofUrl(INITIAL_PROOF_KEY);
+        order.setPaymentProofLastFive("11111");
+        order.setPaymentIdempotencyKey("initial-key");
+        order.setDisclaimerAgreed(true);
+        order.setDisclaimerAgreedAt(INITIAL_DISCLAIMER_AT);
+        order.setPaidAt(INITIAL_PAID_AT);
+        order = orderRepository.save(order); // merge 後回傳新版本，後續再存才不會樂觀鎖衝突
+        when(mediaStorageService.resolveObjectKey(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mediaStorageService.generateSignedUrl(any(), any())).thenAnswer(inv ->
+                "https://storage.googleapis.com/b/" + inv.getArgument(0) + "?X-Goog-Signature=abc");
+        return modificationRequestRepository.save(com.petsitter.domain.model.ModificationRequest.builder()
+                .order(order)
+                .requestedBy("OWNER")
+                .status("M_DONE")
+                .diffAmount(600)
+                .newTotalAmount(1200)
+                .previousStatus(previousStatus)
+                .payload(new ArrayList<>())
+                .dates(java.util.List.of())
+                .build());
+    }
+
+    private void markSupplementSubmitted(com.petsitter.domain.model.ModificationRequest mod) {
+        mod.setSupplementProofKey(SUPPLEMENT_PROOF_KEY);
+        mod.setSupplementProofLastFive("54321");
+        mod.setSupplementIdempotencyKey("supplement-key");
+        mod.setSupplementSubmittedAt(OffsetDateTime.now());
+        modificationRequestRepository.save(mod);
+        order.setStatus("PAID");
+        order = orderRepository.save(order);
+    }
+
+    private void assertInitialPaymentUntouched(Order o) {
+        assertEquals(INITIAL_PROOF_KEY, o.getPaymentProofUrl());
+        assertEquals("11111", o.getPaymentProofLastFive());
+        assertEquals("initial-key", o.getPaymentIdempotencyKey());
+        assertTrue(o.isDisclaimerAgreed());
+        assertEquals(INITIAL_DISCLAIMER_AT.toInstant(), o.getDisclaimerAgreedAt().toInstant());
+        assertEquals(INITIAL_PAID_AT.toInstant(), o.getPaidAt().toInstant());
+    }
+
+    @Test
+    @DisplayName("B2(a) 迴歸：IN_PROGRESS 中發起的變更，補款核帳後回到 IN_PROGRESS（過去一律 CONFIRMED），paidAt 不覆寫")
+    void should_RestoreInProgress_When_SupplementVerified() throws Exception {
+        var mod = givenSupplementPending("IN_PROGRESS");
+        markSupplementSubmitted(mod);
+        TokenContext.setUserId(sitter.getId());
+
+        mockMvc.perform(post("/api/orders/{orderId}/verify-payment", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertEquals("IN_PROGRESS", updated.getStatus());
+        assertInitialPaymentUntouched(updated);
+        assertNotNull(modificationRequestRepository.findById(mod.getId()).orElseThrow().getSupplementVerifiedAt());
+        awaitAsyncNotificationPersisted();
+    }
+
+    @Test
+    @DisplayName("B2(a)：CONFIRMED 中發起的變更，補款核帳後回到 CONFIRMED，且之後 amountDue 回到總額")
+    void should_RestoreConfirmed_When_SupplementVerified() throws Exception {
+        var mod = givenSupplementPending("CONFIRMED");
+        markSupplementSubmitted(mod);
+        TokenContext.setUserId(sitter.getId());
+
+        mockMvc.perform(post("/api/orders/{orderId}/verify-payment", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk());
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertEquals("CONFIRMED", updated.getStatus());
+        assertInitialPaymentUntouched(updated);
+
+        mockMvc.perform(get("/api/orders/{orderId}", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amountDue").value(1200))
+                .andExpect(jsonPath("$.paymentProofLastFive").value("11111"));
+        awaitAsyncNotificationPersisted();
+    }
+
+    @Test
+    @DisplayName("B2(b) 迴歸：補款上傳憑證存在變更請求上，不覆寫首次付款的憑證/後五碼/冪等鍵/免責時間/paidAt；保母核對看到補款憑證與差額")
+    void should_KeepInitialPayment_And_ExposeSupplementProof_When_SupplementUploaded() throws Exception {
+        var mod = givenSupplementPending("IN_PROGRESS");
+        when(mediaStorageService.uploadPaymentProof(eq(owner.getId()), eq(order.getId()), any()))
+                .thenReturn(SUPPLEMENT_PROOF_KEY);
+        TokenContext.setUserId(owner.getId());
+
+        mockMvc.perform(multipart("/api/orders/{orderId}/payment-proof", order.getId())
+                        .file(new MockMultipartFile("file", "s.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes()))
+                        .param("lastFive", "54321")
+                        .param("disclaimerAgreed", "true")
+                        .header("Idempotency-Key", "supplement-key-1")
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isOk());
+        awaitAsyncNotificationPersisted();
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertEquals("PAID", updated.getStatus());
+        assertInitialPaymentUntouched(updated);
+        var updatedMod = modificationRequestRepository.findById(mod.getId()).orElseThrow();
+        assertEquals(SUPPLEMENT_PROOF_KEY, updatedMod.getSupplementProofKey());
+        assertEquals("54321", updatedMod.getSupplementProofLastFive());
+        assertEquals("supplement-key-1", updatedMod.getSupplementIdempotencyKey());
+        assertNotNull(updatedMod.getSupplementSubmittedAt());
+        assertNull(updatedMod.getSupplementVerifiedAt());
+
+        // 保母核對：看到的是補款憑證、應收金額是差額
+        TokenContext.setUserId(sitter.getId());
+        mockMvc.perform(get("/api/orders/sitter").with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("PAID"))
+                .andExpect(jsonPath("$[0].amountDue").value(600))
+                .andExpect(jsonPath("$[0].totalAmount").value(1200))
+                .andExpect(jsonPath("$[0].paymentProofLastFive").value("54321"))
+                .andExpect(jsonPath("$[0].hasPaymentProof").value(true));
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signedUrl").value(org.hamcrest.Matchers.containsString(SUPPLEMENT_PROOF_KEY)));
+
+        // 核帳後回到首次付款的憑證資訊
+        mockMvc.perform(post("/api/orders/{orderId}/verify-payment", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk());
+        TokenContext.setUserId(owner.getId());
+        mockMvc.perform(get("/api/orders/{orderId}", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.paymentProofLastFive").value("11111"))
+                .andExpect(jsonPath("$.hasPaymentProof").value(true));
+        mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signedUrl").value(org.hamcrest.Matchers.containsString(INITIAL_PROOF_KEY)));
+        assertInitialPaymentUntouched(orderRepository.findById(order.getId()).orElseThrow());
+    }
+
+    @Test
+    @DisplayName("B2(b) 迴歸：駁回補款憑證只清補款欄位，首次付款資料保留；待重傳期間不把首次憑證當成本次憑證")
+    void should_ClearOnlySupplementFields_When_SupplementRejected() throws Exception {
+        var mod = givenSupplementPending("CONFIRMED");
+        markSupplementSubmitted(mod);
+        TokenContext.setUserId(sitter.getId());
+
+        mockMvc.perform(post("/api/orders/{orderId}/reject-payment", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("rejectReason", "金額不符"))))
+                .andExpect(status().isOk());
+        awaitAsyncNotificationPersisted();
+
+        Order updated = orderRepository.findById(order.getId()).orElseThrow();
+        assertEquals("PENDING_PAYMENT", updated.getStatus());
+        assertInitialPaymentUntouched(updated);
+        var updatedMod = modificationRequestRepository.findById(mod.getId()).orElseThrow();
+        assertNull(updatedMod.getSupplementProofKey());
+        assertNull(updatedMod.getSupplementProofLastFive());
+        assertNull(updatedMod.getSupplementIdempotencyKey());
+        assertNull(updatedMod.getSupplementSubmittedAt());
+
+        mockMvc.perform(get("/api/orders/{orderId}", order.getId())
+                        .with(user(sitter.getEmail()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amountDue").value(600))
+                .andExpect(jsonPath("$.hasPaymentProof").value(false))
+                .andExpect(jsonPath("$.paymentProofLastFive").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("B2(b)：補款沿用首次付款的 Idempotency-Key 應 409，且不上傳檔案")
+    void should_Return409_When_SupplementReusesInitialIdempotencyKey() throws Exception {
+        givenSupplementPending("CONFIRMED");
+        TokenContext.setUserId(owner.getId());
+
+        mockMvc.perform(multipart("/api/orders/{orderId}/payment-proof", order.getId())
+                        .file(new MockMultipartFile("file", "s.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes()))
+                        .param("lastFive", "54321")
+                        .param("disclaimerAgreed", "true")
+                        .header("Idempotency-Key", "initial-key")
+                        .with(user(owner.getEmail()).roles("OWNER")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("DUPLICATE_REQUEST"));
+
+        org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).uploadPaymentProof(any(), any(), any());
     }
 }

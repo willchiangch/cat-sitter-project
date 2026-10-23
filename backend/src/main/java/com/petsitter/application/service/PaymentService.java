@@ -5,8 +5,10 @@ import com.petsitter.domain.event.PaymentProofSubmittedEvent;
 import com.petsitter.domain.event.PaymentRejectedEvent;
 import com.petsitter.domain.event.PaymentVerifiedEvent;
 import com.petsitter.domain.model.BankAccountInfo;
+import com.petsitter.domain.model.ModificationRequest;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Profile;
+import com.petsitter.domain.repository.ModificationRequestRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -31,6 +34,8 @@ public class PaymentService {
     private final MediaStorageService mediaStorageService;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SupplementPaymentResolver supplementPaymentResolver;
+    private final ModificationRequestRepository modificationRequestRepository;
 
     /**
      * 更新保母的銀行收款帳戶資訊 (Sitter)
@@ -105,30 +110,47 @@ public class PaymentService {
             throw new IllegalArgumentException("檔案格式不符，僅支援 JPG、PNG、WEBP 圖片");
         }
 
-        // 5. 冪等性防護：先主動檢驗 DB 是否已存在該 key，避免 GCS 孤兒檔案產生
+        // 補款 (PRD-016 C.3)：憑證寫在變更請求上，不覆寫首次付款的憑證/後五碼/冪等鍵/免責同意時間
+        Optional<ModificationRequest> supplement = supplementPaymentResolver.findOpenSupplement(order);
+
+        // 5. 冪等性防護：先主動檢驗 DB 是否已存在該 key，避免 GCS 孤兒檔案產生。
+        // 首次付款與補款的 key 共用同一個命名空間，兩邊都要查
         if (idempotencyKey != null) {
-            if (orderRepository.existsByPaymentIdempotencyKey(idempotencyKey)) {
+            if (orderRepository.existsByPaymentIdempotencyKey(idempotencyKey)
+                    || modificationRequestRepository.existsBySupplementIdempotencyKey(idempotencyKey)) {
                 throw new org.springframework.dao.DataIntegrityViolationException("idx_orders_payment_idempotency duplicate");
             }
-            order.setPaymentIdempotencyKey(idempotencyKey);
         }
 
         // 6. 上傳至媒體儲存庫（私有物件，回傳 Object Key；檢視時另行簽名，SD-007 §4.7）
         String proofObjectKey = mediaStorageService.uploadPaymentProof(ownerId, orderId, file);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         // 7. 更新欄位與狀態為 PAID
         order.setStatus("PAID");
-        order.setPaymentProofUrl(proofObjectKey);
-        order.setPaymentProofLastFive(lastFive);
-        order.setDisclaimerAgreed(true);
-        order.setDisclaimerAgreedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        
+        if (supplement.isPresent()) {
+            ModificationRequest mod = supplement.get();
+            mod.setSupplementProofKey(proofObjectKey);
+            mod.setSupplementProofLastFive(lastFive);
+            mod.setSupplementIdempotencyKey(idempotencyKey);
+            mod.setSupplementSubmittedAt(now);
+            modificationRequestRepository.save(mod);
+        } else {
+            order.setPaymentIdempotencyKey(idempotencyKey);
+            order.setPaymentProofUrl(proofObjectKey);
+            order.setPaymentProofLastFive(lastFive);
+            order.setDisclaimerAgreed(true);
+            order.setDisclaimerAgreedAt(now);
+        }
+
         orderRepository.save(order);
 
         // 8. 寫入審計日誌
         auditLogService.writeOrderLog(order, ownerId.toString(), "PAYMENT_PROOF_SUBMITTED", Map.of(
                 "lastFive", lastFive,
-                "objectKey", proofObjectKey
+                "objectKey", proofObjectKey,
+                "kind", supplement.isPresent() ? "SUPPLEMENT" : "INITIAL",
+                "modificationRequestId", supplement.map(m -> m.getId().toString()).orElse("")
         ));
 
         // 9. 發布事件 (監聽器非同步處理通知發送)
@@ -157,14 +179,29 @@ public class PaymentService {
             throw new IllegalStateException("訂單狀態非待核對付款狀態");
         }
 
-        // 更新狀態與付款時間
-        order.setStatus("CONFIRMED");
-        order.setPaidAt(OffsetDateTime.now(ZoneOffset.UTC));
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        Optional<ModificationRequest> supplement = supplementPaymentResolver.findOpenSupplement(order);
+        String restoredStatus;
+        if (supplement.isPresent()) {
+            // 補款核帳 (PRD-016 C.3)：訂單回到發起變更前的狀態（CONFIRMED 或 IN_PROGRESS），
+            // 與拒絕變更 (B.3) 的復原邏輯一致；過去一律寫死 CONFIRMED，進行中的訂單會被退回「未開始」。
+            // paidAt 是首次付款的核帳時間，補款不覆寫，補款核帳時間記在變更請求上
+            ModificationRequest mod = supplement.get();
+            restoredStatus = mod.getPreviousStatus() != null ? mod.getPreviousStatus() : "CONFIRMED";
+            mod.setSupplementVerifiedAt(now);
+            modificationRequestRepository.save(mod);
+        } else {
+            restoredStatus = "CONFIRMED";
+            order.setPaidAt(now);
+        }
+        order.setStatus(restoredStatus);
         orderRepository.save(order);
 
         // 寫入審計日誌
         auditLogService.writeOrderLog(order, sitterId.toString(), "PAYMENT_VERIFIED", Map.of(
-                "verifiedAt", OffsetDateTime.now(ZoneOffset.UTC).toString()
+                "verifiedAt", now.toString(),
+                "kind", supplement.isPresent() ? "SUPPLEMENT" : "INITIAL",
+                "restoredStatus", restoredStatus
         ));
 
         // 發布事件
@@ -201,18 +238,30 @@ public class PaymentService {
         }
 
         // 退回狀態並重置欄位
+        Optional<ModificationRequest> supplement = supplementPaymentResolver.findOpenSupplement(order);
         order.setStatus("PENDING_PAYMENT");
-        order.setPaymentProofUrl(null);
-        order.setPaymentProofLastFive(null);
-        order.setPaymentIdempotencyKey(null); // 重置為 null 容許重新提交
-        order.setDisclaimerAgreed(false);
-        order.setDisclaimerAgreedAt(null);
-        
+        if (supplement.isPresent()) {
+            // 駁回的是補款憑證：只清補款欄位，首次付款的憑證與免責同意紀錄保留
+            ModificationRequest mod = supplement.get();
+            mod.setSupplementProofKey(null);
+            mod.setSupplementProofLastFive(null);
+            mod.setSupplementIdempotencyKey(null); // 容許帶新 key 重新提交
+            mod.setSupplementSubmittedAt(null);
+            modificationRequestRepository.save(mod);
+        } else {
+            order.setPaymentProofUrl(null);
+            order.setPaymentProofLastFive(null);
+            order.setPaymentIdempotencyKey(null); // 重置為 null 容許重新提交
+            order.setDisclaimerAgreed(false);
+            order.setDisclaimerAgreedAt(null);
+        }
+
         orderRepository.save(order);
 
         // 寫入審計日誌
         auditLogService.writeOrderLog(order, sitterId.toString(), "PAYMENT_REJECTED", Map.of(
-                "rejectReason", rejectReason
+                "rejectReason", rejectReason,
+                "kind", supplement.isPresent() ? "SUPPLEMENT" : "INITIAL"
         ));
 
         // 發布事件

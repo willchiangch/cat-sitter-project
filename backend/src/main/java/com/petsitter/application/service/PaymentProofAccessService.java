@@ -25,6 +25,7 @@ public class PaymentProofAccessService {
 
     private final OrderRepository orderRepository;
     private final MediaStorageService mediaStorageService;
+    private final SupplementPaymentResolver supplementPaymentResolver;
 
     public record SignedProofUrl(String signedUrl, long expiresInSeconds) {
     }
@@ -41,7 +42,8 @@ public class PaymentProofAccessService {
             throw new AccessDeniedException("權限不足：您非此訂單的飼主或服務保母");
         }
 
-        String storedRef = order.getPaymentProofUrl();
+        // 補款階段簽補款憑證，其餘簽首次付款憑證 (SD-016 §4.2)
+        String storedRef = supplementPaymentResolver.currentProof(order).storedRef();
         if (storedRef == null || storedRef.isBlank()) {
             throw new IllegalStateException("此訂單目前沒有付款憑證");
         }

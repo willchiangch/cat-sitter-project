@@ -11,4 +11,5 @@ public interface ModificationRequestRepository extends JpaRepository<Modificatio
     Optional<ModificationRequest> findByOrderIdAndStatus(UUID orderId, String status);
     List<ModificationRequest> findByOrderIdOrderByCreatedAtDesc(UUID orderId);
     Optional<ModificationRequest> findByOrderIdAndStatusIn(UUID orderId, List<String> statuses);
+    boolean existsBySupplementIdempotencyKey(String supplementIdempotencyKey);
 }

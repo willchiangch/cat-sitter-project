@@ -27,6 +27,13 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     const { sitter, owner, orderId } = await apiStep('前置：兜出一筆單天 CONFIRMED 訂單', async () => {
       return bootstrapConfirmedOrder(request, 'd1', 'Journey方案D1');
     });
+    // B2 迴歸用：首次付款（bootstrap 以後五碼 12345 付款並核帳）的紀錄，補款後不得被覆寫
+    const initialPayment = await apiStep('前置：記下首次付款的後五碼與核帳時間', async () => {
+      const detail = await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
+      expect(detail.paymentProofLastFive).toBe('12345');
+      expect(detail.paidAt).toBeTruthy();
+      return { lastFive: detail.paymentProofLastFive as string, paidAt: detail.paidAt as string };
+    });
 
     await setBrowserAuth(page, owner, 'client');
     const ownerDialogs = trackDialogs(page);
@@ -104,12 +111,19 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(sitterPage.getByTestId('btn-verify-payment')).toBeVisible({ timeout: 10000 });
       // 迴歸 (P8)：保母核對時也要看到應收的是差額 $600，而不是預估總額 $1,200
       await expect(sitterPage.getByTestId('verify-amount-due')).toContainText('$ 600');
+      // B2 迴歸：核對面板顯示的是補款憑證（54321），不是首次付款的 12345
+      await expect(sitterPage.getByTestId('verify-last-five')).toHaveText('54321');
       // B1 迴歸：補款憑證預覽必須顯示，且是簽名網址而非公開路徑
       await expectSignedPaymentProof(sitterPage.getByTestId('payment-verification-panel'));
       await snap(sitterPage, '核對入帳前');
       await sitterPage.getByTestId('btn-verify-payment').click();
       await expectDialog(sitterDialogs, /入帳核對確認成功/);
-      await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
+      // B2 迴歸：變更是在 CONFIRMED 時發起的，核帳後回到 CONFIRMED（IN_PROGRESS 分支由
+      // PaymentControllerTest 覆蓋）；首次付款的後五碼與 paidAt 不得被補款覆寫
+      const afterVerify = await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
+      expect(afterVerify.paymentProofLastFive).toBe(initialPayment.lastFive);
+      expect(afterVerify.paidAt).toBe(initialPayment.paidAt);
+      expect(afterVerify.amountDue).toBe(1200);
       await sitterPage.reload();
       await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(sitterPage.getByTestId('btn-verify-payment')).toHaveCount(0, { timeout: 10000 });

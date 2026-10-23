@@ -52,4 +52,25 @@ public class ModificationRequest extends BaseEntity {
      */
     @Column(name = "previous_status")
     private String previousStatus;
+
+    // ===== 補款 (diffAmount > 0) 的付款紀錄，PRD-016 C.3 / SD-016 §4.2 =====
+    // 獨立存放，不覆寫 Order 上首次付款的憑證、後五碼、冪等鍵、免責同意時間與 paidAt
+
+    /** 補款憑證私有 GCS Object Key (payment-proofs/...)，檢視一律走簽名網址 (SD-007 §4.7) */
+    @Column(name = "supplement_proof_key")
+    private String supplementProofKey;
+
+    @Column(name = "supplement_proof_last_five", length = 5)
+    private String supplementProofLastFive;
+
+    @Column(name = "supplement_idempotency_key")
+    private String supplementIdempotencyKey;
+
+    /** 補款憑證提交時間，同時為該次線下交易免責聲明的同意時間 */
+    @Column(name = "supplement_submitted_at")
+    private java.time.OffsetDateTime supplementSubmittedAt;
+
+    /** 保母核對補款入帳時間；非 null 代表此筆補款已結清 */
+    @Column(name = "supplement_verified_at")
+    private java.time.OffsetDateTime supplementVerifiedAt;
 }

@@ -33,7 +33,7 @@
 | 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `$ -600` 也會通過，分不出補款/退款方向） |
 | 6 | UI：確認變更 | 顯示「變更已確認」 | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT` |
 | 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
-| 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（`verify-amount-due`）、補款憑證預覽（簽名網址，SD-007 §4.7）；訂單正式回到成立狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED` |
+| 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（`verify-amount-due`）、**補款**憑證後五碼 `54321`（`verify-last-five`，不是首次付款的 `12345`）與補款憑證預覽（簽名網址，SD-007 §4.7）；訂單回到發起變更前的狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED`（變更是在 CONFIRMED 時發起，SD-016 §4.3）；核帳後 `paymentProofLastFive` 回到首次付款 `12345`、`paidAt` 與前置步驟記下的首次核帳時間相同、`amountDue=1200` |
 
 ### 退款分支
 
@@ -80,3 +80,5 @@
 4. **補款頁顯示新總額而不是應補差額（2026-10，驗收 P8）**：`confirmModification()` 會把 `Order.totalAmount` 直接改成變更後新總額（例：$600 → $1,200）再轉 `PENDING_PAYMENT`，而 `GET /api/orders/{id}` / `GET /api/orders/sitter` 過去只回 `totalAmount`，系統裡根本沒有「這次要付多少」的欄位。結果 `OwnerOrderDetail` 補款頁顯示「訂單金額 $1,200」，飼主照著匯就會多匯一倍；保母核對入帳時看到的也是 $1,200，收到 $600 反而會以為短付而駁回。PRD-016 主流程 C.3 寫明「應補款：等待飼主支付**差額**」，所以這是後端缺欄位 + 前端顯示錯欄位兩層問題。修法：兩個 DTO 新增 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`：訂單處於 `PENDING_PAYMENT`/`PAID` 且最新一筆變更請求為 `M_DONE`、`diffAmount > 0` 時回差額，其餘回 `totalAmount`）；飼主付款頁顯示「本次應補差額」區塊、總額列改標「變更後訂單總額」，保母核對面板顯示「本次應收補款差額」。迴歸測試：`OrderQueryServiceListTest` 三支（補款回差額、首次付款回總額、退款/已結清不誤判），以及本 journey 步驟 7、8 的 UI 斷言。
 
 5. **付款憑證公開可讀（2026-10，安全/個資）**：步驟 8 的補款憑證（與首次付款憑證同一機制）過去以 `allUsers READER` 上傳、DTO 直接回 `storage.googleapis.com` 永久公開網址。改為私有物件 + 10 分鐘簽名網址，只有訂單飼主/保母能取得（SD-007 §4.7）。迴歸：步驟 8 斷言預覽為簽名網址且真的載入；後端 `PaymentControllerTest`。退款分支的「退款憑證」目前是保母手填的外部網址字串（不經本系統上傳），不在此修復範圍。
+
+6. **補款核帳後狀態寫死 `CONFIRMED`、補款覆寫首次付款紀錄（2026-10）**：`verifyPayment()` 不分首次或補款一律回 `CONFIRMED` 並覆寫 `paidAt`；補款上傳直接覆寫 `orders` 上首次付款的憑證/後五碼/冪等鍵/免責時間。改為補款紀錄存 `modification_requests.supplement_*`、核帳回 `previous_status`（SD-016 §4.3）。本 journey 步驟 8 斷言核對面板顯示補款後五碼、核帳後首次付款後五碼與 `paidAt` 未變；`IN_PROGRESS` 發起的分支因 journey 訂單日期在明天無法打卡，只由 `PaymentControllerTest` 覆蓋（見 TS-016 Scenario 1b）。

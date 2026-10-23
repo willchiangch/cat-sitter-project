@@ -13,6 +13,17 @@
 * **When**: 飼主申請「增加兩天」，保母報價後，飼主點擊 `confirm` 同意支付差額。
 * **Then**: 系統重新獲取 **Sorted Advisory Locks**。訂單狀態轉回 `PENDING_PAYMENT`；訂單詳情/清單的 `amountDue` 為差額（非新總額），飼主付款頁顯示「本次應補差額」。
 
+## Scenario 1b: 補款核帳後狀態復原與首次付款紀錄保留 (2026-10，B2 迴歸)
+* **Given**: 首次付款已核帳（憑證後五碼 `11111`、`paid_at` 已填）；訂單在 `IN_PROGRESS`（或 `CONFIRMED`）時發起變更，飼主確認差額 +600，訂單 `PENDING_PAYMENT`。
+* **When**: 飼主上傳補款憑證（後五碼 `54321`）→ 保母核對入帳；另一路徑為保母駁回補款憑證。
+* **Then**:
+  - 上傳後 `orders` 的首次付款憑證/後五碼/冪等鍵/免責同意時間/`paid_at` 全部不變；補款憑證寫在 `modification_requests.supplement_*`；保母清單看到 `amountDue=600`、後五碼 `54321`，簽名網址簽的是補款憑證。
+  - 核帳後訂單回到 `previous_status`（`IN_PROGRESS` 中發起的回 `IN_PROGRESS`，不再一律 `CONFIRMED`），`supplement_verified_at` 有值，`paid_at` 不變，詳情回到首次付款後五碼 `11111`。
+  - 駁回只清 `supplement_*`，首次付款資料不變，`PENDING_PAYMENT` 期間 `hasPaymentProof=false`（不把首次憑證當成補款憑證）。
+  - 補款沿用首次付款的 `Idempotency-Key` → 409，不上傳檔案。
+* **自動化對應**: `PaymentControllerTest.should_RestoreInProgress_When_SupplementVerified`、`should_RestoreConfirmed_When_SupplementVerified`、`should_KeepInitialPayment_And_ExposeSupplementProof_When_SupplementUploaded`、`should_ClearOnlySupplementFields_When_SupplementRejected`、`should_Return409_When_SupplementReusesInitialIdempotencyKey`。
+* **E2E 覆蓋範圍**：Journey D 補款分支只覆蓋 `CONFIRMED` 發起的路徑（核帳後回 `CONFIRMED`、首次付款後五碼 `12345` 與 `paidAt` 不變、核對面板顯示補款後五碼 `54321`）。`IN_PROGRESS` 中發起變更需要先讓訂單進入服務中（當日打卡），journey 的訂單日期是明天、無法在測試內打卡，成本過高，**刻意只以上述 JUnit 覆蓋**。
+
 ## Scenario 2: 線下退款憑證核銷 (退款路徑)
 * **Given**: 狀態為 `MODIFYING`。保母報價退款 200 元，飼主點擊 `confirm`。
 * **When**: 訂單進入 `REFUND_VERIFY`。保母上傳 `gs://` 憑證，飼主點擊【確認收到款項】。
@@ -63,6 +74,8 @@
 | 4 | 保母拒絕變更 | 訂單狀態依快照復原 | `modification_requests.previous_status` 讀取，非寫死值 |
 | 5 | 確認金額與報價不符 | 拒絕確認 | `diffAmount` 與 `agreedDiffAmount` 比對 |
 | 6 | 補款確認後查詢訂單 | 應付金額為差額 | `amountDue = diffAmount`、`totalAmount = 新總額`（`OrderQueryServiceListTest.amountDue_IsDiffAmount_When_PendingTopUpAfterModification`） |
+| 7 | 補款核帳 | 訂單回到發起變更前狀態 | `Order.status = previous_status`、`supplement_verified_at` 非 null、`paid_at` 不變（Scenario 1b） |
+| 8 | 補款上傳/駁回 | 首次付款紀錄保留 | `orders.payment_proof_url/last_five/payment_idempotency_key/disclaimer_agreed_at/paid_at` 不變（Scenario 1b） |
 
 ---
 
@@ -71,5 +84,12 @@
 - **測試類別**: [ModificationServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/ModificationServiceTest.java), [ModificationServiceIntegrationTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/ModificationServiceIntegrationTest.java)
 - **E2E 對應**: [order-modification.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/order-modification.spec.ts)
 - **補款應付金額 (P8 迴歸)**: [OrderQueryServiceListTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/OrderQueryServiceListTest.java)；E2E `frontend/e2e/journeys/order-modification-negotiation.spec.ts` 補款分支步驟 7/8
-- **執行指令**: `mvn test -Dtest=ModificationServiceTest,ModificationServiceIntegrationTest,OrderQueryServiceListTest`
+- **補款核帳狀態復原 / 首次付款不覆寫 (B2 迴歸)**: [PaymentControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/PaymentControllerTest.java) Scenario 1b 五支；E2E Journey D 補款分支步驟 8
+- **執行指令**: `mvn test -Dtest=ModificationServiceTest,ModificationServiceIntegrationTest,OrderQueryServiceListTest,PaymentControllerTest`
 - **最後驗證日期**: 2026-07-18
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**補款核帳後狀態一律回 `CONFIRMED`、補款覆寫首次付款紀錄（2026-10，E2E 修復回合「另外發現」）**：`PaymentService.verifyPayment()` 不分首次付款或補款，一律 `status = CONFIRMED` 並覆寫 `paid_at`；`submitPaymentProof()` 把補款憑證直接寫進 `orders.payment_proof_url/last_five/payment_idempotency_key/disclaimer_agreed_at`，`rejectPayment()` 駁回補款時更會把這些欄位清成 null。結果：(1) `IN_PROGRESS` 中發起變更的訂單補款後被退回「已確認未開始」，跟拒絕變更、退款依 `previous_status` 復原的設計不一致（PRD-016 C.3 退款分支已明訂恢復 `CONFIRMED` 或 `IN_PROGRESS`，補款分支原本沒寫，本次補上同一規則）；(2) 首次付款的憑證、後五碼、免責同意時間、付款確認時間在訂單上就消失了，只剩 order log。修法見 SD-016 §4.3：補款紀錄改存 `modification_requests.supplement_*`（Flyway `V20261024_01`），核帳回 `previous_status`。迴歸見 Scenario 1b。

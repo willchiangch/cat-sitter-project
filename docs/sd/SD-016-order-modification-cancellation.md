@@ -183,16 +183,26 @@ sequenceDiagram
 | 變更結果 | 最終狀態遷移 (Confirm / Refund Confirm 後) |
 |---------|------------|
 | 需退款 (線下) | `MODIFYING` -> `REFUND_VERIFY` -> `CONFIRMED` / `CANCELLED` |
-| 需補款 (線上/線下) | `MODIFYING` -> `PENDING_PAYMENT` -> `CONFIRMED`（應付金額為 `diffAmount`，見 4.2） |
+| 需補款 (線上/線下) | `MODIFYING` -> `PENDING_PAYMENT` -> `PAID` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`；應付金額為 `diffAmount`、補款紀錄存放見 4.3）；保母駁回補款憑證：`PAID` -> `PENDING_PAYMENT` |
 | 無金額變動 | `MODIFYING` -> `CONFIRMED` |
 | 整筆取消 (無退款 / 線上退刷成功) | `MODIFYING` -> `CANCELLED` |
 | 保母拒絕變更 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`，依發起變更當下快照決定，非寫死） |
 
 ### 4.2 補款應付金額 (`amountDue`)
 - `confirmModification()` 會把 `Order.totalAmount` 直接更新為變更後新總額，因此 `totalAmount` **不是**飼主這次要匯的金額。
-- `GET /api/orders/{orderId}` 與 `GET /api/orders/owner|sitter` 回應帶 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`）：訂單處於 `PENDING_PAYMENT`/`PAID` 且該訂單最新一筆 `ModificationRequest` 為 `M_DONE`、`diffAmount > 0` 時 = `diffAmount`；其餘情況 = `totalAmount`（首次付款）。變更只能從 `CONFIRMED`/`IN_PROGRESS` 發起，所以付款狀態下最新一筆 `M_DONE` 正差額必然是本次補款。
+- `GET /api/orders/{orderId}` 與 `GET /api/orders/owner|sitter` 回應帶 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`）：訂單處於 `PENDING_PAYMENT`/`PAID` 且該訂單最新一筆 `ModificationRequest` 為 `M_DONE`、`diffAmount > 0`、**`supplementVerifiedAt` 為 null（尚未核帳）** 時 = `diffAmount`；其餘情況 = `totalAmount`（首次付款）。變更只能從 `CONFIRMED`/`IN_PROGRESS` 發起，所以付款狀態下最新一筆未結清的 `M_DONE` 正差額必然是本次補款。此判斷集中在 `SupplementPaymentResolver.findOpenSupplement()`，付款上傳/核帳/駁回、DTO、憑證簽名共用。
 - 前端：`OwnerOrderDetail` 補款時顯示「本次應補差額」並把總額列改標「變更後訂單總額」；`SitterOrders` 核對面板顯示「本次應收補款差額」。
 - **2026-10 修復**：過去 DTO 沒有此欄位，補款頁顯示新總額 $1,200 而非應補 $600，飼主會多匯、保母會誤判短付。迴歸測試見 `OrderQueryServiceListTest`。
+
+### 4.3 補款付款紀錄與核帳後狀態（2026-10）
+- **存放位置**：補款憑證不寫入 `orders`，改存該筆 `modification_requests`（Flyway `V20261024_01`）：
+  - `supplement_proof_key`（私有 GCS Object Key，檢視走 SD-007 §4.7 簽名網址）、`supplement_proof_last_five`、`supplement_idempotency_key`（部分唯一索引 `idx_mod_req_supplement_idempotency`，與 `orders.payment_idempotency_key` 共用命名空間，兩邊都查重，重複一律 409）、`supplement_submitted_at`（同時為該次免責聲明同意時間）、`supplement_verified_at`（非 null 代表補款已結清）。
+  - `orders.payment_proof_url / payment_proof_last_five / payment_idempotency_key / disclaimer_agreed_at / paid_at` 只代表**首次付款**，補款上傳、核帳、駁回都不會動到。
+- **`POST /payment-proof`（補款階段）**：寫入上述 `supplement_*` 欄位，`Order.status → PAID`。
+- **`POST /verify-payment`（補款階段）**：`supplement_verified_at = now()`，`Order.status → previousStatus`（null 時 fallback `CONFIRMED`），與 2.4 拒絕變更同一套復原規則；`paid_at` 不變。過去一律寫死 `CONFIRMED` 並覆寫 `paid_at`，`IN_PROGRESS` 中發起的變更補款後會被退回「已確認未開始」。
+- **`POST /reject-payment`（補款階段）**：只清 `supplement_proof_key/last_five/idempotency_key/submitted_at`，`Order.status → PENDING_PAYMENT`，首次付款資料保留。
+- **DTO**：`paymentProofLastFive`/`hasPaymentProof` 反映「目前階段」的憑證——補款 `PAID` 時是補款憑證；補款 `PENDING_PAYMENT`（尚未上傳或已被駁回）時為空；其餘為首次付款憑證。保母核對面板因此看到補款憑證與 `amountDue` 差額。
+- **相容舊資料**：2026-10 前已提交的補款憑證是直接覆寫在 `orders` 上，`supplement_proof_key` 為 null；這類訂單在 `PAID` 時 DTO/簽名仍沿用 `orders` 欄位，核帳一樣依 `previousStatus` 復原。
 
 ---
 

@@ -11,7 +11,6 @@ import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.model.Visit;
-import com.petsitter.domain.repository.ModificationRequestRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.VisitRepository;
@@ -35,9 +34,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     private final OrderRepository orderRepository;
     private final ProfileRepository profileRepository;
     private final VisitRepository visitRepository;
-    private final ModificationRequestRepository modificationRequestRepository;
-
-    private static final List<String> PAYMENT_STATUSES = List.of("PENDING_PAYMENT", "PAID");
+    private final SupplementPaymentResolver supplementPaymentResolver;
 
     @Override
     @Transactional(readOnly = true)
@@ -57,6 +54,8 @@ public class OrderQueryServiceImpl implements OrderQueryService {
             }
         }
 
+        SupplementPaymentResolver.CurrentProof proof = supplementPaymentResolver.currentProof(order);
+
         return OrderDetailResponseDto.builder()
                 .id(order.getId())
                 .ownerId(order.getOwner().getId())
@@ -68,8 +67,8 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .version(order.getVersion())
                 .adjustmentAmount(order.getAdjustmentAmount())
                 .adjustmentReason(order.getAdjustmentReason())
-                .hasPaymentProof(hasText(order.getPaymentProofUrl()))
-                .paymentProofLastFive(order.getPaymentProofLastFive())
+                .hasPaymentProof(hasText(proof.storedRef()))
+                .paymentProofLastFive(proof.lastFive())
                 .disclaimerAgreed(order.isDisclaimerAgreed())
                 .disclaimerAgreedAt(order.getDisclaimerAgreedAt())
                 .paidAt(order.getPaidAt())
@@ -158,6 +157,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     }
 
     private OrderSummaryDto toSummaryDto(Order order) {
+        SupplementPaymentResolver.CurrentProof proof = supplementPaymentResolver.currentProof(order);
         return OrderSummaryDto.builder()
                 .id(order.getId())
                 .ownerId(order.getOwner().getId())
@@ -167,8 +167,8 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .status(order.getStatus())
                 .totalAmount(order.getTotalAmount())
                 .amountDue(resolveAmountDue(order))
-                .hasPaymentProof(hasText(order.getPaymentProofUrl()))
-                .paymentProofLastFive(order.getPaymentProofLastFive())
+                .hasPaymentProof(hasText(proof.storedRef()))
+                .paymentProofLastFive(proof.lastFive())
                 .scheduledDatesLabel(buildScheduledDatesLabel(order.getItems()))
                 .build();
     }
@@ -181,17 +181,9 @@ public class OrderQueryServiceImpl implements OrderQueryService {
      * PENDING_PAYMENT/PAID 時若最新一筆變更請求是 M_DONE 且差額為正，這筆款項必然是補款。
      */
     private int resolveAmountDue(Order order) {
-        if (!PAYMENT_STATUSES.contains(order.getStatus())) {
-            return order.getTotalAmount();
-        }
-        List<ModificationRequest> history = modificationRequestRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
-        if (!history.isEmpty()) {
-            ModificationRequest latest = history.get(0);
-            if ("M_DONE".equals(latest.getStatus()) && latest.getDiffAmount() != null && latest.getDiffAmount() > 0) {
-                return latest.getDiffAmount();
-            }
-        }
-        return order.getTotalAmount();
+        return supplementPaymentResolver.findOpenSupplement(order)
+                .map(ModificationRequest::getDiffAmount)
+                .orElse(order.getTotalAmount());
     }
 
     private static boolean hasText(String value) {
