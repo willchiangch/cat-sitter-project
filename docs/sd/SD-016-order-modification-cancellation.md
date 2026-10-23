@@ -49,6 +49,7 @@ stateDiagram-v2
   "id": "uuid-modRequestId",
   "orderId": "uuid",
   "status": "QUOTED",
+  "orderStatus": "MODIFYING",
   "requestedBy": "OWNER",
   "diffAmount": -200,
   "newTotalAmount": 800,
@@ -59,6 +60,17 @@ stateDiagram-v2
 }
 ```
 - **2026-08 修復的迴歸缺陷**：原本查詢邏輯只認 `ModificationRequest.status ∈ {PENDING_REVIEW, QUOTED}`。但 `confirmModification()`（2.6）成功後會把 `status` 設為終態 `M_DONE`，而退款分支恰好是**飼主先確認、保母才需要上傳退款憑證**（訂單此時已轉 `REFUND_VERIFY`）——保母端 `SitterModificationQuote` 頁面只要重新整理或重新導航進來就會查無資料、顯示「找不到進行中的變更請求」，實務上永遠上傳不了退款憑證。修法：當 `Order.status ∈ {MODIFYING, PENDING_PAYMENT, REFUND_VERIFY}`（即訂單仍處於變更協商相關狀態）時，改直接撈該訂單最新一筆變更請求（不限 `status`），讓已確認但退補款尚未走完的流程依然讀得到資料；其餘狀態維持原本只認 `PENDING_REVIEW`/`QUOTED` 的行為。詳見 `ModificationServiceTest.should_ReturnModificationRequest_When_OrderIsRefundVerifyAfterConfirm`。
+- **`orderStatus`（2026-10，C2）**：回傳訂單目前狀態。前端 `components/orders/modificationPhase.ts` 依 `status` + `orderStatus` + `diffAmount` 正負收斂出唯一階段，兩個協商頁只顯示該階段可執行的動作：
+
+  | 階段 | 判定 | 保母報價頁 | 飼主確認頁 |
+  | :--- | :--- | :--- | :--- |
+  | `AWAIT_QUOTE` | `PENDING_REVIEW` | 報價表單、拒絕 | 「等待保母報價」 |
+  | `AWAIT_OWNER_CONFIRM` | `QUOTED` | 「報價已送出」、拒絕 | 同意表單 |
+  | `SUPPLEMENT` | `M_DONE` + `PENDING_PAYMENT` + 差額 > 0 | 唯讀摘要（應補款） | 「變更已確認」＋前往補款，**無退款區塊** |
+  | `REFUND` | `M_DONE` + `REFUND_VERIFY` + 差額 < 0 | 唯讀摘要＋退款憑證上傳（已上傳則顯示完成） | 「變更已確認」＋退款區塊：憑證未上傳時只顯示等待，上傳後才有「確認已收到退款」 |
+  | `CLOSED` | 其餘 | 唯讀 | 唯讀 |
+
+  每個動作成功後前端重新讀取本端點，不靠本地旗標猜下一步；拒絕、確認收到退款後訂單已不在協商狀態，本端點回 409，頁面顯示「目前沒有進行中的變更協商」且無任何按鈕。過去兩頁把所有表單同時渲染，只用本地 `quoteSent`/`confirmStatus` 旗標隱藏剛按過的那一個，重新進頁後報價、同意都能再按，補款分支也顯示退款區塊（驗收 P7）。
 - **同批修復：真實入口缺失**：`SitterOrders.tsx`（`MODIFYING`/`REFUND_VERIFY` 訂單）與 `OwnerOrderDetail.tsx`（`MODIFYING`/`REFUND_VERIFY` 訂單）過去完全沒有導向本節三個變更協商頁面的按鈕，僅 `DemoHome.tsx` 有寫死假 orderId 的展示連結，真實使用者的訂單一旦進入協商狀態便無法從訂單列表/詳情頁點進去處理——跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-04`）設計階段發現此缺口後一併補上對應按鈕。
 
 ### 2.3 審核變更並提供差額報價 (保母)
@@ -72,7 +84,7 @@ stateDiagram-v2
   "version": 1
 }
 ```
-- **前置條件**: `ModificationRequest.status == PENDING_REVIEW`，且 `version` 須與 `Order.version` 一致（樂觀鎖），否則 409。
+- **前置條件**: `ModificationRequest.status == PENDING_REVIEW`，且 `version` 須與 `Order.version` 一致（樂觀鎖），否則 409。已報價後重送報價 → 409，報價金額不被覆寫（`OrderControllerTest.should_Return409_When_QuoteResubmittedAfterQuoted`）。
 
 ### 2.4 拒絕變更請求 (保母)
 - **Endpoint**: `POST /api/orders/{orderId}/modification/reject?modRequestId={id}`
@@ -85,6 +97,7 @@ stateDiagram-v2
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-proof`
 - **Headers**: `Idempotency-Key: UUID`
 - **權限**: `ROLE_SITTER`，身份取自 `TokenContext.getUserId()`
+- **前置條件（2026-10，C2）**: `Order.status == REFUND_VERIFY`，且該訂單最新一筆變更請求為 `M_DONE`、`diffAmount < 0`，否則 409。過去沒有任何狀態防護，協商中、補款分支、甚至飼主已確認收到退款之後都還能改寫憑證。訂單仍在 `REFUND_VERIFY` 時允許重傳覆蓋（飼主確認前更正錯誤憑證）。
 - **2026-08 修復的 BOLA 缺陷**：本端點與 2.7 過去完全沒有 `@PreAuthorize`，身份也不是從 JWT (`TokenContext`) 取得，而是直接信任前端傳來的 `sitterId` query param——只驗證「這個 sitterId 是不是該訂單的保母」，沒驗證「呼叫者是不是這個 sitterId 本人」。該訂單的保母本來就合法看得到自己訂單的 `ownerId`（見 2.7），等於保母能自行呼叫 2.7 冒充飼主完成退款確認，繞過飼主二次確認的把關意義；反之任何已登入使用者只要知道目標訂單的真實 `sitterId` 也能冒充該保母呼叫本端點。已改為與 2.1-2.4/2.6 一致的作法：角色守門 + `TokenContext.getUserId()`，前端不再傳 `sitterId`/`ownerId`。詳見 `OrderControllerTest` 內以 `迴歸測試 (BOLA)` 為前綴的 4 支測試。
 
 ### 2.6 確認同意變更 (飼主)
@@ -98,13 +111,14 @@ stateDiagram-v2
   "version": 1
 }
 ```
-- **前置條件**: `ModificationRequest.status == QUOTED`，且 `agreedDiffAmount` 須與 `ModificationRequest.diffAmount` 一致（Zero-Trust，見 §1.2）。
+- **前置條件**: `ModificationRequest.status == QUOTED`，且 `agreedDiffAmount` 須與 `ModificationRequest.diffAmount` 一致（Zero-Trust，見 §1.2）。已同意（`M_DONE`）後重送 → 409，訂單狀態不變（`OrderControllerTest.should_Return409_When_ConfirmResubmittedAfterDone`）。
 - **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照）、檔期鎖定與金流派發。訂單狀態依差額結轉（4.1）：正 → `PENDING_PAYMENT`、負 → `REFUND_VERIFY`、0 → `previousStatus`（2026-10 前寫死 `CONFIRMED`，迴歸：`ModificationServiceTest.should_RestoreInProgress_When_NoDiffModificationConfirmed`）。
 
 ### 2.7 確認收到退款 (飼主) [新增]
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-confirm`
 - **Headers**: `Idempotency-Key: UUID`
 - **權限**: `ROLE_OWNER`，身份取自 `TokenContext.getUserId()`（2026-08 修復 BOLA，說明見 2.5）
+- **前置條件**: `Order.status == REFUND_VERIFY`，否則 409（重送確認 → 409，`OrderControllerTest.should_Return409_When_RefundConfirmResubmitted`）。
 - **邏輯**: 解除 `REFUND_VERIFY` 狀態：變更後已無預約項目（整筆取消）→ `CANCELLED`；否則依該訂單最新一筆變更請求的 `previousStatus` 復原（`CONFIRMED` 或 `IN_PROGRESS`，查無快照的舊資料 fallback `CONFIRMED`），與 2.4 拒絕變更、4.3 補款核帳同一套規則（`ModificationService.restoreStatus`）。
 - **2026-10 修復**：過去寫死 `CONFIRMED`，`IN_PROGRESS` 中發起的減量變更退款後會被退回「已確認未開始」。迴歸：`ModificationServiceTest.should_RestoreInProgress_When_RefundConfirmed`、`should_RestoreConfirmed_When_RefundConfirmedFromConfirmedOrLegacy`。
 

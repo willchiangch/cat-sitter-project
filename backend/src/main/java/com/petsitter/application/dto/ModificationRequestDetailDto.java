@@ -19,6 +19,11 @@ public class ModificationRequestDetailDto {
     private UUID id;
     private UUID orderId;
     private String status;
+    /**
+     * 訂單目前狀態 (MODIFYING / PENDING_PAYMENT / REFUND_VERIFY ...)。前端依 status + orderStatus + diffAmount
+     * 正負收斂成「目前唯一可執行的動作」，例如 M_DONE + REFUND_VERIFY 只剩退款憑證/確認收到退款 (SD-016 §2.2)
+     */
+    private String orderStatus;
     private String requestedBy;
     private Integer diffAmount;
     private Integer newTotalAmount;

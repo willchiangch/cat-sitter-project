@@ -1,11 +1,34 @@
 import { test, expect } from '@playwright/test';
+import { step, trackDialogs, expectDialog } from './support/evidence';
 
 const orderId = 'a1023000-0000-0000-0000-000000000000';
+
+type ModMock = Record<string, unknown> | null;
+
+/** 各測試開頭指定變更請求的起始狀態（mock GET 讀這個變數） */
+function modState(status: string, orderStatus: string, diffAmount: number): ModMock {
+  return {
+    id: 'b2034111-0000-0000-0000-000000000000',
+    orderId,
+    status,
+    orderStatus,
+    requestedBy: 'OWNER',
+    diffAmount,
+    newTotalAmount: 2400 + diffAmount,
+    currentOrderTotalAmount: 2400,
+    orderVersion: 1,
+    dates: ['2026-05-26', '2026-05-27'],
+    refundProofUrl: null
+  };
+}
+
+let mod: ModMock = null;
 
 test.describe('Order Modification Flow', () => {
   test.setTimeout(60000);
 
   test.beforeEach(async ({ page }) => {
+    mod = modState('QUOTED', 'MODIFYING', -600);
     // 訂單詳情 GET — 變更精靈需要先讀取原始項目內容，才能在變更時保留正確欄位
     await page.route(`**/api/orders/${orderId}`, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
@@ -37,24 +60,25 @@ test.describe('Order Modification Flow', () => {
       });
     });
 
-    // 進行中的變更請求 GET — 保母報價頁與飼主確認頁都需要真實資料，不再寫死測試 UUID
+    // 進行中的變更請求 GET — 保母報價頁與飼主確認頁都需要真實資料，不再寫死測試 UUID。
+    // 有狀態的 mock：報價/同意/上傳憑證/確認退款會推進 mod 狀態，頁面重新讀取後必須依新狀態收斂按鈕 (C2)
     await page.route(`**/api/orders/${orderId}/modification`, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
+      if (!mod) {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'STATE_CONFLICT',
+            message: '此訂單目前沒有進行中的變更請求'
+          })
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          id: 'b2034111-0000-0000-0000-000000000000',
-          orderId,
-          status: 'QUOTED',
-          requestedBy: 'OWNER',
-          diffAmount: -600,
-          newTotalAmount: 1800,
-          currentOrderTotalAmount: 2400,
-          orderVersion: 1,
-          dates: ['2026-05-26', '2026-05-27'],
-          refundProofUrl: null
-        })
+        body: JSON.stringify(mod)
       });
     });
 
@@ -69,6 +93,15 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截保母報價 API
     await page.route(`**/api/orders/${orderId}/modification/quote**`, async (route) => {
+      const body = route.request().postDataJSON() as { newTotalAmount: number };
+      if (mod) {
+        mod = {
+          ...mod,
+          status: 'QUOTED',
+          newTotalAmount: body.newTotalAmount,
+          diffAmount: body.newTotalAmount - 2400
+        };
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -78,6 +111,7 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截保母拒絕變更 API
     await page.route(`**/api/orders/${orderId}/modification/reject**`, async (route) => {
+      mod = null;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -87,6 +121,7 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截上傳憑證 API
     await page.route(`**/api/orders/${orderId}/modification/refund-proof**`, async (route) => {
+      if (mod) mod = { ...mod, refundProofUrl: 'refund-proofs/2026-10-24/mock.jpg' };
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -96,6 +131,14 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截飼主確認變更 API
     await page.route(`**/api/orders/${orderId}/modification/confirm**`, async (route) => {
+      if (mod) {
+        const diff = mod.diffAmount as number;
+        mod = {
+          ...mod,
+          status: 'M_DONE',
+          orderStatus: diff < 0 ? 'REFUND_VERIFY' : diff > 0 ? 'PENDING_PAYMENT' : 'CONFIRMED'
+        };
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -105,6 +148,7 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截確認退款 API
     await page.route(`**/api/orders/${orderId}/modification/refund-confirm**`, async (route) => {
+      mod = null;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -151,29 +195,72 @@ test.describe('Order Modification Flow', () => {
     await expect(page.getByTestId('modification-success-banner')).toBeVisible();
   });
 
-  test('should review quote and upload refund proof from sitter side', async ({ page }) => {
-    await page.getByRole('button', { name: '切換為保母' }).click();
-    await page.getByRole('button', { name: '直接進入變更報價 (保母端)' }).click();
+  test('should review quote from sitter side, then only reject remains (no re-quote, no refund section)', async ({
+    page
+  }) => {
+    mod = modState('PENDING_REVIEW', 'MODIFYING', -600);
+    const dialogs = trackDialogs(page);
 
-    // 頁面已從真實 API 帶入保母的報價金額
-    await expect(page.getByTestId('quote-amount-input')).toHaveValue('1800');
-
-    await page.getByTestId('quote-amount-input').fill('1800');
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('報價已成功送出');
-      await dialog.accept();
+    await step('保母進入報價頁：待報價階段只有報價表單與拒絕，沒有退款區塊', page, async () => {
+      await page.getByRole('button', { name: '切換為保母' }).click();
+      await page.getByRole('button', { name: '直接進入變更報價 (保母端)' }).click();
+      // 頁面已從真實 API 帶入保母的報價金額
+      await expect(page.getByTestId('quote-amount-input')).toHaveValue('1800');
+      await expect(page.getByTestId('reject-mod-btn')).toBeVisible();
+      await expect(page.getByTestId('refund-proof-section')).toHaveCount(0);
     });
-    await page.getByTestId('quote-submit-btn').click();
-    await expect(page.getByTestId('quote-success-banner')).toBeVisible();
 
-    // 上傳退款憑證
-    await page.getByTestId('refund-proof-input').fill('https://receipt.jpg');
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('退款憑證已成功上傳');
-      await dialog.accept();
+    await step('送出報價後報價表單消失，只剩拒絕；仍無退款區塊（P7 迴歸）', page, async () => {
+      await page.getByTestId('quote-amount-input').fill('1800');
+      await page.getByTestId('quote-submit-btn').click();
+      await expectDialog(dialogs, /報價已成功送出/);
+      await expect(page.getByTestId('quote-success-banner')).toHaveText(
+        /報價已送出 \(總額: \$ 1,800\)/
+      );
+      await expect(page.getByTestId('quote-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('quote-amount-input')).toHaveCount(0);
+      await expect(page.getByTestId('reject-mod-btn')).toBeVisible();
+      await expect(page.getByTestId('refund-proof-section')).toHaveCount(0);
     });
-    await page.getByTestId('refund-proof-submit-btn').click();
-    await expect(page.getByTestId('refund-proof-success-banner')).toBeVisible();
+  });
+
+  test('should upload refund proof from sitter side only after owner agreed to a refund', async ({
+    page
+  }) => {
+    mod = modState('M_DONE', 'REFUND_VERIFY', -600);
+    const dialogs = trackDialogs(page);
+
+    await step('退款階段：報價/拒絕都已不可操作，只剩退款憑證上傳', page, async () => {
+      await page.getByRole('button', { name: '切換為保母' }).click();
+      await page.getByRole('button', { name: '直接進入變更報價 (保母端)' }).click();
+      await expect(page.getByTestId('mod-quote-readonly-summary')).toContainText('應退款 $ 600');
+      await expect(page.getByTestId('quote-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('reject-mod-btn')).toHaveCount(0);
+      await expect(page.getByTestId('refund-proof-section')).toBeVisible();
+    });
+
+    await step('上傳退款憑證後表單消失', page, async () => {
+      await page.getByTestId('refund-proof-input').fill('https://receipt.jpg');
+      await page.getByTestId('refund-proof-submit-btn').click();
+      await expectDialog(dialogs, /退款憑證已成功上傳/);
+      await expect(page.getByTestId('refund-proof-success-banner')).toBeVisible();
+      await expect(page.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
+    });
+  });
+
+  test('should show no refund section and no actions to sitter on supplement branch', async ({
+    page
+  }) => {
+    mod = modState('M_DONE', 'PENDING_PAYMENT', 600);
+
+    await step('補款階段：保母頁唯讀，無報價/拒絕/退款區塊', page, async () => {
+      await page.getByRole('button', { name: '切換為保母' }).click();
+      await page.getByRole('button', { name: '直接進入變更報價 (保母端)' }).click();
+      await expect(page.getByTestId('mod-quote-readonly-summary')).toContainText('應補款 $ 600');
+      await expect(page.getByTestId('quote-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('reject-mod-btn')).toHaveCount(0);
+      await expect(page.getByTestId('refund-proof-section')).toHaveCount(0);
+    });
   });
 
   test('should allow sitter to reject the modification request', async ({ page }) => {
@@ -197,35 +284,79 @@ test.describe('Order Modification Flow', () => {
   });
 
   test('should confirm modification with zero-trust checks from owner side', async ({ page }) => {
-    await page.getByRole('button', { name: '切換為飼主' }).click();
-    await page.getByRole('button', { name: '直接進入變更確認 (飼主端)' }).click();
+    const dialogs = trackDialogs(page);
 
-    // 頁面已從真實 API 帶入保母報價差額
-    await expect(page.getByTestId('mod-confirm-diff-amount')).toContainText('-600');
-
-    // 1. 測試金額不一致的零信任對帳防線
-    await page.getByTestId('agreed-diff-input').fill('-500');
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('零信任對帳警告');
-      await dialog.accept();
+    await step('飼主進入確認頁：已報價階段只有同意表單，沒有退款區塊', page, async () => {
+      await page.getByRole('button', { name: '切換為飼主' }).click();
+      await page.getByRole('button', { name: '直接進入變更確認 (飼主端)' }).click();
+      // 頁面已從真實 API 帶入保母報價差額
+      await expect(page.getByTestId('mod-confirm-diff-amount')).toContainText('-600');
+      await expect(page.getByTestId('refund-confirm-section')).toHaveCount(0);
     });
-    await page.getByTestId('confirm-submit-btn').click();
 
-    // 2. 金額相符時確認變更
-    await page.getByTestId('agreed-diff-input').fill('-600');
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('變更確認成功');
-      await dialog.accept();
+    await step('零信任對帳：金額不一致時擋下', page, async () => {
+      await page.getByTestId('agreed-diff-input').fill('-500');
+      await page.getByTestId('confirm-submit-btn').click();
+      await expectDialog(dialogs, /零信任對帳警告/);
+      await expect(page.getByTestId('confirm-submit-btn')).toBeVisible();
     });
-    await page.getByTestId('confirm-submit-btn').click();
-    await expect(page.getByTestId('confirm-success-banner')).toBeVisible();
 
-    // 3. 確認收到線下退款
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('已確認收到退款');
-      await dialog.accept();
+    await step(
+      '金額相符時確認變更，同意表單消失；保母尚未上傳憑證前不可確認退款',
+      page,
+      async () => {
+        await page.getByTestId('agreed-diff-input').fill('-600');
+        await page.getByTestId('confirm-submit-btn').click();
+        await expectDialog(dialogs, /變更確認成功/);
+        await expect(page.getByTestId('confirm-success-banner')).toBeVisible();
+        await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+        await expect(page.getByTestId('refund-confirm-section')).toBeVisible();
+        await expect(page.getByTestId('refund-awaiting-proof')).toBeVisible();
+        await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
+      }
+    );
+
+    await step('保母上傳憑證後重新進頁，確認收到線下退款，按鈕消失', page, async () => {
+      mod = { ...mod, refundProofUrl: 'refund-proofs/2026-10-24/mock.jpg' };
+      // SPA 內返回再前進讓頁面重新掛載、重新讀取（不整頁重載，避免再觸發一次種子帳號登入）
+      await page.goBack();
+      await expect(page).toHaveURL(/\/demo$/);
+      await page.goForward();
+      await expect(page.getByTestId('refund-confirm-btn')).toBeVisible();
+      await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+      await page.getByTestId('refund-confirm-btn').click();
+      await expectDialog(dialogs, /已確認收到退款/);
+      await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible();
+      await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
     });
-    await page.getByTestId('refund-confirm-btn').click();
-    await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible();
+
+    await step('結清後重新進頁：無任何可操作按鈕', page, async () => {
+      await page.goBack();
+      await expect(page).toHaveURL(/\/demo$/);
+      await page.goForward();
+      await expect(page.getByTestId('mod-confirm-error')).toBeVisible();
+      await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
+    });
+  });
+
+  test('should hide refund section on supplement branch from owner side', async ({ page }) => {
+    mod = modState('QUOTED', 'MODIFYING', 600);
+    const dialogs = trackDialogs(page);
+
+    await step('飼主同意補款變更後只剩「前往補款」，沒有退款區塊', page, async () => {
+      await page.getByRole('button', { name: '切換為飼主' }).click();
+      await page.getByRole('button', { name: '直接進入變更確認 (飼主端)' }).click();
+      await expect(page.getByTestId('mod-confirm-diff-amount')).toHaveText(
+        /^\$\s?600\s*\(負值為退款\)$/
+      );
+      await page.getByTestId('confirm-submit-btn').click();
+      await expectDialog(dialogs, /變更確認成功/);
+      await expect(page.getByTestId('confirm-success-banner')).toContainText('應補款 $ 600');
+      await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('mod-confirm-go-pay-btn')).toBeVisible();
+      await expect(page.getByTestId('refund-confirm-section')).toHaveCount(0);
+      await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
+    });
   });
 });

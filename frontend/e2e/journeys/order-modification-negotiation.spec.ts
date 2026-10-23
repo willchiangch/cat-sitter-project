@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
   bootstrapConfirmedOrder,
   setBrowserAuth,
@@ -10,6 +10,23 @@ import {
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** C2 迴歸 (P7)：協商結清後直接打網址重新進入兩個協商頁，不得再出現任何可操作按鈕 */
+async function expectNegotiationPagesClosed(ownerPage: Page, sitterPage: Page, orderId: string) {
+  await step('結清後保母重新進入報價頁：無任何可操作按鈕', sitterPage, async () => {
+    await sitterPage.goto(`/sitter/orders/${orderId}/quote`);
+    await expect(sitterPage.getByTestId('mod-quote-error')).toBeVisible({ timeout: 10000 });
+    await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
+    await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
+    await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
+  });
+  await step('結清後飼主重新進入確認頁：無任何可操作按鈕', ownerPage, async () => {
+    await ownerPage.goto(`/owner/orders/${orderId}/modification-confirm`);
+    await expect(ownerPage.getByTestId('mod-confirm-error')).toBeVisible({ timeout: 10000 });
+    await expect(ownerPage.getByTestId('confirm-submit-btn')).toHaveCount(0);
+    await expect(ownerPage.getByTestId('refund-confirm-btn')).toHaveCount(0);
+  });
+}
 
 /**
  * TS-JOURNEY-04：訂單變更協商，補款/退款兩分支。
@@ -85,6 +102,21 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('confirm-success-banner')).toBeVisible({ timeout: 10000 });
 
       await awaitOrderStatus(request, owner, orderId, ['PENDING_PAYMENT']);
+      // C2 迴歸 (P7)：同意後不可再按同意；補款分支不顯示退款區塊，只剩「前往補款」
+      await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('mod-confirm-go-pay-btn')).toBeVisible();
+      await expect(page.getByTestId('refund-confirm-section')).toHaveCount(0);
+      await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
+    });
+
+    await step('保母重新進入報價頁（補款階段）：唯讀，無報價/拒絕/退款區塊（C2 迴歸）', sitterPage, async () => {
+      await sitterPage.goto(`/sitter/orders/${orderId}/quote`);
+      await expect(sitterPage.getByTestId('mod-quote-readonly-summary')).toContainText('應補款 $ 600', {
+        timeout: 10000
+      });
+      await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
+      await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
+      await expect(sitterPage.getByTestId('refund-proof-section')).toHaveCount(0);
     });
 
     await step('飼主補款上傳憑證', page, async () => {
@@ -128,6 +160,8 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(sitterPage.getByTestId('btn-verify-payment')).toHaveCount(0, { timeout: 10000 });
     });
+
+    await expectNegotiationPagesClosed(page, sitterPage, orderId);
   });
 
   test('退款分支：飼主減少天數 -> 保母報價 -> 飼主確認 -> 保母上傳退款憑證 -> 飼主確認收到退款，全流程可正常運作', async ({
@@ -169,6 +203,9 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await sitterPage.getByTestId('quote-submit-btn').click();
       await expectDialog(sitterDialogs, /報價已成功送出/);
       await expect(sitterPage.getByTestId('quote-success-banner')).toBeVisible({ timeout: 10000 });
+      // C2 迴歸 (P7)：報價後不可再報價；飼主尚未同意前不顯示退款憑證區塊
+      await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
+      await expect(sitterPage.getByTestId('refund-proof-section')).toHaveCount(0);
     });
 
     await step('飼主從訂單詳情真實點入確認變更，差額為負（退款）', page, async () => {
@@ -183,6 +220,10 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('confirm-success-banner')).toBeVisible({ timeout: 10000 });
 
       await awaitOrderStatus(request, owner, orderId, ['REFUND_VERIFY']);
+      // C2 迴歸 (P7)：同意後不可再按同意；保母尚未上傳退款憑證前不可確認收到退款
+      await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('refund-awaiting-proof')).toBeVisible();
+      await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
     });
 
     await step('保母重新真實點入變更協商入口，上傳退款憑證（迴歸：飼主確認後此頁過去會 404）', sitterPage, async () => {
@@ -192,6 +233,10 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await sitterPage.getByTestId('btn-go-modification-quote').click();
       await expect(sitterPage).toHaveURL(new RegExp(`/sitter/orders/${orderId}/quote`));
       await expect(sitterPage.getByTestId('mod-quote-error')).not.toBeVisible();
+      // C2 迴歸 (P7)：飼主已同意，報價表單與拒絕按鈕都不可再出現
+      await expect(sitterPage.getByTestId('refund-proof-section')).toBeVisible({ timeout: 10000 });
+      await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
+      await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
 
       await sitterPage.getByTestId('refund-proof-input').fill(
         'https://storage.googleapis.com/e2e-journey-test/refund-proof.jpg'
@@ -200,6 +245,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await sitterPage.getByTestId('refund-proof-submit-btn').click();
       await expectDialog(sitterDialogs, /退款憑證已成功上傳/);
       await expect(sitterPage.getByTestId('refund-proof-success-banner')).toBeVisible({ timeout: 10000 });
+      await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
     });
 
     await step('飼主重新真實點入變更協商入口，確認收到退款', page, async () => {
@@ -211,8 +257,11 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await page.getByTestId('refund-confirm-btn').click();
       await expectDialog(ownerDialogs, /已確認收到退款/);
       await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
 
       await awaitOrderStatus(request, sitter, orderId, ['CONFIRMED']);
     });
+
+    await expectNegotiationPagesClosed(page, sitterPage, orderId);
   });
 });

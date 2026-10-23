@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import {
   confirmModification,
@@ -7,35 +8,57 @@ import {
 } from '../../api/orderApi';
 import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
+import { formatDiff, resolveModificationPhase } from '../../components/orders/modificationPhase';
 
 interface OwnerModificationConfirmProps {
   orderId: string;
 }
 
+const noticeStyle: React.CSSProperties = {
+  textAlign: 'center',
+  padding: '1rem',
+  color: 'var(--color-primary)',
+  fontWeight: '600'
+};
+
+const mutedNoticeStyle: React.CSSProperties = {
+  textAlign: 'center',
+  padding: '1rem',
+  color: 'var(--color-on-surface-variant)',
+  fontWeight: '600'
+};
+
 const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ orderId }) => {
   const { currentRole } = useRole();
+  const navigate = useNavigate();
   const [modRequest, setModRequest] = useState<ModificationRequestDetailDto | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [agreedDiffAmount, setAgreedDiffAmount] = useState<number>(0);
   const [loadingConfirm, setLoadingConfirm] = useState(false);
   const [loadingRefund, setLoadingRefund] = useState(false);
-  const [confirmStatus, setConfirmStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
-  const [refundStatus, setRefundStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [refundConfirmed, setRefundConfirmed] = useState(false);
   const confirmKeyRef = useRef<string | null>(null);
 
+  // 每次動作成功後重新讀取，畫面一律依後端最新狀態收斂
+  const loadModRequest = useCallback(
+    () =>
+      getActiveModificationRequest(orderId)
+        .then((detail) => {
+          setModRequest(detail);
+          setAgreedDiffAmount(detail.diffAmount);
+          setFetchError(null);
+        })
+        .catch((err) => {
+          console.error(err);
+          setFetchError('目前沒有進行中的變更協商（可能已完成、已拒絕或不存在）。');
+        }),
+    [orderId]
+  );
+
   useEffect(() => {
-    getActiveModificationRequest(orderId)
-      .then((detail) => {
-        setModRequest(detail);
-        setAgreedDiffAmount(detail.diffAmount);
-      })
-      .catch((err) => {
-        console.error(err);
-        setFetchError('找不到進行中的變更請求，可能已被處理或尚未經保母報價。');
-      })
-      .finally(() => setFetchLoading(false));
-  }, [orderId]);
+    loadModRequest().finally(() => setFetchLoading(false));
+  }, [loadModRequest]);
 
   const handleConfirmMod = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,12 +87,11 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
       );
 
       confirmKeyRef.current = null;
-      setConfirmStatus('SUCCESS');
       alert('變更確認成功！');
+      await loadModRequest();
     } catch (err) {
       console.error(err);
       confirmKeyRef.current = null;
-      setConfirmStatus('ERROR');
       alert('變更確認失敗，請重試。');
     } finally {
       setLoadingConfirm(false);
@@ -84,15 +106,152 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
     setLoadingRefund(true);
     try {
       await confirmRefund(orderId);
-      setRefundStatus('SUCCESS');
+      // 確認後訂單已回到原狀態、查不到進行中的變更，不重新讀取，直接顯示終態
+      setRefundConfirmed(true);
       alert('已確認收到退款，訂單變更正式生效！');
     } catch (err) {
       console.error(err);
-      setRefundStatus('ERROR');
       alert('確認退款失敗，請重試。');
     } finally {
       setLoadingRefund(false);
     }
+  };
+
+  const phase = modRequest ? resolveModificationPhase(modRequest) : null;
+  const ownerAgreed = phase === 'SUPPLEMENT' || phase === 'REFUND';
+
+  const renderConfirmCardBody = () => {
+    if (!modRequest) return null;
+    if (phase === 'AWAIT_QUOTE') {
+      return (
+        <div style={mutedNoticeStyle} data-testid="mod-confirm-awaiting-quote">
+          等待保母審核並報價，報價後即可在此確認。
+        </div>
+      );
+    }
+    if (phase === 'AWAIT_OWNER_CONFIRM') {
+      return (
+        <form
+          onSubmit={handleConfirmMod}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+            marginTop: '1.25rem'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+              請輸入您同意的變更差額 (以進行防線核對)
+            </label>
+            <input
+              type="number"
+              value={agreedDiffAmount}
+              onChange={(e) => setAgreedDiffAmount(Number(e.target.value))}
+              style={{
+                padding: '0.75rem',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                backgroundColor: 'var(--color-surface-low)',
+                color: 'var(--color-on-surface)'
+              }}
+              data-testid="agreed-diff-input"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loadingConfirm || currentRole !== 'client'}
+            className="btn-primary"
+            style={{ width: '100%', padding: '1rem' }}
+            data-testid="confirm-submit-btn"
+          >
+            {loadingConfirm ? '確認中...' : '同意變更並提交'}
+          </button>
+        </form>
+      );
+    }
+    if (ownerAgreed) {
+      return (
+        <div>
+          <div style={noticeStyle} data-testid="confirm-success-banner">
+            ✓ 變更已確認（{formatDiff(modRequest.diffAmount)}）
+          </div>
+          {phase === 'SUPPLEMENT' && (
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+              data-testid="mod-confirm-supplement-notice"
+            >
+              <p
+                style={{
+                  fontSize: '0.875rem',
+                  color: 'var(--color-on-surface-variant)',
+                  margin: 0,
+                  textAlign: 'center'
+                }}
+              >
+                請回到訂單詳情匯款並上傳補款憑證，保母核對入帳後變更正式生效。
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate(`/owner/orders/${orderId}`)}
+                className="btn-primary"
+                style={{ width: '100%', padding: '1rem' }}
+                data-testid="mod-confirm-go-pay-btn"
+              >
+                前往補款
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return (
+      <div style={mutedNoticeStyle} data-testid="mod-confirm-readonly-summary">
+        此變更請求已結束
+      </div>
+    );
+  };
+
+  const renderRefundCardBody = () => {
+    if (!modRequest) return null;
+    if (refundConfirmed) {
+      return (
+        <div style={noticeStyle} data-testid="refund-confirm-success-banner">
+          ✓ 已確認收到退款
+        </div>
+      );
+    }
+    if (!modRequest.refundProofUrl) {
+      return (
+        <div style={mutedNoticeStyle} data-testid="refund-awaiting-proof">
+          等待保母上傳退款轉帳憑證，上傳後即可在此確認收到退款。
+        </div>
+      );
+    }
+    return (
+      <>
+        <p
+          style={{
+            fontSize: '0.875rem',
+            color: 'var(--color-on-surface-variant)',
+            margin: '0 0 1.5rem 0'
+          }}
+        >
+          保母已上傳退款轉帳收據，請在確認您實體帳戶收到退款後點擊此按鈕，正式完成訂單變更結轉。
+        </p>
+        <button
+          onClick={handleConfirmRefund}
+          disabled={loadingRefund || currentRole !== 'client'}
+          className="btn-primary"
+          style={{ width: '100%', padding: '1rem' }}
+          data-testid="refund-confirm-btn"
+        >
+          {loadingRefund ? '確認中...' : '確認已收到退款'}
+        </button>
+      </>
+    );
   };
 
   return (
@@ -134,130 +293,62 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
       {fetchLoading ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
       ) : fetchError || !modRequest ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }} data-testid="mod-confirm-error">
+        <div
+          style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}
+          data-testid="mod-confirm-error"
+        >
           {fetchError}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <Card>
             <h3
-              style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}
+              style={{
+                margin: '0 0 1rem 0',
+                fontSize: '1.25rem',
+                fontFamily: 'var(--font-display)'
+              }}
             >
               變更方案確認
             </h3>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '1rem 0',
-                borderBottom: '1px solid var(--color-surface-high)',
-                fontSize: '0.875rem'
-              }}
-            >
-              <span>保母報價差額：</span>
-              <strong
-                style={{ color: modRequest.diffAmount < 0 ? '#dc2626' : '#16a34a' }}
-                data-testid="mod-confirm-diff-amount"
-              >
-                $ {modRequest.diffAmount.toLocaleString()} (負值為退款)
-              </strong>
-            </div>
-
-            {confirmStatus === 'SUCCESS' ? (
+            {phase !== 'AWAIT_QUOTE' && (
               <div
-                style={{
-                  textAlign: 'center',
-                  padding: '1rem',
-                  color: 'var(--color-primary)',
-                  fontWeight: '600'
-                }}
-                data-testid="confirm-success-banner"
-              >
-                ✓ 變更已確認
-              </div>
-            ) : (
-              <form
-                onSubmit={handleConfirmMod}
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '1.25rem',
-                  marginTop: '1.25rem'
+                  justifyContent: 'space-between',
+                  padding: '1rem 0',
+                  borderBottom: '1px solid var(--color-surface-high)',
+                  fontSize: '0.875rem'
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>
-                    請輸入您同意的變更差額 (以進行防線核對)
-                  </label>
-                  <input
-                    type="number"
-                    value={agreedDiffAmount}
-                    onChange={(e) => setAgreedDiffAmount(Number(e.target.value))}
-                    style={{
-                      padding: '0.75rem',
-                      borderRadius: 'var(--radius-sm)',
-                      border: 'none',
-                      backgroundColor: 'var(--color-surface-low)',
-                      color: 'var(--color-on-surface)'
-                    }}
-                    data-testid="agreed-diff-input"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loadingConfirm || currentRole !== 'client'}
-                  className="btn-primary"
-                  style={{ width: '100%', padding: '1rem' }}
-                  data-testid="confirm-submit-btn"
+                <span>保母報價差額：</span>
+                <strong
+                  style={{ color: modRequest.diffAmount < 0 ? '#dc2626' : '#16a34a' }}
+                  data-testid="mod-confirm-diff-amount"
                 >
-                  {loadingConfirm ? '確認中...' : '同意變更並提交'}
-                </button>
-              </form>
-            )}
-          </Card>
-
-          <Card>
-            <h3
-              style={{ margin: '0 0 1rem 0', fontSize: '1.25rem', fontFamily: 'var(--font-display)' }}
-            >
-              確認收到退款 (線下退款核對)
-            </h3>
-            <p
-              style={{
-                fontSize: '0.875rem',
-                color: 'var(--color-on-surface-variant)',
-                margin: '0 0 1.5rem 0'
-              }}
-            >
-              若此變更涉及退款，且保母已上傳退款轉帳收據，請在確認您實體帳戶收到退款後點擊此按鈕，正式完成訂單變更結轉。
-            </p>
-
-            {refundStatus === 'SUCCESS' ? (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '1rem',
-                  color: 'var(--color-primary)',
-                  fontWeight: '600'
-                }}
-                data-testid="refund-confirm-success-banner"
-              >
-                ✓ 已確認收到退款
+                  $ {modRequest.diffAmount.toLocaleString()} (負值為退款)
+                </strong>
               </div>
-            ) : (
-              <button
-                onClick={handleConfirmRefund}
-                disabled={loadingRefund || currentRole !== 'client'}
-                className="btn-primary"
-                style={{ width: '100%', padding: '1rem' }}
-                data-testid="refund-confirm-btn"
-              >
-                {loadingRefund ? '確認中...' : '確認已收到退款'}
-              </button>
             )}
+
+            {renderConfirmCardBody()}
           </Card>
+
+          {/* 退款區塊只屬於「已同意、差額為負」的 REFUND 階段；補款分支、協商中都不顯示 */}
+          {phase === 'REFUND' && (
+            <Card data-testid="refund-confirm-section">
+              <h3
+                style={{
+                  margin: '0 0 1rem 0',
+                  fontSize: '1.25rem',
+                  fontFamily: 'var(--font-display)'
+                }}
+              >
+                確認收到退款 (線下退款核對)
+              </h3>
+              {renderRefundCardBody()}
+            </Card>
+          )}
         </div>
       )}
     </div>

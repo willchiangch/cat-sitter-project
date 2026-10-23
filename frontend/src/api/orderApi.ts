@@ -43,7 +43,8 @@ export interface ModificationPayloadDto {
 export interface ModificationRequestDetailDto {
   id: string;
   orderId: string;
-  status: string;
+  status: string; // PENDING_REVIEW / QUOTED / M_DONE / REJECTED
+  orderStatus: string; // 訂單目前狀態，搭配 status 與 diffAmount 正負決定可執行動作 (SD-016 §2.2)
   requestedBy: string;
   diffAmount: number;
   newTotalAmount: number;

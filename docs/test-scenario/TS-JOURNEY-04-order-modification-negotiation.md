@@ -31,19 +31,22 @@
 | 3 | UI：保母 `/sitter/orders` 進行中分頁點「處理訂單變更協商」 | 導向 `/sitter/orders/{orderId}/quote`，表單已預填換算後總額 | 連結為本次新增；`GET /api/orders/{orderId}/modification` 200 |
 | 4 | UI：接受預填總額，送出報價 | 顯示「報價已送出」 | `POST .../modification/quote` 200，`ModificationRequest=QUOTED`，`diffAmount=+600` |
 | 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `$ -600` 也會通過，分不出補款/退款方向） |
-| 6 | UI：確認變更 | 顯示「變更已確認」 | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT` |
+| 6 | UI：確認變更 | 顯示「變更已確認」；同意表單消失、只剩「前往補款」，**沒有退款區塊** | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT`；`confirm-submit-btn`、`refund-confirm-section`、`refund-confirm-btn` 數量為 0（C2） |
+| 6b | UI：保母直接打網址重新進入報價頁 | 唯讀摘要「應補款 $ 600」，無報價、拒絕、退款憑證區塊 | `quote-submit-btn`、`reject-mod-btn`、`refund-proof-section` 數量為 0（C2） |
 | 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
 | 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（`verify-amount-due`）、**補款**憑證後五碼 `54321`（`verify-last-five`，不是首次付款的 `12345`）與補款憑證預覽（簽名網址，SD-007 §4.7）；訂單回到發起變更前的狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED`（變更是在 CONFIRMED 時發起，SD-016 §4.3）；核帳後 `paymentProofLastFive` 回到首次付款 `12345`、`paidAt` 與前置步驟記下的首次核帳時間相同、`amountDue=1200` |
+| 9 | UI：結清後雙方直接打網址重新進入兩個協商頁 | 兩頁都顯示「目前沒有進行中的變更協商」，沒有任何可操作按鈕 | `mod-quote-error`/`mod-confirm-error` 可見；`quote-submit-btn`、`reject-mod-btn`、`refund-proof-submit-btn`、`confirm-submit-btn`、`refund-confirm-btn` 數量為 0（C2） |
 
 ### 退款分支
 
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單 2 天，改為 1 天 |
-| 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600` | |
-| 5-6 | 飼主確認，差額欄位顯示 `-$600` | `Order=REFUND_VERIFY` | |
-| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），填憑證網址送出 | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof` 200 |
-| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 點「確認已收到退款」 | 顯示「已確認收到退款」 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空） |
+| 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600`；報價表單消失，飼主同意前沒有退款憑證區塊 | `quote-submit-btn`、`refund-proof-section` 數量為 0（C2） |
+| 5-6 | 飼主確認，差額欄位顯示 `-$600` | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
+| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在，填憑證網址送出，送出後表單消失 | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof` 200 |
+| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 點「確認已收到退款」 | 顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
+| 9 | 同補款分支步驟 9 | 兩頁皆無任何可操作按鈕 | 同上 |
 
 ---
 
@@ -82,3 +85,5 @@
 5. **付款憑證公開可讀（2026-10，安全/個資）**：步驟 8 的補款憑證（與首次付款憑證同一機制）過去以 `allUsers READER` 上傳、DTO 直接回 `storage.googleapis.com` 永久公開網址。改為私有物件 + 10 分鐘簽名網址，只有訂單飼主/保母能取得（SD-007 §4.7）。迴歸：步驟 8 斷言預覽為簽名網址且真的載入；後端 `PaymentControllerTest`。退款分支的「退款憑證」目前是保母手填的外部網址字串（不經本系統上傳），不在此修復範圍。
 
 6. **補款核帳後狀態寫死 `CONFIRMED`、補款覆寫首次付款紀錄（2026-10）**：`verifyPayment()` 不分首次或補款一律回 `CONFIRMED` 並覆寫 `paidAt`；補款上傳直接覆寫 `orders` 上首次付款的憑證/後五碼/冪等鍵/免責時間。改為補款紀錄存 `modification_requests.supplement_*`、核帳回 `previous_status`（SD-016 §4.3）。本 journey 步驟 8 斷言核對面板顯示補款後五碼、核帳後首次付款後五碼與 `paidAt` 未變；`IN_PROGRESS` 發起的分支因 journey 訂單日期在明天無法打卡，只由 `PaymentControllerTest` 覆蓋（見 TS-016 Scenario 1b）。
+
+7. **協商頁沒有依狀態收斂按鈕（2026-10，驗收 P7 / Backlog 第 2 批 C2）**：前一輪驗收的退款分支截圖 13 看到「退款憑證已上傳」時報價表單仍可操作。兩個協商頁原本不看變更請求狀態，所有表單永遠同時渲染；補款分支也出現退款區塊；後端退款憑證端點沒有狀態防護。修法見 SD-016 §2.2（`orderStatus` + 階段表）、§2.5。本 journey 補款步驟 6/6b/9、退款步驟 3-4/5-6/7/8/9 都斷言「已完成的動作按鈕數量為 0」；後端由 `OrderControllerTest` 六支 C2 測試覆蓋。

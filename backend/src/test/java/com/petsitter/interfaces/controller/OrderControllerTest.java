@@ -233,6 +233,10 @@ class OrderControllerTest {
     @DisplayName("迴歸測試 (BOLA)：退款憑證上傳身份改由 TokenContext 取得，" +
             "以真實保母身份呼叫應成功寫入，不再依賴前端傳入的 sitterId")
     void should_UploadRefundProof_Successfully_UsingTokenContextIdentity() throws Exception {
+        // 退款憑證只能在 REFUND_VERIFY 階段上傳 (C2 狀態防護)，前置狀態補齊
+        Order refundOrder = orderRepository.findById(realOrderId).get();
+        refundOrder.setStatus("REFUND_VERIFY");
+        orderRepository.save(refundOrder);
         ModificationRequest modReq = modRequestRepository.save(ModificationRequest.builder()
                 .order(orderRepository.findById(realOrderId).get())
                 .status("M_DONE")
@@ -270,5 +274,123 @@ class OrderControllerTest {
 
         var saved = orderRepository.findById(realOrderId).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(saved.getStatus()).isEqualTo("CANCELLED");
+    }
+
+    // ===== C2 迴歸：變更協商各端點的狀態防護，已完成的動作重送一律 409，資料不得被改寫 =====
+
+    private ModificationRequest saveModRequest(String orderStatus, String modStatus, int diff) {
+        Order o = orderRepository.findById(realOrderId).get();
+        o.setStatus(orderStatus);
+        orderRepository.save(o);
+        return modRequestRepository.save(ModificationRequest.builder()
+                .order(orderRepository.findById(realOrderId).get())
+                .status(modStatus)
+                .requestedBy("OWNER")
+                .diffAmount(diff)
+                .newTotalAmount(1000 + diff)
+                .previousStatus("CONFIRMED")
+                .payload(List.of())
+                .dates(List.of())
+                .build());
+    }
+
+    @Test
+    @DisplayName("C2 迴歸：已報價 (QUOTED) 後再送報價應 409，報價金額不被覆寫")
+    void should_Return409_When_QuoteResubmittedAfterQuoted() throws Exception {
+        ModificationRequest modReq = saveModRequest("MODIFYING", "QUOTED", 600);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/quote", realOrderId)
+                        .with(user(sitterId.toString()).roles("SITTER"))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .param("modRequestId", modReq.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newTotalAmount\":9999,\"version\":0}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("STATE_CONFLICT"));
+
+        var saved = modRequestRepository.findById(modReq.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(saved.getStatus()).isEqualTo("QUOTED");
+        org.assertj.core.api.Assertions.assertThat(saved.getNewTotalAmount()).isEqualTo(1600);
+    }
+
+    @Test
+    @DisplayName("C2 迴歸：已同意變更 (M_DONE) 後再送同意應 409，訂單狀態不變")
+    void should_Return409_When_ConfirmResubmittedAfterDone() throws Exception {
+        ModificationRequest modReq = saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/confirm", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER"))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .param("modRequestId", modReq.getId().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"agreedDiffAmount\":-500,\"version\":0}"))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(orderRepository.findById(realOrderId).get().getStatus())
+                .isEqualTo("REFUND_VERIFY");
+    }
+
+    @Test
+    @DisplayName("C2 迴歸：飼主已確認收到退款（訂單已回 CONFIRMED）後，保母再上傳退款憑證應 409，舊憑證不被改寫")
+    void should_Return409_When_RefundProofUploadedAfterRefundConfirmed() throws Exception {
+        ModificationRequest modReq = saveModRequest("CONFIRMED", "M_DONE", -500);
+        modReq.setRefundProofUrl("refund-proofs/2026-10-24/original.jpg");
+        modRequestRepository.save(modReq);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .with(user(sitterId.toString()).roles("SITTER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refundProofUrl\":\"https://evil.example.com/x.jpg\"}"))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(modRequestRepository.findById(modReq.getId()).get().getRefundProofUrl())
+                .isEqualTo("refund-proofs/2026-10-24/original.jpg");
+    }
+
+    @Test
+    @DisplayName("C2 迴歸：補款分支 (PENDING_PAYMENT、差額為正) 不可上傳退款憑證，應 409")
+    void should_Return409_When_RefundProofUploadedOnSupplementBranch() throws Exception {
+        ModificationRequest modReq = saveModRequest("PENDING_PAYMENT", "M_DONE", 600);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .with(user(sitterId.toString()).roles("SITTER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refundProofUrl\":\"https://storage.googleapis.com/test/proof.jpg\"}"))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(modRequestRepository.findById(modReq.getId()).get().getRefundProofUrl())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("C2 迴歸：已確認收到退款後重送確認應 409")
+    void should_Return409_When_RefundConfirmResubmitted() throws Exception {
+        saveModRequest("CONFIRMED", "M_DONE", -500);
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-confirm", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(orderRepository.findById(realOrderId).get().getStatus())
+                .isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("C2：查詢變更請求回傳 orderStatus，前端據此收斂可執行動作")
+    void should_ReturnOrderStatus_When_QueryingModificationRequest() throws Exception {
+        saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(get("/api/orders/{orderId}/modification", realOrderId)
+                        .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("M_DONE"))
+                .andExpect(jsonPath("$.orderStatus").value("REFUND_VERIFY"))
+                .andExpect(jsonPath("$.diffAmount").value(-500));
     }
 }

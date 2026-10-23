@@ -229,6 +229,7 @@ public class ModificationService {
                 .id(modReq.getId())
                 .orderId(orderId)
                 .status(modReq.getStatus())
+                .orderStatus(order.getStatus())
                 .requestedBy(modReq.getRequestedBy())
                 .diffAmount(modReq.getDiffAmount())
                 .newTotalAmount(modReq.getNewTotalAmount())
@@ -275,9 +276,17 @@ public class ModificationService {
         if (!order.getSitter().getId().equals(sitterId)) {
             throw new IllegalArgumentException("無權操作此訂單");
         }
+        // 只有「飼主已同意減量變更、等待退款」這一個階段能上傳退款憑證。過去沒有任何狀態防護，
+        // 協商中、補款中、甚至飼主已確認收到退款之後都還能改寫最新一筆變更請求的憑證 (SD-016 §2.5)
+        if (!"REFUND_VERIFY".equals(order.getStatus())) {
+            throw new IllegalStateException("訂單目前不在待退款確認狀態，無法上傳退款憑證");
+        }
         ModificationRequest modReq = modRepo.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("找不到變更請求記錄"));
+        if (!"M_DONE".equals(modReq.getStatus()) || modReq.getDiffAmount() == null || modReq.getDiffAmount() >= 0) {
+            throw new IllegalStateException("此變更請求不涉及退款，無法上傳退款憑證");
+        }
         modReq.setRefundProofUrl(refundProofUrl);
         modRepo.saveAndFlush(modReq);
     }
