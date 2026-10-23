@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 
 /**
  * mock E2E 共用：以 Demo 模式 (authMode=seed) 進站，種子登入回假 token，
- * 並攔截 AppHeader 每頁都會打的通知 API，避免假 token 打到真後端 401 → refresh 失敗 → token 被清掉。
+ * 並攔截 AppHeader 每頁都會打的通知 / KYC 狀態 API，避免假 token 打到真後端 401 → refresh 失敗 → token 被清掉。
  * 頁面本身的 API 由各 spec 自己 mock。
  */
 export async function mockDemoSession(page: Page, role: 'sitter' | 'client' | 'admin') {
@@ -31,6 +31,14 @@ export async function mockDemoSession(page: Page, role: 'sitter' | 'client' | 'a
       body: JSON.stringify({
         data: { content: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }
       })
+    })
+  );
+  // 保母角色 AppHeader 會查 KYC 狀態（橫幅）；各 spec 需要別的狀態時自行再 route（後註冊者優先）
+  await page.route('**/api/sitter/kyc/status', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { kycStatus: 'VERIFIED', rejectReason: '', submittedAt: '' } })
     })
   );
 }

@@ -245,3 +245,17 @@
 * **Then**: 選項清單應完整涵蓋上述 8 種，而非僅有 `CAT`/`DOG` 兩種——修正前的落差是保母養非貓狗寵物的飼主，永遠找不到方案可以預約。
 * **技術背景**: `service_plans.applicable_pet_types` 為不受 DB CHECK 約束的 `JSONB` 陣列，此為純前端選項清單缺陷（`SitterPlans.tsx`），非後端驗證邏輯問題。
 * **自動化狀態**: ⬜ 未自動化。`ServicePlanControllerTest`/`service-plans.spec.ts` 目前皆僅以 `["CAT"]` 作為測試資料，未驗證其餘 7 種類型的選取與送出，為已知待補項目。
+
+## Scenario 16: 新增方案的預設 SOP 依適用寵物給 (2026-10，Backlog 第 3 批 U6 迴歸)
+
+* **Given**: 保母 A 於「服務方案設定」點「新增方案」（預設勾選 `CAT`）。
+* **When**: 取消 `CAT`、改勾 `DOG`；再加勾 `CAT`；手動修改任務後再切換寵物；送出。
+* **Then**: 初始為貓咪模板；只勾 `DOG` 時為「基本餵食 / 散步遛狗 / 清理排泄物 / 更換新鮮水」，**不含**「清理砂盆」；多選取聯集；手動改過的任務不被覆蓋；`POST /api/sitter/plans` 的 `defaultTasks` 與畫面一致（SD-003 §0.1）。
+* **自動化狀態**: ✅ `frontend/e2e/plan-default-tasks.spec.ts`（mock）；正式站由 Journey A 步驟 8 斷言公開方案 API 的 `defaultTasks`。
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**狗狗方案的預設 SOP 有「清理砂盆」（2026-10，驗收 N1 / Backlog 第 3 批 U6）**：`SitterPlans.openModal(null)` 不論勾選哪種寵物，預設任務一律寫死「基本餵食 / 清理砂盆 / 更換新鮮水」。Journey A 建立的 DOG 方案公開後，`defaultTasks` 仍是貓砂相關任務。修法與迴歸見 Scenario 16。
+

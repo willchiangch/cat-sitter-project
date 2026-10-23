@@ -245,6 +245,13 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
         expect(found.isActive).toBe(true);
         expect(Number(found.price)).toBe(plan.price);
         expect(found.applicablePetTypes).toEqual([plan.petType]);
+        // U6（驗收 N1）：預設 SOP 依寵物類型給，狗狗方案不得帶「清理砂盆」
+        if (plan.petType === 'DOG') {
+          expect(found.defaultTasks).toContain('散步遛狗');
+          expect(found.defaultTasks).not.toContain('清理砂盆');
+        } else {
+          expect(found.defaultTasks).toContain('清理砂盆');
+        }
       }
       return { gated: profile.gated, displayName: profile.displayName, plans: published };
     });

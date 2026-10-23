@@ -243,6 +243,23 @@ erDiagram
 > [!NOTE]
 > 下方 Request/Response 範例沿用早期草稿的 `["CAT","DOG"]` 僅為範例值，不代表選項僅限貓狗——完整合法值以上表為準。前端實作於 `SitterPlans.tsx` 的 `PET_TYPE_LABELS`/`PET_TYPE_OPTIONS`，飼主端則對應 `PetManager.tsx` 的 `<select>` 選項，兩處若日後新增寵物種類須同步修改。
 
+### 0.1 新增方案的預設 SOP 任務（前端，2026-10）
+`defaultTasks` 後端不設預設值，由前端新增方案表單預填建議模板（`frontend/src/components/plans/defaultTasks.ts`）：
+
+| 適用寵物 | 預設任務 |
+| :--- | :--- |
+| `CAT` | 基本餵食、清理砂盆、更換新鮮水 |
+| `DOG` | 基本餵食、散步遛狗、清理排泄物、更換新鮮水 |
+| `BIRD` | 基本餵食、清理鳥籠、更換新鮮水 |
+| `MOUSE` | 基本餵食、更換墊料、更換新鮮水 |
+| `RABBIT` | 基本餵食、補充牧草、清理便盆、更換新鮮水 |
+| `REPTILE` | 基本餵食、檢查溫濕度、更換新鮮水 |
+| `INSECT` | 基本餵食、檢查飼育環境 |
+| `OTHER` | 基本餵食、更換新鮮水 |
+
+- 多選時依勾選順序取聯集、去重；新增方案時切換寵物類型會跟著換模板，保母手動增刪/修改過任務後就不再覆蓋；編輯既有方案不自動替換。
+- 2026-10 前不論寵物類型一律預填貓咪的三項，狗狗方案也帶著「清理砂盆」（驗收 N1 / Backlog 第 3 批 U6）。迴歸：`e2e/plan-default-tasks.spec.ts`、Journey A 步驟 8。
+
 ### 1. 建立服務方案
 * **Method & Path**：`POST /api/sitter/plans`
 * **說明**：保母新增自訂服務方案。

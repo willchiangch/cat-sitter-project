@@ -9,6 +9,7 @@ import {
 import type { ServicePlan } from '../../types/servicePlan';
 import { ArrowUp, ArrowDown, Plus, Trash2, Upload, Edit2, X, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import { defaultTasksFor } from '../../components/plans/defaultTasks';
 
 const PET_TYPE_LABELS: Record<string, string> = {
   CAT: '🐱 貓咪',
@@ -40,6 +41,8 @@ const SitterPlans: React.FC = () => {
   const [durationMinutes, setDurationMinutes] = useState<number | ''>(60);
   const [applicablePetTypes, setApplicablePetTypes] = useState<string[]>([]);
   const [defaultTasks, setDefaultTasks] = useState<string[]>([]);
+  // 預設任務是否已被保母手動改過：改過就不再隨「適用寵物」自動替換，編輯既有方案時一律視為已改過
+  const [tasksTouched, setTasksTouched] = useState(false);
   const [description, setDescription] = useState('');
   const [hasDateRange, setHasDateRange] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -57,6 +60,7 @@ const SitterPlans: React.FC = () => {
       setDurationMinutes(plan.durationMinutes ?? 60);
       setApplicablePetTypes(plan.applicablePetTypes);
       setDefaultTasks(plan.defaultTasks);
+      setTasksTouched(true);
       setDescription(plan.description || '');
       setHasDateRange(!!(plan.startDate || plan.endDate));
       setStartDate(plan.startDate || '');
@@ -68,7 +72,8 @@ const SitterPlans: React.FC = () => {
       setDailyCapacity('');
       setDurationMinutes(60);
       setApplicablePetTypes(['CAT']);
-      setDefaultTasks(['基本餵食', '清理砂盆', '更換新鮮水']);
+      setDefaultTasks(defaultTasksFor(['CAT']));
+      setTasksTouched(false);
       setDescription('');
       setHasDateRange(false);
       setStartDate('');
@@ -195,25 +200,30 @@ const SitterPlans: React.FC = () => {
 
   // 增刪預設任務
   const handleAddTask = () => {
+    setTasksTouched(true);
     setDefaultTasks([...defaultTasks, '']);
   };
 
   const handleUpdateTask = (index: number, value: string) => {
+    setTasksTouched(true);
     const updated = [...defaultTasks];
     updated[index] = value;
     setDefaultTasks(updated);
   };
 
   const handleRemoveTask = (index: number) => {
+    setTasksTouched(true);
     setDefaultTasks(defaultTasks.filter((_, idx) => idx !== index));
   };
 
-  // 適用寵物多選控制
+  // 適用寵物多選控制：新增方案且預設任務還沒被手動改過時，任務模板跟著寵物類型換（U6）
   const handleTogglePetType = (type: string) => {
-    if (applicablePetTypes.includes(type)) {
-      setApplicablePetTypes(applicablePetTypes.filter((t) => t !== type));
-    } else {
-      setApplicablePetTypes([...applicablePetTypes, type]);
+    const next = applicablePetTypes.includes(type)
+      ? applicablePetTypes.filter((t) => t !== type)
+      : [...applicablePetTypes, type];
+    setApplicablePetTypes(next);
+    if (!tasksTouched) {
+      setDefaultTasks(defaultTasksFor(next));
     }
   };
 
