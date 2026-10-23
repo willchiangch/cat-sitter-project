@@ -108,7 +108,8 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
         headers: apiAuthed(sitter)
       });
       expect(openBeforeRes.ok()).toBeTruthy();
-      expect((await openBeforeRes.json()).data.isOpen).toBe(true);
+      const isOpenBefore = (await openBeforeRes.json()).data.isOpen;
+      expect(isOpenBefore).toBe(true);
 
       const admin = await loginAsSeedAdmin(request);
       const suspendRes = await request.post(`/api/admin/sitters/${sitter.userId}/suspend`, {
@@ -128,7 +129,8 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       expect(openRes.ok()).toBeTruthy();
       const isOpen = (await openRes.json()).data.isOpen;
       expect(isOpen).toBe(false);
-      return { status: suspendRes.status(), kycStatus, isOpen };
+      // S1：停權前的 isOpen 也寫進證據 JSON，TS 測試 2 #2「三個值都寫進證據」才完整
+      return { isOpenBefore, status: suspendRes.status(), kycStatus, isOpen };
     });
 
     const anonContext = await browser.newContext();

@@ -32,7 +32,7 @@
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 1 | API：`bootstrapConfirmedOrder` 兜出一筆 `CONFIRMED` 訂單（此時保母仍是正常 `VERIFIED`） | | |
-| 2 | API：Admin 呼叫 `POST /api/admin/sitters/{sitterId}/suspend` | `Profile.kycStatus → SUSPENDED`，`isOpen → false` | 停權前以保母 token `GET /api/sitter/kyc/open` 斷言 `isOpen=true`；停權後 `GET /api/sitter/kyc/status` 斷言 `kycStatus=SUSPENDED`、`GET /api/sitter/kyc/open` 斷言 `isOpen=false`（`KycServiceImpl.suspendSitter`），三個值都寫進 apiStep 證據 |
+| 2 | API：Admin 呼叫 `POST /api/admin/sitters/{sitterId}/suspend` | `Profile.kycStatus → SUSPENDED`，`isOpen → false` | 停權前以保母 token `GET /api/sitter/kyc/open` 斷言 `isOpen=true`；停權後 `GET /api/sitter/kyc/status` 斷言 `kycStatus=SUSPENDED`、`GET /api/sitter/kyc/open` 斷言 `isOpen=false`（`KycServiceImpl.suspendSitter`），三個值都寫進 apiStep 證據（回傳 `{isOpenBefore, status, kycStatus, isOpen}`；2026-10 前漏了 `isOpenBefore`，驗收 S1） |
 | 3 | UI：未登入瀏覽器打開同一保母的公開頁 | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕，跟未過審共用同一套 gating 邏輯 | 同步驟 1-2 的匿名斷言（C1）；`SitterPublicProfileServiceImpl.getPublicProfile()` 判斷式是 `!"VERIFIED".equals(kycStatus)`，`SUSPENDED` 跟 `PENDING_REVIEW` 一樣會落入這個分支；匿名 `GET /api/sitter/profile/{sitterId}` 斷言 `gated=true`、`displayName="保母休息中"` |
 | 4 | API：對停權「之前」就存在的訂單呼叫 `POST /api/visits/{visitId}/start`（Check-in） | **仍應成功**，`Order/Visit → IN_PROGRESS` | `VisitReportService.startVisit()` 完全沒有檢查保母的 `kycStatus`/`isOpen`，全系統目前只有 `SitterPublicProfileServiceImpl` 這一處會檢查 `SUSPENDED` |
 
