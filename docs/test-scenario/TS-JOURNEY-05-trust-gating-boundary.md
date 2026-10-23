@@ -25,7 +25,7 @@
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 1 | API：建立保母帳號、切換角色、送出 KYC，**不呼叫 admin 審核** | Profile 停在 `kycStatus=PENDING_REVIEW` | 以保母 token 呼叫 `GET /api/sitter/kyc/status` 斷言 `data.kycStatus=PENDING_REVIEW`（獨立 apiStep 留證據）。不釘這個前提的話，Profile 實際停在 `UNVERIFIED` 時步驟 2 照樣 gated、照樣綠燈 |
-| 2 | UI：全新未登入瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕 | 以同一個匿名 context 的 request（不帶 token）呼叫 `GET /api/sitter/profile/{sitterId}`，斷言 `gated=true`、`displayName="保母休息中"`（apiStep 留證據） |
+| 2 | UI：全新未登入瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕 | 匿名頁面 0 次 `POST /api/auth/login`、公開頁 API 不帶 `Authorization`（`expectStillAnonymous`，C1：過去會在背景以 `sitter@test.com` 登入）；以同一個匿名 context 的 request（不帶 token）呼叫 `GET /api/sitter/profile/{sitterId}`，斷言 `gated=true`、`displayName="保母休息中"`（apiStep 留證據） |
 
 ### 測試 2：已停權保母 + 在途訂單邊界
 
@@ -33,7 +33,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | API：`bootstrapConfirmedOrder` 兜出一筆 `CONFIRMED` 訂單（此時保母仍是正常 `VERIFIED`） | | |
 | 2 | API：Admin 呼叫 `POST /api/admin/sitters/{sitterId}/suspend` | `Profile.kycStatus → SUSPENDED`，`isOpen → false` | 停權前以保母 token `GET /api/sitter/kyc/open` 斷言 `isOpen=true`；停權後 `GET /api/sitter/kyc/status` 斷言 `kycStatus=SUSPENDED`、`GET /api/sitter/kyc/open` 斷言 `isOpen=false`（`KycServiceImpl.suspendSitter`），三個值都寫進 apiStep 證據 |
-| 3 | UI：未登入瀏覽器打開同一保母的公開頁 | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕，跟未過審共用同一套 gating 邏輯 | `SitterPublicProfileServiceImpl.getPublicProfile()` 判斷式是 `!"VERIFIED".equals(kycStatus)`，`SUSPENDED` 跟 `PENDING_REVIEW` 一樣會落入這個分支；匿名 `GET /api/sitter/profile/{sitterId}` 斷言 `gated=true`、`displayName="保母休息中"` |
+| 3 | UI：未登入瀏覽器打開同一保母的公開頁 | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕，跟未過審共用同一套 gating 邏輯 | 同步驟 1-2 的匿名斷言（C1）；`SitterPublicProfileServiceImpl.getPublicProfile()` 判斷式是 `!"VERIFIED".equals(kycStatus)`，`SUSPENDED` 跟 `PENDING_REVIEW` 一樣會落入這個分支；匿名 `GET /api/sitter/profile/{sitterId}` 斷言 `gated=true`、`displayName="保母休息中"` |
 | 4 | API：對停權「之前」就存在的訂單呼叫 `POST /api/visits/{visitId}/start`（Check-in） | **仍應成功**，`Order/Visit → IN_PROGRESS` | `VisitReportService.startVisit()` 完全沒有檢查保母的 `kycStatus`/`isOpen`，全系統目前只有 `SitterPublicProfileServiceImpl` 這一處會檢查 `SUSPENDED` |
 
 ---

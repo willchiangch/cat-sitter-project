@@ -29,6 +29,11 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
   let orderVersion = 0;
 
   test.beforeEach(async ({ page }) => {
+    // 種子帳號自動登入只在 Demo 模式 (authMode=seed) 或 Demo 入口才會發生 (src/contexts/seedAutoLogin.ts)。
+    // 本檔每個測試都直接深連結進受保護頁面，先標記成「已在 Demo 模式中」
+    await page.addInitScript(() => {
+      if (!localStorage.getItem('authMode')) localStorage.setItem('authMode', 'seed');
+    });
     orderStatus = 'PENDING';
     orderVersion = 0;
 

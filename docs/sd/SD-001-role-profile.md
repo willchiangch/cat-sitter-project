@@ -311,5 +311,16 @@ ALTER TABLE refresh_tokens ADD COLUMN active_role VARCHAR(50);
 ## UX 設計
 
 - **切換角色 UI**：點擊切換時，前端全域套用 `data-theme`（`sitter` = Amber，`client` = Blue）。
+- **Demo 種子帳號自動登入的適用範圍（2026-10，C1）**：`RoleContext` 掛載時會以種子帳號（`sitter@test.com`/`owner@test.com`/`admin@test.com`，依 `userRole`）背景登入，`/demo` 的「切換為保母/飼主/管理員」也走同一組帳號。這是 Demo 展示機制，判斷集中在 `frontend/src/contexts/seedAutoLogin.ts` 的 `shouldSeedAutoLogin(pathname, authMode)`：
+
+  | 情況 | 是否自動登入 |
+  | :--- | :--- |
+  | `authMode=manual`（經 `/login`、註冊、Google、WebAuthn 正式登入） | 否，不蓋掉真實 session |
+  | 公開頁：`/login`、`/register`、`/forgot-password`、`/reset-password`、`/sitter/{id}/profile` | 否（任何 `authMode` 皆然） |
+  | `authMode=seed`（先前從 Demo 入口進來過）＋受保護頁面 | 是，重新整理/深連結沿用 Demo session |
+  | 無 session ＋ Demo 入口 `/`、`/demo` | 是，啟動 Demo 模式（寫入 `authMode=seed`） |
+  | 無 session ＋其他受保護頁面（`/booking/{id}`、通知信裡的 `/owner/orders/{id}` 等） | 否，`RequireAuth` 導去 `/login?redirect=<原路徑>`，登入後回原頁 |
+
+  過去只排除 `/login` 等四個頁面：匿名訪客開保母公開頁會在背景登入成 `sitter@test.com`，公開頁 API 帶著種子保母 token 送出（看到的不是匿名視角）；匿名開 `/booking/{id}` 會被登入成種子保母、再被 `RequireRole` 踢回 `/demo`；登出後點通知信連結同樣會被偷偷登入成種子帳號。迴歸：`frontend/e2e/seed-auto-login-scope.spec.ts`（以 `page.on('request')` 計數 `POST /api/auth/login`），Journey A 步驟 8、Journey E 兩個匿名步驟（`expectStillAnonymous`）。
 - **名單輸入 Email 格式校驗**：前端欄位輸入時需有正則表達式防呆。
 - **門禁衝突 Toast**：當後端拋出互斥限制 (400) 或查無帳號 (404) 時，頁面阻擋並展示對應 Toast。

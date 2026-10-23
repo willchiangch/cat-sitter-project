@@ -9,7 +9,9 @@ import {
   apiAuthed,
   loginAsSeedAdmin,
   bootstrapConfirmedOrder,
-  awaitOrderStatus
+  awaitOrderStatus,
+  trackLoginRequests,
+  expectStillAnonymous
 } from './helpers';
 import { step, apiStep } from '../support/evidence';
 
@@ -61,6 +63,7 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
 
     const anonContext = await browser.newContext();
     const anonPage = await anonContext.newPage();
+    const anonLogins = trackLoginRequests(anonPage);
     await step('未登入訪客打開此保母的公開頁，應被 gate', anonPage, async () => {
       await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
@@ -72,6 +75,8 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       );
       await expect(anonPage.getByTestId('public-profile-plan-item')).not.toBeVisible();
       await expect(anonPage.getByTestId('public-profile-book-now-btn')).not.toBeVisible();
+      // C1 迴歸 (X2)：匿名公開頁不得在背景以種子帳號登入
+      await expectStillAnonymous(anonPage, anonLogins);
     });
 
     // TS #2 技術校驗：匿名（不帶 token）查公開檔案 API，資料層也必須是 gated
@@ -128,6 +133,7 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
 
     const anonContext = await browser.newContext();
     const anonPage = await anonContext.newPage();
+    const anonLogins = trackLoginRequests(anonPage);
     await step(
       '未登入訪客打開此保母的公開頁，應被 gate（停權跟未過審共用同一套 gating 邏輯）',
       anonPage,
@@ -142,6 +148,8 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
         );
         await expect(anonPage.getByTestId('public-profile-plan-item')).not.toBeVisible();
         await expect(anonPage.getByTestId('public-profile-book-now-btn')).not.toBeVisible();
+        // C1 迴歸 (X2)：匿名公開頁不得在背景以種子帳號登入
+        await expectStillAnonymous(anonPage, anonLogins);
       }
     );
 

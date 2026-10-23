@@ -54,3 +54,18 @@
 
 * **資料清理**：
     * 每項測試執行前，利用全域 `DatabaseCleanupListener` 執行 `TRUNCATE ... CASCADE` 重設所有關聯表（`profiles`, `gatekeeper_rules`, `users`, `log_user_action`），確保無前案殘留。
+
+---
+
+## 五、 本測試發現並修復的真實 bug
+
+**匿名公開頁在背景以種子帳號自動登入（2026-10，驗收 X2 / Backlog 第 2 批 C1）**：`RoleContext` 掛載時只要不是 `authMode=manual`、也不在 `/login`/`/register`/`/forgot-password`/`/reset-password`，就會以 `sitter@test.com` 等種子帳號背景登入。匿名訪客開 `/sitter/{id}/profile`（真實對外分享的公開網址）因此被登入成種子保母，公開頁 API 帶著種子保母 token 打出；匿名開 `/booking/{id}` 被登入成種子保母後又被 `RequireRole` 踢回 `/demo`；登出後點通知信深連結也一樣。修法：自動登入只在明確的 Demo 模式發生（`seedAutoLogin.ts`，規則表見 SD-001「UX 設計」）；`RequireAuth` 導去登入時帶 `redirect` 回原頁。
+
+| 驗證 | 預期 | 自動化 |
+| :--- | :--- | :--- |
+| 匿名開保母公開頁、點立即預約 | 0 次 `POST /api/auth/login`，公開頁 API 不帶 `Authorization`，`localStorage` 無 token | `e2e/seed-auto-login-scope.spec.ts` 測試 1；Journey A 步驟 8、Journey E 測試 1/2 的匿名步驟 |
+| 匿名開 `/login`、`/register`、`/forgot-password` | 0 次登入請求 | 同上測試 2 |
+| 匿名開 `/booking/{id}`、`/owner/orders/{id}` | 0 次登入請求，導到 `/login?redirect=<原路徑>` | 同上測試 3 |
+| 開 `/demo`；之後在 Demo 模式深連結 `/sitter/ledger`；再開公開頁 | `/demo` 送出種子登入、`authMode=seed`；深連結沿用（再登入）；公開頁 0 次 | 同上測試 4 |
+
+`order-eval.spec.ts`（SD-006 區塊）、`sitter-ledger.spec.ts` 每個測試都直接深連結進受保護頁面，改在 `beforeEach` 以 `addInitScript` 標記 `authMode=seed`（模擬「已從 Demo 入口進來過」）。

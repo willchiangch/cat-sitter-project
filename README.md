@@ -103,6 +103,8 @@
 
 正式站：**https://wd-pet-sitter.web.app**
 
+> 未登入時直接開受保護頁面（例如 `/booking/{sitterId}`、`/owner/orders/{orderId}`）會導到 `/login?redirect=…`，登入後回原頁。Demo 角色切換（背景以種子帳號登入）只在從 `/` 或 `/demo` 進入時啟動；公開頁與登入/註冊頁永遠不會自動登入（規則見 SD-001「UX 設計」）。
+
 ### 測試帳號
 
 | 角色 | Email | 密碼 | 備註 |
@@ -121,7 +123,7 @@
 3. `/login` 用 admin 帳號 → `/admin/kyc` — 審核通過
 4. `/sitter/profile-settings` — 開啟接單、填公開檔案
 5. `/sitter/plans` — 建立服務方案
-6. `/sitter/{sitterId}/profile`（無痕視窗開，驗證匿名公開頁）
+6. `/sitter/{sitterId}/profile`（無痕視窗開，驗證匿名公開頁；公開頁不會再在背景用種子帳號登入）
 
 **二、飼主下單到付款**
 7. `/pets` — 建立寵物資料

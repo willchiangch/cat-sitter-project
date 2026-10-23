@@ -6,7 +6,9 @@ import {
   switchRole,
   setBrowserAuth,
   loginAsSeedAdmin,
-  apiAuthed
+  apiAuthed,
+  trackLoginRequests,
+  expectStillAnonymous
 } from './helpers';
 import { step, apiStep, snap, trackDialogs } from '../support/evidence';
 
@@ -192,6 +194,7 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
     // 8. UI：未登入瀏覽器打開公開網址，驗證真正的公開頁面可用
     const anonContext = await browser.newContext();
     const anonPage = await anonContext.newPage();
+    const anonLogins = trackLoginRequests(anonPage);
     await step('A-08 未登入訪客打開保母公開網址', anonPage, async () => {
       await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
@@ -204,6 +207,8 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
         await expect(item).toBeVisible();
         await expect(item).toContainText(`NT$ ${plan.price}`);
       }
+      // C1 迴歸 (X2)：匿名公開頁不得在背景以種子帳號登入
+      await expectStillAnonymous(anonPage, anonLogins);
     });
 
     // 8. API：匿名查詢公開檔案與方案清單（TS #8 技術校驗，UI 之外再釘一次資料層）

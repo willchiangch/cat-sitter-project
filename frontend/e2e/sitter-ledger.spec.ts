@@ -10,6 +10,11 @@ test.describe('PRD-009 保母帳務總覽', () => {
   test.setTimeout(60000);
 
   test.beforeEach(async ({ page }) => {
+    // 種子帳號自動登入只在 Demo 模式 (authMode=seed) 或 Demo 入口才會發生 (src/contexts/seedAutoLogin.ts)。
+    // 本檔每個測試都直接深連結進受保護頁面，先標記成「已在 Demo 模式中」
+    await page.addInitScript(() => {
+      if (!localStorage.getItem('authMode')) localStorage.setItem('authMode', 'seed');
+    });
     await page.route('**/api/orders/sitter/ledger**', async (route) => {
       const url = new URL(route.request().url());
       const month = url.searchParams.get('month') || currentYearMonth;

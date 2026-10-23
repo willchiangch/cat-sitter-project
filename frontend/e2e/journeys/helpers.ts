@@ -496,3 +496,31 @@ async function expectSignedProofImage(scope: Locator | Page, testId: string, fol
     )
     .toBe(true);
 }
+
+/**
+ * C1 迴歸 (X2)：匿名頁面不得在背景以種子帳號自動登入。回傳的 count 是此 page 送出的
+ * POST /api/auth/login 次數；anonymousProfileCalls 記錄公開頁 API 是否帶了 Authorization
+ */
+export function trackLoginRequests(page: Page) {
+  const tracker = { count: 0, authorizedProfileCalls: 0, profileCalls: 0 };
+  page.on('request', (req) => {
+    const pathname = new URL(req.url()).pathname;
+    if (req.method() === 'POST' && pathname === '/api/auth/login') tracker.count++;
+    if (req.method() === 'GET' && pathname.startsWith('/api/sitter/profile/')) {
+      tracker.profileCalls++;
+      if (req.headers()['authorization']) tracker.authorizedProfileCalls++;
+    }
+  });
+  return tracker;
+}
+
+/** 匿名頁面渲染完成後呼叫：沒有送出登入請求、公開頁 API 沒帶 token、瀏覽器內沒有任何 token */
+export async function expectStillAnonymous(
+  page: Page,
+  tracker: ReturnType<typeof trackLoginRequests>
+) {
+  expect(tracker.count).toBe(0);
+  expect(tracker.profileCalls).toBeGreaterThan(0);
+  expect(tracker.authorizedProfileCalls).toBe(0);
+  expect(await page.evaluate(() => localStorage.getItem('accessToken'))).toBeNull();
+}

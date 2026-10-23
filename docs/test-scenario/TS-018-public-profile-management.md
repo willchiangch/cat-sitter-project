@@ -118,3 +118,5 @@
 * **資料清理：** 
   * 每次執行自動化測試前後，使用種子腳本重置 `profiles`、`sitter_tags`、`sitter_service_areas` 以及 `forbidden_keywords` 資料表。
   * 清除上傳至模擬/本地 GCS `avatars` 資料夾下的臨時圖檔。
+
+* **匿名視角不得被種子帳號污染（2026-10，C1）**：匿名訪客開 `/sitter/{id}/profile` 時前端不得在背景登入任何帳號，公開頁 API 一律不帶 `Authorization`。過去 `RoleContext` 會以 `sitter@test.com` 背景登入，見 TS-001「五」與 SD-001「UX 設計」。迴歸：`frontend/e2e/seed-auto-login-scope.spec.ts`。
