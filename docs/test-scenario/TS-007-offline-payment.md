@@ -157,6 +157,8 @@ E2E（真後端）：Journey B 步驟 6/7、Journey D 補款核對步驟斷言 `
 
 **付款憑證公開可讀（2026-10，E2E 證據稽核追查時發現）**：`GcsMediaStorageServiceImpl.uploadPaymentProof()` 走 `uploadPublic()`，物件帶 `allUsers READER` ACL，DB 存、DTO 回傳的都是 `https://storage.googleapis.com/<bucket>/payment-proofs/...` 永久公開網址——轉帳截圖含飼主銀行帳號、戶名、金額，任何人拿到網址（瀏覽器歷史、轉貼、log）就能看，且無法撤銷。同專案 KYC 證件照早就是私有 + 簽名網址，付款憑證漏掉了。修法：上傳改私有、DB 存 Object Key、DTO 改回 `hasPaymentProof`、新增 BOLA 保護的簽名網址端點 (SD-007 §4.7)，前端 `PaymentProofImage` 改用簽名網址；既有公開物件用 SD-007 §5.1.1 的一次性遷移端點移除 ACL。迴歸：上表步驟 4–9（`PaymentControllerTest`）、`MediaStorageObjectKeyTest`、Journey B/D 簽名網址斷言。
 
+**「駁回憑證」按鈕對比度不足（2026-10，驗收 N3 / Backlog 第 3 批 U8）**：保母核對面板的「駁回憑證」沿用 `.btn-primary`，只用 inline `backgroundColor` 想蓋成灰底，但 `.btn-primary` 設的是 `background` 漸層（`background-image`），漸層照樣蓋在上面，實際是金色漸層底配灰棕字 `#5a5c5b`，遠低於 WCAG AA 4.5:1。修法：改用 `background` 簡寫設白底，文字與框線用錯誤色 `#b02500`（對白底約 6.8:1，也表達破壞性動作，SD-FRONTEND-SPEC §6.5）。迴歸：`frontend/e2e/payment-reject-button-contrast.spec.ts` 以實際 computed style 計算對比度（要求無漸層、不透明底、≥ 4.5），修前失敗於 `background-image` 仍是 `linear-gradient(...)`；Journey B 步驟 7 斷言 CSS。
+
 **測試穩定性**：`PaymentControllerTest` 的上傳/核帳/駁回測試只 `verify(timeout)` 非同步監聽器「被呼叫」，沒等通知寫入；新增測試改變執行順序後，下一支 `setUp()` 的 `userRepository.deleteAll()` 撞上剛插入的 notifications 外鍵而失敗。改為等通知真的寫入再結束該測試。
 
 ---

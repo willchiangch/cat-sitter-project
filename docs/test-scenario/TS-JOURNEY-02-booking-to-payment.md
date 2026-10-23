@@ -28,7 +28,7 @@
 | 4 | UI：`/booking/{sitterId}` 選方案卡片 → 選一個未來日期 → 確認日期 → 下一步 → 送出 | 訂單建立成功，送出成功後頁面會自動導向 `/owner/orders/{orderId}` | `POST /api/orders/booking` 201，訂單狀態 `PENDING`；**注意**：只 `await` 點擊送出按鈕不代表送單完成，click() 只保證事件派發，要等這個導向真的發生才代表非同步送單流程跑完 |
 | 5 | UI：保母 `/sitter/orders`「評估中」分頁找到訂單 → 進入評估頁 → 原價直接接受 | 訂單狀態轉為待付款；導回 `/sitter/orders` 後（不重新整理）該訂單不在「評估中」，「進行中」分頁顯示「待付款」 | `POST /api/orders/{orderId}/confirm`（快速接單路徑）後 `Order=PENDING_PAYMENT`；**注意**：此按鈕背後有 `window.confirm()` 對話框，Playwright 預設會自動 dismiss（回傳 false）導致函式提早 return 什麼都不會發生，測試需要主動註冊 `page.on('dialog', d => d.accept())` |
 | 6 | UI：飼主 `/owner/orders/{orderId}` 上傳付款憑證（圖片+末五碼+同意勾選） | 訂單狀態轉為已付款待核對；reload 後看得到自己的憑證預覽 | `POST /api/orders/{orderId}/payment-proof` 200，`Order=PAID`；憑證 `<img>` 的 `src` 是 `storage.googleapis.com/<bucket>/payment-proofs/...?...X-Goog-Signature=...` 簽名網址且 `naturalWidth>0` (SD-007 §4.7) |
-| 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板（後五碼 `12345`、憑證預覽）→ 確認入帳 | 訂單正式成立 | 核對面板憑證預覽為簽名網址且已載入；`POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED` |
+| 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板（後五碼 `12345`、憑證預覽）→ 確認入帳 | 訂單正式成立 | 核對面板憑證預覽為簽名網址且已載入；「駁回憑證」按鈕 `background-image: none`、文字為錯誤色 `#b02500`（U8）；`POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED` |
 | 8 | UI：保母在 `/care-notes/manage/{sitterId}/{ownerId}` 新增一則「其他說明」項目並儲存；飼主在 `/care-notes/view/{sitterId}/{ownerId}` 確認看得到 | 雙方都能看到同一份記事本內容 | `PUT` 記事本 API 200，飼主端查詢包含剛寫入的內容 |
 
 ---

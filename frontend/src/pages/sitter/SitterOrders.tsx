@@ -429,11 +429,15 @@ const SitterOrders: React.FC = () => {
                         onClick={() => setRejectingOrderId(order.id)}
                         disabled={loading}
                         className="btn-primary"
+                        // 必須用 background 簡寫蓋掉 .btn-primary 的漸層：過去只設 backgroundColor，
+                        // 金色漸層仍在、配上灰棕字，對比遠低於 WCAG AA 4.5:1 (驗收 N3 / Backlog 第 3 批 U8)。
+                        // 白底＋錯誤色字與框：#b02500 對 #ffffff 約 6.8:1，且語意上是破壞性動作
                         style={{
                           flex: 1,
                           padding: '0.75rem',
-                          backgroundColor: 'var(--color-surface-high)',
-                          color: 'var(--color-on-surface-variant)',
+                          background: 'var(--color-surface-lowest)',
+                          color: 'var(--color-error)',
+                          border: '1px solid var(--color-error)',
                           boxShadow: 'none'
                         }}
                         data-testid="btn-reject-payment"

@@ -148,3 +148,9 @@ frontend/
 
 2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。迴歸：`e2e/order-status-labels.spec.ts`（10 種訂單狀態逐一比對、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
 
+### 6.5 按鈕對比度（WCAG AA，2026-10）
+- 文字對背景對比度至少 4.5:1（一般文字）。
+- `.btn-primary` 的底色是 `background: var(--color-primary-gradient)`（`background-image`）。要做次要/破壞性按鈕時，**必須用 `background` 簡寫覆蓋**，只寫 `backgroundColor` 蓋不掉漸層。
+- 破壞性次要按鈕（例如保母核對面板「駁回憑證」）：白底 `--color-surface-lowest`、文字與框線 `--color-error`（#b02500 對 #ffffff 約 6.8:1）。
+- 2026-10 前「駁回憑證」只設 `backgroundColor`，實際呈現金色漸層底配灰棕字（驗收 N3 / Backlog 第 3 批 U8）。迴歸：`e2e/payment-reject-button-contrast.spec.ts`（以 computed style 計算對比度）。
+

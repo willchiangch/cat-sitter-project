@@ -163,6 +163,9 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       // B1 迴歸：保母核對面板的憑證預覽必須顯示，且是簽名網址而非公開路徑
       await expect(page.getByTestId('verify-last-five')).toHaveText('12345');
       await expectSignedPaymentProof(page.getByTestId('payment-verification-panel'));
+      // U8（驗收 N3）：駁回鈕不得再是金色漸層底配灰棕字（對比度驗算見 payment-reject-button-contrast.spec.ts）
+      await expect(page.getByTestId('btn-reject-payment')).toHaveCSS('background-image', 'none');
+      await expect(page.getByTestId('btn-reject-payment')).toHaveCSS('color', 'rgb(176, 37, 0)');
       await snap(page, 'B-07 核對入帳前');
       await page.getByTestId('btn-verify-payment').click();
       await expectDialog(sitterDialogs, /入帳核對確認成功/);
