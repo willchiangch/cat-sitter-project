@@ -25,6 +25,29 @@ export function uniqueTestEmail(scenario: string, role: string): string {
   return `journey-${scenario}-${role}-${Date.now()}-${rand}@e2e-journey.test`;
 }
 
+/**
+ * Cloud Run 冷啟動保護：服務縮到 0 時，多個 worker 同時打第一發 request，
+ * 超出可用 instance 的那幾發會被 Google Frontend 直接 abort 成 429「Rate exceeded.」或 503
+ * （request 根本沒進 container，所以重送是安全的）。只對 429/503 指數退避重試，其餘狀態原樣回傳。
+ * 只用在每個 journey 最前面的 bootstrap 請求（provision / login），不要拿去包業務斷言。
+ */
+const COLD_START_STATUSES = [429, 503];
+const COLD_START_DELAYS_MS = [3000, 6000, 12000];
+
+async function postWithColdStartRetry(
+  request: APIRequestContext,
+  url: string,
+  options: Parameters<APIRequestContext['post']>[1]
+) {
+  let res = await request.post(url, { timeout: 60000, ...options });
+  for (const delay of COLD_START_DELAYS_MS) {
+    if (!COLD_START_STATUSES.includes(res.status())) break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    res = await request.post(url, { timeout: 60000, ...options });
+  }
+  return res;
+}
+
 export interface TestAccount {
   email: string;
   password: string;
@@ -45,16 +68,22 @@ export async function provisionAndLogin(
 ): Promise<TestAccount> {
   const email = uniqueTestEmail(scenario, role.toLowerCase());
 
-  const provisionRes = await request.post('/api/internal/test-data/provision-account', {
-    headers: { 'X-Internal-Secret': INTERNAL_SECRET },
-    data: { email, password: TEST_PASSWORD, fullName, role }
-  });
+  const provisionRes = await postWithColdStartRetry(
+    request,
+    '/api/internal/test-data/provision-account',
+    {
+      headers: { 'X-Internal-Secret': INTERNAL_SECRET },
+      data: { email, password: TEST_PASSWORD, fullName, role }
+    }
+  );
   if (!provisionRes.ok()) {
     throw new Error(`provision-account failed (${provisionRes.status()}): ${await provisionRes.text()}`);
   }
   const { userId } = await provisionRes.json();
 
-  const loginRes = await request.post('/api/auth/login', { data: { email, password: TEST_PASSWORD } });
+  const loginRes = await postWithColdStartRetry(request, '/api/auth/login', {
+    data: { email, password: TEST_PASSWORD }
+  });
   if (!loginRes.ok()) {
     throw new Error(`login failed after provisioning (${loginRes.status()}): ${await loginRes.text()}`);
   }
@@ -94,7 +123,7 @@ export async function switchRole(
  * 全系統只有這唯一固定的管理員帳號，不像飼主/保母走 @e2e-journey.test 動態建立。
  */
 export async function loginAsSeedAdmin(request: APIRequestContext): Promise<TestAccount> {
-  const res = await request.post('/api/auth/login', {
+  const res = await postWithColdStartRetry(request, '/api/auth/login', {
     data: { email: 'admin@test.com', password: 'password' }
   });
   if (!res.ok()) {

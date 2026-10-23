@@ -20,10 +20,16 @@ cd frontend
 export BASE_URL=https://wd-pet-sitter.web.app
 export INTERNAL_CRON_SECRET=$(gcloud secrets versions access latest --secret=INTERNAL_CRON_SECRET --project wd-pet-sitter)
 npm run -s e2e:lint            # 證據規範先過，沒過直接回報，不要跑測試
-npx playwright test $SCOPE --retries=0
+# 暖機：Cloud Run 沒設 min-instances，縮到 0 後冷啟要 33~40 秒；多 worker 同時打第一發會被 GFE 以 429 abort。
+# /actuator/health 已 permitAll；Firebase Hosting 只 rewrite /api/**，所以要直接打 run.app 網址。
+curl -sf -o /dev/null --max-time 90 --retry 6 --retry-delay 5 --retry-all-errors \
+  https://cat-sitter-app-p5h3xtqnkq-de.a.run.app/actuator/health \
+  || { echo '後端暖機失敗，不要跑測試，直接回報'; exit 1; }
+npx playwright test $SCOPE --retries=0 --workers=2
 ```
 
 - `--retries=0`：本機要看到第一次就失敗的真相，retry 會把 flaky 藏掉。
+- `--workers=2`：避免同時冷啟多台 instance（playwright.config.ts 本機上限也只有 3）。暖機沒過不准跑，否則結果會混進 429 噪音。
 - 跑完**一定**要清資料（不論成敗）：
   ```bash
   curl -sf -X POST -H "X-Internal-Secret: $INTERNAL_CRON_SECRET" "$BASE_URL/api/internal/cron/test-data/cleanup-e2e-journeys"

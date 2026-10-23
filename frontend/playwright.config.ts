@@ -5,7 +5,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // 本機上限 3：Cloud Run 縮到 0 時，5 個 worker 同時打第一發 request 會冷啟 4 台 instance、
+  // 第 5 發被 GFE 以 429 abort（見 .e2e-runs/20261023-2324/triage.md F1）。CI 維持 1。
+  workers: process.env.CI ? 1 : 3,
 
   // CI 是打正式部署 (Firebase Hosting -> Cloud Run asia-east1 -> Supabase ap-southeast-2)，
   // 真實跨區網路延遲下 5000ms 的預設 expect timeout 偶爾不夠，拉寬到 10s
