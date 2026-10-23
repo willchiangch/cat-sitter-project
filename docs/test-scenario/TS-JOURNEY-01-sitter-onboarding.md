@@ -25,8 +25,8 @@
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 1 | API：`provision-account` 建立帳號 + 真實 `/api/auth/login` | 登入成功取得 accessToken | 帳號 email 網域為 `@e2e-journey.test` |
-| 2 | API：`POST /api/auth/switch-role {targetRole:"SITTER"}` | 切換為保母角色成功 | 後端 lazy 建立 `Profile(kycStatus=UNVERIFIED)`；此路徑全專案目前唯一測試覆蓋點。於步驟 3 開啟 `/sitter/kyc` 時攔截頁面自己發出的 `GET /api/sitter/kyc/status` 回應斷言 `UNVERIFIED`，再斷言徽章為「未認證」（徽章在 API 回來前也會 fallback 成「未認證」，所以必須先等真實回應） |
-| 3 | UI：`/sitter/kyc` 上傳證件正面 + 自拍照片，送出 | 頁面顯示「審核中」狀態徽章，頂部橫幅同步為「認證資料正在審核中」、不含「尚未完成」（U3） | `GET /api/sitter/kyc` 回應 `kycStatus=PENDING_REVIEW` |
+| 2 | API：`POST /api/auth/switch-role {targetRole:"SITTER"}` | 切換為保母角色成功 | 後端 lazy 建立 `Profile(kycStatus=UNVERIFIED)`；此路徑全專案目前唯一測試覆蓋點。於步驟 3 開啟 `/sitter/kyc` 時攔截頁面自己發出的 `GET /api/sitter/kyc/status` 回應斷言 `UNVERIFIED`，再斷言徽章為「未認證」（徽章在 API 回來前也會 fallback 成「未認證」，所以必須先等真實回應）；回應以 apiStep 留 JSON 證據「A-02 送出前 KYC 狀態」（驗收 S3） |
+| 3 | UI：`/sitter/kyc` 上傳證件正面 + 自拍照片，送出 | 頁面顯示「審核中」狀態徽章，頂部橫幅同步為「認證資料正在審核中」、不含「尚未完成」（U3） | `GET /api/sitter/kyc/status` 回應 `kycStatus=PENDING_REVIEW`，以 apiStep 留 JSON 證據「A-02 送出後 KYC 狀態」（驗收 S3） |
 | 4 | API：admin 呼叫 `GET /api/admin/kyc/pending` | 清單中可撈到剛提交的紀錄 | `recordId` 對應到該保母 |
 | 5 | UI：admin 於 `/admin/kyc` 進入該筆詳情，點擊「批准認證」 | 頁面顯示審核通過訊息並導回清單 | `Profile.kycStatus` 轉為 `VERIFIED`；UI 斷言「實名認證審核已通過！」（`AdminKycDetail` 只顯示 1.5 秒就導回清單），且詳情頁截圖前先等「批准認證」按鈕出現（詳情 API 回來才算進入詳情頁）；證件照/自拍 `admin-kyc-detail-id-front-img`/`-selfie-img` 已載入（`naturalWidth>0`）、寬度 > 250px 且右緣不超出 `<main>`（U1）；成功訊息出現時（導回清單前）`admin-kyc-detail-status-badge` 已是「已通過」（U2） |
 | 6 | API：`PUT /api/sitter/kyc/open {isOpen:true}` | 開啟接單狀態成功（前置條件 `kycStatus=VERIFIED` 已滿足） | `Profile.isOpen=true` |

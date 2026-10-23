@@ -41,8 +41,13 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       );
       await page.goto('/sitter/kyc');
       const initialStatusRes = await initialStatus;
-      expect(initialStatusRes.ok()).toBeTruthy();
-      expect((await initialStatusRes.json()).data.kycStatus).toBe('UNVERIFIED');
+      // S3：API 值留 JSON 證據，不只斷言（TS #2 技術校驗可回溯）
+      await apiStep('A-02 送出前 KYC 狀態（頁面發出的 GET /api/sitter/kyc/status）', async () => {
+        expect(initialStatusRes.ok()).toBeTruthy();
+        const body = await initialStatusRes.json();
+        expect(body.data.kycStatus).toBe('UNVERIFIED');
+        return { status: initialStatusRes.status(), data: body.data };
+      });
       await expect(page.getByTestId('sitter-kyc-status-badge')).toHaveText('未認證');
       await page
         .getByTestId('sitter-kyc-id-front-input')
@@ -61,10 +66,15 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       await expect(page.getByTestId('sitter-kyc-banner')).not.toContainText('尚未完成');
       await snap(page, 'A-02 KYC 送出後審核中');
 
-      const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });
-      expect(statusRes.ok()).toBeTruthy();
-      const statusBody = await statusRes.json();
-      expect(statusBody.data.kycStatus).toBe('PENDING_REVIEW');
+      await apiStep('A-02 送出後 KYC 狀態（GET /api/sitter/kyc/status）', async () => {
+        const statusRes = await request.get('/api/sitter/kyc/status', {
+          headers: apiAuthed(sitter)
+        });
+        expect(statusRes.ok()).toBeTruthy();
+        const statusBody = await statusRes.json();
+        expect(statusBody.data.kycStatus).toBe('PENDING_REVIEW');
+        return { status: statusRes.status(), data: statusBody.data };
+      });
     });
 
     // 3. API：admin 撈待審清單找到這筆申請
