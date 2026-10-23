@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { shouldSeedAutoLogin } from './seedAutoLogin';
+import { switchManualRole } from './manualRoleSwitch';
 
 export type Role = 'sitter' | 'client' | 'admin';
 
@@ -101,9 +103,18 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loginAsRole(currentRole).catch(console.error).finally(finishInitialCheck);
   }, [currentRole]);
 
+  const queryClient = useQueryClient();
+
   const setRole = async (role: Role) => {
-    // Demo 專案為切換不同獨立種子使用者 (Sitter, Owner, Admin)，直接執行獨立登入
-    await loginAsRole(role);
+    if (localStorage.getItem('authMode') === 'manual') {
+      // 正式登入的使用者：對目前帳號呼叫 switch-role，不可改登種子帳號 (manualRoleSwitch.ts)。
+      // 失敗（例如非管理員切管理員）丟 RoleSwitchError，session 與角色都不變，由呼叫端顯示訊息
+      await switchManualRole(role);
+      queryClient.invalidateQueries();
+    } else {
+      // Demo 模式切換不同的獨立種子使用者 (Sitter, Owner, Admin)，直接執行獨立登入
+      await loginAsRole(role);
+    }
     skipAutoLoginRef.current = true;
     setCurrentRole(role);
   };

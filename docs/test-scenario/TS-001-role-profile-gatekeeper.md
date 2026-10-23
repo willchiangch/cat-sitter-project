@@ -75,3 +75,11 @@
 | 驗證 | 預期 | 自動化 |
 | :--- | :--- | :--- |
 | 開 `/demo`，第一次登入回 409 | 重送後取得 token、停在 `/demo`，登入請求恰 2 次（無 StrictMode 並發） | `e2e/seed-auto-login-scope.spec.ts` D4 測試 |
+
+**正式登入使用者在 `/demo` 切換角色被換成種子帳號（2026-10，Backlog 第 3 批 D3 / 第 2 批另外發現 #7）**：`RoleContext.setRole()` 不看 `authMode`，一律以 `sitter@test.com`/`owner@test.com`/`admin@test.com` 重新登入。`DemoHome` 在 `RequireAuth` 之內，真實使用者/管理員也看得到切換按鈕，點下去自己的 session 就被共用種子帳號取代，之後的操作都記在種子帳號名下。修法：`authMode=manual` 時對目前帳號呼叫 `POST /api/auth/switch-role`；管理員與保母/飼主之間不可互切（提示原因、維持原角色）；Demo 模式行為不變（SD-001 D3 說明）。
+
+| 驗證 | 預期 | 自動化 |
+| :--- | :--- | :--- |
+| manual 飼主點「切換為保母」 | `switch-role` 1 次、body `{targetRole:"SITTER"}`、帶原 token；`POST /api/auth/login` 0 次；token 換成新 token、`authMode=manual`；畫面「貓咪保母」 | `e2e/manual-role-switch.spec.ts` 測試 1 |
+| 接著點「切換為管理員」 | alert「此帳號沒有管理員權限」，角色、token 不變，無任何 API | 同上 |
+| manual 管理員點「切換為保母」 | alert「管理員帳號沒有保母/飼主身分」，`switch-role`/`login` 皆 0 次 | 同上測試 2 |

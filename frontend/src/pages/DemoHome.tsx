@@ -63,6 +63,18 @@ const quickEntries: DemoEntry[] = [
 function DemoHome() {
   const { currentRole, setRole } = useRole();
   const navigate = useNavigate();
+  // 正式登入 (authMode=manual) 時切換失敗（例如非管理員切管理員）會丟錯，角色維持不變
+  const switchTo = async (role: Role) => {
+    try {
+      await setRole(role);
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        (err instanceof Error ? err.message : '') ||
+        '切換角色失敗，請稍後再試';
+      alert(msg);
+    }
+  };
   const visibleMainEntries = mainEntries.filter((entry) => entry.roles.includes(currentRole));
   const visibleQuickEntries = quickEntries.filter((entry) => entry.roles.includes(currentRole));
 
@@ -96,7 +108,7 @@ function DemoHome() {
         >
           <button
             className="btn-primary"
-            onClick={() => setRole('sitter')}
+            onClick={() => switchTo('sitter')}
             style={{
               opacity: currentRole === 'sitter' ? 1 : 0.6,
               fontSize: '0.8rem',
@@ -108,7 +120,7 @@ function DemoHome() {
           <button
             className="btn-primary"
             data-testid="btn-role-toggle"
-            onClick={() => setRole('client')}
+            onClick={() => switchTo('client')}
             style={{
               opacity: currentRole === 'client' ? 1 : 0.6,
               fontSize: '0.8rem',
@@ -119,7 +131,7 @@ function DemoHome() {
           </button>
           <button
             className="btn-primary"
-            onClick={() => setRole('admin')}
+            onClick={() => switchTo('admin')}
             style={{
               opacity: currentRole === 'admin' ? 1 : 0.6,
               fontSize: '0.8rem',

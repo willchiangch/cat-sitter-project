@@ -98,7 +98,14 @@ sequenceDiagram
 > [!IMPORTANT]
 > **2026-09 修復的嚴重缺陷**：上圖畫的「FE 呼叫 `/api/auth/switch-role`」這段前端行為，實作上**全站從未有任何一處真正呼叫過這支端點**（`grep -rn "switch-role" frontend/src/` 零結果）——`/demo` 頁面的角色切換按鈕（`RoleContext.tsx` 的 `setRole()`）走的是完全不同的路徑：直接登出、改登入寫死的種子帳號（`sitter@test.com`/`owner@test.com`），不是對目前帳號呼叫 switch-role。實際後果：**真實使用者從 `POST /api/auth/register` OTP 驗證通過、或 Google 首次登入選角色建立帳號那一刻起，Profile 永遠不會被建立**（唯一會建立 Profile 的路徑，就是這支從未被呼叫過的 switch-role），保母角色第一次送出 KYC 就會撞上 `KycServiceImpl.submitKyc()`（及其餘十餘處同樣用 `orElseThrow` 的服務）回傳「找不到該保母資料」404，**100% 阻斷所有新保母帳號的實名認證**。舊種子帳號因為很久以前手動建過 Profile 才沒暴露這個洞，也因此這批跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-01~05`）一直沒測出來——測試 helper 裡的 `bootstrapVerifiedSitter()` 一直有明確呼叫 `switchRole()` 當前置步驟，反而把這個缺口遮住了。
 >
-> 修法：不再只依賴一個從未被觸發的「switch」動作，角色在註冊/Google 登入當下就已經確定，直接在 `AuthService.verifyRegistrationOtp()` 與 `AuthService.loginWithGoogle()` 建立 `User` 的同一個 transaction 內，用新抽出的 `ensureProfileExists()`（`switchRole()` 內既有的 lazy-init 邏輯原封不動搬過來共用）一併建好對應的 Profile（`User.role` OWNER↔`Profile.type` CLIENT、SITTER↔SITTER 的既有對應關係不變）。內部測試帳號建立端點 `E2eJourneyAccountProvisioningService` 也一併修正，避免用它建的測試帳號重蹈覆轍。`switch-role` 端點本身邏輯不變，繼續保留給「同一帳號日後想切換到另一個角色」這個情境使用（目前前端還沒有對應 UI，屬於獨立的待辦，非本次修復範圍）。迴歸測試見 `AuthControllerTest.should_CreateSitterProfile_When_VerifyOtp_ForSitterRole`、`should_CreateClientProfile_When_VerifyOtp_ForOwnerRole`。
+> 修法：不再只依賴一個從未被觸發的「switch」動作，角色在註冊/Google 登入當下就已經確定，直接在 `AuthService.verifyRegistrationOtp()` 與 `AuthService.loginWithGoogle()` 建立 `User` 的同一個 transaction 內，用新抽出的 `ensureProfileExists()`（`switchRole()` 內既有的 lazy-init 邏輯原封不動搬過來共用）一併建好對應的 Profile（`User.role` OWNER↔`Profile.type` CLIENT、SITTER↔SITTER 的既有對應關係不變）。內部測試帳號建立端點 `E2eJourneyAccountProvisioningService` 也一併修正，避免用它建的測試帳號重蹈覆轍。`switch-role` 端點本身邏輯不變，繼續保留給「同一帳號日後想切換到另一個角色」這個情境使用（2026-10 起由 `/demo` 切換按鈕在正式登入模式下呼叫，見下方 D3 說明）。迴歸測試見 `AuthControllerTest.should_CreateSitterProfile_When_VerifyOtp_ForSitterRole`、`should_CreateClientProfile_When_VerifyOtp_ForOwnerRole`。
+
+> [!IMPORTANT]
+> **2026-10 修復（Backlog 第 3 批 D3）：正式登入使用者在 `/demo` 切換角色會被換成種子帳號。** `RoleContext.setRole()` 不看 `authMode`，一律 `POST /api/auth/login` 種子帳號；`DemoHome` 在 `RequireAuth` 之內，正式登入的使用者/管理員也看得到三顆切換按鈕，點了自己的 session 就被換成 `sitter@test.com` 等共用帳號。修法：`authMode=manual` 時改走 `frontend/src/contexts/manualRoleSwitch.ts`：
+> - 目標角色＝目前 token 角色 → 不送請求；保母/飼主 → `POST /api/auth/switch-role {targetRole: SITTER|CLIENT}`（帶目前 token，後端依上圖 lazy 建立 Profile、簽發新 token），覆寫 token、`authMode` 維持 `manual`、`invalidateQueries()` 讓頁面重抓新角色資料。
+> - 管理員不是 Profile 角色（switch-role 只接受 SITTER/CLIENT）：非管理員切管理員、管理員切保母/飼主一律拒絕（`alert` 說明原因），token/角色不變，不呼叫任何 API。
+> - `authMode=seed`（Demo 模式）維持原行為：改登對應種子帳號。
+> 迴歸：`frontend/e2e/manual-role-switch.spec.ts`（攔截 `switch-role` 斷言 body 與 `Authorization`，`POST /api/auth/login` 次數為 0）。
 
 ### 2. 預約門禁設定 (Gatekeeper Rule CRUD)
 
@@ -311,7 +318,7 @@ ALTER TABLE refresh_tokens ADD COLUMN active_role VARCHAR(50);
 ## UX 設計
 
 - **切換角色 UI**：點擊切換時，前端全域套用 `data-theme`（`sitter` = Amber，`client` = Blue）。
-- **Demo 種子帳號自動登入的適用範圍（2026-10，C1）**：`RoleContext` 掛載時會以種子帳號（`sitter@test.com`/`owner@test.com`/`admin@test.com`，依 `userRole`）背景登入，`/demo` 的「切換為保母/飼主/管理員」也走同一組帳號。這是 Demo 展示機制，判斷集中在 `frontend/src/contexts/seedAutoLogin.ts` 的 `shouldSeedAutoLogin(pathname, authMode)`：
+- **Demo 種子帳號自動登入的適用範圍（2026-10，C1）**：`RoleContext` 掛載時會以種子帳號（`sitter@test.com`/`owner@test.com`/`admin@test.com`，依 `userRole`）背景登入，Demo 模式（`authMode=seed`）下 `/demo` 的「切換為保母/飼主/管理員」也走同一組帳號（正式登入 `authMode=manual` 改走 `switch-role`，見上方 D3）。這是 Demo 展示機制，判斷集中在 `frontend/src/contexts/seedAutoLogin.ts` 的 `shouldSeedAutoLogin(pathname, authMode)`：
 
   | 情況 | 是否自動登入 |
   | :--- | :--- |
