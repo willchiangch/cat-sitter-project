@@ -12,7 +12,10 @@ interface RoleContextType {
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
-const loginAsRole = async (role: Role) => {
+const seedLoginInFlight = new Map<Role, Promise<void>>();
+const SEED_LOGIN_MAX_ATTEMPTS = 4;
+
+const doSeedLogin = async (role: Role) => {
   let email = 'sitter@test.com';
   if (role === 'client') {
     email = 'owner@test.com';
@@ -21,20 +24,45 @@ const loginAsRole = async (role: Role) => {
   }
 
   try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: 'password' })
-    });
-    const data = await response.json();
-    if (data.accessToken) {
-      localStorage.setItem('accessToken', data.accessToken);
-      localStorage.setItem('refreshToken', data.refreshToken || '');
-      localStorage.setItem('authMode', 'seed');
+    for (let attempt = 1; attempt <= SEED_LOGIN_MAX_ATTEMPTS; attempt++) {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'password' })
+      });
+      // 種子帳號是所有 Demo 訪客共用的：別的分頁/裝置同時登入同一個種子帳號時，後端改寫該帳號唯一一組
+      // refresh token 會撞樂觀鎖回 409 MSG_DATA_CONCURRENCY_CONFLICT。這不是帳密錯誤，稍後重送即可
+      if (response.status === 409 && attempt < SEED_LOGIN_MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 150 * attempt + Math.random() * 150));
+        continue;
+      }
+      const data = await response.json();
+      if (data.accessToken) {
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken || '');
+        localStorage.setItem('authMode', 'seed');
+      }
+      return;
     }
   } catch (err) {
     console.error(`自動登入 ${role} 失敗：`, err);
   }
+};
+
+/**
+ * 種子帳號登入要具冪等性：同一角色已有登入請求進行中時，直接共用同一個 Promise。
+ * dev 模式 <StrictMode> 會讓 RoleProvider 的 effect 跑兩次，過去同時送出兩個同帳號登入，後端
+ * refresh token 的樂觀鎖讓其中一個 409；若 409 那個先回來，finishInitialCheck() 先結束 loading、
+ * token 還沒寫入，RequireAuth 就把人導去 /login。跨分頁/跨裝置（mock E2E 平行 worker）同時登入同一個
+ * 種子帳號也會 409，模組層級去重擋不到，由 doSeedLogin() 對 409 重送補上（Backlog 第 3 批 D4）。
+ * 去重放在模組層級，與元件生命週期無關；自動登入與 /demo 切換角色同時觸發同一角色時也共用同一個請求。
+ */
+const loginAsRole = (role: Role): Promise<void> => {
+  const pending = seedLoginInFlight.get(role);
+  if (pending) return pending;
+  const request = doSeedLogin(role).finally(() => seedLoginInFlight.delete(role));
+  seedLoginInFlight.set(role, request);
+  return request;
 };
 
 export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

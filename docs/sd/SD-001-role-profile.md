@@ -322,5 +322,6 @@ ALTER TABLE refresh_tokens ADD COLUMN active_role VARCHAR(50);
   | 無 session ＋其他受保護頁面（`/booking/{id}`、通知信裡的 `/owner/orders/{id}` 等） | 否，`RequireAuth` 導去 `/login?redirect=<原路徑>`，登入後回原頁 |
 
   過去只排除 `/login` 等四個頁面：匿名訪客開保母公開頁會在背景登入成 `sitter@test.com`，公開頁 API 帶著種子保母 token 送出（看到的不是匿名視角）；匿名開 `/booking/{id}` 會被登入成種子保母、再被 `RequireRole` 踢回 `/demo`；登出後點通知信連結同樣會被偷偷登入成種子帳號。迴歸：`frontend/e2e/seed-auto-login-scope.spec.ts`（以 `page.on('request')` 計數 `POST /api/auth/login`），Journey A 步驟 8、Journey E 兩個匿名步驟（`expectStillAnonymous`）。
+- **種子登入的冪等性（2026-10，Backlog 第 3 批 D4）**：`RoleContext.loginAsRole()` 以模組層級 in-flight Promise 依角色去重（dev `<StrictMode>` effect 雙呼叫、或自動登入與 `/demo` 切換同時觸發，只送一次）；種子帳號是所有 Demo 訪客共用的，別的分頁/裝置同時登入同一帳號時後端改寫該帳號唯一一組 refresh token 會回 409 `MSG_DATA_CONCURRENCY_CONFLICT`，此時重送（最多 4 次、退避 150ms×次數＋抖動）。過去 409 時沒有 token，`finishInitialCheck()` 照樣結束 loading，`RequireAuth` 把人導去 `/login`（mock E2E 平行 worker 隨機失敗的根因）。迴歸：`e2e/seed-auto-login-scope.spec.ts` 的 D4 測試（第一次 409 → 重送成功留在 `/demo`、登入請求恰為 2 次）。
 - **名單輸入 Email 格式校驗**：前端欄位輸入時需有正則表達式防呆。
 - **門禁衝突 Toast**：當後端拋出互斥限制 (400) 或查無帳號 (404) 時，頁面阻擋並展示對應 Toast。

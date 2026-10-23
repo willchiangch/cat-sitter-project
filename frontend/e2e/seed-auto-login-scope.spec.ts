@@ -136,4 +136,63 @@ test.describe('Demo 種子帳號自動登入範圍 (C1 / X2 迴歸)', () => {
       expect(authHeaders.length).toBeGreaterThan(0);
     });
   });
+
+  test('種子自動登入具冪等性：StrictMode 下只送一次；共用種子帳號撞 409 時重送，不會被導去 /login (D4 迴歸)', async ({
+    page
+  }) => {
+    const logins = countSeedLogins(page);
+    let served = 0;
+    // 第一次回 409（模擬別的分頁/平行 worker 同時登入同一個種子帳號撞樂觀鎖），之後才成功
+    await page.route('**/api/auth/login', async (route) => {
+      served++;
+      if (served === 1) {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            message: '內容已被更新，請重新整理後再試',
+            error: 'MSG_DATA_CONCURRENCY_CONFLICT'
+          })
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ accessToken: 'mock-seed-token', refreshToken: 'mock-seed-refresh' })
+      });
+    });
+
+    // 登入後頁面打的 API 一律 mock：假 token 打到真後端會 401 → refresh 失敗 → axios 清掉 token
+    await page.route('**/api/notifications/unread-count**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":0}' })
+    );
+    await page.route(/\/api\/notifications(\?.*)?$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: { content: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }
+        })
+      })
+    );
+    await page.route('**/api/sitter/kyc/status', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: { kycStatus: 'VERIFIED', rejectReason: '', submittedAt: '' } })
+      })
+    );
+
+    await step('開 /demo：第一次 409、重送成功，停在 Demo 首頁', page, async () => {
+      await page.goto('/demo');
+      await expect(page.getByText('當前角色:')).toBeVisible();
+      await expect(page).toHaveURL(/\/demo$/);
+      expect(await page.evaluate(() => localStorage.getItem('accessToken'))).toBe(
+        'mock-seed-token'
+      );
+      // dev StrictMode 的 effect 雙呼叫已去重：只有「409 那一次 + 重送一次」，不是兩組並發
+      expect(logins.count).toBe(2);
+    });
+  });
 });

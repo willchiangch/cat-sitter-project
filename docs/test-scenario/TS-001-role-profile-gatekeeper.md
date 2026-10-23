@@ -69,3 +69,9 @@
 | 開 `/demo`；之後在 Demo 模式深連結 `/sitter/ledger`；再開公開頁 | `/demo` 送出種子登入、`authMode=seed`；深連結沿用（再登入）；公開頁 0 次 | 同上測試 4 |
 
 `order-eval.spec.ts`（SD-006 區塊）、`sitter-ledger.spec.ts` 每個測試都直接深連結進受保護頁面，改在 `beforeEach` 以 `addInitScript` 標記 `authMode=seed`（模擬「已從 Demo 入口進來過」）。
+
+**Demo 種子登入撞 409 被導去 /login（2026-10，Backlog 第 3 批 D4 / 第 2 批另外發現 #1）**：種子帳號是所有 Demo 訪客共用的，後端每次登入都會刪掉並重建該帳號唯一一組 refresh token，同時有兩個登入請求（dev `<StrictMode>` effect 雙呼叫、別的分頁、mock E2E 的平行 worker）就會撞樂觀鎖回 409 `MSG_DATA_CONCURRENCY_CONFLICT`。前端拿不到 token 仍結束 loading，`RequireAuth` 把人導去 `/login`。實測 trace：失敗那次瀏覽器只送出 1 個登入請求、回 409，衝突來自其他 worker，所以光靠瀏覽器內去重不夠。修法：`loginAsRole()` 模組層級 in-flight 去重 + 409 重送（SD-001「UX 設計」）。本機 vite 下 `dispute-and-completion.spec.ts` + `sitter-profile.spec.ts` `--repeat-each=5`（3 workers）：修前 4 輪每輪 2~3 支因被導去 `/login` 失敗，修後 4 輪 0 支；剩下的失敗都是 `sitter-profile.spec.ts` 自己的平行副本互改同一筆種子保母公開檔案（409「內容已被更新」、gated 名稱），與登入無關（`--workers=1` 15/15 通過）。
+
+| 驗證 | 預期 | 自動化 |
+| :--- | :--- | :--- |
+| 開 `/demo`，第一次登入回 409 | 重送後取得 token、停在 `/demo`，登入請求恰 2 次（無 StrictMode 並發） | `e2e/seed-auto-login-scope.spec.ts` D4 測試 |
