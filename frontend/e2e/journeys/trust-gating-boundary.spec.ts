@@ -43,6 +43,15 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       return account;
     });
 
+    // TS #1：「未過審」這個前提要釘住，否則 Profile 實際停在 UNVERIFIED 時 step 2 照樣 gated、照樣綠燈
+    await apiStep('前置：確認保母 Profile 停在 PENDING_REVIEW（未經審核）', async () => {
+      const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });
+      expect(statusRes.ok()).toBeTruthy();
+      const statusBody = await statusRes.json();
+      expect(statusBody.data.kycStatus).toBe('PENDING_REVIEW');
+      return statusBody.data;
+    });
+
     const anonContext = await browser.newContext();
     const anonPage = await anonContext.newPage();
     await step('未登入訪客打開此保母的公開頁，應被 gate', anonPage, async () => {
@@ -52,6 +61,16 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       await expect(anonPage.getByTestId('public-profile-display-name')).not.toHaveText(/Journey保母E1/);
       await expect(anonPage.getByTestId('public-profile-plan-item')).not.toBeVisible();
       await expect(anonPage.getByTestId('public-profile-book-now-btn')).not.toBeVisible();
+    });
+
+    // TS #2 技術校驗：匿名（不帶 token）查公開檔案 API，資料層也必須是 gated
+    await apiStep('匿名查詢此保母公開檔案 API，應回 gated=true', async () => {
+      const profileRes = await anonContext.request.get(`/api/sitter/profile/${sitter.userId}`);
+      expect(profileRes.ok()).toBeTruthy();
+      const profile = await profileRes.json();
+      expect(profile.gated).toBe(true);
+      expect(profile.displayName).toBe('保母休息中');
+      return profile;
     });
     await anonContext.close();
   });

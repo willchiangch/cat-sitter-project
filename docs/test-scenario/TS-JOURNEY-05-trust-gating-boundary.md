@@ -24,8 +24,8 @@
 
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
-| 1 | API：建立保母帳號、切換角色、送出 KYC，**不呼叫 admin 審核** | Profile 停在 `kycStatus=PENDING_REVIEW` | |
-| 2 | UI：全新未登入瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕 | `GET /api/sitter/profile/{sitterId}` 回傳 `gated=true`，`displayName="保母休息中"` |
+| 1 | API：建立保母帳號、切換角色、送出 KYC，**不呼叫 admin 審核** | Profile 停在 `kycStatus=PENDING_REVIEW` | 以保母 token 呼叫 `GET /api/sitter/kyc/status` 斷言 `data.kycStatus=PENDING_REVIEW`（獨立 apiStep 留證據）。不釘這個前提的話，Profile 實際停在 `UNVERIFIED` 時步驟 2 照樣 gated、照樣綠燈 |
+| 2 | UI：全新未登入瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕 | 以同一個匿名 context 的 request（不帶 token）呼叫 `GET /api/sitter/profile/{sitterId}`，斷言 `gated=true`、`displayName="保母休息中"`（apiStep 留證據） |
 
 ### 測試 2：已停權保母 + 在途訂單邊界
 
