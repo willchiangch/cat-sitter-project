@@ -30,7 +30,7 @@
 | 2 | UI：填新日期（2 天）送出 | 顯示「變更請求已送出」 | `POST /api/orders/{orderId}/modify` 200，`Order=MODIFYING` |
 | 3 | UI：保母 `/sitter/orders` 進行中分頁點「處理訂單變更協商」 | 導向 `/sitter/orders/{orderId}/quote`，表單已預填換算後總額 | 連結為本次新增；`GET /api/orders/{orderId}/modification` 200 |
 | 4 | UI：接受預填總額，送出報價 | 顯示「報價已送出」 | `POST .../modification/quote` 200，`ModificationRequest=QUOTED`，`diffAmount=+600` |
-| 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600` | 按鈕為本次新增 |
+| 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `$ -600` 也會通過，分不出補款/退款方向） |
 | 6 | UI：確認變更 | 顯示「變更已確認」 | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT` |
 | 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 憑證送出成功 | `POST .../payment-proof` 200，`Order=PAID` |
 | 8 | UI：保母核對入帳 | 訂單正式回到成立狀態 | `POST .../verify-payment` 200，`Order=CONFIRMED` |

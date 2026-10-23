@@ -64,7 +64,10 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await page.getByTestId('btn-go-modification-confirm').click();
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${orderId}/modification-confirm`));
 
-      await expect(page.getByTestId('mod-confirm-diff-amount')).toContainText('600');
+      // 整段錨定：toContainText('600') 遇到退款的「$ -600」也會過，分不出補款/退款方向
+      await expect(page.getByTestId('mod-confirm-diff-amount')).toHaveText(
+        /^\$\s?600\s*\(負值為退款\)$/
+      );
       await snap(page, '變更確認頁差額');
       await page.getByTestId('confirm-submit-btn').click();
       await expect(page.getByTestId('confirm-success-banner')).toBeVisible({ timeout: 10000 });
