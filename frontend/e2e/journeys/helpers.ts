@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, APIResponse, Page } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,12 +27,27 @@ export function uniqueTestEmail(scenario: string, role: string): string {
 
 /**
  * Cloud Run 冷啟動保護：服務縮到 0 時，多個 worker 同時打第一發 request，
- * 超出可用 instance 的那幾發會被 Google Frontend 直接 abort 成 429「Rate exceeded.」或 503
- * （request 根本沒進 container，所以重送是安全的）。只對 429/503 指數退避重試，其餘狀態原樣回傳。
+ * 超出可用 instance 的那幾發會被 Google Frontend 直接 abort 成 429「Rate exceeded.」或 503，
+ * body 是純文字/HTML。這種 request 根本沒進 container，重送是安全的。
+ *
+ * 後端自己也會回 429：GlobalExceptionHandler 對 LockedException 回 JSON 429 ACCOUNT_LOCKED，
+ * AuthService 有 OTP_LOCKED / OTP_RESEND_TOO_SOON。這些是真實業務結果（帳號鎖 10 分鐘），
+ * 重試只會多等 21 秒還把原因藏起來，所以 **body 是 JSON 的 429/503 一律不重試、原樣回傳**。
  * 只用在每個 journey 最前面的 bootstrap 請求（provision / login），不要拿去包業務斷言。
  */
 const COLD_START_STATUSES = [429, 503];
 const COLD_START_DELAYS_MS = [3000, 6000, 12000];
+
+async function isFrontendAbort(res: APIResponse): Promise<boolean> {
+  if (!COLD_START_STATUSES.includes(res.status())) return false;
+  if ((res.headers()['content-type'] ?? '').includes('application/json')) return false;
+  try {
+    JSON.parse(await res.text());
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 async function postWithColdStartRetry(
   request: APIRequestContext,
@@ -41,7 +56,7 @@ async function postWithColdStartRetry(
 ) {
   let res = await request.post(url, { timeout: 60000, ...options });
   for (const delay of COLD_START_DELAYS_MS) {
-    if (!COLD_START_STATUSES.includes(res.status())) break;
+    if (!(await isFrontendAbort(res))) break;
     await new Promise((resolve) => setTimeout(resolve, delay));
     res = await request.post(url, { timeout: 60000, ...options });
   }

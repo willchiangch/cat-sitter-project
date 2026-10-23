@@ -61,7 +61,7 @@
 * **資料清理**：本測試建立的帳號、訂單、變更請求皆落在 `@e2e-journey.test` 網域，由 CI 跑完後呼叫 `cleanup-e2e-journeys` 統一硬刪除。
 * **對話框斷言**：協商三頁的成功/失敗都用 `alert()` 呈現（例如「變更申請已成功提交！」「送出報價失敗，請檢查權限或參數。」），退款分支每個送出動作都以 `expectDialog` 斷言成功字樣，避免 `alert('…失敗')` 被默默 accept 仍判定通過。
 * **前置依賴**：`bootstrapConfirmedOrder` helper 重跑 Journey A+B 的機械部分；退款分支額外傳入 `datesOverride` 參數兜出 2 天的原始訂單。
-* **Cloud Run 冷啟動（環境因素，非產品 bug）**：正式站沒設 min-instances，縮到 0 後 Spring Boot 冷啟要 33~40 秒。本機多 worker 同時打第一發 `provision-account` 時，超出可用 instance 的 request 會被 Google Frontend 直接 abort 成 `429 Rate exceeded.`（2026-10-23 本機 5 workers 實測，退款分支因此在前置步驟失敗）。處理方式：`helpers.ts` 的 `provisionAndLogin`/`loginAsSeedAdmin` 只對 429/503 指數退避重試（request 沒進 container，重送安全）；本機 `playwright.config.ts` workers 上限 3；`e2e-runner` 本機模式先暖機 `/actuator/health` 再以 `--workers=2` 執行。
+* **Cloud Run 冷啟動（環境因素，非產品 bug）**：正式站沒設 min-instances，縮到 0 後 Spring Boot 冷啟要 33~40 秒。本機多 worker 同時打第一發 `provision-account` 時，超出可用 instance 的 request 會被 Google Frontend 直接 abort 成 `429 Rate exceeded.`（2026-10-23 本機 5 workers 實測，退款分支因此在前置步驟失敗）。處理方式：`helpers.ts` 的 `provisionAndLogin`/`loginAsSeedAdmin` 只對 **body 不是 JSON** 的 429/503（GFE 的 `Rate exceeded.` 純文字/HTML，request 沒進 container，重送安全）指數退避重試；後端自己回的 JSON 429（`ACCOUNT_LOCKED`、`OTP_LOCKED` 等真實業務結果）一律原樣回傳不重試，避免多等 21 秒還把鎖定原因藏起來；本機 `playwright.config.ts` workers 上限 3；`e2e-runner` 本機模式先暖機 `/actuator/health` 再以 `--workers=2` 執行。
 
 ---
 
