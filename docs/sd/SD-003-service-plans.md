@@ -260,6 +260,9 @@ erDiagram
 - 多選時依勾選順序取聯集、去重；新增方案時切換寵物類型會跟著換模板，保母手動增刪/修改過任務後就不再覆蓋；編輯既有方案不自動替換。
 - 2026-10 前不論寵物類型一律預填貓咪的三項，狗狗方案也帶著「清理砂盆」（驗收 N1 / Backlog 第 3 批 U6）。迴歸：`e2e/plan-default-tasks.spec.ts`、Journey A 步驟 8。
 
+### 0.2 方案卡排版（前端，2026-10）
+保母方案清單卡片頂部為「左：名稱＋寵物/限額標籤（`flex:1; min-width:0`，名稱 `overflow-wrap:anywhere` 可斷行）／右：價格與時長上下兩行（`white-space:nowrap`、不縮）」。2026-10 前左欄不能縮，名稱含長串英數時「$ 600 / 60 分鐘」被擠出卡片右緣（驗收 N2 / Backlog 第 3 批 U7）。迴歸：`e2e/sitter-plan-card-layout.spec.ts`、Journey A 步驟 7。
+
 ### 1. 建立服務方案
 * **Method & Path**：`POST /api/sitter/plans`
 * **說明**：保母新增自訂服務方案。

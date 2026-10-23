@@ -202,6 +202,10 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
           .filter({ hasText: plan.name });
         await expect(card).toBeVisible({ timeout: 10000 });
         await expect(card).toContainText(plan.petLabel);
+        // U7（驗收 N2）：價格區塊不得溢出卡片右邊界（名稱含時間戳這種長英數字串時曾被擠出去）
+        const cardBox = (await card.boundingBox())!;
+        const priceBox = (await card.locator('[data-testid^="sitter-plan-price-"]').boundingBox())!;
+        expect(priceBox.x + priceBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
         for (const other of plans.filter((o) => o.petType !== plan.petType)) {
           await expect(card).not.toContainText(other.petLabel);
         }

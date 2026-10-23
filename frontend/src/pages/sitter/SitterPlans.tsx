@@ -335,7 +335,9 @@ const SitterPlans: React.FC = () => {
                     gap: '12px'
                   }}
                 >
-                  <div>
+                  {/* 左欄 minWidth:0 + 方案名稱可斷行：過去名稱含長串英數（例如 Journey 的時間戳）時左欄
+                      不肯縮，右側價格被擠出卡片右邊界 (驗收 N2 / Backlog 第 3 批 U7) */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h3
                       style={{
                         fontSize: '1.25rem',
@@ -344,10 +346,12 @@ const SitterPlans: React.FC = () => {
                         color: 'var(--color-on-surface)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px'
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        overflowWrap: 'anywhere'
                       }}
                     >
-                      {plan.name}
+                      <span style={{ minWidth: 0 }}>{plan.name}</span>
                       {plan.isActive === false && (
                         <span
                           style={{
@@ -395,8 +399,11 @@ const SitterPlans: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <span
+                  <div
+                    style={{ textAlign: 'right', flexShrink: 0, whiteSpace: 'nowrap' }}
+                    data-testid={`sitter-plan-price-${plan.id}`}
+                  >
+                    <div
                       style={{
                         fontSize: '1.3rem',
                         fontWeight: '900',
@@ -404,11 +411,10 @@ const SitterPlans: React.FC = () => {
                       }}
                     >
                       $ {plan.price}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
-                      {' '}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
                       / {plan.durationMinutes ?? 60} 分鐘
-                    </span>
+                    </div>
                   </div>
                 </div>
 

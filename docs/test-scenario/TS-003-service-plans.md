@@ -259,3 +259,5 @@
 
 **狗狗方案的預設 SOP 有「清理砂盆」（2026-10，驗收 N1 / Backlog 第 3 批 U6）**：`SitterPlans.openModal(null)` 不論勾選哪種寵物，預設任務一律寫死「基本餵食 / 清理砂盆 / 更換新鮮水」。Journey A 建立的 DOG 方案公開後，`defaultTasks` 仍是貓砂相關任務。修法與迴歸見 Scenario 16。
 
+**方案卡價格溢出卡片右邊界（2026-10，驗收 N2 / Backlog 第 3 批 U7）**：方案名稱含無法斷行的長英數字串時，卡片左欄不縮、右側價格 `flex-shrink:0`，價格被擠出卡片。修法見 SD-003 §0.2；迴歸 `frontend/e2e/sitter-plan-card-layout.spec.ts`（逐張斷言價格區塊落在卡片內、卡片無水平溢出）。
+
