@@ -68,6 +68,8 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       await snap(page, 'C-04 照片與說明填寫完成');
       await page.getByTestId('sitter-report-media-upload-btn').click();
       await expect(page.getByText('多媒體檔案上傳成功')).toBeVisible({ timeout: 10000 });
+      // 成功訊息先出現、GET /report 重抓後清單才更新；舊版截到「照護媒體清單 (0 筆)」
+      await expect(page.getByText('照護媒體清單 (1 筆)')).toBeVisible();
     });
 
     await step('C-06 保母結束服務並送出報告', page, async () => {

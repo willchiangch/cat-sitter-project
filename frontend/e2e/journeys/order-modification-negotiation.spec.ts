@@ -110,7 +110,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     });
 
     await setBrowserAuth(page, owner, 'client');
-    trackDialogs(page);
+    const ownerDialogs = trackDialogs(page);
 
     await step('飼主從訂單詳情真實點入變更精靈，申請減少為一天', page, async () => {
       await page.goto(`/owner/orders/${orderId}`);
@@ -120,12 +120,13 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await page.getByTestId('modify-dates-input').fill('2026-05-20');
       await snap(page, '變更日期填寫完成');
       await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(ownerDialogs, /變更申請已成功提交/);
       await expect(page.getByTestId('modification-success-banner')).toBeVisible({ timeout: 10000 });
     });
 
     const sitterPage = await (await browser.newContext()).newPage();
     await setBrowserAuth(sitterPage, sitter, 'sitter');
-    trackDialogs(sitterPage);
+    const sitterDialogs = trackDialogs(sitterPage);
 
     await step('保母從訂單列表真實點入報價，接受換算後的新總額（1 天）', sitterPage, async () => {
       await sitterPage.goto('/sitter/orders');
@@ -136,6 +137,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(sitterPage.getByTestId('quote-amount-input')).toHaveValue('600');
       await snap(sitterPage, '報價表單');
       await sitterPage.getByTestId('quote-submit-btn').click();
+      await expectDialog(sitterDialogs, /報價已成功送出/);
       await expect(sitterPage.getByTestId('quote-success-banner')).toBeVisible({ timeout: 10000 });
     });
 
@@ -147,6 +149,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('mod-confirm-diff-amount')).toContainText('-600');
       await snap(page, '變更確認頁差額');
       await page.getByTestId('confirm-submit-btn').click();
+      await expectDialog(ownerDialogs, /變更確認成功/);
       await expect(page.getByTestId('confirm-success-banner')).toBeVisible({ timeout: 10000 });
 
       await awaitOrderStatus(request, owner, orderId, ['REFUND_VERIFY']);
@@ -165,6 +168,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       );
       await snap(sitterPage, '退款憑證填寫完成');
       await sitterPage.getByTestId('refund-proof-submit-btn').click();
+      await expectDialog(sitterDialogs, /退款憑證已成功上傳/);
       await expect(sitterPage.getByTestId('refund-proof-success-banner')).toBeVisible({ timeout: 10000 });
     });
 
@@ -175,6 +179,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
 
       await snap(page, '確認收到退款前');
       await page.getByTestId('refund-confirm-btn').click();
+      await expectDialog(ownerDialogs, /已確認收到退款/);
       await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible({ timeout: 10000 });
 
       await awaitOrderStatus(request, sitter, orderId, ['CONFIRMED']);

@@ -27,7 +27,7 @@
 | 1 | UI：保母 `/sitter/orders` 切到「進行中」分頁 → 點行程清單裡的「打卡 / 回報」連結 | 導向 `/visit-reports/manage/{visitId}` | 連結來自 `GET /api/orders/{orderId}/visits`，不是寫死 URL |
 | 2 | UI：點擊「開始服務 (Check-in)」 | 頁面切換到日誌編輯面板 | `POST /api/visits/{visitId}/start` 200，`Visit=IN_PROGRESS`、`Order=IN_PROGRESS` |
 | 3 | API 輪詢：飼主通知列表 | 收到 `SERVICE_RECORD` 分類通知 | `VisitNotificationEvent` 為 `@Async`+`AFTER_COMMIT`，需要 poll 不能立即斷言（見 `awaitNotification`） |
-| 4 | UI：填寫日誌文字 + 上傳一張照片（含說明文字） | 草稿與媒體都成功送出 | `PUT /visits/{visitId}/report` 200、`POST /visits/{visitId}/media` 200 |
+| 4 | UI：填寫日誌文字 + 上傳一張照片（含說明文字） | 草稿與媒體都成功送出，媒體清單顯示「照護媒體清單 (1 筆)」 | `PUT /visits/{visitId}/report` 200、`POST /visits/{visitId}/media` 200；成功訊息先出現、`GET /report` 重抓後清單才更新，要等清單筆數變成 1 |
 | 5 | UI：點擊「結束服務」 | 行程完工 | `POST /api/visits/{visitId}/end` 200，`Visit=DONE`；**注意**：此按鈕背後有 `window.confirm()`，需要主動 accept 對話框，不然點了跟沒點一樣 |
 | 6 | UI：點擊「送出報告」 | 報告正式送出 | `POST /visits/{visitId}/report/submit` 200，`report.status=SUBMITTED` |
 | 7 | UI：飼主 `/owner/orders/{orderId}` 點行程清單裡的「查看日誌」連結 | 導向 `/visit-reports/view/{visitId}`，看得到文字與照片 | 連結同樣來自 `GET /api/orders/{orderId}/visits` |

@@ -79,6 +79,18 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await expect(
         ownerPage.getByTestId('pet-card').getByRole('heading', { name: 'Journey測試貓B' })
       ).toBeVisible({ timeout: 10000 });
+      // 頭像是建檔後才另外 POST /api/pets/{id}/avatar，舊版只等到寵物卡片出現就截圖，
+      // 截到的還是「J」佔位字，下一步 goto 又把上傳 request abort 掉。要等卡片真的換成圖片且已載入
+      const avatarImg = ownerPage
+        .getByTestId('pet-card')
+        .filter({ has: ownerPage.getByRole('heading', { name: 'Journey測試貓B' }) })
+        .getByRole('img', { name: 'Journey測試貓B' });
+      await expect(avatarImg).toBeVisible({ timeout: 15000 });
+      await expect
+        .poll(() => avatarImg.evaluate((img) => (img as HTMLImageElement).naturalWidth), {
+          timeout: 10000
+        })
+        .toBeGreaterThan(0);
     });
 
     await step('B-04 飼主完成預約送單', ownerPage, async () => {
@@ -159,6 +171,14 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await page.getByTestId('sitter-carenote-save-btn').click();
       // 舊版 click 完直接截圖，儲存成功與否完全看不出來（成功/失敗都是 alert）
       await expectDialog(sitterDialogs, /記事本儲存成功/);
+      // 新增的條目要真的在畫面上（截圖靠 evidence.ts 的 fullPage 解除 AppShell 裁切才拍得到）
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('sitter-carenote-item-content')
+            .evaluateAll((els) => els.map((el) => (el as HTMLTextAreaElement).value))
+        )
+        .toContain(careNoteContent);
       await snap(page, 'B-08 保母寫入記事本');
 
       // 同 awaitOrderStatus 的教訓：保母存檔後，飼主緊接著查詢有機率撲空（見 pollUntil 註解），

@@ -24,7 +24,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | UI：未登入打開保母公開頁 `/sitter/{sitterId}/profile`，點「立即預約」 | 導向 `/register?redirect=/booking/{sitterId}` | URL 帶正確 redirect 參數 |
 | 2 | API 背景建飼主帳號（略過 OTP）→ UI 改走「已有帳號？返回登入」→ `/login` 真實登入 | 登入成功後**自動導回** `/booking/{sitterId}`，不是預設的 `/demo` | 驗證 `LoginPage.tsx`/`RegisterPage.tsx` 新增的 redirect 白名單邏輯真的生效 |
-| 3 | UI：`/pets` 建立寵物（名稱必填，物種預設 CAT）+ 上傳頭像 | 寵物卡片顯示新建資料與頭像 | `POST /api/pets` 201 |
+| 3 | UI：`/pets` 建立寵物（名稱必填，物種預設 CAT）+ 上傳頭像 | 寵物卡片顯示新建資料與頭像 | `POST /api/pets` 201；頭像是建檔後另外 `POST /api/pets/{id}/avatar`，要等寵物卡片的 `<img>` 出現且已載入（`naturalWidth>0`）才算完成，只等卡片出現會截到名字首字佔位 |
 | 4 | UI：`/booking/{sitterId}` 選方案卡片 → 選一個未來日期 → 確認日期 → 下一步 → 送出 | 訂單建立成功，送出成功後頁面會自動導向 `/owner/orders/{orderId}` | `POST /api/orders/booking` 201，訂單狀態 `PENDING`；**注意**：只 `await` 點擊送出按鈕不代表送單完成，click() 只保證事件派發，要等這個導向真的發生才代表非同步送單流程跑完 |
 | 5 | UI：保母 `/sitter/orders`「評估中」分頁找到訂單 → 進入評估頁 → 原價直接接受 | 訂單狀態轉為待付款 | `POST /api/orders/{orderId}/confirm`（快速接單路徑）後 `Order=PENDING_PAYMENT`；**注意**：此按鈕背後有 `window.confirm()` 對話框，Playwright 預設會自動 dismiss（回傳 false）導致函式提早 return 什麼都不會發生，測試需要主動註冊 `page.on('dialog', d => d.accept())` |
 | 6 | UI：飼主 `/owner/orders/{orderId}` 上傳付款憑證（圖片+末五碼+同意勾選） | 訂單狀態轉為已付款待核對 | `POST /api/orders/{orderId}/payment-proof` 200，`Order=PAID` |

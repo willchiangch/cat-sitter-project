@@ -77,8 +77,13 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       await row.getByTestId('admin-kyc-review-btn').click();
 
       await expect(adminPage).toHaveURL(new RegExp(`/admin/kyc/${recordId}`));
+      // 舊版 URL 一變就截圖，詳情 API 還沒回來，截到的仍是待審清單
+      await expect(adminPage.getByTestId('admin-kyc-detail-approve-btn')).toBeVisible();
       await snap(adminPage, 'A-04 審核詳情頁');
       await adminPage.getByTestId('admin-kyc-detail-approve-btn').click();
+      // TS-JOURNEY-01 #5：頁面要顯示審核通過訊息（AdminKycDetail 顯示 1.5 秒後才跳回清單）
+      await expect(adminPage.getByText('實名認證審核已通過！')).toBeVisible();
+      await snap(adminPage, 'A-04 核准成功訊息');
       await expect(adminPage).toHaveURL(/\/admin\/kyc$/, { timeout: 10000 });
       // 核准後回到待審清單，這筆申請應該消失（舊版沒有這張圖，看不出核准有沒有生效）
       await expect(adminPage.getByTestId('admin-kyc-row').filter({ hasText: sitter.email })).toHaveCount(0, {
