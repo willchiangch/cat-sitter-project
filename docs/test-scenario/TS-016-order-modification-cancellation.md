@@ -41,6 +41,12 @@
 * **Then**: 兩者訂單都回到 `IN_PROGRESS`（不得退回 `CONFIRMED`）；`CONFIRMED` 發起者回 `CONFIRMED`；查無 `previous_status`（舊資料）fallback `CONFIRMED`；變更後無預約項目者退款確認後為 `CANCELLED`。
 * **自動化對應**: `ModificationServiceTest.should_RestoreInProgress_When_RefundConfirmed`、`should_RestoreConfirmed_When_RefundConfirmedFromConfirmedOrLegacy`、`should_Cancel_When_RefundConfirmedForWholeCancellation`、`should_RestoreInProgress_When_NoDiffModificationConfirmed`、`should_FallbackToConfirmed_When_NoDiffAndPreviousStatusMissing`。
 
+## Scenario 2e: 無差額的整筆取消轉 CANCELLED (2026-10，Backlog 第 3 批 D2 迴歸)
+* **Given**: 飼主「申請完全取消此預約」（送出空的 items/dates），保母報價時同意取消但不退款（新總額 = 原總額，差額 0），`previous_status = IN_PROGRESS`。
+* **When**: 飼主同意變更（`confirmModification`，`agreedDiffAmount = 0`）。
+* **Then**: 訂單轉 `CANCELLED`（PRD-016 AC-4），不得回到 `previous_status`；變更請求為 `M_DONE`、`totalAmount` 不變。整筆取消的判斷與退款確認共用 `ModificationService.isWholeCancellation()`（變更後 `Order.items` 為空）。
+* **自動化對應**: `ModificationServiceTest.should_Cancel_When_NoDiffModificationIsWholeCancellation`、`should_DetectWholeCancellation_OnlyWhenNoItemsLeft`。
+
 ## Scenario 2c: 協商頁依狀態收斂可執行動作、端點重送 409 (2026-10，C2 迴歸 / 驗收 P7)
 * **Given**: 變更請求分別處於 `PENDING_REVIEW`、`QUOTED`、`M_DONE`+`REFUND_VERIFY`、`M_DONE`+`PENDING_PAYMENT`，以及已結清（查無進行中變更，GET 409）。
 * **When**: 保母進入報價頁、飼主進入確認頁；以及直接對後端重送已完成的動作。
@@ -101,7 +107,7 @@
 | 5 | 確認金額與報價不符 | 拒絕確認 | `diffAmount` 與 `agreedDiffAmount` 比對 |
 | 6 | 補款確認後查詢訂單 | 應付金額為差額 | `amountDue = diffAmount`、`totalAmount = 新總額`（`OrderQueryServiceListTest.amountDue_IsDiffAmount_When_PendingTopUpAfterModification`） |
 | 7 | 補款核帳 | 訂單回到發起變更前狀態 | `Order.status = previous_status`、`supplement_verified_at` 非 null、`paid_at` 不變（Scenario 1b） |
-| 9 | 確認收到退款 / 無差額同意 | 訂單回到發起變更前狀態 | `Order.status = previous_status`，整筆取消為 `CANCELLED`（Scenario 2b） |
+| 9 | 確認收到退款 / 無差額同意 | 訂單回到發起變更前狀態 | `Order.status = previous_status`，整筆取消（含無差額的整筆取消）為 `CANCELLED`（Scenario 2b / 2e） |
 | 10 | 重送已完成的協商動作 / 非退款階段上傳退款憑證 | 409、資料不變；協商頁不再顯示該動作 | `ModificationRequest.status`、`Order.status` 不變（Scenario 2c） |
 | 8 | 補款上傳/駁回 | 首次付款紀錄保留 | `orders.payment_proof_url/last_five/payment_idempotency_key/disclaimer_agreed_at/paid_at` 不變（Scenario 1b） |
 
@@ -129,3 +135,5 @@
 **協商頁沒有依狀態收斂按鈕、退款憑證端點沒有狀態防護（2026-10，Backlog 第 2 批 C2 / 驗收 P7）**：`SitterModificationQuote`、`OwnerModificationConfirm` 兩頁不看變更請求狀態，報價表單、拒絕、退款憑證上傳（保母）與同意表單、確認收到退款（飼主）永遠全部渲染，只用本地旗標把「剛剛按過的那一個」換成成功字樣。重新進頁後已報價還能再報價、已同意還能再同意（後端 409，使用者只看到「失敗」），補款分支也出現退款區塊。後端 `uploadRefundProof()` 更完全沒有狀態檢查，任何階段都能改寫最新一筆變更請求的退款憑證（含飼主已確認收到退款之後）。修法：`GET .../modification` 加回 `orderStatus`，前端以 `resolveModificationPhase()` 收斂成單一階段、每次動作後重新讀取（SD-016 §2.2 表格）；退款憑證端點限 `REFUND_VERIFY` + `M_DONE` + 差額為負。迴歸見 Scenario 2c。
 
 **退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：`POST .../modification/refund-proof` 收 `{"refundProofUrl": "<任意字串>"}` 直接存進 DB，系統不上傳、不驗證；這個網址原樣回到 `GET .../modification`。飼主端若顯示或點開，等於打開保母提供的任意外部網址（釣魚、追蹤像素、惡意下載）；即使是合法網址，憑證本身也是公開可讀的財務截圖。修法：比照付款憑證（第 1 批 B1）改為 multipart 上傳到私有物件 `refund-proofs/...`、DTO 只回 `hasRefundProof`、檢視走 BOLA 檢查後的 10 分鐘簽名網址，且只簽 `refund-proofs/` 開頭的 key——舊的外部網址永遠不會被簽或回傳。迴歸見 Scenario 2d。
+
+**無差額的整筆取消回到 `previous_status` 而非 `CANCELLED`（2026-10，Backlog 第 3 批 D2）**：C3 把 `confirmModification()` 差額為 0 的分支改成 `restoreStatus()`，但沒有考慮「整筆取消、保母同意不退款」這種差額也是 0 的情境；整筆取消的判斷只寫在 `confirmRefund()`。結果訂單已經沒有任何預約項目（行程也被 `updateVisitsSafely` 刪光），狀態卻回到 `CONFIRMED`/`IN_PROGRESS`，違反 PRD-016 AC-4，也會讓這筆空訂單繼續出現在進行中清單、被自動結案排程撈到。修法：抽出 `ModificationService.isWholeCancellation(order)`（變更後 `Order.items` 為空），退款確認與無差額結清共用，整筆取消一律 `CANCELLED`。迴歸見 Scenario 2e。

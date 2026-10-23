@@ -365,4 +365,40 @@ class ModificationServiceTest {
 
         assertThat(order.getStatus()).isEqualTo("CANCELLED");
     }
+
+    // ===== D2 迴歸：無差額 + 整筆取消應轉 CANCELLED (PRD-016 AC-4)，過去回 previousStatus =====
+
+    @Test
+    @DisplayName("迴歸測試：無差額變更 — 整筆取消（變更後無預約項目、保母同意不退款）確認後應轉 CANCELLED，不得回到 previousStatus")
+    void should_Cancel_When_NoDiffModificationIsWholeCancellation() {
+        order.setStatus("MODIFYING");
+        order.setItems(new ArrayList<>(List.of(new OrderItem())));
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(UUID.randomUUID()).order(order).status("QUOTED").diffAmount(0)
+                .previousStatus("IN_PROGRESS")
+                .payload(new ArrayList<>())
+                .dates(List.of()).build();
+        when(modRepo.findById(modReq.getId())).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
+        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
+
+        modificationService.confirmModification(ownerId, orderId, modReq.getId(), 0);
+
+        assertThat(order.getItems()).isEmpty();
+        assertThat(order.getTotalAmount()).isEqualTo(1000);
+        assertThat(order.getStatus()).isEqualTo("CANCELLED");
+        assertThat(modReq.getStatus()).isEqualTo("M_DONE");
+    }
+
+    @Test
+    @DisplayName("isWholeCancellation：items 為 null 或空才算整筆取消")
+    void should_DetectWholeCancellation_OnlyWhenNoItemsLeft() {
+        order.setItems(null);
+        assertThat(ModificationService.isWholeCancellation(order)).isTrue();
+        order.setItems(new ArrayList<>());
+        assertThat(ModificationService.isWholeCancellation(order)).isTrue();
+        order.setItems(new ArrayList<>(List.of(new OrderItem())));
+        assertThat(ModificationService.isWholeCancellation(order)).isFalse();
+    }
 }

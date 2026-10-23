@@ -189,6 +189,11 @@ public class ModificationService {
             order.setStatus("PENDING_PAYMENT");
         } else if (modReq.getDiffAmount() < 0) {
             order.setStatus("REFUND_VERIFY");
+        } else if (isWholeCancellation(order)) {
+            // 整筆取消且無差額（例如保母同意取消但不退款）：PRD-016 C.3 / AC-4 → CANCELLED，
+            // 與 confirmRefund() 的整筆取消判斷共用 isWholeCancellation()。過去直接走下面的復原分支，
+            // 沒有任何預約項目的訂單會回到 CONFIRMED/IN_PROGRESS
+            order.setStatus("CANCELLED");
         } else {
             // 無差額 (PRD-016 C.3「直接恢復」)：回到發起變更前的狀態，與拒絕變更/補款核帳一致；
             // 過去寫死 CONFIRMED，進行中 (IN_PROGRESS) 的訂單會被退回「已確認未開始」
@@ -320,8 +325,7 @@ public class ModificationService {
             throw new IllegalStateException("訂單當前狀態不符合退款確認條件");
         }
 
-        // 若無預約項目，表示為整筆取消
-        if (order.getItems() == null || order.getItems().isEmpty()) {
+        if (isWholeCancellation(order)) {
             order.setStatus("CANCELLED");
         } else {
             // PRD-016 C.3 退款分支：「恢復 CONFIRMED 或 IN_PROGRESS」，依發起變更當下的快照復原。
@@ -332,6 +336,15 @@ public class ModificationService {
             order.setStatus(restoreStatus(latest));
         }
         orderRepository.saveAndFlush(order);
+    }
+
+    /**
+     * 整筆取消（PRD-016 A.2）：變更後已無任何預約項目。前端「申請完全取消」送出空的 items/dates，
+     * confirmModification() 會把 payload 寫回 Order.items，因此結清時以訂單上的 items 判斷。
+     * 退款確認與無差額結清共用，避免兩條路徑對「整筆取消」各自判斷。
+     */
+    static boolean isWholeCancellation(Order order) {
+        return order.getItems() == null || order.getItems().isEmpty();
     }
 
     /**

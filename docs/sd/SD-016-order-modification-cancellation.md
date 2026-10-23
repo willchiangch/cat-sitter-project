@@ -121,14 +121,14 @@ stateDiagram-v2
 }
 ```
 - **前置條件**: `ModificationRequest.status == QUOTED`，且 `agreedDiffAmount` 須與 `ModificationRequest.diffAmount` 一致（Zero-Trust，見 §1.2）。已同意（`M_DONE`）後重送 → 409，訂單狀態不變（`OrderControllerTest.should_Return409_When_ConfirmResubmittedAfterDone`）。
-- **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照）、檔期鎖定與金流派發。訂單狀態依差額結轉（4.1）：正 → `PENDING_PAYMENT`、負 → `REFUND_VERIFY`、0 → `previousStatus`（2026-10 前寫死 `CONFIRMED`，迴歸：`ModificationServiceTest.should_RestoreInProgress_When_NoDiffModificationConfirmed`）。
+- **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照）、檔期鎖定與金流派發。訂單狀態依差額結轉（4.1）：正 → `PENDING_PAYMENT`、負 → `REFUND_VERIFY`、0 → `previousStatus`（2026-10 前寫死 `CONFIRMED`，迴歸：`ModificationServiceTest.should_RestoreInProgress_When_NoDiffModificationConfirmed`）；0 且變更後無預約項目（整筆取消、保母同意不退款）→ `CANCELLED`（`ModificationService.isWholeCancellation()`，與 2.7 共用；Backlog 第 3 批 D2 前會回 `previousStatus`，迴歸：`should_Cancel_When_NoDiffModificationIsWholeCancellation`）。
 
 ### 2.7 確認收到退款 (飼主) [新增]
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-confirm`
 - **Headers**: `Idempotency-Key: UUID`
 - **權限**: `ROLE_OWNER`，身份取自 `TokenContext.getUserId()`（2026-08 修復 BOLA，說明見 2.5）
 - **前置條件**: `Order.status == REFUND_VERIFY`，否則 409（重送確認 → 409，`OrderControllerTest.should_Return409_When_RefundConfirmResubmitted`）。
-- **邏輯**: 解除 `REFUND_VERIFY` 狀態：變更後已無預約項目（整筆取消）→ `CANCELLED`；否則依該訂單最新一筆變更請求的 `previousStatus` 復原（`CONFIRMED` 或 `IN_PROGRESS`，查無快照的舊資料 fallback `CONFIRMED`），與 2.4 拒絕變更、4.3 補款核帳同一套規則（`ModificationService.restoreStatus`）。
+- **邏輯**: 解除 `REFUND_VERIFY` 狀態：變更後已無預約項目（整筆取消，`ModificationService.isWholeCancellation()`，與 2.6 無差額分支共用）→ `CANCELLED`；否則依該訂單最新一筆變更請求的 `previousStatus` 復原（`CONFIRMED` 或 `IN_PROGRESS`，查無快照的舊資料 fallback `CONFIRMED`），與 2.4 拒絕變更、4.3 補款核帳同一套規則（`ModificationService.restoreStatus`）。
 - **2026-10 修復**：過去寫死 `CONFIRMED`，`IN_PROGRESS` 中發起的減量變更退款後會被退回「已確認未開始」。迴歸：`ModificationServiceTest.should_RestoreInProgress_When_RefundConfirmed`、`should_RestoreConfirmed_When_RefundConfirmedFromConfirmedOrLegacy`。
 
 ---
@@ -208,8 +208,8 @@ sequenceDiagram
 |---------|------------|
 | 需退款 (線下) | `MODIFYING` -> `REFUND_VERIFY` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`）；變更後無預約項目（整筆取消）-> `CANCELLED` |
 | 需補款 (線上/線下) | `MODIFYING` -> `PENDING_PAYMENT` -> `PAID` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`；應付金額為 `diffAmount`、補款紀錄存放見 4.3）；保母駁回補款憑證：`PAID` -> `PENDING_PAYMENT` |
-| 無金額變動 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`） |
-| 整筆取消 (無退款 / 線上退刷成功) | `MODIFYING` -> `CANCELLED` |
+| 無金額變動 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`）；變更後無預約項目（整筆取消）-> `CANCELLED` |
+| 整筆取消 (無退款 / 線上退刷成功) | `MODIFYING` -> `CANCELLED`（無退款＝差額 0，由 `confirmModification()` 直接結轉；線下退款走上方「需退款」列） |
 | 保母拒絕變更 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`，依發起變更當下快照決定，非寫死） |
 
 ### 4.2 補款應付金額 (`amountDue`)
