@@ -22,6 +22,11 @@ public class OrderDetailResponseDto {
     private UUID sitterId;
     private String status;
     private Integer totalAmount;
+    /**
+     * 本次應付金額 (SD-007 §4.6 / SD-016 §4.1)：首次付款 = totalAmount；
+     * 訂單變更補款 (最新一筆 ModificationRequest 為 M_DONE 且 diffAmount > 0) = 差額，不是新總額
+     */
+    private Integer amountDue;
     private Integer version;
     private Integer adjustmentAmount;
     private String adjustmentReason;

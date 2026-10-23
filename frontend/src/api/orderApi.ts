@@ -265,6 +265,9 @@ export interface OrderDetailResponseDto {
   sitterId: string;
   status: string;
   totalAmount: number;
+  // 本次應付金額：首次付款 = totalAmount；訂單變更補款 = 差額 (SD-007 §4.6 / SD-016 §4.1)。
+  // 後端舊版沒有這個欄位，使用端一律 fallback 回 totalAmount
+  amountDue?: number;
   version?: number;
   adjustmentAmount: number;
   adjustmentReason?: string;
@@ -306,6 +309,7 @@ export interface OrderSummaryDto {
   sitterName: string;
   status: string;
   totalAmount: number;
+  amountDue?: number; // 定義同 OrderDetailResponseDto.amountDue
   paymentProofUrl?: string;
   paymentProofLastFive?: string;
   scheduledDatesLabel: string;

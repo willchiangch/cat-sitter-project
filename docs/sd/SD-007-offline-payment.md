@@ -565,6 +565,7 @@ public class BankAccountInfoCryptoConverter implements AttributeConverter<BankAc
 - **說明**：本端點為本次新增，放置於 `OrderController.java`，支援 BOLA 身分驗證。
 - **Auth**: `@PreAuthorize("hasAnyRole('OWNER', 'SITTER')")`
 - **呼叫服務**：呼叫新建的 `OrderQueryService.java` 進行查詢、BOLA 身分驗證與隱私過濾。
+- **`amountDue`（2026-10 新增）**：飼主本次應匯金額。首次付款等於 `totalAmount`；訂單變更補款（SD-016 §4.2）時是差額而非新總額。付款頁與保母核對面板一律以此欄位為「應付/應收」，`totalAmount` 只作為訂單總額顯示。
 - **Headers**:
   - `Authorization: Bearer <JWT>`
 
@@ -576,6 +577,7 @@ public class BankAccountInfoCryptoConverter implements AttributeConverter<BankAc
   "sitterId": "987f6543-a21b-43c2-e890-123456789000",
   "status": "PENDING_PAYMENT",
   "totalAmount": 1500,
+  "amountDue": 1500,
   "adjustmentAmount": 0,
   "adjustmentReason": null,
   "paymentProofUrl": null,
@@ -793,6 +795,7 @@ public class OrderDetailResponseDto {
     private UUID sitterId;
     private String status;
     private Integer totalAmount;
+    private Integer amountDue; // 本次應付金額：首次付款 = totalAmount；訂單變更補款 = 差額 (SD-016 §4.2)
     private Integer adjustmentAmount;
     private String adjustmentReason;
     private String paymentProofUrl;

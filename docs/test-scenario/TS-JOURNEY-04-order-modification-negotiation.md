@@ -32,8 +32,8 @@
 | 4 | UI：接受預填總額，送出報價 | 顯示「報價已送出」 | `POST .../modification/quote` 200，`ModificationRequest=QUOTED`，`diffAmount=+600` |
 | 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `$ -600` 也會通過，分不出補款/退款方向） |
 | 6 | UI：確認變更 | 顯示「變更已確認」 | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT` |
-| 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 憑證送出成功 | `POST .../payment-proof` 200，`Order=PAID` |
-| 8 | UI：保母核對入帳 | 訂單正式回到成立狀態 | `POST .../verify-payment` 200，`Order=CONFIRMED` |
+| 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
+| 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（`verify-amount-due`）；訂單正式回到成立狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`POST .../verify-payment` 200，`Order=CONFIRMED` |
 
 ### 退款分支
 
@@ -76,3 +76,5 @@
 3. **BOLA（Broken Object Level Authorization）**：`POST .../modification/refund-proof`（保母上傳退款憑證）與 `POST .../modification/refund-confirm`（飼主確認收到退款）這兩支端點——SD-016 文件標注的「[新增]」端點——過去完全沒有 `@PreAuthorize`，身份也不是從 JWT（`TokenContext`）取得，而是直接信任前端傳來的 `sitterId`/`ownerId` query param，只驗證「這個 ID 是不是該訂單的當事人」，沒驗證「呼叫者是不是這個 ID 本人」。實際影響：該訂單的保母本來就合法看得到自己訂單的 `ownerId`，等於保母能自行呼叫 `refund-confirm` 冒充飼主完成退款確認，繞過飼主二次確認的把關意義。同檔案內其餘四支端點（propose/quote/reject/confirm）都正確用 `@PreAuthorize` + `TokenContext.getUserId()`，只有這兩支新增的端點是舊 pattern。已修復並補上 4 支迴歸測試（`OrderControllerTest` 內以「迴歸測試 (BOLA)」為前綴）。
 
 三項修復後，全量後端測試 `mvn test` 219 個測試綠燈。
+
+4. **補款頁顯示新總額而不是應補差額（2026-10，驗收 P8）**：`confirmModification()` 會把 `Order.totalAmount` 直接改成變更後新總額（例：$600 → $1,200）再轉 `PENDING_PAYMENT`，而 `GET /api/orders/{id}` / `GET /api/orders/sitter` 過去只回 `totalAmount`，系統裡根本沒有「這次要付多少」的欄位。結果 `OwnerOrderDetail` 補款頁顯示「訂單金額 $1,200」，飼主照著匯就會多匯一倍；保母核對入帳時看到的也是 $1,200，收到 $600 反而會以為短付而駁回。PRD-016 主流程 C.3 寫明「應補款：等待飼主支付**差額**」，所以這是後端缺欄位 + 前端顯示錯欄位兩層問題。修法：兩個 DTO 新增 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`：訂單處於 `PENDING_PAYMENT`/`PAID` 且最新一筆變更請求為 `M_DONE`、`diffAmount > 0` 時回差額，其餘回 `totalAmount`）；飼主付款頁顯示「本次應補差額」區塊、總額列改標「變更後訂單總額」，保母核對面板顯示「本次應收補款差額」。迴歸測試：`OrderQueryServiceListTest` 三支（補款回差額、首次付款回總額、退款/已結清不誤判），以及本 journey 步驟 7、8 的 UI 斷言。

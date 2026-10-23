@@ -19,6 +19,8 @@ public class OrderSummaryDto {
     private String sitterName;
     private String status;
     private Integer totalAmount;
+    /** 本次應付金額，定義同 OrderDetailResponseDto.amountDue（保母核對入帳時比對用） */
+    private Integer amountDue;
     private String paymentProofUrl;
     private String paymentProofLastFive;
     private String scheduledDatesLabel;

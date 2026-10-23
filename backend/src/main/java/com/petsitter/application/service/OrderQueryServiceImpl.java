@@ -6,10 +6,12 @@ import com.petsitter.application.dto.OrderSummaryDto;
 import com.petsitter.application.dto.SitterLedgerResponse;
 import com.petsitter.application.dto.VisitSummaryDto;
 import com.petsitter.domain.model.BankAccountInfo;
+import com.petsitter.domain.model.ModificationRequest;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.model.Visit;
+import com.petsitter.domain.repository.ModificationRequestRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.VisitRepository;
@@ -33,6 +35,9 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     private final OrderRepository orderRepository;
     private final ProfileRepository profileRepository;
     private final VisitRepository visitRepository;
+    private final ModificationRequestRepository modificationRequestRepository;
+
+    private static final List<String> PAYMENT_STATUSES = List.of("PENDING_PAYMENT", "PAID");
 
     @Override
     @Transactional(readOnly = true)
@@ -59,6 +64,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .sitterId(order.getSitter().getId())
                 .status(order.getStatus())
                 .totalAmount(order.getTotalAmount())
+                .amountDue(resolveAmountDue(order))
                 .version(order.getVersion())
                 .adjustmentAmount(order.getAdjustmentAmount())
                 .adjustmentReason(order.getAdjustmentReason())
@@ -160,10 +166,32 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .sitterName(order.getSitter().getFullName())
                 .status(order.getStatus())
                 .totalAmount(order.getTotalAmount())
+                .amountDue(resolveAmountDue(order))
                 .paymentProofUrl(order.getPaymentProofUrl())
                 .paymentProofLastFive(order.getPaymentProofLastFive())
                 .scheduledDatesLabel(buildScheduledDatesLabel(order.getItems()))
                 .build();
+    }
+
+    /**
+     * 本次應付金額 (PRD-016 主流程 C.3「應補款：等待飼主支付差額」)。
+     * confirmModification() 會把 Order.totalAmount 直接改成新總額再轉 PENDING_PAYMENT，
+     * 前端過去只拿得到 totalAmount，補款頁就顯示新總額 $1,200 而不是應補的 $600，飼主會多匯。
+     * 只有付款相關狀態才需要判斷；變更只能從 CONFIRMED/IN_PROGRESS 發起，所以處於
+     * PENDING_PAYMENT/PAID 時若最新一筆變更請求是 M_DONE 且差額為正，這筆款項必然是補款。
+     */
+    private int resolveAmountDue(Order order) {
+        if (!PAYMENT_STATUSES.contains(order.getStatus())) {
+            return order.getTotalAmount();
+        }
+        List<ModificationRequest> history = modificationRequestRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+        if (!history.isEmpty()) {
+            ModificationRequest latest = history.get(0);
+            if ("M_DONE".equals(latest.getStatus()) && latest.getDiffAmount() != null && latest.getDiffAmount() > 0) {
+                return latest.getDiffAmount();
+            }
+        }
+        return order.getTotalAmount();
     }
 
     private String buildScheduledDatesLabel(List<OrderItem> items) {

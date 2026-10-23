@@ -367,6 +367,16 @@ const SitterOrders: React.FC = () => {
                       fontSize: '0.875rem'
                     }}
                   >
+                    {/* 訂單變更補款：飼主只會匯差額，核對時要比對差額而不是預估總額 */}
+                    {order.amountDue != null && order.amountDue !== order.totalAmount && (
+                      <div data-testid="verify-amount-due">
+                        本次應收補款差額：
+                        <strong style={{ color: 'var(--color-primary)' }}>
+                          $ {order.amountDue.toLocaleString()}
+                        </strong>
+                        （變更後總額 $ {order.totalAmount.toLocaleString()}）
+                      </div>
+                    )}
                     <div>
                       飼主轉帳後五碼：
                       <strong style={{ color: 'var(--color-primary)' }}>

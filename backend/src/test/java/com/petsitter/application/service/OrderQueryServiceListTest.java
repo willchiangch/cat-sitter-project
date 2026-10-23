@@ -1,9 +1,12 @@
 package com.petsitter.application.service;
 
+import com.petsitter.application.dto.OrderDetailResponseDto;
 import com.petsitter.application.dto.OrderSummaryDto;
+import com.petsitter.domain.model.ModificationRequest;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.User;
+import com.petsitter.domain.repository.ModificationRequestRepository;
 import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,11 +55,15 @@ class OrderQueryServiceListTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ModificationRequestRepository modificationRequestRepository;
+
     private User owner;
     private User sitter;
 
     @BeforeEach
     void setUp() {
+        modificationRequestRepository.deleteAll();
         orderRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -148,5 +155,61 @@ class OrderQueryServiceListTest {
 
         assertThat(cleaned).isEqualTo(1);
         assertThat(orderQueryService.getMyOrdersAsOwner(seedOwner.getId())).isEmpty();
+    }
+    private void saveModification(Order order, String status, int diffAmount) {
+        modificationRequestRepository.save(ModificationRequest.builder()
+                .order(order)
+                .requestedBy("OWNER")
+                .status(status)
+                .diffAmount(diffAmount)
+                .newTotalAmount(order.getTotalAmount())
+                .previousStatus("CONFIRMED")
+                .build());
+    }
+
+    @Test
+    @DisplayName("迴歸測試 (P8)：訂單變更補款時，應付金額是差額而非新總額（飼主詳情與保母清單一致）")
+    void amountDue_IsDiffAmount_When_PendingTopUpAfterModification() {
+        // confirmModification() 已把 totalAmount 從 600 改成新總額 1200 並轉 PENDING_PAYMENT
+        Order order = createOrder(owner, sitter, "PENDING_PAYMENT");
+        order.setTotalAmount(1200);
+        order = orderRepository.save(order);
+        saveModification(order, "M_DONE", 600);
+
+        OrderDetailResponseDto detail = orderQueryService.getOrderDetail(order.getId(), owner.getId());
+        assertThat(detail.getTotalAmount()).isEqualTo(1200);
+        assertThat(detail.getAmountDue()).isEqualTo(600);
+
+        // 飼主上傳補款憑證後 (PAID)，保母核對入帳時看到的也必須是 600
+        order.setStatus("PAID");
+        orderRepository.save(order);
+        OrderSummaryDto summary = orderQueryService.getMyOrdersAsSitter(sitter.getId()).get(0);
+        assertThat(summary.getTotalAmount()).isEqualTo(1200);
+        assertThat(summary.getAmountDue()).isEqualTo(600);
+    }
+
+    @Test
+    @DisplayName("首次付款（沒有任何變更請求）應付金額等於訂單總額")
+    void amountDue_EqualsTotal_When_InitialPayment() {
+        Order order = createOrder(owner, sitter, "PENDING_PAYMENT");
+
+        OrderDetailResponseDto detail = orderQueryService.getOrderDetail(order.getId(), owner.getId());
+        assertThat(detail.getAmountDue()).isEqualTo(2400);
+        assertThat(orderQueryService.getMyOrdersAsOwner(owner.getId()).get(0).getAmountDue()).isEqualTo(2400);
+    }
+
+    @Test
+    @DisplayName("退款分支與非付款狀態不會把差額誤當成應付金額")
+    void amountDue_EqualsTotal_When_RefundOrNotInPaymentStatus() {
+        Order refundOrder = createOrder(owner, sitter, "REFUND_VERIFY");
+        saveModification(refundOrder, "M_DONE", -600);
+        assertThat(orderQueryService.getOrderDetail(refundOrder.getId(), owner.getId()).getAmountDue())
+                .isEqualTo(2400);
+
+        // 補款已核對入帳 (CONFIRMED) 後就不再有應付款，回到總額
+        Order settledTopUp = createOrder(owner, sitter, "CONFIRMED");
+        saveModification(settledTopUp, "M_DONE", 600);
+        assertThat(orderQueryService.getOrderDetail(settledTopUp.getId(), owner.getId()).getAmountDue())
+                .isEqualTo(2400);
     }
 }

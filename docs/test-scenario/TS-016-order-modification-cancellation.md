@@ -11,7 +11,7 @@
 ## Scenario 1: 雙向變更與快照重算 (補款路徑)
 * **Given**: 訂單已支付，狀態 `CONFIRMED`。
 * **When**: 飼主申請「增加兩天」，保母報價後，飼主點擊 `confirm` 同意支付差額。
-* **Then**: 系統重新獲取 **Sorted Advisory Locks**。訂單狀態轉回 `PENDING_PAYMENT`。
+* **Then**: 系統重新獲取 **Sorted Advisory Locks**。訂單狀態轉回 `PENDING_PAYMENT`；訂單詳情/清單的 `amountDue` 為差額（非新總額），飼主付款頁顯示「本次應補差額」。
 
 ## Scenario 2: 線下退款憑證核銷 (退款路徑)
 * **Given**: 狀態為 `MODIFYING`。保母報價退款 200 元，飼主點擊 `confirm`。
@@ -62,6 +62,7 @@
 | 3 | 飼主最終確認 | 解除退款凍結 | **State Cleanup**: `waiting_for_owner_action` 轉為 `false`。 |
 | 4 | 保母拒絕變更 | 訂單狀態依快照復原 | `modification_requests.previous_status` 讀取，非寫死值 |
 | 5 | 確認金額與報價不符 | 拒絕確認 | `diffAmount` 與 `agreedDiffAmount` 比對 |
+| 6 | 補款確認後查詢訂單 | 應付金額為差額 | `amountDue = diffAmount`、`totalAmount = 新總額`（`OrderQueryServiceListTest.amountDue_IsDiffAmount_When_PendingTopUpAfterModification`） |
 
 ---
 
@@ -69,5 +70,6 @@
 - **測試專案**: `backend`
 - **測試類別**: [ModificationServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/ModificationServiceTest.java), [ModificationServiceIntegrationTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/ModificationServiceIntegrationTest.java)
 - **E2E 對應**: [order-modification.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/order-modification.spec.ts)
-- **執行指令**: `mvn test -Dtest=ModificationServiceTest,ModificationServiceIntegrationTest`
+- **補款應付金額 (P8 迴歸)**: [OrderQueryServiceListTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/OrderQueryServiceListTest.java)；E2E `frontend/e2e/journeys/order-modification-negotiation.spec.ts` 補款分支步驟 7/8
+- **執行指令**: `mvn test -Dtest=ModificationServiceTest,ModificationServiceIntegrationTest,OrderQueryServiceListTest`
 - **最後驗證日期**: 2026-07-18

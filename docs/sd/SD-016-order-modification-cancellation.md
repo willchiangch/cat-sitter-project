@@ -183,10 +183,16 @@ sequenceDiagram
 | 變更結果 | 最終狀態遷移 (Confirm / Refund Confirm 後) |
 |---------|------------|
 | 需退款 (線下) | `MODIFYING` -> `REFUND_VERIFY` -> `CONFIRMED` / `CANCELLED` |
-| 需補款 (線上/線下) | `MODIFYING` -> `PENDING_PAYMENT` -> `CONFIRMED` |
+| 需補款 (線上/線下) | `MODIFYING` -> `PENDING_PAYMENT` -> `CONFIRMED`（應付金額為 `diffAmount`，見 4.2） |
 | 無金額變動 | `MODIFYING` -> `CONFIRMED` |
 | 整筆取消 (無退款 / 線上退刷成功) | `MODIFYING` -> `CANCELLED` |
 | 保母拒絕變更 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`，依發起變更當下快照決定，非寫死） |
+
+### 4.2 補款應付金額 (`amountDue`)
+- `confirmModification()` 會把 `Order.totalAmount` 直接更新為變更後新總額，因此 `totalAmount` **不是**飼主這次要匯的金額。
+- `GET /api/orders/{orderId}` 與 `GET /api/orders/owner|sitter` 回應帶 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`）：訂單處於 `PENDING_PAYMENT`/`PAID` 且該訂單最新一筆 `ModificationRequest` 為 `M_DONE`、`diffAmount > 0` 時 = `diffAmount`；其餘情況 = `totalAmount`（首次付款）。變更只能從 `CONFIRMED`/`IN_PROGRESS` 發起，所以付款狀態下最新一筆 `M_DONE` 正差額必然是本次補款。
+- 前端：`OwnerOrderDetail` 補款時顯示「本次應補差額」並把總額列改標「變更後訂單總額」；`SitterOrders` 核對面板顯示「本次應收補款差額」。
+- **2026-10 修復**：過去 DTO 沒有此欄位，補款頁顯示新總額 $1,200 而非應補 $600，飼主會多匯、保母會誤判短付。迴歸測試見 `OrderQueryServiceListTest`。
 
 ---
 

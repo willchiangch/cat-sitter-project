@@ -183,6 +183,10 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
   }
 
   const { status, totalAmount, sitterPaymentInfo, paymentProofUrl, paymentProofLastFive } = order;
+  const isPaymentStage = status === 'PENDING_PAYMENT' || status === 'PAID';
+  const amountDue = order.amountDue ?? totalAmount;
+  // 訂單變更補款：totalAmount 已是變更後新總額，飼主只需匯差額 (PRD-016 主流程 C.3)
+  const isTopUp = isPaymentStage && amountDue !== totalAmount;
 
   return (
     <div
@@ -265,12 +269,55 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
           }}
         >
           <span style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--color-on-surface)' }}>
-            訂單金額
+            {isTopUp ? '變更後訂單總額' : '訂單金額'}
           </span>
-          <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-primary)' }}>
+          <span
+            data-testid="order-total-amount"
+            style={{
+              fontSize: isTopUp ? '1rem' : '1.5rem',
+              fontWeight: isTopUp ? '600' : '800',
+              color: isTopUp ? 'var(--color-on-surface-variant)' : 'var(--color-primary)'
+            }}
+          >
             $ {totalAmount.toLocaleString()}
           </span>
         </div>
+
+        {/* 訂單變更補款：顯示本次應補差額，避免飼主照新總額整筆匯款 */}
+        {isTopUp && (
+          <div
+            data-testid="payment-top-up-notice"
+            style={{
+              backgroundColor: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderRadius: '8px',
+              padding: '1rem 1.25rem',
+              marginBottom: '2rem'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <span style={{ fontSize: '1rem', fontWeight: '700', color: '#92400e' }}>
+                本次應補差額
+              </span>
+              <span
+                data-testid="payment-amount-due"
+                style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-primary)' }}
+              >
+                $ {amountDue.toLocaleString()}
+              </span>
+            </div>
+            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8125rem', color: '#92400e' }}>
+              訂單已依變更協商調整為 $ {totalAmount.toLocaleString()}，原訂單款項已付清，
+              本次只需匯入差額 $ {amountDue.toLocaleString()}。
+            </p>
+          </div>
+        )}
 
         {/* 轉帳帳戶資訊區塊 (僅在 PENDING_PAYMENT 與 PAID 狀態且 sitterPaymentInfo 存在時顯示) */}
         {(status === 'PENDING_PAYMENT' || status === 'PAID') &&

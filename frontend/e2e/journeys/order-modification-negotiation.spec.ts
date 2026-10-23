@@ -78,6 +78,10 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     await step('飼主補款上傳憑證', page, async () => {
       await page.goto(`/owner/orders/${orderId}`);
       await expect(page.getByTestId('input-payment-last-five')).toBeVisible({ timeout: 10000 });
+      // 迴歸 (P8)：補款頁過去只顯示新總額 $1,200，飼主會整筆多匯；應補的是差額 $600
+      await expect(page.getByTestId('payment-amount-due')).toHaveText('$ 600');
+      await expect(page.getByTestId('order-total-amount')).toHaveText('$ 1,200');
+      await expect(page.getByTestId('payment-top-up-notice')).toBeVisible();
       await page.getByTestId('input-payment-last-five').fill('54321');
       await page.getByTestId('input-payment-file').setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
       await page.getByTestId('checkbox-disclaimer-agreed').check();
@@ -93,6 +97,8 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await sitterPage.goto('/sitter/orders');
       await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(sitterPage.getByTestId('btn-verify-payment')).toBeVisible({ timeout: 10000 });
+      // 迴歸 (P8)：保母核對時也要看到應收的是差額 $600，而不是預估總額 $1,200
+      await expect(sitterPage.getByTestId('verify-amount-due')).toContainText('$ 600');
       await snap(sitterPage, '核對入帳前');
       await sitterPage.getByTestId('btn-verify-payment').click();
       await expectDialog(sitterDialogs, /入帳核對確認成功/);
