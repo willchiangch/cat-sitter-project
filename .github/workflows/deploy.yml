@@ -142,5 +142,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: frontend/report/
+          # test-results/ 內有 evidence/（逐步截圖+manifest.jsonl），給 e2e-triage / e2e-acceptance agent 用
+          path: |
+            frontend/report/
+            frontend/test-results/
           retention-days: 3

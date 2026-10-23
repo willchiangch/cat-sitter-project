@@ -14,7 +14,11 @@ export default defineConfig({
   },
 
   // 報告輸出至 report/ 資料夾
-  reporter: [['html', { outputFolder: 'report', open: 'never' }]],
+  // results.json 給 e2e agent 讀（失敗訊息、步驟樹、附件路徑），html 給人看
+  reporter: [
+    ['html', { outputFolder: 'report', open: 'never' }],
+    ['json', { outputFile: 'report/results.json' }]
+  ],
   
   // 測試結果儲存位置
   outputDir: 'test-results/',
@@ -22,8 +26,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
     
-    // 僅開啟截圖與 Trace，關閉錄影
-    screenshot: 'on',
+    // 僅開啟截圖與 Trace，關閉錄影。
+    // 注意：這個設定只會在測試結束時截 `page` fixture 一張；逐步驟證據由 e2e/support/evidence.ts 的 step()/snap() 負責
+    screenshot: { mode: 'on', fullPage: true },
     video: 'off',
     trace: 'on', 
     

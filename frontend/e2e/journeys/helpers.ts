@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
-import type { APIRequestContext, Page, TestInfo } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -419,9 +419,4 @@ export async function pollUntil<T>(
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   } while (Date.now() < deadline);
   throw new Error(`pollUntil timed out after ${timeoutMs}ms, last value=${JSON.stringify(last)}`);
-}
-
-/** 比照 client-booking.spec.ts 的截圖慣例，附進 HTML 報告 */
-export async function attachScreenshot(page: Page, testInfo: TestInfo, name: string) {
-  await testInfo.attach(name, { body: await page.screenshot(), contentType: 'image/png' });
 }

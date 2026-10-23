@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
 import { provisionAndLogin, switchRole, apiAuthed, loginAsSeedAdmin, bootstrapConfirmedOrder, awaitOrderStatus } from './helpers';
+import { step, apiStep } from '../support/evidence';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,8 +17,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
   test.setTimeout(120000);
 
-  test('未通過 KYC 的保母，匿名公開頁應被模糊化', async ({ request, browser }, testInfo) => {
-    const sitter = await test.step('前置：建立保母帳號並送出 KYC，但不經過 admin 審核', async () => {
+  test('未通過 KYC 的保母，匿名公開頁應被模糊化', async ({ request, browser }) => {
+    const sitter = await apiStep('前置：建立保母帳號並送出 KYC，但不經過 admin 審核', async () => {
       let account = await provisionAndLogin(request, 'e1', 'SITTER', 'Journey保母E1未過審');
       account = await switchRole(request, account, 'SITTER');
 
@@ -42,26 +43,25 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       return account;
     });
 
-    await test.step('未登入訪客打開此保母的公開頁，應被 gate', async () => {
-      const anonContext = await browser.newContext();
-      const anonPage = await anonContext.newPage();
+    const anonContext = await browser.newContext();
+    const anonPage = await anonContext.newPage();
+    await step('未登入訪客打開此保母的公開頁，應被 gate', anonPage, async () => {
       await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
       await expect(anonPage.getByTestId('public-profile-gated-banner')).toBeVisible({ timeout: 10000 });
       await expect(anonPage.getByTestId('public-profile-display-name')).not.toHaveText(/Journey保母E1/);
       await expect(anonPage.getByTestId('public-profile-plan-item')).not.toBeVisible();
       await expect(anonPage.getByTestId('public-profile-book-now-btn')).not.toBeVisible();
-      await testInfo.attach('E-01-未過審保母公開頁被gate', { body: await anonPage.screenshot(), contentType: 'image/png' });
-      await anonContext.close();
     });
+    await anonContext.close();
   });
 
-  test('保母停權後，公開頁被 gate，但停權前已存在的進行中訂單不受影響', async ({ request, browser }, testInfo) => {
-    const { sitter, owner, orderId } = await test.step('前置：兜出一筆 CONFIRMED 訂單（此時保母仍為正常 VERIFIED 狀態）', async () => {
+  test('保母停權後，公開頁被 gate，但停權前已存在的進行中訂單不受影響', async ({ request, browser }) => {
+    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆 CONFIRMED 訂單（此時保母仍為正常 VERIFIED 狀態）', async () => {
       return bootstrapConfirmedOrder(request, 'e2', 'Journey方案E2');
     });
 
-    await test.step('Admin 將此保母停權', async () => {
+    await apiStep('Admin 將此保母停權', async () => {
       const admin = await loginAsSeedAdmin(request);
       const suspendRes = await request.post(`/api/admin/sitters/${sitter.userId}/suspend`, {
         headers: { ...apiAuthed(admin), 'Idempotency-Key': randomUUID() },
@@ -70,19 +70,19 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       if (!suspendRes.ok()) {
         throw new Error(`suspend failed (${suspendRes.status()}): ${await suspendRes.text()}`);
       }
+      return { status: suspendRes.status() };
     });
 
-    await test.step('未登入訪客打開此保母的公開頁，應被 gate（停權跟未過審共用同一套 gating 邏輯）', async () => {
-      const anonContext = await browser.newContext();
-      const anonPage = await anonContext.newPage();
+    const anonContext = await browser.newContext();
+    const anonPage = await anonContext.newPage();
+    await step('未登入訪客打開此保母的公開頁，應被 gate（停權跟未過審共用同一套 gating 邏輯）', anonPage, async () => {
       await anonPage.goto(`/sitter/${sitter.userId}/profile`);
 
       await expect(anonPage.getByTestId('public-profile-gated-banner')).toBeVisible({ timeout: 10000 });
-      await testInfo.attach('E-02-停權後保母公開頁被gate', { body: await anonPage.screenshot(), contentType: 'image/png' });
-      await anonContext.close();
     });
+    await anonContext.close();
 
-    await test.step('停權前已存在的 CONFIRMED 訂單，Check-in 仍應正常成功（邊界：停權不影響進行中訂單）', async () => {
+    await apiStep('停權前已存在的 CONFIRMED 訂單，Check-in 仍應正常成功（邊界：停權不影響進行中訂單）', async () => {
       const visitsRes = await request.get(`/api/orders/${orderId}/visits`, { headers: apiAuthed(sitter) });
       if (!visitsRes.ok()) {
         throw new Error(`get visits failed (${visitsRes.status()}): ${await visitsRes.text()}`);
@@ -97,11 +97,8 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       // 如果之後有人不小心把停權邏輯擴大成連 Check-in 都擋，這支測試會直接紅燈提醒
       expect(startRes.ok()).toBeTruthy();
 
-      await awaitOrderStatus(request, owner, orderId, ['IN_PROGRESS']);
-      await testInfo.attach('E-03-停權後仍可正常Check-in', {
-        body: Buffer.from(JSON.stringify(await startRes.json(), null, 2)),
-        contentType: 'application/json'
-      });
+      const order = await awaitOrderStatus(request, owner, orderId, ['IN_PROGRESS']);
+      return { checkIn: await startRes.json(), order };
     });
   });
 });

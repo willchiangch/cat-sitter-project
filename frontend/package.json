@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
+    "e2e:lint": "node scripts/check-e2e-evidence.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.10",

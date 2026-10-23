@@ -65,3 +65,6 @@ CLAUDE.md
 
 # === Agent Brain (Do NOT ignore these) ===
 # !.agent/brain/*.md
+
+# e2e agent 交接檔（runner/triage/fixer/acceptance）
+.e2e-runs/

@@ -5,9 +5,9 @@ import {
   bootstrapConfirmedOrder,
   setBrowserAuth,
   awaitOrderStatus,
-  awaitNotification,
-  apiAuthed
+  awaitNotification
 } from './helpers';
+import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,83 +20,91 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
   test.setTimeout(120000);
 
-  test('保母打卡寫日誌到飼主確認結案，全流程可正常運作', async ({ page, request, browser }, testInfo) => {
-    const { sitter, owner, orderId } = await test.step('前置：兜出一筆 CONFIRMED 訂單', async () => {
+  test('保母打卡寫日誌到飼主確認結案，全流程可正常運作', async ({ page, request, browser }) => {
+    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆 CONFIRMED 訂單', async () => {
       return bootstrapConfirmedOrder(request, 'c', 'Journey方案C');
     });
 
     await setBrowserAuth(page, sitter, 'sitter');
-    page.on('dialog', (dialog) => dialog.accept());
+    trackDialogs(page);
 
-    await test.step('保母從訂單列表真實點入行程並 Check-in', async () => {
+    await step('C-02 保母從訂單列表真實點入行程並 Check-in', page, async () => {
       await page.goto('/sitter/orders');
       await page.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(page.getByTestId('sitter-order-visit-link')).toBeVisible({ timeout: 10000 });
-      await testInfo.attach('C-01-進行中分頁行程清單', { body: await page.screenshot(), contentType: 'image/png' });
+      await snap(page, 'C-01 進行中分頁行程清單');
 
       await page.getByTestId('sitter-order-visit-link').click();
       await expect(page.getByTestId('sitter-report-start-visit-btn')).toBeVisible();
+      await snap(page, 'C-02 Check-in 前待執行面板');
       await page.getByTestId('sitter-report-start-visit-btn').click();
       await expect(page.getByText('已成功 Check-in')).toBeVisible({ timeout: 10000 });
       // Check-in 前查無草稿，GET /report 過去對保母分支會 404，前端 fallback 又寫死
       // visitStatus=PENDING，導致畫面卡死在待執行面板進不去編輯畫面——這是本次跟著
       // Journey C 一起修的真實 bug（見 SD-008 4.1 節），這裡直接斷言編輯面板正常切換
       await expect(page.getByTestId('sitter-report-content-input')).toBeVisible({ timeout: 10000 });
-      await testInfo.attach('C-02-Check-in完成', { body: await page.screenshot(), contentType: 'image/png' });
 
       await awaitOrderStatus(request, sitter, orderId, ['IN_PROGRESS']);
     });
 
-    await test.step('確認飼主收到 Check-in 通知', async () => {
+    await apiStep('C-03 確認飼主收到 Check-in 通知', async () => {
       const notification = await awaitNotification(request, owner, { category: 'SERVICE_RECORD', role: 'OWNER' });
       expect(notification.category).toBe('SERVICE_RECORD');
+      return notification;
     });
 
     const reportContent = `Journey C 照護日誌內容-${Date.now()}`;
-    await test.step('保母撰寫日誌並上傳照片', async () => {
+    await step('C-04 保母撰寫日誌並上傳照片', page, async () => {
       await page.getByTestId('sitter-report-content-input').fill(reportContent);
       await page.getByTestId('sitter-report-save-draft-btn').click();
-      await testInfo.attach('C-04-日誌草稿已存', { body: await page.screenshot(), contentType: 'image/png' });
+      // 舊版 click 完直接截圖，截到的是「儲存中...」或尚未出現成功訊息的畫面
+      await expect(page.getByText('暫存草稿儲存成功')).toBeVisible({ timeout: 10000 });
+      await snap(page, 'C-04 日誌草稿已存');
 
       await page.getByTestId('sitter-report-media-file-input').setInputFiles(
         path.join(__dirname, 'fixtures/report-photo.jpg')
       );
       await page.getByTestId('sitter-report-media-caption-input').fill('現場照片');
+      await snap(page, 'C-04 照片與說明填寫完成');
       await page.getByTestId('sitter-report-media-upload-btn').click();
       await expect(page.getByText('多媒體檔案上傳成功')).toBeVisible({ timeout: 10000 });
-      await testInfo.attach('C-04-照片上傳完成', { body: await page.screenshot(), contentType: 'image/png' });
     });
 
-    await test.step('保母結束服務並送出報告', async () => {
+    await step('C-06 保母結束服務並送出報告', page, async () => {
       await page.getByTestId('sitter-report-end-visit-btn').click();
       await expect(page.getByTestId('sitter-report-submit-btn')).toBeVisible({ timeout: 10000 });
-      await testInfo.attach('C-05-結束服務', { body: await page.screenshot(), contentType: 'image/png' });
+      await snap(page, 'C-05 結束服務');
 
       await page.getByTestId('sitter-report-submit-btn').click();
-      await testInfo.attach('C-06-報告送出', { body: await page.screenshot(), contentType: 'image/png' });
+      // 舊版 click 完直接截圖，截到的是送出前的畫面
+      await expect(page.getByText('照護日誌已成功送出！')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('已完工 (已送出)')).toBeVisible();
     });
 
     const ownerContext = await browser.newContext();
     const ownerPage = await ownerContext.newPage();
     await setBrowserAuth(ownerPage, owner, 'client');
-    ownerPage.on('dialog', (dialog) => dialog.accept());
+    const ownerDialogs = trackDialogs(ownerPage);
 
-    await test.step('飼主從訂單詳情真實點入查看日誌', async () => {
+    await step('C-07 飼主從訂單詳情真實點入查看日誌', ownerPage, async () => {
       await ownerPage.goto(`/owner/orders/${orderId}`);
       await expect(ownerPage.getByTestId('owner-order-visit-link')).toBeVisible({ timeout: 10000 });
       await ownerPage.getByTestId('owner-order-visit-link').click();
 
       await expect(ownerPage.getByTestId('client-report-text-card')).toContainText(reportContent, { timeout: 10000 });
       await expect(ownerPage.getByTestId('client-report-media-card')).toBeVisible();
-      await testInfo.attach('C-07-飼主看到日誌', { body: await ownerPage.screenshot(), contentType: 'image/png' });
     });
 
-    await test.step('飼主確認結案', async () => {
+    await step('C-08 飼主確認結案', ownerPage, async () => {
       await ownerPage.goto(`/owner/orders/${orderId}`);
       await expect(ownerPage.getByTestId('complete-order-btn')).toBeVisible({ timeout: 10000 });
+      await snap(ownerPage, 'C-08 結案前訂單詳情');
       await ownerPage.getByTestId('complete-order-btn').click();
+      await expectDialog(ownerDialogs, /訂單已順利結案/);
       await awaitOrderStatus(request, owner, orderId, ['COMPLETED']);
-      await testInfo.attach('C-08-訂單結案', { body: await ownerPage.screenshot(), contentType: 'image/png' });
+      // 結案後頁面不一定重抓訂單，reload 後才是真正的 COMPLETED 畫面
+      await ownerPage.reload();
+      await expect(ownerPage.getByTestId('completed-status-banner')).toBeVisible({ timeout: 10000 });
     });
 
     await ownerContext.close();
