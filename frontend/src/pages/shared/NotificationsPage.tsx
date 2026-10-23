@@ -7,6 +7,7 @@ import {
   useMarkAllAsReadMutation
 } from '../../hooks/useNotifications';
 import type { NotificationDto } from '../../api/notificationApi';
+import { resolveNotificationLink } from '../../components/notifications/resolveNotificationLink';
 
 export const NotificationsPage: React.FC = () => {
   const { currentRole } = useRole();
@@ -28,15 +29,10 @@ export const NotificationsPage: React.FC = () => {
     if (!noti.isRead) {
       await markAsReadMutation.mutateAsync(noti.id);
     }
-    
-    // 依據 linkUrl 切換視圖
-    if (noti.linkUrl === '/sitter/orders') {
-      navigate('/sitter/orders');
-    } else if (noti.linkUrl === '/client/orders') {
-      navigate('/owner/orders');
-    } else if (noti.linkUrl === '/sitter/kyc') {
-      navigate('/sitter/kyc');
-    }
+
+    // 依據 linkUrl 切換視圖（舊通知的不存在路徑在 resolveNotificationLink 轉換）
+    const target = resolveNotificationLink(noti.linkUrl);
+    if (target) navigate(target);
   };
 
   const getCategoryLabel = (category: string) => {
@@ -76,8 +72,16 @@ export const NotificationsPage: React.FC = () => {
       {/* 標題區 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--color-on-surface)' }}>通知中心</h2>
-          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
+          <h2 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--color-on-surface)' }}>
+            通知中心
+          </h2>
+          <p
+            style={{
+              margin: '0.25rem 0 0 0',
+              fontSize: '0.875rem',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
             查看與您角色相關的最新系統與交易通知
           </p>
         </div>
@@ -99,7 +103,9 @@ export const NotificationsPage: React.FC = () => {
 
       {/* 通知列表 */}
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-on-surface-variant)' }}>
+        <div
+          style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-on-surface-variant)' }}
+        >
           載入通知中...
         </div>
       ) : isError ? (
@@ -140,8 +146,12 @@ export const NotificationsPage: React.FC = () => {
                   cursor: 'pointer',
                   padding: '1.25rem',
                   position: 'relative',
-                  borderLeft: noti.isRead ? '4px solid transparent' : '4px solid var(--color-primary)',
-                  backgroundColor: noti.isRead ? 'var(--color-surface-lowest)' : 'var(--color-surface-low)',
+                  borderLeft: noti.isRead
+                    ? '4px solid transparent'
+                    : '4px solid var(--color-primary)',
+                  backgroundColor: noti.isRead
+                    ? 'var(--color-surface-lowest)'
+                    : 'var(--color-surface-low)',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   display: 'flex',
                   gap: '1rem',
@@ -173,7 +183,14 @@ export const NotificationsPage: React.FC = () => {
 
                 {/* 內容區 */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      flexWrap: 'wrap'
+                    }}
+                  >
                     <span
                       style={{
                         padding: '2px 8px',
@@ -192,8 +209,17 @@ export const NotificationsPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-on-surface)' }}>{noti.title}</h4>
-                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-on-surface-variant)', lineHeight: 1.5 }}>
+                  <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-on-surface)' }}>
+                    {noti.title}
+                  </h4>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: '0.9rem',
+                      color: 'var(--color-on-surface-variant)',
+                      lineHeight: 1.5
+                    }}
+                  >
                     {noti.content}
                   </p>
                 </div>
@@ -203,7 +229,15 @@ export const NotificationsPage: React.FC = () => {
 
           {/* 分頁按鈕 */}
           {data.totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '1rem',
+                marginTop: '1rem'
+              }}
+            >
               <button
                 className="btn-primary"
                 style={{ padding: '6px 12px', fontSize: '0.8rem' }}

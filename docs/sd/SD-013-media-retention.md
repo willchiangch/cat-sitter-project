@@ -399,7 +399,7 @@ public class MediaExpiryNotificationListener {
             "照護影像即將過期提醒",
             content,
             "SERVICE_RECORD",
-            "/visits/report?orderId=" + event.getOrderId(),
+            "/owner/orders/" + event.getOrderId(), // 2026-10 前誤寫為不存在的 /visits/report?orderId=（SD-014 §6.1）
             "OWNER"
         );
     }

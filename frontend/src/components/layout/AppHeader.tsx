@@ -10,6 +10,7 @@ import {
 } from '../../hooks/useNotifications';
 import { getSitterKycStatus } from '../../api/kycApi';
 import type { NotificationDto } from '../../api/notificationApi';
+import { resolveNotificationLink } from '../notifications/resolveNotificationLink';
 
 const AppHeader: React.FC = () => {
   const { currentRole } = useRole();
@@ -64,15 +65,10 @@ const AppHeader: React.FC = () => {
     if (!noti.isRead) {
       await markAsReadMutation.mutateAsync(noti.id);
     }
-    
-    // 依據 linkUrl 切換視圖
-    if (noti.linkUrl === '/sitter/orders') {
-      navigate('/sitter/orders');
-    } else if (noti.linkUrl === '/client/orders') {
-      navigate('/owner/orders');
-    } else if (noti.linkUrl === '/sitter/kyc') {
-      navigate('/sitter/kyc');
-    }
+
+    // 依據 linkUrl 切換視圖（舊通知的不存在路徑在 resolveNotificationLink 轉換）
+    const target = resolveNotificationLink(noti.linkUrl);
+    if (target) navigate(target);
   };
 
   const getKycBannerConfig = () => {
@@ -117,7 +113,16 @@ const AppHeader: React.FC = () => {
   const bannerConfig = getKycBannerConfig();
 
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 100, display: 'flex', flexDirection: 'column', width: '100%' }}>
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%'
+      }}
+    >
       {/* 頂部導覽列 */}
       <header
         className="glass-panel"
@@ -148,7 +153,9 @@ const AppHeader: React.FC = () => {
                 justifyContent: 'center',
                 color: 'var(--color-on-surface)'
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-low)')}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = 'var(--color-surface-low)')
+              }
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
             >
               <ChevronLeft size={22} />
@@ -206,7 +213,9 @@ const AppHeader: React.FC = () => {
               transition: 'background-color 0.2s',
               outline: 'none'
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-low)')}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = 'var(--color-surface-low)')
+            }
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
           >
             🔔
@@ -286,7 +295,14 @@ const AppHeader: React.FC = () => {
               {/* Dropdown 內容清單 */}
               <div style={{ overflowY: 'auto', flex: 1, maxHeight: '280px' }}>
                 {recentNotifications.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)', fontSize: '0.875rem' }}>
+                  <div
+                    style={{
+                      padding: '2rem',
+                      textAlign: 'center',
+                      color: 'var(--color-on-surface-variant)',
+                      fontSize: '0.875rem'
+                    }}
+                  >
                     目前沒有通知 🐾
                   </div>
                 ) : (
@@ -305,13 +321,29 @@ const AppHeader: React.FC = () => {
                         backgroundColor: noti.isRead ? 'transparent' : 'var(--color-surface-low)',
                         transition: 'background-color 0.2s'
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--color-surface-high)')}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = 'var(--color-surface-high)')
+                      }
                       onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = noti.isRead ? 'transparent' : 'var(--color-surface-low)')
+                        (e.currentTarget.style.backgroundColor = noti.isRead
+                          ? 'transparent'
+                          : 'var(--color-surface-low)')
                       }
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: noti.isRead ? 500 : 700, fontSize: '0.85rem', color: 'var(--color-on-surface)' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: noti.isRead ? 500 : 700,
+                            fontSize: '0.85rem',
+                            color: 'var(--color-on-surface)'
+                          }}
+                        >
                           {noti.title}
                         </span>
                         {!noti.isRead && (
@@ -325,11 +357,20 @@ const AppHeader: React.FC = () => {
                           />
                         )}
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', lineHeight: 1.3 }}>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--color-on-surface-variant)',
+                          lineHeight: 1.3
+                        }}
+                      >
                         {noti.content}
                       </span>
                       <span style={{ fontSize: '0.65rem', color: '#888', alignSelf: 'flex-end' }}>
-                        {new Date(noti.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(noti.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </span>
                     </div>
                   ))

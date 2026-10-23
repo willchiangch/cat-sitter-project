@@ -526,7 +526,7 @@ public class VisitReportService {
                 Map.of("visitId", visitId)
         );
 
-        eventPublisher.publishEvent(new VisitNotificationEvent(order.getOwner().getId(), "您的保母已開始今日的照護服務！"));
+        eventPublisher.publishEvent(new VisitNotificationEvent(order.getOwner().getId(), order.getId(), "您的保母已開始今日的照護服務！"));
 
         return Map.of(
                 "visitId", visitId.toString(),
@@ -567,7 +567,7 @@ public class VisitReportService {
                 Map.of("visitId", visitId)
         );
 
-        eventPublisher.publishEvent(new VisitNotificationEvent(visit.getOrder().getOwner().getId(), "您的保母已完成今日的照護服務，服務報告稍後會送出！"));
+        eventPublisher.publishEvent(new VisitNotificationEvent(visit.getOrder().getOwner().getId(), visit.getOrder().getId(), "您的保母已完成今日的照護服務，服務報告稍後會送出！"));
 
         return Map.of(
                 "visitId", visitId.toString(),

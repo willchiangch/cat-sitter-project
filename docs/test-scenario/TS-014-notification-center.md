@@ -115,3 +115,29 @@
 | 1 | 以 `role = OWNER` 查詢 notifications | 回傳 2 筆通知，內容包含 Owner 與 All 類別的通知 | API Status: 200 OK / `data.content` 長度為 2，且不包含 `roleTarget == 'SITTER'` |
 | 2 | 以 `role = SITTER` 查詢 notifications | 回傳 2 筆通知，內容包含 Sitter 與 All 類別的通知 | API Status: 200 OK / `data.content` 長度為 2，且不包含 `roleTarget == 'OWNER'` |
 | 3 | 不帶入 `role` 查詢 | 回傳所有屬於該使用者的通知，長度為 3 | API Status: 200 OK / `data.content` 長度為 3 |
+
+---
+
+## 測試情境六：通知連結導向前端真實路由 (2026-10，Backlog 第 3 批 D1 迴歸)
+
+### 一、 測試邏輯定義 (Given / When / Then)
+
+* **Given (前置背景)：** 各事件監聽器（付款確認/退回、照護日誌、影像到期、KYC、停權）產生通知；DB 另有 2026-10 前寫入的舊連結 `/client/orders`、`/visits/report?orderId=`。
+* **When (觸發事件)：** 使用者於通知中心或小鈴鐺點擊通知。
+* **Then (預期行為)：** 後端寫入的 `linkUrl` 皆為 `frontend/src/routes.tsx` 存在的路由（飼主訂單相關 → `/owner/orders/{orderId}`）；舊連結由前端轉成 `/owner/orders[/{id}]`；推薦通知 `/booking/{sitterId}` 可導覽；`//host` 這類非同源相對路徑不導覽。
+
+### 二、 測試步驟與多維度驗證
+
+| 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術驗證指標 (Then - NFR) |
+| :--- | :--- | :--- | :--- |
+| 1 | 觸發各監聽器 | 連結為真實路由 | `NotificationListenerLinkTest`：解析 `routes.tsx` 的 `path="..."` 逐一比對，不得以 `/client/` 開頭 |
+| 2 | 點新格式通知 `/owner/orders/{id}` | 導到該筆訂單詳情 | `e2e/notification-links.spec.ts` `toHaveURL` |
+| 3 | 點舊通知 `/client/orders`、`/visits/report?orderId={id}` | 分別導到 `/owner/orders`、`/owner/orders/{id}` | 同上 |
+| 4 | 點推薦通知 `/booking/{sitterId}` | 導到預約頁 | 同上 |
+| 5 | 點 `//evil.example.com/...` | 不導覽，留在 `/notifications` | 同上 |
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**通知連結寫成不存在的路由（2026-10，Backlog 第 3 批 D1 / 第 2 批另外發現 #2）**：`NotificationListener` 的付款確認、付款退回、照護日誌通知 `linkUrl` 都是 `/client/orders`，影像到期提醒是 `/visits/report?orderId=`，前端 `routes.tsx` 根本沒有這兩條路徑（飼主端是 `/owner/orders`）。前端點擊處理只認 `/sitter/orders`、`/client/orders`、`/sitter/kyc` 三個寫死字串，`/client/orders` 被硬轉成 `/owner/orders` 才看起來正常；影像到期提醒、保母推薦（`/booking/{id}`）點了完全沒反應。修法：後端改寫真實路由，飼主訂單相關一律導 `/owner/orders/{orderId}`（`VisitNotificationEvent` 補 `orderId`）；前端改成 `resolveNotificationLink()` 原樣導覽，舊通知於前端轉換、拒絕非同源路徑。迴歸見情境六。

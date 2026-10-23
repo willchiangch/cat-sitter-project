@@ -591,7 +591,10 @@ public class NotificationPreference {
 3. **動態跳轉引導**：
    * 訊息清單內的每一則通知皆為可互動卡片。點擊後：
      1. 觸發 `POST /api/notifications/{id}/read` 標示為已讀。
-     2. 根據 `linkUrl` 執行前端路由導向（例如：預約異動跳轉至 `/client/orders/{orderId}`，KYC 退件跳轉至 `/sitter/kyc`）。
+     2. 根據 `linkUrl` 執行前端路由導向（`resolveNotificationLink()`，`AppHeader` 與 `NotificationsPage` 共用）。`linkUrl` 必須是 `frontend/src/routes.tsx` 實際存在的路由，前端原樣導覽；只接受同源相對路徑（單一 `/` 開頭），其他值不導覽。
+        * 現行連結：飼主端付款確認/補款確認/付款退回、照護日誌（Check-in/Check-out）、照護影像到期提醒 → `/owner/orders/{orderId}`；保母端收到付款憑證 → `/sitter/orders`；KYC 審核結果、停權、復權 → `/sitter/kyc`；保母推薦 → `/booking/{sitterId}`；信任圈邀請/轉介 → 無連結（`null`）。
+        * 2026-10（Backlog 第 3 批 D1）前飼主端寫的是不存在的 `/client/orders`、`/visits/report?orderId=`，前端只認 3 個寫死字串，推薦通知、影像到期提醒點了沒反應。DB 既有通知不做 migration，由前端轉換：`/client/orders[/...]` → `/owner/orders[/...]`、`/visits/report?orderId={id}` → `/owner/orders/{id}`。
+        * 迴歸：後端 `NotificationListenerLinkTest` 解析 `routes.tsx` 比對每個監聽器產生的連結；前端 `e2e/notification-links.spec.ts`。
 4. **保母認證優先提示 (KYC Banner)**：
    * 若登入使用者為保母角色，且其 KYC 狀態為 `UNVERIFIED` 或 `REJECTED` 時，訊息中心頂部需固定置頂一條高對比提示 Banner，強烈提示：「您尚未完成實名認證，這將影響您接單的資格。 [立即認證]」。
 

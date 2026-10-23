@@ -25,6 +25,16 @@ public class NotificationListener {
     private final NotificationService notificationService;
     private final OrderRepository orderRepository;
 
+    /**
+     * 通知 linkUrl 必須是前端實際存在的路由（frontend/src/routes.tsx）。過去飼主端寫成不存在的
+     * /client/orders、/visits/report?orderId=，前端只能靠硬編碼對照轉址，對照漏掉的就點了沒反應。
+     * 飼主端訂單相關通知一律導到該筆訂單詳情 /owner/orders/{orderId}（付款被退回要在這頁重傳憑證）。
+     * 迴歸：NotificationListenerLinkTest 逐一比對 routes.tsx。
+     */
+    static String ownerOrderLink(java.util.UUID orderId) {
+        return "/owner/orders/" + orderId;
+    }
+
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaymentProofSubmitted(PaymentProofSubmittedEvent event) {
@@ -62,7 +72,7 @@ public class NotificationListener {
                     title,
                     content,
                     "ORDER_AFFAIR",
-                    "/client/orders",
+                    ownerOrderLink(event.orderId()),
                     "OWNER"
             );
         }
@@ -81,7 +91,7 @@ public class NotificationListener {
                     "付款憑證退回",
                     "您的訂單線下付款憑證被保母退回，原因：" + event.rejectReason() + "，請前往修正。",
                     "ORDER_AFFAIR",
-                    "/client/orders",
+                    ownerOrderLink(event.orderId()),
                     "OWNER"
             );
         }
@@ -96,7 +106,7 @@ public class NotificationListener {
                 "照護日誌回報",
                 event.message(),
                 "SERVICE_RECORD",
-                "/client/orders",
+                ownerOrderLink(event.orderId()),
                 "OWNER"
         );
     }
@@ -167,7 +177,7 @@ public class NotificationListener {
                 "照護影像即將過期提醒",
                 content,
                 "SERVICE_RECORD",
-                "/visits/report?orderId=" + event.getOrderId(),
+                ownerOrderLink(event.getOrderId()),
                 "OWNER"
         );
     }
