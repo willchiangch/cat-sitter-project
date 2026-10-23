@@ -122,7 +122,7 @@ public class ModificationService {
         modReq.setStatus("REJECTED");
         modRepo.save(modReq);
 
-        order.setStatus(modReq.getPreviousStatus() != null ? modReq.getPreviousStatus() : "CONFIRMED");
+        order.setStatus(restoreStatus(modReq));
         orderRepository.save(order);
     }
 
@@ -185,7 +185,9 @@ public class ModificationService {
         } else if (modReq.getDiffAmount() < 0) {
             order.setStatus("REFUND_VERIFY");
         } else {
-            order.setStatus("CONFIRMED");
+            // 無差額 (PRD-016 C.3「直接恢復」)：回到發起變更前的狀態，與拒絕變更/補款核帳一致；
+            // 過去寫死 CONFIRMED，進行中 (IN_PROGRESS) 的訂單會被退回「已確認未開始」
+            order.setStatus(restoreStatus(modReq));
         }
 
         modReq.setStatus("M_DONE");
@@ -295,8 +297,24 @@ public class ModificationService {
         if (order.getItems() == null || order.getItems().isEmpty()) {
             order.setStatus("CANCELLED");
         } else {
-            order.setStatus("CONFIRMED");
+            // PRD-016 C.3 退款分支：「恢復 CONFIRMED 或 IN_PROGRESS」，依發起變更當下的快照復原。
+            // 過去寫死 CONFIRMED，進行中的訂單退款後會被退回「已確認未開始」
+            ModificationRequest latest = modRepo.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                    .findFirst()
+                    .orElse(null);
+            order.setStatus(restoreStatus(latest));
         }
         orderRepository.saveAndFlush(order);
+    }
+
+    /**
+     * 變更結清後訂單要回到的狀態：發起變更當下快照的 previousStatus（CONFIRMED / IN_PROGRESS），
+     * 舊資料沒有快照時 fallback CONFIRMED。拒絕變更、補款核帳 (PaymentService) 同一套規則。
+     */
+    static String restoreStatus(ModificationRequest modReq) {
+        if (modReq == null || modReq.getPreviousStatus() == null) {
+            return "CONFIRMED";
+        }
+        return modReq.getPreviousStatus();
     }
 }

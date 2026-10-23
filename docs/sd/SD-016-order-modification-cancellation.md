@@ -99,13 +99,14 @@ stateDiagram-v2
 }
 ```
 - **前置條件**: `ModificationRequest.status == QUOTED`，且 `agreedDiffAmount` 須與 `ModificationRequest.diffAmount` 一致（Zero-Trust，見 §1.2）。
-- **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照）、檔期鎖定與金流派發。
+- **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照）、檔期鎖定與金流派發。訂單狀態依差額結轉（4.1）：正 → `PENDING_PAYMENT`、負 → `REFUND_VERIFY`、0 → `previousStatus`（2026-10 前寫死 `CONFIRMED`，迴歸：`ModificationServiceTest.should_RestoreInProgress_When_NoDiffModificationConfirmed`）。
 
 ### 2.7 確認收到退款 (飼主) [新增]
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-confirm`
 - **Headers**: `Idempotency-Key: UUID`
 - **權限**: `ROLE_OWNER`，身份取自 `TokenContext.getUserId()`（2026-08 修復 BOLA，說明見 2.5）
-- **邏輯**: 解除 `REFUND_VERIFY` 狀態，依據變更請求內容，將訂單狀態正式轉回 `CONFIRMED` 或 `CANCELLED`。
+- **邏輯**: 解除 `REFUND_VERIFY` 狀態：變更後已無預約項目（整筆取消）→ `CANCELLED`；否則依該訂單最新一筆變更請求的 `previousStatus` 復原（`CONFIRMED` 或 `IN_PROGRESS`，查無快照的舊資料 fallback `CONFIRMED`），與 2.4 拒絕變更、4.3 補款核帳同一套規則（`ModificationService.restoreStatus`）。
+- **2026-10 修復**：過去寫死 `CONFIRMED`，`IN_PROGRESS` 中發起的減量變更退款後會被退回「已確認未開始」。迴歸：`ModificationServiceTest.should_RestoreInProgress_When_RefundConfirmed`、`should_RestoreConfirmed_When_RefundConfirmedFromConfirmedOrLegacy`。
 
 ---
 
@@ -164,7 +165,7 @@ sequenceDiagram
     
     Note over SVC, DB: 4. 執行實質變更
     SVC->>DB: 刪除舊 PENDING Visits / 寫入新 PENDING Visits
-    SVC->>DB: 更新 Order 最終總額、狀態 (轉 PENDING_PAYMENT / REFUND_VERIFY / CONFIRMED)
+    SVC->>DB: 更新 Order 最終總額、狀態 (轉 PENDING_PAYMENT / REFUND_VERIFY / previousStatus)
     
     Note over SVC: 5. 觸發非同步金流 (若為線上且需退/補款)
     alt 線上退刷
@@ -182,9 +183,9 @@ sequenceDiagram
 ### 4.1 狀態結轉規則
 | 變更結果 | 最終狀態遷移 (Confirm / Refund Confirm 後) |
 |---------|------------|
-| 需退款 (線下) | `MODIFYING` -> `REFUND_VERIFY` -> `CONFIRMED` / `CANCELLED` |
+| 需退款 (線下) | `MODIFYING` -> `REFUND_VERIFY` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`）；變更後無預約項目（整筆取消）-> `CANCELLED` |
 | 需補款 (線上/線下) | `MODIFYING` -> `PENDING_PAYMENT` -> `PAID` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`；應付金額為 `diffAmount`、補款紀錄存放見 4.3）；保母駁回補款憑證：`PAID` -> `PENDING_PAYMENT` |
-| 無金額變動 | `MODIFYING` -> `CONFIRMED` |
+| 無金額變動 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`） |
 | 整筆取消 (無退款 / 線上退刷成功) | `MODIFYING` -> `CANCELLED` |
 | 保母拒絕變更 | `MODIFYING` -> `previousStatus`（`CONFIRMED` 或 `IN_PROGRESS`，依發起變更當下快照決定，非寫死） |
 

@@ -275,4 +275,94 @@ class ModificationServiceTest {
 
         verify(modRepo, never()).findByOrderIdOrderByCreatedAtDesc(any());
     }
+
+    // ===== C3 迴歸：退款確認 / 無差額變更過去寫死 CONFIRMED，應依 previousStatus 復原 (PRD-016 C.3) =====
+
+    private ModificationRequest quotedNoDiff(String previousStatus) {
+        return ModificationRequest.builder()
+                .id(UUID.randomUUID()).order(order).status("QUOTED").diffAmount(0)
+                .previousStatus(previousStatus)
+                .payload(new ArrayList<>(List.of(new OrderItem())))
+                .dates(List.of()).build();
+    }
+
+    @Test
+    @DisplayName("迴歸測試：無差額變更 — 進行中 (IN_PROGRESS) 發起的變更確認後應回到 IN_PROGRESS，不得退回 CONFIRMED")
+    void should_RestoreInProgress_When_NoDiffModificationConfirmed() {
+        order.setStatus("MODIFYING");
+        ModificationRequest modReq = quotedNoDiff("IN_PROGRESS");
+        when(modRepo.findById(modReq.getId())).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
+        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
+
+        modificationService.confirmModification(ownerId, orderId, modReq.getId(), 0);
+
+        assertThat(order.getStatus()).isEqualTo("IN_PROGRESS");
+        assertThat(modReq.getStatus()).isEqualTo("M_DONE");
+    }
+
+    @Test
+    @DisplayName("迴歸測試：無差額變更 — 舊資料沒有 previousStatus 快照時 fallback CONFIRMED")
+    void should_FallbackToConfirmed_When_NoDiffAndPreviousStatusMissing() {
+        order.setStatus("MODIFYING");
+        ModificationRequest modReq = quotedNoDiff(null);
+        when(modRepo.findById(modReq.getId())).thenReturn(Optional.of(modReq));
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
+        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
+
+        modificationService.confirmModification(ownerId, orderId, modReq.getId(), 0);
+
+        assertThat(order.getStatus()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("迴歸測試：退款確認 — 進行中 (IN_PROGRESS) 發起的變更，飼主確認收到退款後應回到 IN_PROGRESS")
+    void should_RestoreInProgress_When_RefundConfirmed() {
+        order.setStatus("REFUND_VERIFY");
+        order.setItems(new ArrayList<>(List.of(new OrderItem())));
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(UUID.randomUUID()).order(order).status("M_DONE").diffAmount(-500)
+                .previousStatus("IN_PROGRESS").payload(new ArrayList<>()).build();
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(modRepo.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(modReq));
+
+        modificationService.confirmRefund(orderId, ownerId);
+
+        assertThat(order.getStatus()).isEqualTo("IN_PROGRESS");
+        verify(orderRepository).saveAndFlush(order);
+    }
+
+    @Test
+    @DisplayName("迴歸測試：退款確認 — CONFIRMED 發起的變更回到 CONFIRMED；查無變更請求（舊資料）fallback CONFIRMED")
+    void should_RestoreConfirmed_When_RefundConfirmedFromConfirmedOrLegacy() {
+        order.setStatus("REFUND_VERIFY");
+        order.setItems(new ArrayList<>(List.of(new OrderItem())));
+        ModificationRequest modReq = ModificationRequest.builder()
+                .id(UUID.randomUUID()).order(order).status("M_DONE").diffAmount(-500)
+                .previousStatus("CONFIRMED").payload(new ArrayList<>()).build();
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(modRepo.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(modReq));
+
+        modificationService.confirmRefund(orderId, ownerId);
+        assertThat(order.getStatus()).isEqualTo("CONFIRMED");
+
+        order.setStatus("REFUND_VERIFY");
+        when(modRepo.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of());
+        modificationService.confirmRefund(orderId, ownerId);
+        assertThat(order.getStatus()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("退款確認 — 整筆取消（變更後無預約項目）仍轉 CANCELLED，不受 previousStatus 影響")
+    void should_Cancel_When_RefundConfirmedForWholeCancellation() {
+        order.setStatus("REFUND_VERIFY");
+        order.setItems(new ArrayList<>());
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+
+        modificationService.confirmRefund(orderId, ownerId);
+
+        assertThat(order.getStatus()).isEqualTo("CANCELLED");
+    }
 }
