@@ -103,7 +103,8 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
   return (
     <div
       style={{
-        padding: '2rem 1.5rem',
+        // <main> 已有 1.5rem 左右內距，這裡不再疊加，否則照片只剩約 240px 寬
+        padding: '1.5rem 0',
         fontFamily: 'var(--font-sans)',
         maxWidth: '1080px',
         margin: '0 auto'
@@ -114,6 +115,8 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
           marginBottom: '1.5rem'
         }}
       >
@@ -151,349 +154,352 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '2rem' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <Card style={{ padding: '1.5rem' }}>
-            <h3
+      {/* AppShell 是 390px 行動版寬度：過去用 '400px 1fr' 兩欄 grid，左欄就超過可用寬度，
+          右欄的證件照/自拍被 AppShell overflow:hidden 裁掉，管理員看不到要審的照片 (Backlog 第 3 批 U1)。
+          改成單欄：基本資料 → 媒體預覽 → 審核決策（先看照片再決定） */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', minWidth: 0 }}>
+        <Card style={{ padding: '1.5rem' }}>
+          <h3
+            style={{
+              fontSize: '1.2rem',
+              fontWeight: '600',
+              marginBottom: '1.25rem',
+              color: 'var(--color-on-surface)'
+            }}
+          >
+            申請者基本資料
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--color-on-surface-variant)',
+                  display: 'block'
+                }}
+              >
+                保母 ID
+              </span>
+              <span style={{ fontSize: '0.9rem', fontWeight: '600', wordBreak: 'break-all' }}>
+                {detail.sitterId}
+              </span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--color-on-surface-variant)',
+                  display: 'block'
+                }}
+              >
+                真實姓名
+              </span>
+              <span style={{ fontSize: '1rem', fontWeight: '600' }}>{detail.fullName}</span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--color-on-surface-variant)',
+                  display: 'block'
+                }}
+              >
+                電子信箱
+              </span>
+              <span style={{ fontSize: '0.95rem' }}>{detail.email}</span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--color-on-surface-variant)',
+                  display: 'block'
+                }}
+              >
+                申請時間
+              </span>
+              <span style={{ fontSize: '0.9rem' }}>
+                {new Date(detail.submittedAt).toLocaleString()}
+              </span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--color-on-surface-variant)',
+                  display: 'block'
+                }}
+              >
+                認證狀態
+              </span>
+              <span
+                style={{
+                  display: 'inline-block',
+                  marginTop: '0.25rem',
+                  padding: '4px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  ...getKycBadgeStyle(detail.kycStatus)
+                }}
+              >
+                {getKycStatusText(detail.kycStatus)}
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        <Card style={{ padding: '1.5rem' }}>
+          <h3
+            style={{
+              fontSize: '1.2rem',
+              fontWeight: '600',
+              marginBottom: '1.5rem',
+              color: 'var(--color-on-surface)'
+            }}
+          >
+            認證媒體檔案預覽
+          </h3>
+
+          <div
+            style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+            data-testid="admin-kyc-detail-media"
+          >
+            <div>
+              <h4
+                style={{
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  marginBottom: '0.75rem',
+                  color: 'var(--color-on-surface-variant)'
+                }}
+              >
+                身分證正面照片
+              </h4>
+              {idCardFrontUrl ? (
+                <div
+                  style={{
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    aspectRatio: '1.58 / 1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#111'
+                  }}
+                >
+                  <img
+                    src={idCardFrontUrl}
+                    alt="身分證正面"
+                    data-testid="admin-kyc-detail-id-front-img"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: '2rem',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--color-surface-low)',
+                    borderRadius: '8px'
+                  }}
+                >
+                  無法載入證件照片
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h4
+                style={{
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  marginBottom: '0.75rem',
+                  color: 'var(--color-on-surface-variant)'
+                }}
+              >
+                五官清晰半身自拍照
+              </h4>
+              {selfieUrl ? (
+                <div
+                  style={{
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    aspectRatio: '1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#111'
+                  }}
+                >
+                  <img
+                    src={selfieUrl}
+                    alt="自拍照"
+                    data-testid="admin-kyc-detail-selfie-img"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: '2rem',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--color-surface-low)',
+                    borderRadius: '8px'
+                  }}
+                >
+                  無法載入自拍照
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+        <Card style={{ padding: '1.5rem' }}>
+          <h3
+            style={{
+              fontSize: '1.2rem',
+              fontWeight: '600',
+              marginBottom: '1.25rem',
+              color: 'var(--color-on-surface)'
+            }}
+          >
+            審核決策
+          </h3>
+
+          {errorMsg && (
+            <div
               style={{
-                fontSize: '1.2rem',
-                fontWeight: '600',
-                marginBottom: '1.25rem',
-                color: 'var(--color-on-surface)'
+                color: '#ef4444',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                marginBottom: '1rem'
               }}
             >
-              申請者基本資料
-            </h3>
+              ⚠️ {errorMsg}
+            </div>
+          )}
 
+          {successMsg && (
+            <div
+              style={{
+                color: '#10b981',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                marginBottom: '1rem'
+              }}
+            >
+              ✅ {successMsg}
+            </div>
+          )}
+
+          {!showRejectInput ? (
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                onClick={() => handleReview('APPROVE')}
+                disabled={actionLoading}
+                className="btn-primary"
+                data-testid="admin-kyc-detail-approve-btn"
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  backgroundColor: '#10b981'
+                }}
+              >
+                批准認證
+              </button>
+              <button
+                onClick={() => setShowRejectInput(true)}
+                disabled={actionLoading}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  backgroundColor: 'transparent',
+                  color: '#ef4444',
+                  cursor: 'pointer'
+                }}
+              >
+                駁回申請
+              </button>
+            </div>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <span
+                <label
                   style={{
-                    fontSize: '0.8rem',
-                    color: 'var(--color-on-surface-variant)',
-                    display: 'block'
-                  }}
-                >
-                  保母 ID
-                </span>
-                <span style={{ fontSize: '0.9rem', fontWeight: '600', wordBreak: 'break-all' }}>
-                  {detail.sitterId}
-                </span>
-              </div>
-              <div>
-                <span
-                  style={{
-                    fontSize: '0.8rem',
-                    color: 'var(--color-on-surface-variant)',
-                    display: 'block'
-                  }}
-                >
-                  真實姓名
-                </span>
-                <span style={{ fontSize: '1rem', fontWeight: '600' }}>{detail.fullName}</span>
-              </div>
-              <div>
-                <span
-                  style={{
-                    fontSize: '0.8rem',
-                    color: 'var(--color-on-surface-variant)',
-                    display: 'block'
-                  }}
-                >
-                  電子信箱
-                </span>
-                <span style={{ fontSize: '0.95rem' }}>{detail.email}</span>
-              </div>
-              <div>
-                <span
-                  style={{
-                    fontSize: '0.8rem',
-                    color: 'var(--color-on-surface-variant)',
-                    display: 'block'
-                  }}
-                >
-                  申請時間
-                </span>
-                <span style={{ fontSize: '0.9rem' }}>
-                  {new Date(detail.submittedAt).toLocaleString()}
-                </span>
-              </div>
-              <div>
-                <span
-                  style={{
-                    fontSize: '0.8rem',
-                    color: 'var(--color-on-surface-variant)',
-                    display: 'block'
-                  }}
-                >
-                  認證狀態
-                </span>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    marginTop: '0.25rem',
-                    padding: '4px 10px',
-                    borderRadius: '9999px',
-                    fontSize: '0.8rem',
-                    fontWeight: '700',
-                    ...getKycBadgeStyle(detail.kycStatus)
-                  }}
-                >
-                  {getKycStatusText(detail.kycStatus)}
-                </span>
-              </div>
-            </div>
-          </Card>
-
-          <Card style={{ padding: '1.5rem' }}>
-            <h3
-              style={{
-                fontSize: '1.2rem',
-                fontWeight: '600',
-                marginBottom: '1.25rem',
-                color: 'var(--color-on-surface)'
-              }}
-            >
-              審核決策
-            </h3>
-
-            {errorMsg && (
-              <div
-                style={{
-                  color: '#ef4444',
-                  fontSize: '0.9rem',
-                  fontWeight: '500',
-                  marginBottom: '1rem'
-                }}
-              >
-                ⚠️ {errorMsg}
-              </div>
-            )}
-
-            {successMsg && (
-              <div
-                style={{
-                  color: '#10b981',
-                  fontSize: '0.9rem',
-                  fontWeight: '500',
-                  marginBottom: '1rem'
-                }}
-              >
-                ✅ {successMsg}
-              </div>
-            )}
-
-            {!showRejectInput ? (
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button
-                  onClick={() => handleReview('APPROVE')}
-                  disabled={actionLoading}
-                  className="btn-primary"
-                  data-testid="admin-kyc-detail-approve-btn"
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    fontSize: '0.95rem',
+                    display: 'block',
+                    fontSize: '0.85rem',
                     fontWeight: '600',
-                    borderRadius: '8px',
-                    backgroundColor: '#10b981'
+                    marginBottom: '0.5rem'
                   }}
                 >
-                  批准認證
-                </button>
+                  請填寫駁回原因 <span style={{ color: 'red' }}>*</span>
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="請詳細敘述駁回原因，例如：證件照片模糊、自拍與證件不符..."
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backgroundColor: 'var(--color-surface-low)',
+                    color: 'white',
+                    fontSize: '0.875rem',
+                    resize: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
-                  onClick={() => setShowRejectInput(true)}
+                  onClick={() => handleReview('REJECT')}
                   disabled={actionLoading}
                   style={{
                     flex: 1,
-                    padding: '12px',
-                    fontSize: '0.95rem',
+                    padding: '10px',
+                    backgroundColor: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
                     fontWeight: '600',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(239, 68, 68, 0.5)',
-                    backgroundColor: 'transparent',
-                    color: '#ef4444',
                     cursor: 'pointer'
                   }}
                 >
-                  駁回申請
+                  確定駁回
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRejectInput(false);
+                    setRejectReason('');
+                  }}
+                  disabled={actionLoading}
+                  style={{
+                    padding: '10px 15px',
+                    backgroundColor: 'var(--color-surface-low)',
+                    color: 'var(--color-on-surface)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  取消
                 </button>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '0.85rem',
-                      fontWeight: '600',
-                      marginBottom: '0.5rem'
-                    }}
-                  >
-                    請填寫駁回原因 <span style={{ color: 'red' }}>*</span>
-                  </label>
-                  <textarea
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="請詳細敘述駁回原因，例如：證件照片模糊、自拍與證件不符..."
-                    rows={4}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      backgroundColor: 'var(--color-surface-low)',
-                      color: 'white',
-                      fontSize: '0.875rem',
-                      resize: 'none'
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    onClick={() => handleReview('REJECT')}
-                    disabled={actionLoading}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      backgroundColor: '#ef4444',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontWeight: '600',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    確定駁回
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowRejectInput(false);
-                      setRejectReason('');
-                    }}
-                    disabled={actionLoading}
-                    style={{
-                      padding: '10px 15px',
-                      backgroundColor: 'var(--color-surface-low)',
-                      color: 'var(--color-on-surface)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '6px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-            )}
-          </Card>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <Card style={{ padding: '1.5rem' }}>
-            <h3
-              style={{
-                fontSize: '1.2rem',
-                fontWeight: '600',
-                marginBottom: '1.5rem',
-                color: 'var(--color-on-surface)'
-              }}
-            >
-              認證媒體檔案預覽
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-              <div>
-                <h4
-                  style={{
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    marginBottom: '0.75rem',
-                    color: 'var(--color-on-surface-variant)'
-                  }}
-                >
-                  身分證正面照片
-                </h4>
-                {idCardFrontUrl ? (
-                  <div
-                    style={{
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      aspectRatio: '1.58 / 1',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: '#111'
-                    }}
-                  >
-                    <img
-                      src={idCardFrontUrl}
-                      alt="身分證正面"
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      padding: '2rem',
-                      textAlign: 'center',
-                      backgroundColor: 'var(--color-surface-low)',
-                      borderRadius: '8px'
-                    }}
-                  >
-                    無法載入證件照片
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h4
-                  style={{
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    marginBottom: '0.75rem',
-                    color: 'var(--color-on-surface-variant)'
-                  }}
-                >
-                  五官清晰半身自拍照
-                </h4>
-                {selfieUrl ? (
-                  <div
-                    style={{
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      aspectRatio: '1',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: '#111'
-                    }}
-                  >
-                    <img
-                      src={selfieUrl}
-                      alt="自拍照"
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      padding: '2rem',
-                      textAlign: 'center',
-                      backgroundColor: 'var(--color-surface-low)',
-                      borderRadius: '8px'
-                    }}
-                  >
-                    無法載入自拍照
-                  </div>
-                )}
-              </div>
             </div>
-          </Card>
-        </div>
+          )}
+        </Card>
       </div>
     </div>
   );

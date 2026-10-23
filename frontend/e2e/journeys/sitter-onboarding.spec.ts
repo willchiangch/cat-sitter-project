@@ -92,6 +92,18 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       await expect(adminPage).toHaveURL(new RegExp(`/admin/kyc/${recordId}`));
       // 舊版 URL 一變就截圖，詳情 API 還沒回來，截到的仍是待審清單
       await expect(adminPage.getByTestId('admin-kyc-detail-approve-btn')).toBeVisible();
+      // U1：證件照與自拍要真的看得到（過去兩欄 grid 溢出 390px AppShell，照片被裁掉）
+      const main = await adminPage.locator('main').boundingBox();
+      for (const testId of ['admin-kyc-detail-id-front-img', 'admin-kyc-detail-selfie-img']) {
+        const img = adminPage.getByTestId(testId);
+        await expect(img).toBeVisible();
+        await expect
+          .poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+          .toBe(true);
+        const box = await img.boundingBox();
+        expect(box!.width, `${testId} 寬度`).toBeGreaterThan(250);
+        expect(box!.x + box!.width, `${testId} 右緣`).toBeLessThanOrEqual(main!.x + main!.width);
+      }
       await snap(adminPage, 'A-04 審核詳情頁');
       await adminPage.getByTestId('admin-kyc-detail-approve-btn').click();
       // TS-JOURNEY-01 #5：頁面要顯示審核通過訊息（AdminKycDetail 顯示 1.5 秒後才跳回清單）

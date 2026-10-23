@@ -28,7 +28,7 @@
 | 2 | API：`POST /api/auth/switch-role {targetRole:"SITTER"}` | 切換為保母角色成功 | 後端 lazy 建立 `Profile(kycStatus=UNVERIFIED)`；此路徑全專案目前唯一測試覆蓋點。於步驟 3 開啟 `/sitter/kyc` 時攔截頁面自己發出的 `GET /api/sitter/kyc/status` 回應斷言 `UNVERIFIED`，再斷言徽章為「未認證」（徽章在 API 回來前也會 fallback 成「未認證」，所以必須先等真實回應） |
 | 3 | UI：`/sitter/kyc` 上傳證件正面 + 自拍照片，送出 | 頁面顯示「審核中」狀態徽章 | `GET /api/sitter/kyc` 回應 `kycStatus=PENDING_REVIEW` |
 | 4 | API：admin 呼叫 `GET /api/admin/kyc/pending` | 清單中可撈到剛提交的紀錄 | `recordId` 對應到該保母 |
-| 5 | UI：admin 於 `/admin/kyc` 進入該筆詳情，點擊「批准認證」 | 頁面顯示審核通過訊息並導回清單 | `Profile.kycStatus` 轉為 `VERIFIED`；UI 斷言「實名認證審核已通過！」（`AdminKycDetail` 只顯示 1.5 秒就導回清單），且詳情頁截圖前先等「批准認證」按鈕出現（詳情 API 回來才算進入詳情頁） |
+| 5 | UI：admin 於 `/admin/kyc` 進入該筆詳情，點擊「批准認證」 | 頁面顯示審核通過訊息並導回清單 | `Profile.kycStatus` 轉為 `VERIFIED`；UI 斷言「實名認證審核已通過！」（`AdminKycDetail` 只顯示 1.5 秒就導回清單），且詳情頁截圖前先等「批准認證」按鈕出現（詳情 API 回來才算進入詳情頁）；證件照/自拍 `admin-kyc-detail-id-front-img`/`-selfie-img` 已載入（`naturalWidth>0`）、寬度 > 250px 且右緣不超出 `<main>`（U1） |
 | 6 | API：`PUT /api/sitter/kyc/open {isOpen:true}` | 開啟接單狀態成功（前置條件 `kycStatus=VERIFIED` 已滿足） | `Profile.isOpen=true` |
 | 6.5 | API：`PUT /api/sitter/profile` 設定 `displayName`/`bio`/`tags`/`isVisible:true` | 公開檔案資料寫入成功 | `Profile.displayName` 非空字串（此欄位獨立於 `User.fullName`，未設定則公開頁 `<h1>` 是空的，實測時踩到這個坑） |
 | 7 | UI：`/sitter/plans` 建立 2 個服務方案，寵物類型與價格都不同：`CAT`/$600、`DOG`/$900 | 方案清單顯示新建立的方案，各自卡片只顯示自己的寵物類型標籤（🐱 貓咪 / 🐶 狗狗） | 每筆方案 `isActive=true`（於步驟 8 的匿名 plans API 斷言）；**注意**：`openModal(null)` 新增方案時 `applicablePetTypes` 預設已勾選 `CAT`，CAT 方案不用再點，非 CAT 方案要先點 `CAT` 取消再點目標類型 |
@@ -49,3 +49,10 @@
 * **資料清理**：本測試建立的帳號、KYC 紀錄、服務方案皆落在 `@e2e-journey.test` 網域，由 CI 跑完後呼叫 `POST /api/internal/cron/test-data/cleanup-e2e-journeys` 統一硬刪除（含對應 GCS 上的 KYC 證件照物件）。
 * **環境相依**：本測試打正式站（`BASE_URL=https://wd-pet-sitter.web.app`），需要 CI 環境變數 `INTERNAL_CRON_SECRET` 與正式環境的 `X-Internal-Secret` 一致，才能呼叫 `provision-account`。
 * **共用種子帳號**：步驟 4-5 的管理員操作沿用既有 `admin@test.com` 種子帳號（密碼 `password`），未使用 `@e2e-journey.test` 網域——因為系統只有這唯一固定的管理員帳號，不需要、也不應該每次動態建立。
+
+---
+
+## 五、本測試發現並修復的真實 bug
+
+**管理員審核詳情頁看不到證件照（2026-10，驗收證據 / Backlog 第 3 批 U1）**：`AdminKycDetail` 用 `gridTemplateColumns: '400px 1fr'` 兩欄排版，但 `AppShell` 是 390px 行動版寬度（`--max-width-mobile`）、外層又疊了 1.5rem 內距，左欄 400px 就超出可用寬度，右欄的證件照/自拍整個被 `AppShell` 的 `overflow:hidden` 裁掉，步驟 5 的截圖只看得到基本資料。管理員看不到照片就無從比對。修法：改成單欄（基本資料 → 媒體預覽 → 審核決策），照片各佔整列寬度，移除重複的左右內距。迴歸：步驟 5 斷言照片寬度與邊界；mock `e2e/admin-kyc-detail.spec.ts`。
+

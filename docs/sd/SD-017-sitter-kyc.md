@@ -444,7 +444,7 @@ CREATE UNIQUE INDEX idx_kyc_sitter_pending_unique
 ### 4.5. [管理後台] 專屬：查詢特定 KYC 紀錄與保母基本資料詳情
 * **Method**: `GET`
 * **Path**: `/api/admin/kyc/{recordId}`
-* **說明**: 管理員進入審查明細頁時，用以獲取左欄保母 Profile 基本資料與右欄圖片的 Key 等 meta-data，以便進行比對。
+* **說明**: 管理員進入審查明細頁時，用以獲取保母 Profile 基本資料與圖片的 Key 等 meta-data，以便進行比對。
 * **權限限制**: 僅限具備 `ROLE_ADMIN` 角色之 JWT Token 呼叫，否則回傳 `403 Forbidden`。
 
 #### Response (200 OK)
@@ -625,8 +625,9 @@ CREATE UNIQUE INDEX idx_kyc_sitter_pending_unique
    * 同時開放上傳框，容許保母替換照片並重新提交。
 
 ### 7.2. 管理員審核介面 (Admin Web)
-1. **雙欄證件比對**：
-   * 點進保母 KYC 審查詳情，左欄顯示保母 Profile 基本資料（姓名、Email 等）。
+1. **證件比對（單欄，2026-10 修正）**：
+   * 點進保母 KYC 審查詳情，依序顯示：保母 Profile 基本資料（姓名、Email 等）→ 證件正面與自拍大圖（各佔整列寬度）→ 審核決策按鈕。
+   * 前端外框是 390px 行動版 `AppShell`，過去「左欄基本資料 400px＋右欄圖片」的雙欄 grid 會溢出，圖片被 `overflow:hidden` 裁掉、管理員看不到證件（Backlog 第 3 批 U1）。
    * 大圖不支援右鍵儲存，且底層實作浮水印遮罩保護。
 2. **大按鈕審查**：
    * 提供兩大動作按鈕：「核准認證」與「駁回申請」。
