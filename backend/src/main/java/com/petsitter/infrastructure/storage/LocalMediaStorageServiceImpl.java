@@ -137,6 +137,28 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadRefundProof(UUID sitterId, UUID orderId, MultipartFile file) {
+        try {
+            String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+            String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
+            String targetFilename = orderId + "_" + UUID.randomUUID() + (extension != null ? "." + extension : "");
+            String subDirName = "refund-proofs/" + java.time.LocalDate.now();
+            Path targetDirPath = Paths.get(localStorageDir, subDirName);
+            if (!Files.exists(targetDirPath)) {
+                Files.createDirectories(targetDirPath);
+            }
+            file.transferTo(targetDirPath.resolve(targetFilename));
+            // 與 GCS 實作一致只回傳 Object Key (SD-016 §2.5)
+            String objectKey = subDirName + "/" + targetFilename;
+            log.info("Local refund proof uploaded: {}", objectKey);
+            return objectKey;
+        } catch (IOException e) {
+            log.error("Failed to upload local refund proof", e);
+            throw new RuntimeException("Local refund proof upload failed", e);
+        }
+    }
+
+    @Override
     public String uploadKycFile(UUID sitterId, String type, MultipartFile file) {
         try {
             String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");

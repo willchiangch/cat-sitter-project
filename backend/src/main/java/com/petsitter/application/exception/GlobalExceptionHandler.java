@@ -104,6 +104,16 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "INVALID_PARAMETER", "message", ex.getMessage()));
     }
 
+    /**
+     * 上傳端點收到非 multipart 請求（例如 2026-10 前的舊版 PWA 仍以 JSON 送退款憑證網址，SD-016 §2.5）
+     * 或檔案超過容器上限。過去未處理會變成 500。
+     */
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    public ResponseEntity<Map<String, String>> handleMultipart(org.springframework.web.multipart.MultipartException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "INVALID_PARAMETER", "message", "請以 multipart/form-data 上傳圖片檔案"));
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

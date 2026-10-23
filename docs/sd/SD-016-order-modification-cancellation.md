@@ -56,7 +56,7 @@ stateDiagram-v2
   "currentOrderTotalAmount": 1000,
   "orderVersion": 2,
   "dates": ["2026-06-01", "2026-06-02"],
-  "refundProofUrl": null
+  "hasRefundProof": false
 }
 ```
 - **2026-08 修復的迴歸缺陷**：原本查詢邏輯只認 `ModificationRequest.status ∈ {PENDING_REVIEW, QUOTED}`。但 `confirmModification()`（2.6）成功後會把 `status` 設為終態 `M_DONE`，而退款分支恰好是**飼主先確認、保母才需要上傳退款憑證**（訂單此時已轉 `REFUND_VERIFY`）——保母端 `SitterModificationQuote` 頁面只要重新整理或重新導航進來就會查無資料、顯示「找不到進行中的變更請求」，實務上永遠上傳不了退款憑證。修法：當 `Order.status ∈ {MODIFYING, PENDING_PAYMENT, REFUND_VERIFY}`（即訂單仍處於變更協商相關狀態）時，改直接撈該訂單最新一筆變更請求（不限 `status`），讓已確認但退補款尚未走完的流程依然讀得到資料；其餘狀態維持原本只認 `PENDING_REVIEW`/`QUOTED` 的行為。詳見 `ModificationServiceTest.should_ReturnModificationRequest_When_OrderIsRefundVerifyAfterConfirm`。
@@ -97,8 +97,17 @@ stateDiagram-v2
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-proof`
 - **Headers**: `Idempotency-Key: UUID`
 - **權限**: `ROLE_SITTER`，身份取自 `TokenContext.getUserId()`
+- **Request（2026-10 起，C4）**: `multipart/form-data`，欄位 `file`（JPG/PNG/WEBP，≤ 5MB，規則同 SD-007 付款憑證）。狀態、檔案都檢查通過才呼叫 `MediaStorageService.uploadRefundProof()` 上傳為**私有物件** `refund-proofs/{yyyy-MM-dd}/{orderId}_{uuid}.{ext}`，`modification_requests.refund_proof_url` 欄位名稱沿用、內容改存 Object Key（不需 migration）。舊版以 JSON `{"refundProofUrl": "..."}` 送網址字串一律 400（`GlobalExceptionHandler` 的 `MultipartException` 處理，舊版 PWA 快取送來也不會 500）。
+- **2026-10 修復（C4，安全）**：過去本端點收保母手填的任意網址字串直接存進 DB，系統不上傳、不驗證格式；飼主端若把它當連結/圖片打開，等於點一個保母提供的任意外部網址（釣魚、追蹤像素）。評估後直接比照付款憑證（SD-007 §4.7）改成上傳 + 私有 + 簽名，而非網域白名單：白名單仍允許保母指向自己控制的同網域物件、也解決不了憑證公開可讀的個資問題，而上傳/簽名/BOLA 機制第 1 批已備妥，重用成本低。
 - **前置條件（2026-10，C2）**: `Order.status == REFUND_VERIFY`，且該訂單最新一筆變更請求為 `M_DONE`、`diffAmount < 0`，否則 409。過去沒有任何狀態防護，協商中、補款分支、甚至飼主已確認收到退款之後都還能改寫憑證。訂單仍在 `REFUND_VERIFY` 時允許重傳覆蓋（飼主確認前更正錯誤憑證）。
 - **2026-08 修復的 BOLA 缺陷**：本端點與 2.7 過去完全沒有 `@PreAuthorize`，身份也不是從 JWT (`TokenContext`) 取得，而是直接信任前端傳來的 `sitterId` query param——只驗證「這個 sitterId 是不是該訂單的保母」，沒驗證「呼叫者是不是這個 sitterId 本人」。該訂單的保母本來就合法看得到自己訂單的 `ownerId`（見 2.7），等於保母能自行呼叫 2.7 冒充飼主完成退款確認，繞過飼主二次確認的把關意義；反之任何已登入使用者只要知道目標訂單的真實 `sitterId` 也能冒充該保母呼叫本端點。已改為與 2.1-2.4/2.6 一致的作法：角色守門 + `TokenContext.getUserId()`，前端不再傳 `sitterId`/`ownerId`。詳見 `OrderControllerTest` 內以 `迴歸測試 (BOLA)` 為前綴的 4 支測試。
+
+### 2.5.1 取得退款憑證簽名網址 (飼主/保母)
+- **Endpoint**: `GET /api/orders/{orderId}/modification/refund-proof/signed-url` → `{ "signedUrl": "...", "expiresInSeconds": 600 }`
+- **權限**: `ROLE_OWNER` / `ROLE_SITTER`，且須為該訂單飼主或保母，否則 403 且不簽名（`PaymentProofAccessService.generateRefundProofSignedUrl`，與付款憑證共用 BOLA 檢查與 10 分鐘 TTL）。
+- **只簽 `refund-proofs/` 開頭的 Object Key**：查無憑證，或是 2026-10 前保母手填的外部網址（舊資料，僅 E2E 測試訂單）→ 409，回應不含該網址，前端顯示「無法載入」而不會出現可點的外部連結。
+- **DTO**：§2.2 不再回傳 `refundProofUrl`，改 `hasRefundProof`；前端 `RefundProofImage` 只在需要顯示時呼叫本端點（不快取），以 `<img>` 呈現。
+- 迴歸：`OrderControllerTest` 以 `C4` 為前綴的 7 支（非圖片/超過 5MB/JSON 網址 → 400 且不上傳、雙方 200 簽 `refund-proofs/`、非當事人 403 不簽、舊外部網址與未上傳 409、DTO 只有 `hasRefundProof`）。
 
 ### 2.6 確認同意變更 (飼主)
 - **Endpoint**: `POST /api/orders/{orderId}/modification/confirm?modRequestId={id}`

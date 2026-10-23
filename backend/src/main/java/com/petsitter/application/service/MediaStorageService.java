@@ -33,6 +33,12 @@ public interface MediaStorageService {
     String uploadPaymentProof(UUID ownerId, UUID orderId, MultipartFile file);
 
     /**
+     * 上傳訂單變更的退款轉帳憑證 (SD-016 §2.5)。與付款憑證同為財務個資，一律私有物件，
+     * 回傳 Object Key（refund-proofs/2026-10-24/{orderId}_{uuid}.jpg），檢視走 {@link #generateSignedUrl}。
+     */
+    String uploadRefundProof(UUID sitterId, UUID orderId, MultipartFile file);
+
+    /**
      * 上傳保母 KYC 證件照 (SD-017)
      * @param sitterId 保母 ID
      * @param type 證件類型 (e.g. "id-front", "selfie")

@@ -32,7 +32,7 @@
 
 ## Scenario 2: 線下退款憑證核銷 (退款路徑)
 * **Given**: 狀態為 `MODIFYING`。保母報價退款 200 元，飼主點擊 `confirm`。
-* **When**: 訂單進入 `REFUND_VERIFY`。保母上傳 `gs://` 憑證，飼主點擊【確認收到款項】。
+* **When**: 訂單進入 `REFUND_VERIFY`。保母上傳退款轉帳截圖（私有物件），飼主檢視簽名網址預覽後點擊【確認收到款項】。
 * **Then**: 訂單狀態回歸發起變更前的狀態（`CONFIRMED` 發起者回 `CONFIRMED`）。
 
 ## Scenario 2b: 退款確認 / 無差額變更依快照復原 (2026-10，C3 迴歸)
@@ -48,6 +48,12 @@
   - 前端：報價後不再有報價表單（只剩拒絕）；同意後不再有同意表單；補款分支兩頁都沒有退款區塊；退款分支憑證未上傳前飼主沒有「確認已收到退款」；結清後重新進頁兩頁都沒有任何按鈕。
   - 後端：已報價後重送報價、已同意後重送同意、已確認收到退款後重送確認 → 409，資料不變；補款分支或已結清後上傳退款憑證 → 409，既有憑證不被改寫；`GET .../modification` 回傳 `orderStatus`。
 * **自動化對應**: `OrderControllerTest.should_Return409_When_QuoteResubmittedAfterQuoted`、`should_Return409_When_ConfirmResubmittedAfterDone`、`should_Return409_When_RefundProofUploadedAfterRefundConfirmed`、`should_Return409_When_RefundProofUploadedOnSupplementBranch`、`should_Return409_When_RefundConfirmResubmitted`、`should_ReturnOrderStatus_When_QueryingModificationRequest`；mock E2E `order-modification.spec.ts`（8 支，含補款/退款/結清各階段）；Journey D 兩分支（TS-JOURNEY-04 步驟 5-6、7、9）。
+
+## Scenario 2d: 退款憑證改為上傳 + 私有 + 簽名網址 (2026-10，C4 迴歸)
+* **Given**: 訂單 `REFUND_VERIFY`，最新變更請求 `M_DONE`、差額 -500。
+* **When**: 保母以 multipart 上傳退款憑證；飼主/保母/第三方取簽名網址；保母改用舊的 JSON 網址字串上傳。
+* **Then**: 非圖片或 > 5MB → 400 不上傳；JSON 網址字串 → 400、DB 不寫入；上傳成功存 `refund-proofs/` Object Key；飼主與保母取得 10 分鐘簽名網址，第三方 403 且不簽名；舊資料的外部網址或未上傳 → 409 且回應不含該網址；`GET .../modification` 只回 `hasRefundProof`。前端飼主端以 `<img>` 顯示簽名網址，退款區塊內沒有任何 `<a>` 連結。
+* **自動化對應**: `OrderControllerTest` 中 `C4` 前綴的 7 支與 `should_UploadRefundProof_Successfully_UsingTokenContextIdentity`；mock E2E `order-modification.spec.ts`（multipart content-type、預覽 `src` 為簽名網址、無 `<a>`）；Journey D 退款分支步驟 7、8（`expectSignedRefundProof`：`refund-proofs/` + `X-Goog-Signature` + 圖片載入）。
 
 ## Scenario 3: 非本人發起變更應被拒絕
 * **Given**: 訂單 `CONFIRMED`，僅飼主與保母為訂單雙方。
@@ -89,7 +95,7 @@
 | 步驟 | 動作 | 預期功能結果 | 技術校驗 (DB/NFR) |
 | :--- | :--- | :--- | :--- |
 | 1 | 飼主點擊 Confirm | 執行實質變更與鎖定 | **Snapshot Recalc**: 確認按原合約價計算，非現行價。 |
-| 2 | 保母上傳憑證 | 二次驗證通過 | **GCP Storage**: 校驗 `evidence_url` 格式與權限。 |
+| 2 | 保母上傳憑證 | 圖片上傳成功，雙方可見預覽 | **GCP Storage**: 私有物件 `refund-proofs/...`，DTO 只有 `hasRefundProof`，簽名網址僅訂單雙方可取（Scenario 2d） |
 | 3 | 飼主最終確認 | 解除退款凍結 | **State Cleanup**: `waiting_for_owner_action` 轉為 `false`。 |
 | 4 | 保母拒絕變更 | 訂單狀態依快照復原 | `modification_requests.previous_status` 讀取，非寫死值 |
 | 5 | 確認金額與報價不符 | 拒絕確認 | `diffAmount` 與 `agreedDiffAmount` 比對 |
@@ -121,3 +127,5 @@
 **補款核帳也發「交易正式成立」通知（2026-10，Backlog 第 2 批 C5）**：`NotificationListener.onPaymentVerified()` 不分首次付款或補款，一律通知飼主「您的訂單付款已通過保母確認，交易正式成立。」。補款發生在訂單早已成立之後，這句話會讓飼主誤以為是另一筆新交易。修法：`PaymentVerifiedEvent` 加 `supplement` 旗標（由 `SupplementPaymentResolver.findOpenSupplement()` 判定），補款改發「補款已確認／變更內容正式生效」；category 維持 `ORDER_AFFAIR`，不新增通知類別，因此偏好設定與 SD-014 類別清單不需調整。迴歸見 Scenario 1c。
 
 **協商頁沒有依狀態收斂按鈕、退款憑證端點沒有狀態防護（2026-10，Backlog 第 2 批 C2 / 驗收 P7）**：`SitterModificationQuote`、`OwnerModificationConfirm` 兩頁不看變更請求狀態，報價表單、拒絕、退款憑證上傳（保母）與同意表單、確認收到退款（飼主）永遠全部渲染，只用本地旗標把「剛剛按過的那一個」換成成功字樣。重新進頁後已報價還能再報價、已同意還能再同意（後端 409，使用者只看到「失敗」），補款分支也出現退款區塊。後端 `uploadRefundProof()` 更完全沒有狀態檢查，任何階段都能改寫最新一筆變更請求的退款憑證（含飼主已確認收到退款之後）。修法：`GET .../modification` 加回 `orderStatus`，前端以 `resolveModificationPhase()` 收斂成單一階段、每次動作後重新讀取（SD-016 §2.2 表格）；退款憑證端點限 `REFUND_VERIFY` + `M_DONE` + 差額為負。迴歸見 Scenario 2c。
+
+**退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：`POST .../modification/refund-proof` 收 `{"refundProofUrl": "<任意字串>"}` 直接存進 DB，系統不上傳、不驗證；這個網址原樣回到 `GET .../modification`。飼主端若顯示或點開，等於打開保母提供的任意外部網址（釣魚、追蹤像素、惡意下載）；即使是合法網址，憑證本身也是公開可讀的財務截圖。修法：比照付款憑證（第 1 批 B1）改為 multipart 上傳到私有物件 `refund-proofs/...`、DTO 只回 `hasRefundProof`、檢視走 BOLA 檢查後的 10 分鐘簽名網址，且只簽 `refund-proofs/` 開頭的 key——舊的外部網址永遠不會被簽或回傳。迴歸見 Scenario 2d。

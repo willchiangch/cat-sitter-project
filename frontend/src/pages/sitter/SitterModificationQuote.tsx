@@ -9,6 +9,7 @@ import {
 import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
 import { formatDiff, resolveModificationPhase } from '../../components/orders/modificationPhase';
+import RefundProofImage from '../../components/orders/RefundProofImage';
 
 interface SitterModificationQuoteProps {
   orderId: string;
@@ -34,7 +35,7 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [newTotalAmount, setNewTotalAmount] = useState<number>(0);
-  const [refundProofUrl, setRefundProofUrl] = useState('');
+  const [refundProofFile, setRefundProofFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingReject, setLoadingReject] = useState(false);
   const [loadingProof, setLoadingProof] = useState(false);
@@ -123,13 +124,13 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
 
   const handleUploadProof = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!refundProofUrl.trim()) {
-      alert('請輸入憑證 URL');
+    if (!refundProofFile) {
+      alert('請選擇退款轉帳憑證圖片');
       return;
     }
     setLoadingProof(true);
     try {
-      await uploadRefundProof(orderId, refundProofUrl);
+      await uploadRefundProof(orderId, refundProofFile);
       setProofSent(true);
       alert('退款憑證已成功上傳！');
       await loadModRequest();
@@ -142,7 +143,7 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
   };
 
   const phase = modRequest ? resolveModificationPhase(modRequest) : null;
-  const refundProofUploaded = proofSent || !!modRequest?.refundProofUrl;
+  const refundProofUploaded = proofSent || !!modRequest?.hasRefundProof;
 
   const renderQuoteCardBody = () => {
     if (!modRequest) return null;
@@ -325,8 +326,15 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
                 退款轉帳憑證上傳（{formatDiff(modRequest.diffAmount)}）
               </h3>
               {refundProofUploaded ? (
-                <div style={noticeStyle} data-testid="refund-proof-success-banner">
-                  ✓ 退款憑證已成功上傳，等待飼主確認收到退款
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={noticeStyle} data-testid="refund-proof-success-banner">
+                    ✓ 退款憑證已成功上傳，等待飼主確認收到退款
+                  </div>
+                  <RefundProofImage
+                    orderId={orderId}
+                    alt="退款轉帳憑證"
+                    style={{ width: '100%', borderRadius: 'var(--radius-sm)' }}
+                  />
                 </div>
               ) : (
                 <form
@@ -335,21 +343,13 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <label style={{ fontSize: '0.875rem', fontWeight: '600' }}>
-                      憑證 / 收據圖片網址 (GCP Storage)
+                      退款轉帳憑證截圖（JPG / PNG / WEBP，5MB 以內）
                     </label>
                     <input
-                      type="text"
-                      placeholder="https://storage.googleapis.com/proof/refund_123.jpg"
-                      value={refundProofUrl}
-                      onChange={(e) => setRefundProofUrl(e.target.value)}
-                      style={{
-                        padding: '0.75rem',
-                        borderRadius: 'var(--radius-sm)',
-                        border: 'none',
-                        backgroundColor: 'var(--color-surface-low)',
-                        color: 'var(--color-on-surface)'
-                      }}
-                      data-testid="refund-proof-input"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => setRefundProofFile(e.target.files?.[0] ?? null)}
+                      data-testid="refund-proof-file-input"
                       required
                     />
                   </div>

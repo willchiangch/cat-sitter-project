@@ -1,7 +1,13 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
 import { step, trackDialogs, expectDialog } from './support/evidence';
 
 const orderId = 'a1023000-0000-0000-0000-000000000000';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const proofImage = path.join(__dirname, 'journeys/fixtures/report-photo.jpg');
+const signedRefundUrl =
+  'https://storage.googleapis.com/mock-bucket/refund-proofs/2026-10-24/mock.jpg?X-Goog-Signature=abc';
 
 type ModMock = Record<string, unknown> | null;
 
@@ -18,11 +24,12 @@ function modState(status: string, orderStatus: string, diffAmount: number): ModM
     currentOrderTotalAmount: 2400,
     orderVersion: 1,
     dates: ['2026-05-26', '2026-05-27'],
-    refundProofUrl: null
+    hasRefundProof: false
   };
 }
 
 let mod: ModMock = null;
+let refundUploadContentType = '';
 
 test.describe('Order Modification Flow', () => {
   test.setTimeout(60000);
@@ -121,12 +128,29 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截上傳憑證 API
     await page.route(`**/api/orders/${orderId}/modification/refund-proof**`, async (route) => {
-      if (mod) mod = { ...mod, refundProofUrl: 'refund-proofs/2026-10-24/mock.jpg' };
+      // C4：退款憑證必須以 multipart 上傳圖片，不再送網址字串
+      refundUploadContentType = route.request().headers()['content-type'] ?? '';
+      if (mod) mod = { ...mod, hasRefundProof: true };
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ status: 'SUCCESS', message: '退款憑證已成功上傳' })
       });
+    });
+
+    // 退款憑證簽名網址與圖片本體 (SD-016 §2.5)
+    await page.route(
+      `**/api/orders/${orderId}/modification/refund-proof/signed-url`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ signedUrl: signedRefundUrl, expiresInSeconds: 600 })
+        });
+      }
+    );
+    await page.route('https://storage.googleapis.com/mock-bucket/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'image/jpeg', path: proofImage });
     });
 
     // 攔截飼主確認變更 API
@@ -239,12 +263,19 @@ test.describe('Order Modification Flow', () => {
       await expect(page.getByTestId('refund-proof-section')).toBeVisible();
     });
 
-    await step('上傳退款憑證後表單消失', page, async () => {
-      await page.getByTestId('refund-proof-input').fill('https://receipt.jpg');
+    await step('上傳退款憑證圖片後表單消失，顯示簽名網址預覽（C4）', page, async () => {
+      // C4：不再有手填網址欄位
+      await expect(page.getByTestId('refund-proof-input')).toHaveCount(0);
+      await page.getByTestId('refund-proof-file-input').setInputFiles(proofImage);
       await page.getByTestId('refund-proof-submit-btn').click();
       await expectDialog(dialogs, /退款憑證已成功上傳/);
+      expect(refundUploadContentType).toMatch(/^multipart\/form-data/);
       await expect(page.getByTestId('refund-proof-success-banner')).toBeVisible();
       await expect(page.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
+      await expect(page.getByTestId('refund-proof-preview')).toHaveAttribute(
+        'src',
+        signedRefundUrl
+      );
     });
   });
 
@@ -317,13 +348,19 @@ test.describe('Order Modification Flow', () => {
     );
 
     await step('保母上傳憑證後重新進頁，確認收到線下退款，按鈕消失', page, async () => {
-      mod = { ...mod, refundProofUrl: 'refund-proofs/2026-10-24/mock.jpg' };
+      mod = { ...mod, hasRefundProof: true };
       // SPA 內返回再前進讓頁面重新掛載、重新讀取（不整頁重載，避免再觸發一次種子帳號登入）
       await page.goBack();
       await expect(page).toHaveURL(/\/demo$/);
       await page.goForward();
       await expect(page.getByTestId('refund-confirm-btn')).toBeVisible();
       await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
+      // C4：飼主端以簽名網址 <img> 顯示退款憑證，不做成可點的外部連結
+      await expect(page.getByTestId('refund-proof-preview')).toHaveAttribute(
+        'src',
+        signedRefundUrl
+      );
+      await expect(page.getByTestId('refund-confirm-section').locator('a')).toHaveCount(0);
       await page.getByTestId('refund-confirm-btn').click();
       await expectDialog(dialogs, /已確認收到退款/);
       await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible();

@@ -5,7 +5,8 @@ import {
   bootstrapConfirmedOrder,
   setBrowserAuth,
   awaitOrderStatus,
-  expectSignedPaymentProof
+  expectSignedPaymentProof,
+  expectSignedRefundProof
 } from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
@@ -238,20 +239,27 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
       await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
 
-      await sitterPage.getByTestId('refund-proof-input').fill(
-        'https://storage.googleapis.com/e2e-journey-test/refund-proof.jpg'
-      );
-      await snap(sitterPage, '退款憑證填寫完成');
+      // C4：退款憑證改為上傳圖片（私有物件），不再有手填網址欄位
+      await expect(sitterPage.getByTestId('refund-proof-input')).toHaveCount(0);
+      await sitterPage
+        .getByTestId('refund-proof-file-input')
+        .setInputFiles(path.join(__dirname, 'fixtures/report-photo.jpg'));
+      await snap(sitterPage, '退款憑證選擇完成');
       await sitterPage.getByTestId('refund-proof-submit-btn').click();
       await expectDialog(sitterDialogs, /退款憑證已成功上傳/);
       await expect(sitterPage.getByTestId('refund-proof-success-banner')).toBeVisible({ timeout: 10000 });
       await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
+      // C4 迴歸：預覽是 refund-proofs/ 私有物件的簽名網址，且圖片真的載入
+      await expectSignedRefundProof(sitterPage.getByTestId('refund-proof-section'));
     });
 
     await step('飼主重新真實點入變更協商入口，確認收到退款', page, async () => {
       await page.goto(`/owner/orders/${orderId}`);
       await page.getByTestId('btn-go-modification-confirm').click();
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${orderId}/modification-confirm`));
+      // C4 迴歸：飼主看到的是簽名網址 <img>，不是可點的外部連結
+      await expectSignedRefundProof(page.getByTestId('refund-confirm-section'));
+      await expect(page.getByTestId('refund-confirm-section').locator('a')).toHaveCount(0);
 
       await snap(page, '確認收到退款前');
       await page.getByTestId('refund-confirm-btn').click();

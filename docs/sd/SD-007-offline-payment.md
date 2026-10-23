@@ -629,6 +629,8 @@ public class BankAccountInfoCryptoConverter implements AttributeConverter<BankAc
 
 前端 `PaymentProofImage` 元件（飼主訂單詳情、保母核對面板共用）每次掛載都重新取網址，不快取。
 
+`PaymentProofAccessService` 同時提供訂單變更退款憑證的簽名（`generateRefundProofSignedUrl`，只簽 `refund-proofs/` 前綴，BOLA 檢查與 TTL 相同），端點與規則見 SD-016 §2.5.1。
+
 ---
 
 ## 5. 跨服務與介面變更

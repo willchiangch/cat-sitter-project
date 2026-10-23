@@ -9,6 +9,7 @@ import {
 import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
 import { formatDiff, resolveModificationPhase } from '../../components/orders/modificationPhase';
+import RefundProofImage from '../../components/orders/RefundProofImage';
 
 interface OwnerModificationConfirmProps {
   orderId: string;
@@ -223,7 +224,7 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
         </div>
       );
     }
-    if (!modRequest.refundProofUrl) {
+    if (!modRequest.hasRefundProof) {
       return (
         <div style={mutedNoticeStyle} data-testid="refund-awaiting-proof">
           等待保母上傳退款轉帳憑證，上傳後即可在此確認收到退款。
@@ -241,6 +242,11 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
         >
           保母已上傳退款轉帳收據，請在確認您實體帳戶收到退款後點擊此按鈕，正式完成訂單變更結轉。
         </p>
+        <RefundProofImage
+          orderId={orderId}
+          alt="保母上傳的退款轉帳憑證"
+          style={{ width: '100%', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem' }}
+        />
         <button
           onClick={handleConfirmRefund}
           disabled={loadingRefund || currentRole !== 'client'}

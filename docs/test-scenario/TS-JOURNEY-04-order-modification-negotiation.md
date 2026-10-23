@@ -44,8 +44,8 @@
 | 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單 2 天，改為 1 天 |
 | 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600`；報價表單消失，飼主同意前沒有退款憑證區塊 | `quote-submit-btn`、`refund-proof-section` 數量為 0（C2） |
 | 5-6 | 飼主確認，差額欄位顯示 `-$600` | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
-| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在，填憑證網址送出，送出後表單消失 | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof` 200 |
-| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 點「確認已收到退款」 | 顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
+| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在；選擇退款截圖上傳（不再有手填網址欄位），送出後表單消失並顯示簽名網址預覽 | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof`（multipart）200；`refund-proof-preview` 的 `src` 為 `refund-proofs/` 簽名網址且 `naturalWidth>0`（C4） |
+| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 檢視退款憑證預覽 → 點「確認已收到退款」 | 退款憑證以圖片顯示（簽名網址、無外部連結）；顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
 | 9 | 同補款分支步驟 9 | 兩頁皆無任何可操作按鈕 | 同上 |
 
 ---
@@ -82,8 +82,10 @@
 
 4. **補款頁顯示新總額而不是應補差額（2026-10，驗收 P8）**：`confirmModification()` 會把 `Order.totalAmount` 直接改成變更後新總額（例：$600 → $1,200）再轉 `PENDING_PAYMENT`，而 `GET /api/orders/{id}` / `GET /api/orders/sitter` 過去只回 `totalAmount`，系統裡根本沒有「這次要付多少」的欄位。結果 `OwnerOrderDetail` 補款頁顯示「訂單金額 $1,200」，飼主照著匯就會多匯一倍；保母核對入帳時看到的也是 $1,200，收到 $600 反而會以為短付而駁回。PRD-016 主流程 C.3 寫明「應補款：等待飼主支付**差額**」，所以這是後端缺欄位 + 前端顯示錯欄位兩層問題。修法：兩個 DTO 新增 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`：訂單處於 `PENDING_PAYMENT`/`PAID` 且最新一筆變更請求為 `M_DONE`、`diffAmount > 0` 時回差額，其餘回 `totalAmount`）；飼主付款頁顯示「本次應補差額」區塊、總額列改標「變更後訂單總額」，保母核對面板顯示「本次應收補款差額」。迴歸測試：`OrderQueryServiceListTest` 三支（補款回差額、首次付款回總額、退款/已結清不誤判），以及本 journey 步驟 7、8 的 UI 斷言。
 
-5. **付款憑證公開可讀（2026-10，安全/個資）**：步驟 8 的補款憑證（與首次付款憑證同一機制）過去以 `allUsers READER` 上傳、DTO 直接回 `storage.googleapis.com` 永久公開網址。改為私有物件 + 10 分鐘簽名網址，只有訂單飼主/保母能取得（SD-007 §4.7）。迴歸：步驟 8 斷言預覽為簽名網址且真的載入；後端 `PaymentControllerTest`。退款分支的「退款憑證」目前是保母手填的外部網址字串（不經本系統上傳），不在此修復範圍。
+5. **付款憑證公開可讀（2026-10，安全/個資）**：步驟 8 的補款憑證（與首次付款憑證同一機制）過去以 `allUsers READER` 上傳、DTO 直接回 `storage.googleapis.com` 永久公開網址。改為私有物件 + 10 分鐘簽名網址，只有訂單飼主/保母能取得（SD-007 §4.7）。迴歸：步驟 8 斷言預覽為簽名網址且真的載入；後端 `PaymentControllerTest`。退款分支的「退款憑證」當時是保母手填的外部網址字串（不經本系統上傳），已於第 8 點修正。
 
 6. **補款核帳後狀態寫死 `CONFIRMED`、補款覆寫首次付款紀錄（2026-10）**：`verifyPayment()` 不分首次或補款一律回 `CONFIRMED` 並覆寫 `paidAt`；補款上傳直接覆寫 `orders` 上首次付款的憑證/後五碼/冪等鍵/免責時間。改為補款紀錄存 `modification_requests.supplement_*`、核帳回 `previous_status`（SD-016 §4.3）。本 journey 步驟 8 斷言核對面板顯示補款後五碼、核帳後首次付款後五碼與 `paidAt` 未變；`IN_PROGRESS` 發起的分支因 journey 訂單日期在明天無法打卡，只由 `PaymentControllerTest` 覆蓋（見 TS-016 Scenario 1b）。
 
 7. **協商頁沒有依狀態收斂按鈕（2026-10，驗收 P7 / Backlog 第 2 批 C2）**：前一輪驗收的退款分支截圖 13 看到「退款憑證已上傳」時報價表單仍可操作。兩個協商頁原本不看變更請求狀態，所有表單永遠同時渲染；補款分支也出現退款區塊；後端退款憑證端點沒有狀態防護。修法見 SD-016 §2.2（`orderStatus` + 階段表）、§2.5。本 journey 補款步驟 6/6b/9、退款步驟 3-4/5-6/7/8/9 都斷言「已完成的動作按鈕數量為 0」；後端由 `OrderControllerTest` 六支 C2 測試覆蓋。
+
+8. **退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：本 journey 退款步驟 7 過去填的是 `https://storage.googleapis.com/e2e-journey-test/refund-proof.jpg`——任何字串都會被接受、原樣回給飼主端。改為上傳圖片到私有物件 + 簽名網址（SD-016 §2.5/§2.5.1）；步驟 7 改用 `fixtures/report-photo.jpg` 上傳，步驟 7、8 以 `expectSignedRefundProof` 斷言雙方預覽都是 `refund-proofs/` 簽名網址且真的載入，飼主退款區塊內沒有 `<a>`。

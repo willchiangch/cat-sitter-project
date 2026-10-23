@@ -123,6 +123,16 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String uploadRefundProof(UUID sitterId, UUID orderId, MultipartFile file) {
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
+        String extension = StringUtils.getFilenameExtension(originalFilename);
+        String dateStr = java.time.LocalDate.now().toString();
+        String targetFilename = orderId + "_" + UUID.randomUUID() + (extension != null ? "." + extension : "");
+        // 退款憑證比照付款憑證：私有物件 + 簽名網址 (SD-016 §2.5)。過去是保母手填任意外部網址
+        return uploadPrivate("refund-proofs/" + dateStr + "/" + targetFilename, file);
+    }
+
+    @Override
     public String uploadKycFile(UUID sitterId, String type, MultipartFile file) {
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
         String extension = StringUtils.getFilenameExtension(originalFilename);

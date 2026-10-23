@@ -29,6 +29,11 @@ public class ModificationService {
     private final VisitRepository visitRepository;
     private final ServicePlanRepository servicePlanRepository;
     private final AdvisoryLockService lockService;
+    private final MediaStorageService mediaStorageService;
+
+    /** 退款憑證檔案限制，與付款憑證 (SD-007 §5.1) 相同 */
+    static final long MAX_PROOF_BYTES = 5L * 1024 * 1024;
+    static final Set<String> ALLOWED_PROOF_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
 
     @Transactional
     public void proposeModification(UUID requesterId, UUID orderId, ModificationPayloadDto proposed, String requestedBy) {
@@ -236,7 +241,7 @@ public class ModificationService {
                 .currentOrderTotalAmount(order.getTotalAmount())
                 .orderVersion(order.getVersion())
                 .dates(modReq.getDates())
-                .refundProofUrl(modReq.getRefundProofUrl())
+                .hasRefundProof(modReq.getRefundProofUrl() != null && !modReq.getRefundProofUrl().isBlank())
                 .build();
     }
 
@@ -270,7 +275,7 @@ public class ModificationService {
     }
 
     @Transactional
-    public void uploadRefundProof(UUID orderId, UUID sitterId, String refundProofUrl) {
+    public void uploadRefundProof(UUID orderId, UUID sitterId, org.springframework.web.multipart.MultipartFile file) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
         if (!order.getSitter().getId().equals(sitterId)) {
@@ -287,7 +292,20 @@ public class ModificationService {
         if (!"M_DONE".equals(modReq.getStatus()) || modReq.getDiffAmount() == null || modReq.getDiffAmount() >= 0) {
             throw new IllegalStateException("此變更請求不涉及退款，無法上傳退款憑證");
         }
-        modReq.setRefundProofUrl(refundProofUrl);
+        // 退款憑證改為上傳圖片、存私有 Object Key (SD-016 §2.5)。過去收保母手填的任意網址字串，
+        // 飼主端點開等於點一個保母給的外部連結（釣魚/追蹤）。狀態與檔案都檢查完才上傳，避免 GCS 孤兒檔
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("退款憑證圖片檔案不可為空");
+        }
+        if (file.getSize() > MAX_PROOF_BYTES) {
+            throw new IllegalArgumentException("上傳的檔案大小不得超過 5MB");
+        }
+        if (file.getContentType() == null || !ALLOWED_PROOF_TYPES.contains(file.getContentType())) {
+            throw new IllegalArgumentException("檔案格式不符，僅支援 JPG、PNG、WEBP 圖片");
+        }
+        String objectKey = mediaStorageService.uploadRefundProof(sitterId, orderId, file);
+        // 欄位名稱沿用 refund_proof_url（不做 migration），2026-10 起存的是 Object Key
+        modReq.setRefundProofUrl(objectKey);
         modRepo.saveAndFlush(modReq);
     }
 

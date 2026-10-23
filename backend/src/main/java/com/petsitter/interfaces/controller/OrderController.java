@@ -213,11 +213,26 @@ public class OrderController {
     @PostMapping("/{orderId}/modification/refund-proof")
     public ResponseEntity<Map<String, String>> uploadRefundProof(
             @PathVariable UUID orderId,
-            @RequestBody Map<String, String> payload) {
+            @RequestParam("file") MultipartFile file) {
+        // 2026-10 改為 multipart 上傳圖片（私有物件），不再收保母手填的網址字串 (SD-016 §2.5)
         UUID sitterId = TokenContext.getUserId();
-        String refundProofUrl = payload.get("refundProofUrl");
-        modificationService.uploadRefundProof(orderId, sitterId, refundProofUrl);
+        modificationService.uploadRefundProof(orderId, sitterId, file);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "退款憑證已成功上傳"));
+    }
+
+    /**
+     * 取得退款憑證的短效簽名網址 (SD-016 §2.5)。僅訂單飼主/保母，非當事人 403 (BOLA)。
+     */
+    @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
+    @GetMapping("/{orderId}/modification/refund-proof/signed-url")
+    public ResponseEntity<Map<String, Object>> getRefundProofSignedUrl(@PathVariable UUID orderId) {
+        UUID requesterId = TokenContext.getUserId();
+        PaymentProofAccessService.SignedProofUrl result =
+                paymentProofAccessService.generateRefundProofSignedUrl(requesterId, orderId);
+        return ResponseEntity.ok(Map.of(
+                "signedUrl", result.signedUrl(),
+                "expiresInSeconds", result.expiresInSeconds()
+        ));
     }
 
     /**

@@ -30,5 +30,9 @@ public class ModificationRequestDetailDto {
     private Integer currentOrderTotalAmount;
     private Integer orderVersion;
     private List<String> dates;
-    private String refundProofUrl;
+    /**
+     * 保母是否已上傳退款憑證。憑證是私有物件，DTO 不帶任何網址；
+     * 檢視一律呼叫 GET /api/orders/{orderId}/modification/refund-proof/signed-url (SD-016 §2.5)
+     */
+    private boolean hasRefundProof;
 }

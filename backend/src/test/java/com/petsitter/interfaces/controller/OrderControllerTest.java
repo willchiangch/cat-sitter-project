@@ -36,7 +36,13 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -80,6 +86,13 @@ class OrderControllerTest {
 
     @MockitoBean
     private EvaluationService evaluationService;
+
+    @MockitoBean
+    private com.petsitter.application.service.MediaStorageService mediaStorageService;
+
+    private static org.springframework.mock.web.MockMultipartFile refundImage() {
+        return new org.springframework.mock.web.MockMultipartFile("file", "refund.jpg", MediaType.IMAGE_JPEG_VALUE, "img".getBytes());
+    }
 
     private UUID sitterId;
     private UUID orderId;
@@ -211,11 +224,11 @@ class OrderControllerTest {
     void should_Return403_When_OwnerCallsRefundProofEndpoint() throws Exception {
         TokenContext.setUserId(ownerId);
 
-        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
-                .with(user(ownerId.toString()).roles("OWNER"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"refundProofUrl\":\"https://storage.googleapis.com/test/proof.jpg\"}"))
+        mockMvc.perform(multipart("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                .file(refundImage())
+                .with(user(ownerId.toString()).roles("OWNER")))
                 .andExpect(status().isForbidden());
+        verify(mediaStorageService, never()).uploadRefundProof(any(), any(), any());
     }
 
     @Test
@@ -246,16 +259,18 @@ class OrderControllerTest {
                 .build());
 
         TokenContext.setUserId(sitterId);
+        when(mediaStorageService.uploadRefundProof(eq(sitterId), eq(realOrderId), any()))
+                .thenReturn("refund-proofs/2026-10-24/" + realOrderId + "_abc.jpg");
 
-        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
-                .with(user(sitterId.toString()).roles("SITTER"))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"refundProofUrl\":\"https://storage.googleapis.com/test/proof.jpg\"}"))
+        mockMvc.perform(multipart("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                .file(refundImage())
+                .with(user(sitterId.toString()).roles("SITTER")))
                 .andExpect(status().isOk());
 
+        // C4：存的是上傳後的私有 Object Key，不再是保母手填的網址
         var saved = modRequestRepository.findById(modReq.getId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(saved.getRefundProofUrl())
-                .isEqualTo("https://storage.googleapis.com/test/proof.jpg");
+                .isEqualTo("refund-proofs/2026-10-24/" + realOrderId + "_abc.jpg");
     }
 
     @Test
@@ -340,11 +355,11 @@ class OrderControllerTest {
         modRequestRepository.save(modReq);
         TokenContext.setUserId(sitterId);
 
-        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
-                        .with(user(sitterId.toString()).roles("SITTER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refundProofUrl\":\"https://evil.example.com/x.jpg\"}"))
+        mockMvc.perform(multipart("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .file(refundImage())
+                        .with(user(sitterId.toString()).roles("SITTER")))
                 .andExpect(status().isConflict());
+        verify(mediaStorageService, never()).uploadRefundProof(any(), any(), any());
 
         org.assertj.core.api.Assertions.assertThat(modRequestRepository.findById(modReq.getId()).get().getRefundProofUrl())
                 .isEqualTo("refund-proofs/2026-10-24/original.jpg");
@@ -356,11 +371,11 @@ class OrderControllerTest {
         ModificationRequest modReq = saveModRequest("PENDING_PAYMENT", "M_DONE", 600);
         TokenContext.setUserId(sitterId);
 
-        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
-                        .with(user(sitterId.toString()).roles("SITTER"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refundProofUrl\":\"https://storage.googleapis.com/test/proof.jpg\"}"))
+        mockMvc.perform(multipart("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .file(refundImage())
+                        .with(user(sitterId.toString()).roles("SITTER")))
                 .andExpect(status().isConflict());
+        verify(mediaStorageService, never()).uploadRefundProof(any(), any(), any());
 
         org.assertj.core.api.Assertions.assertThat(modRequestRepository.findById(modReq.getId()).get().getRefundProofUrl())
                 .isNull();
@@ -392,5 +407,126 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.status").value("M_DONE"))
                 .andExpect(jsonPath("$.orderStatus").value("REFUND_VERIFY"))
                 .andExpect(jsonPath("$.diffAmount").value(-500));
+    }
+
+    // ===== C4 迴歸：退款憑證改為上傳圖片 + 私有物件 + 簽名網址，不再接受/回傳任意外部網址 =====
+
+    @Test
+    @DisplayName("C4：退款憑證非圖片格式 → 400，不上傳")
+    void should_Return400_When_RefundProofIsNotImage() throws Exception {
+        saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(multipart("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .file(new org.springframework.mock.web.MockMultipartFile("file", "x.html", "text/html", "<a>".getBytes()))
+                        .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isBadRequest());
+        verify(mediaStorageService, never()).uploadRefundProof(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("C4：退款憑證超過 5MB → 400，不上傳")
+    void should_Return400_When_RefundProofTooLarge() throws Exception {
+        saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(multipart("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .file(new org.springframework.mock.web.MockMultipartFile("file", "big.jpg", MediaType.IMAGE_JPEG_VALUE,
+                                new byte[5 * 1024 * 1024 + 1]))
+                        .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isBadRequest());
+        verify(mediaStorageService, never()).uploadRefundProof(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("C4：舊的 JSON 網址字串上傳方式（舊版 PWA 快取）不再被接受 → 400（不是 500），不寫入任何網址")
+    void should_Reject_When_RefundProofSubmittedAsUrlString() throws Exception {
+        ModificationRequest modReq = saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        TokenContext.setUserId(sitterId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/modification/refund-proof", realOrderId)
+                        .with(user(sitterId.toString()).roles("SITTER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refundProofUrl\":\"https://evil.example.com/phish\"}"))
+                .andExpect(status().isBadRequest());
+
+        org.assertj.core.api.Assertions.assertThat(modRequestRepository.findById(modReq.getId()).get().getRefundProofUrl())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("C4：飼主/保母可取退款憑證簽名網址（10 分鐘），簽的是 refund-proofs/ 私有物件")
+    void should_ReturnRefundProofSignedUrl_ForOrderParties() throws Exception {
+        ModificationRequest modReq = saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        String key = "refund-proofs/2026-10-24/" + realOrderId + "_abc.jpg";
+        modReq.setRefundProofUrl(key);
+        modRequestRepository.save(modReq);
+        when(mediaStorageService.resolveObjectKey(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mediaStorageService.generateSignedUrl(eq(key), any()))
+                .thenReturn("https://storage.googleapis.com/b/" + key + "?X-Goog-Signature=abc");
+
+        for (var party : List.of(List.of(ownerId.toString(), "OWNER"), List.of(sitterId.toString(), "SITTER"))) {
+            TokenContext.setUserId(UUID.fromString(party.get(0)));
+            mockMvc.perform(get("/api/orders/{orderId}/modification/refund-proof/signed-url", realOrderId)
+                            .with(user(party.get(0)).roles(party.get(1))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.signedUrl").value("https://storage.googleapis.com/b/" + key + "?X-Goog-Signature=abc"))
+                    .andExpect(jsonPath("$.expiresInSeconds").value(600));
+        }
+        verify(mediaStorageService, org.mockito.Mockito.times(2))
+                .generateSignedUrl(eq(key), eq(java.time.Duration.ofMinutes(10)));
+    }
+
+    @Test
+    @DisplayName("C4 (BOLA)：非訂單當事人取退款憑證簽名網址 → 403，且完全不簽名")
+    void should_Return403_When_UnrelatedUserRequestsRefundProofSignedUrl() throws Exception {
+        ModificationRequest modReq = saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        modReq.setRefundProofUrl("refund-proofs/2026-10-24/x.jpg");
+        modRequestRepository.save(modReq);
+        User unrelated = userRepository.save(User.builder().email("unrelated-refund@test.com").passwordHash("hash").role("OWNER").build());
+        TokenContext.setUserId(unrelated.getId());
+
+        mockMvc.perform(get("/api/orders/{orderId}/modification/refund-proof/signed-url", realOrderId)
+                        .with(user(unrelated.getId().toString()).roles("OWNER")))
+                .andExpect(status().isForbidden());
+        verify(mediaStorageService, never()).generateSignedUrl(any(), any());
+    }
+
+    @Test
+    @DisplayName("C4：2026-10 前保母手填的外部網址 → 409，不簽名也不回傳該網址；未上傳 → 409")
+    void should_Return409_When_RefundProofIsLegacyExternalUrlOrMissing() throws Exception {
+        ModificationRequest modReq = saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        when(mediaStorageService.resolveObjectKey(any())).thenAnswer(inv -> inv.getArgument(0));
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(get("/api/orders/{orderId}/modification/refund-proof/signed-url", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isConflict());
+
+        modReq.setRefundProofUrl("https://evil.example.com/phish.jpg");
+        modRequestRepository.save(modReq);
+        String body = mockMvc.perform(get("/api/orders/{orderId}/modification/refund-proof/signed-url", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(body).doesNotContain("evil.example.com");
+        verify(mediaStorageService, never()).generateSignedUrl(any(), any());
+    }
+
+    @Test
+    @DisplayName("C4：查詢變更請求只回 hasRefundProof，不回任何憑證網址或 Object Key")
+    void should_ExposeOnlyHasRefundProof_When_QueryingModificationRequest() throws Exception {
+        ModificationRequest modReq = saveModRequest("REFUND_VERIFY", "M_DONE", -500);
+        modReq.setRefundProofUrl("refund-proofs/2026-10-24/x.jpg");
+        modRequestRepository.save(modReq);
+        TokenContext.setUserId(ownerId);
+
+        String body = mockMvc.perform(get("/api/orders/{orderId}/modification", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasRefundProof").value(true))
+                .andExpect(jsonPath("$.refundProofUrl").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(body).doesNotContain("refund-proofs/");
     }
 }

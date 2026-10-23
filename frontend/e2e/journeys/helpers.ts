@@ -472,10 +472,21 @@ export async function pollUntil<T>(
  * 不能是不帶簽名的公開路徑；而且圖片要真的載入成功（私有物件若誤用公開網址會 403 變破圖）。
  */
 export async function expectSignedPaymentProof(scope: Locator | Page) {
-  const img = scope.getByTestId('payment-proof-preview');
+  await expectSignedProofImage(scope, 'payment-proof-preview', 'payment-proofs');
+}
+
+/**
+ * C4：退款憑證同樣是私有物件 + 簽名網址（SD-016 §2.5），不可是保母手填的任意外部網址
+ */
+export async function expectSignedRefundProof(scope: Locator | Page) {
+  await expectSignedProofImage(scope, 'refund-proof-preview', 'refund-proofs');
+}
+
+async function expectSignedProofImage(scope: Locator | Page, testId: string, folder: string) {
+  const img = scope.getByTestId(testId);
   await expect(img).toHaveAttribute(
     'src',
-    /^https:\/\/storage\.googleapis\.com\/[^?]+\/payment-proofs\/[^?]+\?.*X-Goog-Signature=/
+    new RegExp(`^https://storage\\.googleapis\\.com/[^?]+/${folder}/[^?]+\\?.*X-Goog-Signature=`)
   );
   await expect
     .poll(() =>

@@ -51,7 +51,8 @@ export interface ModificationRequestDetailDto {
   currentOrderTotalAmount: number;
   orderVersion: number;
   dates: string[];
-  refundProofUrl?: string;
+  // 保母是否已上傳退款憑證。憑證是私有物件，圖片網址要另外呼叫 getRefundProofSignedUrl 取 (SD-016 §2.5)
+  hasRefundProof: boolean;
 }
 
 export interface ModificationQuoteRequest {
@@ -229,15 +230,26 @@ export const resolveDisputedOrder = async (
   return response.data;
 };
 
-// 9. 保母上傳退款憑證 (SD-016)
-// 身份改由後端從 JWT (TokenContext) 取得，不再由前端傳 sitterId (BOLA 修復)
+// 9. 保母上傳退款憑證 (SD-016 §2.5)
+// 身份改由後端從 JWT (TokenContext) 取得，不再由前端傳 sitterId (BOLA 修復)。
+// 2026-10 起改為上傳圖片（私有物件），不再送保母手填的網址字串
 export const uploadRefundProof = async (
   orderId: string,
-  refundProofUrl: string
+  file: File
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/modification/refund-proof`, {
-    refundProofUrl
-  });
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axiosClient.post(
+    `/orders/${orderId}/modification/refund-proof`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+// 退款憑證短效簽名網址，僅訂單飼主/保母可取 (SD-016 §2.5)
+export const getRefundProofSignedUrl = async (orderId: string): Promise<PaymentProofSignedUrl> => {
+  const response = await axiosClient.get(`/orders/${orderId}/modification/refund-proof/signed-url`);
   return response.data;
 };
 

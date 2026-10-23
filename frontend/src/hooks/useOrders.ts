@@ -6,7 +6,8 @@ import {
   getSitterLedger,
   verifyPayment,
   rejectPayment,
-  getPaymentProofSignedUrl
+  getPaymentProofSignedUrl,
+  getRefundProofSignedUrl
 } from '../api/orderApi';
 import type {
   OrderSummaryDto,
@@ -47,6 +48,18 @@ export const usePaymentProofSignedUrlQuery = (orderId: string, enabled: boolean)
   return useQuery<PaymentProofSignedUrl, Error>({
     queryKey: ['orders', orderId, 'payment-proof-signed-url'],
     queryFn: () => getPaymentProofSignedUrl(orderId),
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false
+  });
+};
+
+// 退款憑證簽名網址：同付款憑證不快取，避免用到過期網址 (SD-016 §2.5)
+export const useRefundProofSignedUrlQuery = (orderId: string, enabled: boolean) => {
+  return useQuery<PaymentProofSignedUrl, Error>({
+    queryKey: ['orders', orderId, 'refund-proof-signed-url'],
+    queryFn: () => getRefundProofSignedUrl(orderId),
     enabled,
     staleTime: 0,
     gcTime: 0,
