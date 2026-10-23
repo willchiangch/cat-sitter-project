@@ -8,7 +8,7 @@ import {
   useMarkAsReadMutation,
   useMarkAllAsReadMutation
 } from '../../hooks/useNotifications';
-import { getSitterKycStatus } from '../../api/kycApi';
+import { useSitterKycStatusQuery } from '../../hooks/useKyc';
 import type { NotificationDto } from '../../api/notificationApi';
 import { resolveNotificationLink } from '../notifications/resolveNotificationLink';
 
@@ -18,7 +18,6 @@ const AppHeader: React.FC = () => {
   const location = useLocation();
   const currentViewName = location.pathname;
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [kycStatus, setKycStatus] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const roleParam =
@@ -34,20 +33,23 @@ const AppHeader: React.FC = () => {
   const markAsReadMutation = useMarkAsReadMutation(roleParam);
   const markAllAsReadMutation = useMarkAllAsReadMutation(roleParam);
 
-  // 3. 獲取保母 KYC 狀態 (僅當角色為 sitter 時)
+  // 3. 獲取保母 KYC 狀態 (僅當角色為 sitter 時)。與 /sitter/kyc 頁面共用同一份快取 (useKyc.ts)，
+  // 頁面送出/重抓後橫幅立即同步；換頁時仍重新檢查（管理員可能已審核）。
+  // 取不到狀態時不顯示橫幅：過去 catch 一律當 UNVERIFIED，API 失敗也會掛「尚未完成實名認證」
+  const isSitter = currentRole === 'sitter';
+  const {
+    data: kycData,
+    isError: kycError,
+    refetch: refetchKyc
+  } = useSitterKycStatusQuery(isSitter);
+  const kycCheckedPathRef = useRef(currentViewName);
   useEffect(() => {
-    if (currentRole === 'sitter') {
-      getSitterKycStatus()
-        .then((data) => {
-          setKycStatus(data.kycStatus);
-        })
-        .catch(() => {
-          setKycStatus('UNVERIFIED');
-        });
-    } else {
-      setKycStatus(null);
-    }
-  }, [currentRole, currentViewName]); // 每次視圖或角色變更時重新檢查
+    // 首次掛載由 useQuery 自己抓，這裡只負責「換頁後」重新檢查，避免一進站就打兩次
+    if (kycCheckedPathRef.current === currentViewName) return;
+    kycCheckedPathRef.current = currentViewName;
+    if (isSitter) refetchKyc();
+  }, [isSitter, currentViewName, refetchKyc]);
+  const kycStatus = isSitter && !kycError ? (kycData?.kycStatus ?? null) : null;
 
   // 4. 點選外部關閉 Dropdown
   useEffect(() => {

@@ -56,6 +56,9 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       await expect(page.getByTestId('sitter-kyc-status-badge')).toHaveText('審核中', {
         timeout: 15000
       });
+      // U3：頂部橫幅要跟著變審核中，不能還掛著送出前的「尚未完成保母實名認證」
+      await expect(page.getByTestId('sitter-kyc-banner')).toContainText('認證資料正在審核中');
+      await expect(page.getByTestId('sitter-kyc-banner')).not.toContainText('尚未完成');
       await snap(page, 'A-02 KYC 送出後審核中');
 
       const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });

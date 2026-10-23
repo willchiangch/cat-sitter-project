@@ -596,7 +596,9 @@ public class NotificationPreference {
         * 2026-10（Backlog 第 3 批 D1）前飼主端寫的是不存在的 `/client/orders`、`/visits/report?orderId=`，前端只認 3 個寫死字串，推薦通知、影像到期提醒點了沒反應。DB 既有通知不做 migration，由前端轉換：`/client/orders[/...]` → `/owner/orders[/...]`、`/visits/report?orderId={id}` → `/owner/orders/{id}`。
         * 迴歸：後端 `NotificationListenerLinkTest` 解析 `routes.tsx` 比對每個監聽器產生的連結；前端 `e2e/notification-links.spec.ts`。
 4. **保母認證優先提示 (KYC Banner)**：
-   * 若登入使用者為保母角色，且其 KYC 狀態為 `UNVERIFIED` 或 `REJECTED` 時，訊息中心頂部需固定置頂一條高對比提示 Banner，強烈提示：「您尚未完成實名認證，這將影響您接單的資格。 [立即認證]」。
+   * 若登入使用者為保母角色，`AppHeader` 依 KYC 狀態固定置頂一條提示 Banner（`data-testid="sitter-kyc-banner"`）：`UNVERIFIED`「您尚未完成保母實名認證，將限制開啟接單狀態。[立即填寫]」、`PENDING_REVIEW`「您的認證資料正在審核中，通過後將開放接單。[查看申請]」、`REJECTED`「您的實名認證未通過，請點選重新提交文件。[重新認證]」、`SUSPENDED`「您的保母接單帳號已被系統限制停權。[查看詳情]」；`VERIFIED` 不顯示。
+   * 狀態來源與 `/sitter/kyc` 頁面共用 React Query 快取 `['kyc','status']`（`src/hooks/useKyc.ts`）：頁面每次取得狀態（含送出 KYC 後重抓）以 `setQueryData` 寫回，橫幅立即同步；換頁時重新檢查（管理員可能已審核）。取得狀態失敗時不顯示 Banner。
+   * 2026-10 修復（驗收 P4 / Backlog 第 3 批 U3）：過去 Header 自己在換頁時打 API，送出 KYC 後停在同一頁，頁面徽章已是「審核中」，橫幅仍是送出前的「尚未完成實名認證」；API 失敗也一律當 `UNVERIFIED`。迴歸：`e2e/sitter-kyc-banner.spec.ts`、Journey A 步驟 3。
 
 ### 6.2. 偏好設定頁面設計
 * 開放四類通知的「站內通知」與「Email」開關。

@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import Card from '../../components/ui/Card';
 import { getSitterKycStatus, submitKyc, getSitterMediaUrl } from '../../api/kycApi';
 import type { KycStatusDto } from '../../api/kycApi';
+import { useQueryClient } from '@tanstack/react-query';
+import { KYC_STATUS_QUERY_KEY } from '../../hooks/useKyc';
 
 const SitterKycSubmit: React.FC = () => {
+  const queryClient = useQueryClient();
   const [statusInfo, setStatusInfo] = useState<KycStatusDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -25,6 +28,8 @@ const SitterKycSubmit: React.FC = () => {
     try {
       const data = await getSitterKycStatus();
       setStatusInfo(data);
+      // 同步 AppHeader 的 KYC 橫幅（共用快取），送出後橫幅跟著變「審核中」(U3)
+      queryClient.setQueryData(KYC_STATUS_QUERY_KEY, data);
 
       if (data.kycStatus !== 'UNVERIFIED') {
         try {
