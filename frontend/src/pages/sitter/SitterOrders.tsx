@@ -375,7 +375,10 @@ const SitterOrders: React.FC = () => {
                     {order.amountDue != null && order.amountDue !== order.totalAmount && (
                       <div data-testid="verify-amount-due">
                         本次應收補款差額：
-                        <strong style={{ color: 'var(--color-primary)' }}>
+                        <strong
+                          style={{ color: 'var(--color-primary)' }}
+                          data-testid="verify-amount-due-value"
+                        >
                           $ {order.amountDue.toLocaleString()}
                         </strong>
                         （變更後總額 $ {order.totalAmount.toLocaleString()}）

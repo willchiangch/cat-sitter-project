@@ -143,7 +143,11 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(sitterPage.getByTestId('btn-verify-payment')).toBeVisible({ timeout: 10000 });
       // 迴歸 (P8)：保母核對時也要看到應收的是差額 $600，而不是預估總額 $1,200
-      await expect(sitterPage.getByTestId('verify-amount-due')).toContainText('$ 600');
+      // S2：差額獨立 testid 完全比對（toContainText('$ 600') 遇到 $ 6000 也會過），整段再錨定一次
+      await expect(sitterPage.getByTestId('verify-amount-due-value')).toHaveText('$ 600');
+      await expect(sitterPage.getByTestId('verify-amount-due')).toHaveText(
+        /^本次應收補款差額：\s*\$ 600\s*（變更後總額 \$ 1,200）$/
+      );
       // B2 迴歸：核對面板顯示的是補款憑證（54321），不是首次付款的 12345
       await expect(sitterPage.getByTestId('verify-last-five')).toHaveText('54321');
       // B1 迴歸：補款憑證預覽必須顯示，且是簽名網址而非公開路徑
