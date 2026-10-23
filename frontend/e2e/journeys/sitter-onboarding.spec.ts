@@ -33,16 +33,18 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
     // 2. UI：提交 KYC
     await step('A-02 保母提交 KYC 證件與自拍照', page, async () => {
       await page.goto('/sitter/kyc');
-      await page.getByTestId('sitter-kyc-id-front-input').setInputFiles(
-        path.join(__dirname, 'fixtures/kyc-id-front.jpg')
-      );
-      await page.getByTestId('sitter-kyc-selfie-input').setInputFiles(
-        path.join(__dirname, 'fixtures/kyc-selfie.jpg')
-      );
+      await page
+        .getByTestId('sitter-kyc-id-front-input')
+        .setInputFiles(path.join(__dirname, 'fixtures/kyc-id-front.jpg'));
+      await page
+        .getByTestId('sitter-kyc-selfie-input')
+        .setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
       await snap(page, 'A-02 KYC 表單填寫完成');
 
       await page.getByTestId('sitter-kyc-submit-btn').click();
-      await expect(page.getByTestId('sitter-kyc-status-badge')).toHaveText('審核中', { timeout: 15000 });
+      await expect(page.getByTestId('sitter-kyc-status-badge')).toHaveText('審核中', {
+        timeout: 15000
+      });
       await snap(page, 'A-02 KYC 送出後審核中');
 
       const statusRes = await request.get('/api/sitter/kyc/status', { headers: apiAuthed(sitter) });
@@ -86,7 +88,9 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       await snap(adminPage, 'A-04 核准成功訊息');
       await expect(adminPage).toHaveURL(/\/admin\/kyc$/, { timeout: 10000 });
       // 核准後回到待審清單，這筆申請應該消失（舊版沒有這張圖，看不出核准有沒有生效）
-      await expect(adminPage.getByTestId('admin-kyc-row').filter({ hasText: sitter.email })).toHaveCount(0, {
+      await expect(
+        adminPage.getByTestId('admin-kyc-row').filter({ hasText: sitter.email })
+      ).toHaveCount(0, {
         timeout: 10000
       });
     });
@@ -114,7 +118,9 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
     // 不會沿用 User.fullName，未設定的話公開頁的 <h1> 會是空字串）
     const displayName = `Journey保母A公開顯示名稱-${Date.now()}`;
     await apiStep('A-06.5 保母設定公開檔案顯示名稱', async () => {
-      const selfRes = await request.get(`/api/sitter/profile/${sitter.userId}`, { headers: apiAuthed(sitter) });
+      const selfRes = await request.get(`/api/sitter/profile/${sitter.userId}`, {
+        headers: apiAuthed(sitter)
+      });
       expect(selfRes.ok()).toBeTruthy();
       const selfProfile = await selfRes.json();
       const updateRes = await request.put('/api/sitter/profile', {
@@ -132,21 +138,45 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
       return updateRes.json();
     });
 
-    // 7. UI：建立多個服務方案
-    const planNames = [`Journey方案A-常態照護-${Date.now()}`, `Journey方案A-陪伴散步-${Date.now()}`];
+    // 7. UI：建立多個服務方案（TS #7：不同 applicablePetTypes/價格，兩筆都 CAT/600 的話測不出欄位串錯）
+    const plans = [
+      {
+        name: `Journey方案A-常態照護-${Date.now()}`,
+        price: 600,
+        petType: 'CAT',
+        petLabel: '🐱 貓咪'
+      },
+      {
+        name: `Journey方案A-陪伴散步-${Date.now()}`,
+        price: 900,
+        petType: 'DOG',
+        petLabel: '🐶 狗狗'
+      }
+    ];
     await step('A-07 保母上架多個服務方案', page, async () => {
       await page.goto('/sitter/plans');
-      for (const planName of planNames) {
+      for (const plan of plans) {
         await page.getByTestId('sitter-plan-btn-add').click();
-        await page.getByTestId('sitter-plan-input-name').fill(planName);
-        await page.getByTestId('sitter-plan-input-price').fill('600');
+        await page.getByTestId('sitter-plan-input-name').fill(plan.name);
+        await page.getByTestId('sitter-plan-input-price').fill(String(plan.price));
         await page.getByTestId('sitter-plan-input-capacity').fill('2');
         await page.getByTestId('sitter-plan-input-duration').fill('60');
-        // 注意：openModal(null) 新增方案時預設就已勾選「CAT」（見 SitterPlans.tsx openModal），
-        // 這裡不用再點一次——點下去反而會把預設值切掉，導致「請至少選擇一種適用寵物類型」擋在儲存
-        await snap(page, `A-07 方案表單：${planName}`);
+        // openModal(null) 新增方案時預設已勾選 CAT（見 SitterPlans.tsx openModal）：
+        // CAT 方案不用點（點了反而取消勾選）；非 CAT 方案先點 CAT 取消、再點目標類型
+        if (plan.petType !== 'CAT') {
+          await page.getByTestId('sitter-plan-checkbox-pet-CAT').click();
+          await page.getByTestId(`sitter-plan-checkbox-pet-${plan.petType}`).click();
+        }
+        await snap(page, `A-07 方案表單：${plan.name}`);
         await page.getByTestId('sitter-plan-btn-save').click();
-        await expect(page.getByText(planName)).toBeVisible({ timeout: 10000 });
+        const card = page
+          .locator('[data-testid^="sitter-plan-card-"]')
+          .filter({ hasText: plan.name });
+        await expect(card).toBeVisible({ timeout: 10000 });
+        await expect(card).toContainText(plan.petLabel);
+        for (const other of plans.filter((o) => o.petType !== plan.petType)) {
+          await expect(card).not.toContainText(other.petLabel);
+        }
       }
     });
 
@@ -158,9 +188,34 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
 
       await expect(anonPage.getByTestId('public-profile-display-name')).toHaveText(displayName);
       await expect(anonPage.getByTestId('public-profile-gated-banner')).not.toBeVisible();
-      for (const planName of planNames) {
-        await expect(anonPage.getByText(planName)).toBeVisible();
+      for (const plan of plans) {
+        const item = anonPage
+          .getByTestId('public-profile-plan-item')
+          .filter({ hasText: plan.name });
+        await expect(item).toBeVisible();
+        await expect(item).toContainText(`NT$ ${plan.price}`);
       }
+    });
+
+    // 8. API：匿名查詢公開檔案與方案清單（TS #8 技術校驗，UI 之外再釘一次資料層）
+    await apiStep('A-08 匿名查詢公開檔案與方案 API', async () => {
+      const profileRes = await anonContext.request.get(`/api/sitter/profile/${sitter.userId}`);
+      expect(profileRes.ok()).toBeTruthy();
+      const profile = await profileRes.json();
+      expect(profile.gated).toBe(false);
+      expect(profile.displayName).toBe(displayName);
+
+      const plansRes = await anonContext.request.get(`/api/sitters/${sitter.userId}/plans`);
+      expect(plansRes.ok()).toBeTruthy();
+      const published: any[] = (await plansRes.json()).data;
+      for (const plan of plans) {
+        const found = published.find((p) => p.name === plan.name);
+        expect(found, `公開方案清單應包含 ${plan.name}`).toBeTruthy();
+        expect(found.isActive).toBe(true);
+        expect(Number(found.price)).toBe(plan.price);
+        expect(found.applicablePetTypes).toEqual([plan.petType]);
+      }
+      return { gated: profile.gated, displayName: profile.displayName, plans: published };
     });
     await anonContext.close();
   });

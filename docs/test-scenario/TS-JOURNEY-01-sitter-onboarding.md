@@ -31,8 +31,8 @@
 | 5 | UI：admin 於 `/admin/kyc` 進入該筆詳情，點擊「批准認證」 | 頁面顯示審核通過訊息並導回清單 | `Profile.kycStatus` 轉為 `VERIFIED`；UI 斷言「實名認證審核已通過！」（`AdminKycDetail` 只顯示 1.5 秒就導回清單），且詳情頁截圖前先等「批准認證」按鈕出現（詳情 API 回來才算進入詳情頁） |
 | 6 | API：`PUT /api/sitter/kyc/open {isOpen:true}` | 開啟接單狀態成功（前置條件 `kycStatus=VERIFIED` 已滿足） | `Profile.isOpen=true` |
 | 6.5 | API：`PUT /api/sitter/profile` 設定 `displayName`/`bio`/`tags`/`isVisible:true` | 公開檔案資料寫入成功 | `Profile.displayName` 非空字串（此欄位獨立於 `User.fullName`，未設定則公開頁 `<h1>` 是空的，實測時踩到這個坑） |
-| 7 | UI：`/sitter/plans` 建立 2-3 個服務方案（不同 `applicablePetTypes`/價格） | 方案清單顯示新建立的方案 | 每筆方案 `isActive=true`；**注意**：`openModal(null)` 新增方案時 `applicablePetTypes` 預設已勾選 `CAT`，不用再手動點擊，點擊反而會取消勾選 |
-| 8 | UI：以全新、未登入的瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 頁面顯示步驟 6.5 設定的顯示名稱、標籤與方案清單，**不是**「保母休息中」 | `GET /api/sitter/profile/{sitterId}` 匿名查詢回應 `gated=false`；`GET /api/sitters/{sitterId}/plans` 內容包含步驟 7 建立的方案名稱 |
+| 7 | UI：`/sitter/plans` 建立 2 個服務方案，寵物類型與價格都不同：`CAT`/$600、`DOG`/$900 | 方案清單顯示新建立的方案，各自卡片只顯示自己的寵物類型標籤（🐱 貓咪 / 🐶 狗狗） | 每筆方案 `isActive=true`（於步驟 8 的匿名 plans API 斷言）；**注意**：`openModal(null)` 新增方案時 `applicablePetTypes` 預設已勾選 `CAT`，CAT 方案不用再點，非 CAT 方案要先點 `CAT` 取消再點目標類型 |
+| 8 | UI：以全新、未登入的瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 頁面顯示步驟 6.5 設定的顯示名稱、標籤與方案清單，**不是**「保母休息中」；每個方案列各自顯示 `NT$ 600` / `NT$ 900` | 以同一個匿名 context 的 request（不帶 token）查：`GET /api/sitter/profile/{sitterId}` 回應 `gated=false`、`displayName` 等於步驟 6.5 的值；`GET /api/sitters/{sitterId}/plans` 包含步驟 7 兩筆方案，各自 `isActive=true`、`price` 與 `applicablePetTypes` 與建立時一致 |
 
 ---
 
