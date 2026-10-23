@@ -269,20 +269,32 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
           {items.map((item: any, idx: number) => (
             <div
               key={idx}
+              data-testid={`sitter-order-eval-item-${idx}`}
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
+                alignItems: 'baseline',
+                gap: '1rem',
                 fontSize: '0.875rem',
                 padding: '0.5rem 0',
-                borderBottom: idx < items.length - 1 ? '1px solid var(--color-outline-variant)' : 'none'
+                borderBottom:
+                  idx < items.length - 1 ? '1px solid var(--color-outline-variant)' : 'none'
               }}
             >
-              <span>
+              {/* 說明可換行、價格不換行也不被壓縮：過去兩個 span 直接貼齊，說明一長價格欄被擠壓，
+                  「每天 1 次」的「1」緊貼「$ 600」看起來像「$ 1600」(驗收 P5 / Backlog 第 3 批 U4) */}
+              <span
+                style={{ flex: 1, minWidth: 0 }}
+                data-testid={`sitter-order-eval-item-desc-${idx}`}
+              >
                 {item.serviceName}
                 {item.dates && item.dates.length > 0 ? ` · ${item.dates.length} 天` : ''}
                 {item.timesPerDay ? ` · 每天 ${item.timesPerDay} 次` : ''}
               </span>
-              <span style={{ fontWeight: '600' }}>
+              <span
+                style={{ fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}
+                data-testid={`sitter-order-eval-item-price-${idx}`}
+              >
                 $ {(item.unitPrice * item.quantity).toLocaleString()}
               </span>
             </div>

@@ -218,4 +218,55 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     await expect(page).toHaveURL(/\/sitter\/orders$/);
     expect(orderStatus).toBe('CANCELLED');
   });
+
+  test('品項明細：說明很長時價格欄不被擠壓、與說明保持間距（U4 / 驗收 P5）', async ({ page }) => {
+    // 覆寫 beforeEach 的訂單：方案名稱長到會佔滿整列，重現「每天 1 次」緊貼「$ 600」看起來像「$ 1600」
+    await page.route(`**/api/orders/${orderId}`, async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: orderId,
+          ownerName: '陳先生',
+          status: 'PENDING',
+          totalAmount: 600,
+          version: 0,
+          adjustmentAmount: 0,
+          items: [
+            {
+              category: 'BOOKING',
+              serviceName: 'Journey B 到府照顧方案（含餵食、清理、陪玩）',
+              unitPrice: 600,
+              quantity: 1,
+              dates: ['2026-08-01'],
+              timesPerDay: 1
+            }
+          ]
+        })
+      });
+    });
+
+    await step('開評估頁，檢查品項列的價格欄', page, async () => {
+      await page.goto(`/sitter/eval/${orderId}`);
+      const desc = page.getByTestId('sitter-order-eval-item-desc-0');
+      const price = page.getByTestId('sitter-order-eval-item-price-0');
+      await expect(desc).toHaveText(
+        'Journey B 到府照顧方案（含餵食、清理、陪玩） · 1 天 · 每天 1 次'
+      );
+      await expect(price).toHaveText('$ 600');
+      const descBox = (await desc.boundingBox())!;
+      const priceBox = (await price.boundingBox())!;
+      const rowBox = (await page.getByTestId('sitter-order-eval-item-0').boundingBox())!;
+      // 價格與說明之間至少 12px，價格整段單行、完整落在列內
+      expect(priceBox.x - (descBox.x + descBox.width)).toBeGreaterThanOrEqual(12);
+      expect(priceBox.height).toBeLessThan(descBox.height + 1);
+      expect(
+        await price.evaluate(
+          (el) => el.scrollWidth <= el.clientWidth && getComputedStyle(el).whiteSpace
+        )
+      ).toBe('nowrap');
+      expect(priceBox.x + priceBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
+    });
+  });
 });

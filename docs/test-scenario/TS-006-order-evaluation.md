@@ -59,3 +59,4 @@
 ## 本測試發現並修復的真實 bug
 
 - **保母接單後列表仍顯示「待評估」（2026-10-23，Journey B 證據稽核發現）**：`OrderEvalView.tsx` 接單 / 送報價 / 婉拒成功後直接 `navigate('/sitter/orders')`，沒有 invalidate React Query；`useSitterOrdersQuery` 的 `staleTime: 60s` 讓列表 60 秒內一直沿用舊快取，訂單仍在「評估中」分頁、徽章「待評估」，保母會以為接單沒成功。trace 證實 `POST /confirm` 200 後完全沒有重抓 `GET /api/orders/sitter`。修法：三個成功分支改為先 `await queryClient.invalidateQueries({ queryKey: ['orders'] })` 再導頁。迴歸：`order-eval.spec.ts` 新增一支 SPA 內導覽（不 reload）的測試，Journey B `B-05` 也改成不 reload 直接切「進行中」斷言「待付款」。
+- **評估頁品項價格欄被擠壓，「$ 600」看起來像「$ 1600」（2026-10，驗收 P5 / Backlog 第 3 批 U4）**：`OrderEvalView.tsx` 品項列用 `justify-content: space-between` 放兩個 span，沒有間距、價格也可被壓縮；390px 寬度下方案名稱稍長就佔滿整列，說明結尾「每天 1 次」的「1」直接貼著「$ 600」。修法見 SD-006 §5「品項明細排版」。迴歸：`order-eval.spec.ts`「品項明細：說明很長時價格欄不被擠壓」（長方案名稱 mock；斷言價格 `toHaveText('$ 600')`、與說明間距 ≥ 12px、單行 `nowrap`、不超出列寬；修前間距量到 0px）。
