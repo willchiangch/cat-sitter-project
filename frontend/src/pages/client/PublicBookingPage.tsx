@@ -9,7 +9,6 @@ import {
   Trash2,
   CalendarDays,
   Minus,
-  CalendarX,
   ChevronLeft,
   ChevronRight,
   Heart
@@ -471,54 +470,6 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                   </p>
                 </div>
               ))}
-
-            {/* 檔期不足模擬 */}
-            <div
-              style={{
-                padding: '24px',
-                backgroundColor: 'transparent',
-                borderRadius: '16px',
-                border: '1px dashed var(--color-outline-variant)',
-                opacity: 0.6,
-                cursor: 'not-allowed'
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '8px'
-                }}
-              >
-                <h3
-                  style={{
-                    fontWeight: '800',
-                    margin: 0,
-                    fontSize: '1.25rem',
-                    color: 'var(--color-on-surface-variant)'
-                  }}
-                >
-                  尊榮包月
-                </h3>
-                <span style={{ color: 'var(--color-on-surface-variant)', fontWeight: '700' }}>
-                  $ 15,000 / 月
-                </span>
-              </div>
-              <p
-                style={{
-                  fontSize: '0.85rem',
-                  color: 'var(--color-error)',
-                  margin: '8px 0 0 0',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                <CalendarX size={14} /> 此方案目前檔期已滿
-              </p>
-            </div>
           </div>
 
           {booking.planConfigs.length > 0 && (

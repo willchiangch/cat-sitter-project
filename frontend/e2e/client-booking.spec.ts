@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { step } from './support/evidence';
 
 class CalendarHelper {
   private page: any;
@@ -277,4 +278,26 @@ test.describe('TS-005 飼主預約精靈流程', () => {
     });
   });
 
+
+  test('迴歸 (P2)：選擇方案頁只渲染保母真實方案，不再出現寫死的「尊榮包月・檔期已滿」佔位卡', async ({
+    page
+  }) => {
+    await step('進入預約精靈的選擇方案頁', page, async () => {
+      const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
+      if (roleText?.includes('貓咪保母')) {
+        await page.click('[data-testid="btn-role-toggle"]');
+      }
+      await page.click('text=進入預約精靈 (飼主端)');
+      await expect(page.getByRole('heading', { name: '選擇服務方案' })).toBeVisible();
+
+      // 方案卡數量必須等於 API 回傳的方案數，名稱逐一對上
+      const cards = page.locator('[data-testid^="client-booking-plan-card-"]');
+      await expect(cards).toHaveCount(mockPlans.length);
+      for (const [i, plan] of mockPlans.entries()) {
+        await expect(page.getByTestId(`client-booking-plan-card-${i}`)).toContainText(plan.name);
+      }
+      await expect(page.getByText('尊榮包月')).toHaveCount(0);
+      await expect(page.getByText('此方案目前檔期已滿')).toHaveCount(0);
+    });
+  });
 });

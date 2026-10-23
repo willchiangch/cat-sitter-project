@@ -52,6 +52,7 @@
 | 1 | 併發送出預約 | 多筆 PENDING 成功 | 檢查 `orders` 記錄是否存在多筆且 ID 不同。 |
 | 2 | 併發確認接單 | 僅一勝，其餘敗 | **Advisory Lock**: 檢查接單時是否成功攔截。 |
 | 3 | 檢查狀態變更 | 成功者轉為 `PENDING_PAYMENT` | 狀態機轉換正確性驗證。 |
+| 4 | 飼主進入「選擇服務方案」頁 | 只顯示 `GET /api/sitters/{id}/plans` 回傳的方案，不得出現任何寫死的佔位方案 | 方案卡數量 = API 回傳數量、名稱逐一對上；頁面不含「尊榮包月」「此方案目前檔期已滿」（`frontend/e2e/client-booking.spec.ts` 迴歸 (P2)） |
 
 ---
 
@@ -59,4 +60,10 @@
 - **測試專案**: `backend`
 - **測試類別**: [BookingServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/BookingServiceTest.java)
 - **執行指令**: `mvn test -Dtest=BookingServiceTest`
-- **最後驗證日期**: 2026-05-11
+- **前端迴歸**: [client-booking.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/client-booking.spec.ts)「迴歸 (P2)」（mock API，`npx playwright test e2e/client-booking.spec.ts -g P2`）
+- **最後驗證日期**: 2026-10-24
+
+---
+
+## 本測試發現並修復的真實 bug
+- **選擇方案頁寫死「尊榮包月 $15,000/月・此方案目前檔期已滿」（2026-10，驗收 P2）**：`PublicBookingPage.tsx` 在真實方案清單後面固定多渲染一張註解為「檔期不足模擬」的灰色卡片，是 2026-05 設計稿/展示用的 mock 佔位，沒有對應任何資料。正式站每一位保母的下單頁都會出現這張卡，飼主會以為保母有包月方案、只是剛好額滿。PRD-005/SD-005 都沒有包月方案或「方案層級檔期已滿」的需求（SD-005 §5：檔期已滿於送單階段不阻擋，由保母接單時判斷），`ServicePlan` 也沒有計費週期欄位，因此直接移除，不改成資料驅動。迴歸測試見驗證矩陣第 4 步。
