@@ -72,4 +72,40 @@ test.describe('管理端 KYC 審核詳情 (U1/U2)', () => {
       expect(approve!.x + approve!.width).toBeLessThanOrEqual(main!.x + main!.width);
     });
   });
+
+  test('U2：核准成功後、導回清單前，徽章已是「已通過」且審核按鈕鎖住', async ({ page }) => {
+    await mockKycDetail(page);
+    const reviews: unknown[] = [];
+    await page.route(`**/api/admin/kyc/${recordId}/review`, async (route) => {
+      reviews.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"data":null}' });
+    });
+    await page.route('**/api/admin/kyc/pending**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: { content: [], page: 0, size: 10, totalElements: 0, totalPages: 0 }
+        })
+      })
+    );
+
+    await step('開詳情頁：徽章為待審核', page, async () => {
+      await page.goto(`/admin/kyc/${recordId}`);
+      await expect(page.getByTestId('admin-kyc-detail-status-badge')).toHaveText(/^待審核/);
+    });
+
+    await step('點批准：成功訊息出現時徽章已是已通過、仍在詳情頁', page, async () => {
+      await page.getByTestId('admin-kyc-detail-approve-btn').click();
+      await expect(page.getByText('實名認證審核已通過！')).toBeVisible();
+      await expect(page.getByTestId('admin-kyc-detail-status-badge')).toHaveText(/^已通過/);
+      await expect(page).toHaveURL(new RegExp(`/admin/kyc/${recordId}$`));
+      await expect(page.getByTestId('admin-kyc-detail-approve-btn')).toBeDisabled();
+      expect(reviews).toEqual([{ action: 'APPROVE', rejectReason: null }]);
+    });
+
+    await step('之後導回待審清單', page, async () => {
+      await expect(page).toHaveURL(/\/admin\/kyc$/);
+    });
+  });
 });

@@ -23,6 +23,8 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState('');
+  // 審核送出成功後到導回清單前的 1.5 秒：徽章立即反映結果、按鈕鎖住 (Backlog 第 3 批 U2)
+  const [reviewed, setReviewed] = useState(false);
 
   useEffect(() => {
     setIdempotencyKey('review-' + kycRecordId + '-' + Date.now());
@@ -67,6 +69,11 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
         idempotencyKey
       );
       setSuccessMsg(action === 'APPROVE' ? '實名認證審核已通過！' : '實名認證已被駁回。');
+      // 過去只顯示成功訊息，徽章要等導回清單前都還是 PENDING，看起來像沒生效
+      setDetail((prev) =>
+        prev ? { ...prev, kycStatus: action === 'APPROVE' ? 'APPROVED' : 'REJECTED' } : prev
+      );
+      setReviewed(true);
       setTimeout(() => {
         navigate('/admin/kyc');
       }, 1500);
@@ -234,6 +241,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                 認證狀態
               </span>
               <span
+                data-testid="admin-kyc-detail-status-badge"
                 style={{
                   display: 'inline-block',
                   marginTop: '0.25rem',
@@ -399,7 +407,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
                 onClick={() => handleReview('APPROVE')}
-                disabled={actionLoading}
+                disabled={actionLoading || reviewed}
                 className="btn-primary"
                 data-testid="admin-kyc-detail-approve-btn"
                 style={{
@@ -415,7 +423,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
               </button>
               <button
                 onClick={() => setShowRejectInput(true)}
-                disabled={actionLoading}
+                disabled={actionLoading || reviewed}
                 style={{
                   flex: 1,
                   padding: '12px',
@@ -465,7 +473,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
                   onClick={() => handleReview('REJECT')}
-                  disabled={actionLoading}
+                  disabled={actionLoading || reviewed}
                   style={{
                     flex: 1,
                     padding: '10px',
@@ -484,7 +492,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                     setShowRejectInput(false);
                     setRejectReason('');
                   }}
-                  disabled={actionLoading}
+                  disabled={actionLoading || reviewed}
                   style={{
                     padding: '10px 15px',
                     backgroundColor: 'var(--color-surface-low)',
