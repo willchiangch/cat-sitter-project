@@ -26,7 +26,7 @@
 | 2 | API 背景建飼主帳號（略過 OTP）→ UI 改走「已有帳號？返回登入」→ `/login` 真實登入 | 登入成功後**自動導回** `/booking/{sitterId}`，不是預設的 `/demo` | 驗證 `LoginPage.tsx`/`RegisterPage.tsx` 新增的 redirect 白名單邏輯真的生效 |
 | 3 | UI：`/pets` 建立寵物（名稱必填，物種預設 CAT）+ 上傳頭像 | 寵物卡片顯示新建資料與頭像 | `POST /api/pets` 201；頭像是建檔後另外 `POST /api/pets/{id}/avatar`，要等寵物卡片的 `<img>` 出現且已載入（`naturalWidth>0`）才算完成，只等卡片出現會截到名字首字佔位 |
 | 4 | UI：`/booking/{sitterId}` 選方案卡片 → 選一個未來日期 → 確認日期 → 下一步 → 送出 | 訂單建立成功，送出成功後頁面會自動導向 `/owner/orders/{orderId}` | `POST /api/orders/booking` 201，訂單狀態 `PENDING`；**注意**：只 `await` 點擊送出按鈕不代表送單完成，click() 只保證事件派發，要等這個導向真的發生才代表非同步送單流程跑完 |
-| 5 | UI：保母 `/sitter/orders`「評估中」分頁找到訂單 → 進入評估頁 → 原價直接接受 | 訂單狀態轉為待付款 | `POST /api/orders/{orderId}/confirm`（快速接單路徑）後 `Order=PENDING_PAYMENT`；**注意**：此按鈕背後有 `window.confirm()` 對話框，Playwright 預設會自動 dismiss（回傳 false）導致函式提早 return 什麼都不會發生，測試需要主動註冊 `page.on('dialog', d => d.accept())` |
+| 5 | UI：保母 `/sitter/orders`「評估中」分頁找到訂單 → 進入評估頁 → 原價直接接受 | 訂單狀態轉為待付款；導回 `/sitter/orders` 後（不重新整理）該訂單不在「評估中」，「進行中」分頁顯示「待付款」 | `POST /api/orders/{orderId}/confirm`（快速接單路徑）後 `Order=PENDING_PAYMENT`；**注意**：此按鈕背後有 `window.confirm()` 對話框，Playwright 預設會自動 dismiss（回傳 false）導致函式提早 return 什麼都不會發生，測試需要主動註冊 `page.on('dialog', d => d.accept())` |
 | 6 | UI：飼主 `/owner/orders/{orderId}` 上傳付款憑證（圖片+末五碼+同意勾選） | 訂單狀態轉為已付款待核對 | `POST /api/orders/{orderId}/payment-proof` 200，`Order=PAID` |
 | 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板 → 確認入帳 | 訂單正式成立 | `POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED` |
 | 8 | UI：保母在 `/care-notes/manage/{sitterId}/{ownerId}` 新增一則「其他說明」項目並儲存；飼主在 `/care-notes/view/{sitterId}/{ownerId}` 確認看得到 | 雙方都能看到同一份記事本內容 | `PUT` 記事本 API 200，飼主端查詢包含剛寫入的內容 |
@@ -47,6 +47,8 @@
 跑這條 journey 時，步驟 8（記事本互動）踩到一個跟本次下單流程本身無關、但會擋住所有新保母的既有 bug：`CareNoteController` 整支 class 掛 `@RequirePlan(PlanTier.FREE)`，但 `PlanGatingAspect.doCheckPlan()` 原本是 `subscriptionRepository.findBySitterId(sitterId).orElseThrow(...)`——**保母完全沒有 `subscriptions` 資料列時直接丟例外（403），不是預設當作 FREE tier**。而 `subscriptions` 這張表只有 admin 手動開通、或保母自己呼叫 `/api/sitter/gatekeeper/subscription/mock` 才會寫入，一般註冊/KYC 流程完全不會建立，等於**任何一個真實新保母，只要沒被 admin 手動開通過訂閱，永遠無法使用 Care Notes 及其他 `@RequirePlan` 端點**。這正是 mock-based 單元測試測不到、只有真後端跨模組 journey 才會踩到的那種 bug（既有測試的 `setUp()` 都會手動先塞一筆 `Subscription(planTier=FREE)`，繞過了這個現實中不存在的前提）。
 
 修法：`PlanGatingAspect` 查不到訂閱資料列時不再 `throw`，改為視為 `PlanTier.FREE` 繼續往下判斷（FREE 本來就該是所有人預設可用的最低層級）。已補上 `CareNoteControllerTest.should_Return200_When_SitterHasNoSubscriptionRow` 迴歸測試，全量 `mvn test` 208 個測試綠燈。
+
+**保母接單後列表仍顯示「待評估」（2026-10-23，證據稽核發現）**：步驟 5 的截圖右上已回顯「已成功接單」，畫面卻仍停在「評估中」分頁、徽章「待評估」；trace 顯示 `POST /confirm` 200 之後完全沒有重抓 `GET /api/orders/sitter`。根因是 `OrderEvalView.tsx` 成功後直接 `navigate`，沒有 invalidate React Query，而 `useSitterOrdersQuery` 的 `staleTime` 是 60 秒。舊版測試只靠 `awaitOrderStatus` 輪詢 API、下一步又重新 `goto`，所以一直沒抓到。修法：接單 / 送報價 / 婉拒成功後先 `invalidateQueries({ queryKey: ['orders'] })` 再導頁（見 SD-006 §5）。迴歸：步驟 5 改成不 reload、直接切「進行中」分頁斷言「待付款」；另在 `frontend/e2e/order-eval.spec.ts` 補一支 mock 版前端迴歸測試。
 
 ---
 

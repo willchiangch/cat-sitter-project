@@ -132,6 +132,11 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await expectDialog(sitterDialogs, /已成功接單/);
       await expect(page).toHaveURL(/\/sitter\/orders/, { timeout: 15000 });
       await awaitOrderStatus(request, sitter, orderId, ['PENDING_PAYMENT']);
+      // X1 迴歸：不 reload，直接在導回的列表切到進行中，要看到「待付款」。
+      // 過去 OrderEvalView 接單後沒 invalidate 訂單快取，列表 60 秒內仍顯示「評估中 / 待評估」
+      await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
+      await page.getByTestId('sitter-orders-tab-ongoing').click();
+      await expect(page.getByText('待付款', { exact: true })).toBeVisible();
     });
 
     await step('B-06 飼主上傳線下付款憑證', ownerPage, async () => {

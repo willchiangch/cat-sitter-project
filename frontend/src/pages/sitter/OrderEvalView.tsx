@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { ChevronLeft, PlusCircle, MinusCircle } from 'lucide-react';
@@ -21,6 +22,7 @@ interface OrderEvalViewProps {
 
 const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { userId: sitterId } = useCurrentUser();
 
   const [order, setOrder] = useState<OrderDetailResponseDto | null>(null);
@@ -53,6 +55,13 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
+  // 接單/報價/拒絕都會改變訂單狀態；訂單列表 (useSitterOrdersQuery) staleTime 60 秒，
+  // 不先 invalidate 的話導回列表會繼續吃快取，剛處理完的訂單仍顯示在「評估中」、徽章是「待評估」
+  const backToOrderList = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['orders'] });
+    navigate('/sitter/orders');
+  };
+
   const baseTotal = order?.totalAmount || 0;
   const adjustment = addFee - discountFee;
   const finalTotal = baseTotal + adjustment;
@@ -63,7 +72,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
     try {
       await confirmOrder(orderId, sitterId);
       alert('已成功接單，訂單進入待付款狀態！');
-      navigate('/sitter/orders');
+      await backToOrderList();
     } catch (err: any) {
       console.error(err);
       alert(err.response?.data?.message || '接單失敗，請稍後再試。');
@@ -96,7 +105,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
         generateUUID()
       );
       alert('報價已成功送出！');
-      navigate('/sitter/orders');
+      await backToOrderList();
     } catch (err: any) {
       console.error(err);
       alert(err.response?.data?.message || '報價送出失敗，請稍後再試。');
@@ -120,7 +129,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
         generateUUID()
       );
       alert('已拒絕此訂單。');
-      navigate('/sitter/orders');
+      await backToOrderList();
     } catch (err: any) {
       console.error(err);
       alert(err.response?.data?.message || '操作失敗，請稍後再試。');

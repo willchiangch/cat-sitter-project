@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { step, trackDialogs, expectDialog } from './support/evidence';
 
 test.describe('Order Evaluation Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -94,12 +95,24 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
       });
     });
 
-    // 動作完成後會導回 /sitter/orders，該頁會打這支清單 API
+    // 動作完成後會導回 /sitter/orders，該頁會打這支清單 API；狀態跟著上面的動作 mock 走，
+    // 才驗得到「回列表後訂單是否還停在評估中」（X1 迴歸）
     await page.route('**/api/orders/sitter', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([])
+        body: JSON.stringify([
+          {
+            id: orderId,
+            ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
+            ownerName: '陳先生',
+            sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+            sitterName: '測試保母',
+            status: orderStatus,
+            totalAmount: 2400,
+            scheduledDatesLabel: '2026-08-01 ~ 2026-08-05'
+          }
+        ])
       });
     });
 
@@ -136,6 +149,34 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
 
     await expect(page).toHaveURL(/\/sitter\/orders$/);
     expect(orderStatus).toBe('PENDING_PAYMENT');
+  });
+
+  test('從列表進入原價接單後回到列表，訂單不再停留在「評估中」（迴歸：接單後未 invalidate 訂單快取）', async ({
+    page
+  }) => {
+    const dialogs = trackDialogs(page);
+
+    await step('列表「評估中」分頁可看到待評估訂單', page, async () => {
+      await page.goto('/sitter/orders');
+      await expect(page.getByTestId('btn-go-order-eval')).toBeVisible();
+      await expect(page.getByText('待評估', { exact: true })).toBeVisible();
+    });
+
+    await step('SPA 內點入評估頁並原價接單，導回列表', page, async () => {
+      await page.getByTestId('btn-go-order-eval').click();
+      await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toBeVisible();
+      await page.getByTestId('sitter-order-eval-btn-accept-original').click();
+      await expectDialog(dialogs, /已成功接單/);
+      await expect(page).toHaveURL(/\/sitter\/orders$/);
+      expect(orderStatus).toBe('PENDING_PAYMENT');
+      // 過去 OrderEvalView 直接 navigate，列表 staleTime 60 秒內不重抓，這張卡片會留在評估中
+      await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
+    });
+
+    await step('進行中分頁顯示該訂單為「待付款」', page, async () => {
+      await page.getByTestId('sitter-orders-tab-ongoing').click();
+      await expect(page.getByText('待付款', { exact: true })).toBeVisible();
+    });
   });
 
   test('有加價/折扣時需填寫理由才能送出報價', async ({ page }) => {

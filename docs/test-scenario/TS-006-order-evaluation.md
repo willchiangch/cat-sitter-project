@@ -43,6 +43,7 @@
 | 2 | 修改原始方案價 | 訂單總額不變 | DB `order_snapshots.snapshot_unit_price` 依然保持報價當時數值。 |
 | 3 | 樂觀鎖測試 | 保母報價時資料已更新 | 拋出 `OptimisticLockingFailureException` (409) |
 | 4 | 權限攔截 | FREE 方案調價 | 拋出 `AUTH_PLAN_LIMIT` (403) |
+| 5 | 從列表點入評估頁原價接單，導回列表（不重新整理） | 該訂單不在「評估中」分頁，「進行中」分頁顯示「待付款」 | 前端 `OrderEvalView` 成功後 invalidate `['orders']` 查詢（迴歸，見下方「本測試發現並修復的真實 bug」） |
 
 ---
 
@@ -51,3 +52,10 @@
 - **測試類別**: [OrderEvaluationTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/OrderEvaluationTest.java), [OrderControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/OrderControllerTest.java)
 - **執行指令**: `mvn test -Dtest=OrderControllerTest,OrderEvaluationTest`
 - **最後驗證日期**: 2026-05-11
+- **前端迴歸**: `frontend/e2e/order-eval.spec.ts`「從列表進入原價接單後回到列表，訂單不再停留在「評估中」」（mock 訂單 API；2026-10-23 對正式站舊版前端執行為紅燈、修正後本機為綠燈）
+
+---
+
+## 本測試發現並修復的真實 bug
+
+- **保母接單後列表仍顯示「待評估」（2026-10-23，Journey B 證據稽核發現）**：`OrderEvalView.tsx` 接單 / 送報價 / 婉拒成功後直接 `navigate('/sitter/orders')`，沒有 invalidate React Query；`useSitterOrdersQuery` 的 `staleTime: 60s` 讓列表 60 秒內一直沿用舊快取，訂單仍在「評估中」分頁、徽章「待評估」，保母會以為接單沒成功。trace 證實 `POST /confirm` 200 後完全沒有重抓 `GET /api/orders/sitter`。修法：三個成功分支改為先 `await queryClient.invalidateQueries({ queryKey: ['orders'] })` 再導頁。迴歸：`order-eval.spec.ts` 新增一支 SPA 內導覽（不 reload）的測試，Journey B `B-05` 也改成不 reload 直接切「進行中」斷言「待付款」。

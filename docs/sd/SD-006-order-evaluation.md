@@ -135,3 +135,4 @@ sequenceDiagram
 | 報價重複送單 | `Idempotency-Key` 透過資料庫 `UNIQUE` 限制攔截並報錯。 |
 | 報價時方案已調價 | 系統依據 **預約送單時的單價** 進行重算。若與保母畫面上的 `expectedTotalAmount` 不同則報錯。 |
 | 髒資料防護 | 無論執行報價或婉拒，皆會強制清空 `waiting_for_owner_action` 標記。 |
+| 前端列表快取 | `OrderEvalView.tsx` 原價接單 / 送出報價 / 婉拒成功後，先 `queryClient.invalidateQueries({ queryKey: ['orders'] })` 再導回 `/sitter/orders`。訂單列表 `useSitterOrdersQuery` 的 `staleTime` 為 60 秒，沒有 invalidate 的話列表會繼續吃快取，剛處理完的訂單仍停在「評估中」、徽章為「待評估」。 |
