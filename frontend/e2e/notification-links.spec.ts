@@ -169,7 +169,9 @@ test.describe('通知連結導向真實路由 (D1 迴歸)', () => {
     await mockOwnerSession(page);
     // 證據稽核（.e2e-runs/20261024-1939）：過去點擊前後畫面一樣，「沒有導覽」只能從 manifest 的 url 推。
     // 這裡讓外部連結通知是未讀：點擊會先 await POST /read、再決定要不要導覽，等 read 完成後列表重抓回來，
-    // 就代表「導覽與否」已經執行完，才斷言 URL 沒變（不用固定秒數等待）
+    // 就代表「導覽與否」已經執行完，才斷言 URL 沒變（不用固定秒數等待）。
+    // 驗收 R4：列表 mock 有狀態，POST /read 之後重抓回 isRead:true，截圖上的未讀藍點與色條才會消失
+    let externalRead = false;
     await page.route(/\/api\/notifications(\?.*)?$/, (route) =>
       route.fulfill({
         status: 200,
@@ -177,7 +179,7 @@ test.describe('通知連結導向真實路由 (D1 迴歸)', () => {
         body: JSON.stringify({
           data: {
             content: notifications.map((n) =>
-              n.id === 'n-external' ? { ...n, isRead: false } : n
+              n.id === 'n-external' ? { ...n, isRead: externalRead } : n
             ),
             page: 0,
             size: 20,
@@ -190,6 +192,7 @@ test.describe('通知連結導向真實路由 (D1 迴歸)', () => {
     const readCalls: string[] = [];
     await page.route('**/api/notifications/n-external/read', (route) => {
       readCalls.push(route.request().method());
+      externalRead = true;
       return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
     const externalRequests: string[] = [];
@@ -204,6 +207,7 @@ test.describe('通知連結導向真實路由 (D1 迴歸)', () => {
     const before = await step('點擊前：通知中心列出外部連結通知（未讀）', page, async () => {
       await page.goto('/notifications');
       await expect(page.getByTestId('client-notifications-item-n-external')).toBeVisible();
+      await expect(page.getByTestId('client-notifications-unread-dot-n-external')).toHaveCount(1);
       await expect(page).toHaveURL(/\/notifications$/);
       return {
         url: page.url(),
@@ -225,6 +229,12 @@ test.describe('通知連結導向真實路由 (D1 迴歸)', () => {
         await expect.poll(() => readCalls).toEqual(['POST']);
         await refetched;
         await expect(page.getByTestId('client-notifications-list')).toBeVisible();
+        // 重抓回 isRead:true：未讀藍點消失、左側色條變透明（截圖上看得到「已讀」）
+        await expect(page.getByTestId('client-notifications-unread-dot-n-external')).toHaveCount(0);
+        await expect(page.getByTestId('client-notifications-item-n-external')).toHaveCSS(
+          'border-left-color',
+          'rgba(0, 0, 0, 0)'
+        );
         await expect(page).toHaveURL(/\/notifications$/);
         return {
           url: page.url(),

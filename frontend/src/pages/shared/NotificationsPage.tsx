@@ -169,6 +169,8 @@ export const NotificationsPage: React.FC = () => {
                 {/* 狀態紅點 */}
                 {!noti.isRead && (
                   <span
+                    data-testid={`${currentRole}-notifications-unread-dot-${noti.id}`}
+                    aria-label="未讀"
                     style={{
                       position: 'absolute',
                       top: '12px',
