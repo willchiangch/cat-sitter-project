@@ -34,7 +34,7 @@
 | 6 | UI：確認變更 | 顯示「變更已確認」；同意表單消失、只剩「前往補款」，**沒有退款區塊** | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT`；`confirm-submit-btn`、`refund-confirm-section`、`refund-confirm-btn` 數量為 0（C2） |
 | 6b | UI：保母直接打網址重新進入報價頁 | 唯讀摘要「應補款 $ 600」，無報價、拒絕、退款憑證區塊 | `quote-submit-btn`、`reject-mod-btn`、`refund-proof-section` 數量為 0（C2） |
 | 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
-| 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（差額 `verify-amount-due-value` 完全比對 `$ 600`，整段 `verify-amount-due` 以 `/^本次應收補款差額：\s*\$ 600\s*（變更後總額 \$ 1,200）$/` 錨定；2026-10 前用 `toContainText('$ 600')`，`$ 6000` 也會過，驗收 S2）、**補款**憑證後五碼 `54321`（`verify-last-five`，不是首次付款的 `12345`）與補款憑證預覽（簽名網址，SD-007 §4.7）；訂單回到發起變更前的狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED`（變更是在 CONFIRMED 時發起，SD-016 §4.3）；核帳後 `paymentProofLastFive` 回到首次付款 `12345`、`paidAt` 與前置步驟記下的首次核帳時間相同、`amountDue=1200` |
+| 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（差額 `verify-amount-due-value` 完全比對 `$ 600`，整段 `verify-amount-due` 以 `/^本次應收補款差額：\s*\$ 600\s*（變更後總額 \$ 1,200）$/` 錨定；2026-10 前用 `toContainText('$ 600')`，`$ 6000` 也會過，驗收 S2）、**補款**憑證後五碼 `54321`（`verify-last-five`，不是首次付款的 `12345`）與補款憑證預覽（簽名網址，SD-007 §4.7）；訂單回到發起變更前的狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED`（變更是在 CONFIRMED 時發起，SD-016 §4.3）；核帳後 `paymentProofLastFive` 回到首次付款 `12345`、`paidAt` 與前置步驟記下的首次核帳時間相同、`amountDue=1200`（這組值以 `apiStep`「核帳後首次付款資料未被補款覆寫」留 JSON，驗收 S2）；補款憑證預覽 `apiStep` 留遮簽名的網址 JSON，且不帶簽名 GET 該物件斷言 403（驗收 S1/S3） |
 | 9 | UI：結清後雙方直接打網址重新進入兩個協商頁 | 兩頁都顯示「目前沒有進行中的變更協商」，沒有任何可操作按鈕 | `mod-quote-error`/`mod-confirm-error` 可見；`quote-submit-btn`、`reject-mod-btn`、`refund-proof-submit-btn`、`confirm-submit-btn`、`refund-confirm-btn` 數量為 0（C2） |
 
 ### 退款分支
@@ -44,8 +44,8 @@
 | 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單 2 天，改為 1 天 |
 | 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600`；報價表單消失，飼主同意前沒有退款憑證區塊 | `quote-submit-btn`、`refund-proof-section` 數量為 0（C2） |
 | 5-6 | 飼主確認，差額欄位顯示 `-$600` | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
-| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在；選擇退款截圖上傳（不再有手填網址欄位），送出後表單消失並顯示簽名網址預覽 | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof`（multipart）200；`refund-proof-preview` 的 `src` 為 `refund-proofs/` 簽名網址且 `naturalWidth>0`（C4） |
-| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 檢視退款憑證預覽 → 點「確認已收到退款」 | 退款憑證以圖片顯示（簽名網址、無外部連結）；顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
+| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在；選擇退款截圖上傳（不再有手填網址欄位），送出後表單消失並顯示簽名網址預覽（`apiStep` 留遮簽名網址 JSON、不帶簽名 GET 斷言 403，驗收 S1/S3） | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof`（multipart）200；`refund-proof-preview` 的 `src` 為 `refund-proofs/` 簽名網址且 `naturalWidth>0`（C4） |
+| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 檢視退款憑證預覽 → 點「確認已收到退款」 | 退款憑證以圖片顯示（簽名網址、無外部連結；同步驟 7 留 JSON 並斷言不帶簽名 403）；顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
 | 9 | 同補款分支步驟 9 | 兩頁皆無任何可操作按鈕 | 同上 |
 
 ---

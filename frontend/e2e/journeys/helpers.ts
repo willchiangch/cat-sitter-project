@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { expect } from '@playwright/test';
 import type { APIRequestContext, APIResponse, Locator, Page } from '@playwright/test';
+import { apiStep } from '../support/evidence';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -471,18 +472,38 @@ export async function pollUntil<T>(
  * (https://storage.googleapis.com/<bucket>/payment-proofs/...?X-Goog-...&X-Goog-Signature=...)，
  * 不能是不帶簽名的公開路徑；而且圖片要真的載入成功（私有物件若誤用公開網址會 403 變破圖）。
  */
-export async function expectSignedPaymentProof(scope: Locator | Page) {
-  await expectSignedProofImage(scope, 'payment-proof-preview', 'payment-proofs');
+export async function expectSignedPaymentProof(
+  scope: Locator | Page,
+  label = '付款憑證預覽為私有物件簽名網址'
+) {
+  await expectSignedProofImage(scope, 'payment-proof-preview', 'payment-proofs', label);
 }
 
 /**
  * C4：退款憑證同樣是私有物件 + 簽名網址（SD-016 §2.5），不可是保母手填的任意外部網址
  */
-export async function expectSignedRefundProof(scope: Locator | Page) {
-  await expectSignedProofImage(scope, 'refund-proof-preview', 'refund-proofs');
+export async function expectSignedRefundProof(
+  scope: Locator | Page,
+  label = '退款憑證預覽為私有物件簽名網址'
+) {
+  await expectSignedProofImage(scope, 'refund-proof-preview', 'refund-proofs', label);
 }
 
-async function expectSignedProofImage(scope: Locator | Page, testId: string, folder: string) {
+/** 證據用：只留 path 與不敏感的 X-Goog-Algorithm / X-Goog-Date / X-Goog-Expires，簽名與 Credential 一律遮蔽 */
+function redactSignedUrl(src: string) {
+  const url = new URL(src);
+  const keep = ['X-Goog-Algorithm', 'X-Goog-Date', 'X-Goog-Expires'];
+  const query: Record<string, string> = {};
+  for (const [k, v] of url.searchParams) query[k] = keep.includes(k) ? v : '***';
+  return { origin: url.origin, path: url.pathname, query };
+}
+
+async function expectSignedProofImage(
+  scope: Locator | Page,
+  testId: string,
+  folder: string,
+  label: string
+) {
   const img = scope.getByTestId(testId);
   await expect(img).toHaveAttribute(
     'src',
@@ -495,6 +516,19 @@ async function expectSignedProofImage(scope: Locator | Page, testId: string, fol
       )
     )
     .toBe(true);
+  // 驗收 S1 / S3：簽名網址留 JSON 證據（遮簽名），並直接證明物件是私有的——同一個物件不帶簽名打要 403。
+  // 物件此刻剛載入成功，必定存在，所以 403 只能代表「無權限」，不會是物件已被清掉
+  await apiStep(label, async () => {
+    const src = (await img.getAttribute('src')) ?? '';
+    const unsignedUrl = src.split('?')[0];
+    const unsigned = await img.page().request.get(unsignedUrl);
+    expect(unsigned.status(), `不帶簽名打 ${unsignedUrl} 應被拒絕`).toBe(403);
+    return {
+      signedSrc: redactSignedUrl(src),
+      imageLoaded: true,
+      unsignedRequest: { url: unsignedUrl, status: unsigned.status() }
+    };
+  });
 }
 
 /**

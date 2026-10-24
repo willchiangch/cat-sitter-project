@@ -151,16 +151,29 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       // B2 迴歸：核對面板顯示的是補款憑證（54321），不是首次付款的 12345
       await expect(sitterPage.getByTestId('verify-last-five')).toHaveText('54321');
       // B1 迴歸：補款憑證預覽必須顯示，且是簽名網址而非公開路徑
-      await expectSignedPaymentProof(sitterPage.getByTestId('payment-verification-panel'));
+      await expectSignedPaymentProof(
+        sitterPage.getByTestId('payment-verification-panel'),
+        '補款憑證預覽為簽名網址，不帶簽名 403'
+      );
       await snap(sitterPage, '核對入帳前');
       await sitterPage.getByTestId('btn-verify-payment').click();
       await expectDialog(sitterDialogs, /入帳核對確認成功/);
       // B2 迴歸：變更是在 CONFIRMED 時發起的，核帳後回到 CONFIRMED（IN_PROGRESS 分支由
       // PaymentControllerTest 覆蓋）；首次付款的後五碼與 paidAt 不得被補款覆寫
-      const afterVerify = await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
-      expect(afterVerify.paymentProofLastFive).toBe(initialPayment.lastFive);
-      expect(afterVerify.paidAt).toBe(initialPayment.paidAt);
-      expect(afterVerify.amountDue).toBe(1200);
+      // 驗收 S2：核帳後的值寫進 JSON 證據（過去只在斷言與 trace 裡）
+      await apiStep('核帳後首次付款資料未被補款覆寫', async () => {
+        const afterVerify = await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
+        expect(afterVerify.paymentProofLastFive).toBe(initialPayment.lastFive);
+        expect(afterVerify.paidAt).toBe(initialPayment.paidAt);
+        expect(afterVerify.amountDue).toBe(1200);
+        return {
+          status: afterVerify.status,
+          paymentProofLastFive: afterVerify.paymentProofLastFive,
+          paidAt: afterVerify.paidAt,
+          amountDue: afterVerify.amountDue,
+          initialPayment
+        };
+      });
       await sitterPage.reload();
       await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(sitterPage.getByTestId('btn-verify-payment')).toHaveCount(0, { timeout: 10000 });
@@ -254,7 +267,10 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(sitterPage.getByTestId('refund-proof-success-banner')).toBeVisible({ timeout: 10000 });
       await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
       // C4 迴歸：預覽是 refund-proofs/ 私有物件的簽名網址，且圖片真的載入
-      await expectSignedRefundProof(sitterPage.getByTestId('refund-proof-section'));
+      await expectSignedRefundProof(
+        sitterPage.getByTestId('refund-proof-section'),
+        '保母端退款憑證預覽為簽名網址，不帶簽名 403'
+      );
     });
 
     await step('飼主重新真實點入變更協商入口，確認收到退款', page, async () => {
@@ -262,7 +278,10 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await page.getByTestId('btn-go-modification-confirm').click();
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${orderId}/modification-confirm`));
       // C4 迴歸：飼主看到的是簽名網址 <img>，不是可點的外部連結
-      await expectSignedRefundProof(page.getByTestId('refund-confirm-section'));
+      await expectSignedRefundProof(
+        page.getByTestId('refund-confirm-section'),
+        '飼主端退款憑證預覽為簽名網址，不帶簽名 403'
+      );
       await expect(page.getByTestId('refund-confirm-section').locator('a')).toHaveCount(0);
 
       await snap(page, '確認收到退款前');
