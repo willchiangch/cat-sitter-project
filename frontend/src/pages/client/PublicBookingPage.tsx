@@ -1684,7 +1684,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: 'var(--color-primary-container)',
-                  color: 'var(--color-primary)',
+                  color: 'var(--color-on-primary-container)',
                   fontSize: '1.5rem',
                   fontWeight: '800'
                 }}

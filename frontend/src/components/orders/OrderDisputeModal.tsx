@@ -112,7 +112,9 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
                         ? 'var(--color-primary-container)'
                         : 'var(--color-surface-low)',
                     color:
-                      category === cat ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+                      category === cat
+                        ? 'var(--color-on-primary-container)'
+                        : 'var(--color-on-surface-variant)',
                     fontSize: '0.8125rem',
                     fontWeight: '600',
                     cursor: 'pointer',

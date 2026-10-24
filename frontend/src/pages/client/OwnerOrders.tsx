@@ -72,7 +72,10 @@ const OwnerOrders: React.FC = () => {
                 activeTab === tab ? 'var(--color-primary-container)' : 'var(--color-surface-low)',
               fontSize: '0.875rem',
               fontWeight: '600',
-              color: activeTab === tab ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+              color:
+                activeTab === tab
+                  ? 'var(--color-on-primary-container)'
+                  : 'var(--color-on-surface-variant)',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}

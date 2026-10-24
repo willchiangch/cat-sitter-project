@@ -125,7 +125,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
     if (isSubmitted) {
       return {
         bg: 'var(--color-primary-container)',
-        color: 'var(--color-primary)',
+        color: 'var(--color-on-primary-container)',
         text: '已完工 (已送出)'
       };
     }
@@ -549,8 +549,9 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
                     padding: '0.5rem 1.25rem',
                     borderRadius: '9999px',
                     border: 'none',
+                    // 主色字疊 primary-container：sitter 主題 4.1:1 未達 AA，改用 on-primary-container（驗收 N18）
                     backgroundColor: 'var(--color-primary-container)',
-                    color: 'var(--color-primary)',
+                    color: 'var(--color-on-primary-container)',
                     fontSize: '0.875rem',
                     fontWeight: '600',
                     cursor: 'pointer'

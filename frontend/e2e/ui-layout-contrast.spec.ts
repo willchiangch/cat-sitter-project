@@ -1,6 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
-import { assertNoUnmockedApi, mockDemoSession, mockOwnerOrderDetail } from './support/mockSession';
+import {
+  assertNoUnmockedApi,
+  mockDemoSession,
+  mockOwnerOrderDetail,
+  mockOwnerOrderList
+} from './support/mockSession';
 import {
   contrastOf,
   effectiveGradientContrastOf,
@@ -342,6 +347,56 @@ test.describe('G5 版面溢出與對比度', () => {
         };
       });
       expect(box.height - padding, '徽章文字只有一行').toBeLessThan(fontSize * 1.8);
+    });
+  });
+
+  test('N18：保母主題日誌頁「暫存草稿」（primary-container 底）文字對比度 ≥ 4.5:1', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/visits/v-n18/report', (route) =>
+      route.fulfill(
+        json({
+          data: {
+            reportId: 'r-n18',
+            visitId: 'v-n18',
+            status: 'DRAFT',
+            content: '',
+            submittedAt: null,
+            media: [],
+            isEditable: true,
+            version: 1,
+            visitStatus: 'IN_PROGRESS'
+          }
+        })
+      )
+    );
+
+    await step('保母主題：「暫存草稿」黃底文字對比度', page, async () => {
+      await page.goto('/visit-reports/manage/v-n18');
+      const btn = page.getByTestId('sitter-report-save-draft-btn');
+      await expect(btn).toHaveText('暫存草稿');
+      const c = await contrastOf(btn);
+      expect(c.backgroundImage, '暫存草稿不應疊漸層').toBe('none');
+      // 過去 #765600 對 #ffbf00 約 4.1:1
+      expect(c.ratio, `暫存草稿（${c.color} on ${c.backgroundColor}）`).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  test('N18：飼主主題 primary-container 底的分頁文字對比度 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await mockOwnerOrderList(page);
+
+    await step('飼主訂單管理：選中的「進行中」分頁', page, async () => {
+      await page.goto('/owner/orders');
+      const tab = page.getByTestId('owner-orders-tab-ongoing');
+      await expect(tab).toHaveText('進行中');
+      await expect(page.getByText('目前沒有相關訂單')).toBeVisible();
+      const c = await contrastOf(tab);
+      // 過去 #005e9f 對 #b3d4ff 約 4.44:1
+      expect(c.ratio, `進行中分頁（${c.color} on ${c.backgroundColor}）`).toBeGreaterThanOrEqual(
+        4.5
+      );
     });
   });
 

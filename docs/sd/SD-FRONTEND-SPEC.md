@@ -56,6 +56,7 @@
     - `var(--color-surface)`: 基座底層 (#f6f7f5)。
     - `var(--color-surface-low)`: 次要區塊或分段。
     - `var(--color-surface-lowest)`: 互動卡片或容器 (純白)。
+  - **`--color-primary-container` 底上的文字一律用 `--color-on-primary-container`（2026-10-24，驗收 N18）**：sitter `#5c4300`（對 `#ffbf00` 5.6:1）、client `#00528c`（對 `#b3d4ff` 5.3:1）、admin `#334155`。過去直接用 `--color-primary`：sitter `#765600` 對 `#ffbf00` 只有 4.1:1、client 4.44:1，都未達 AA。適用：日誌頁「暫存草稿」、「已送出 / 已完工 (已送出)」徽章、訂單列表選中分頁、爭議類別選中鈕、門禁設定範圍鈕與鎖頭圖示、預約頁保母頭像佔位。迴歸：`e2e/ui-layout-contrast.spec.ts` N18（保母「暫存草稿」、飼主「進行中」分頁，舊版兩支紅）。
 
 ---
   - **Admin Theme**（2026-10-24，驗收 N7）：`--color-primary` #334155、漸層 `#1e293b → #475569`、`--color-on-primary` #f8fafc（對漸層兩端皆 ≥ 4.5:1）。`RoleContext` 一直會設 `data-theme="admin"`，過去 CSS 沒有這組變數，管理員畫面所有 `.btn-primary` 都是無底色的純文字。

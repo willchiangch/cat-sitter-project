@@ -35,6 +35,8 @@
 :root[data-theme='sitter'] {
   --color-primary: #765600;
   --color-primary-container: #ffbf00;
+  /* 疊在 primary-container 上的文字（驗收 N18）：#765600 對 #ffbf00 只有 4.1:1，未達 AA 4.5:1；#5c4300 為 5.6:1 */
+  --color-on-primary-container: #5c4300;
   --color-on-primary: #fff1db;
   --color-primary-gradient: linear-gradient(45deg, #765600, #ffbf00);
 }
@@ -43,6 +45,8 @@
 :root[data-theme='client'] {
   --color-primary: #005e9f;
   --color-primary-container: #b3d4ff;
+  /* #005e9f 對 #b3d4ff 只有 4.44:1；#00528c 為 5.3:1 */
+  --color-on-primary-container: #00528c;
   --color-on-primary: #edf3ff;
   --color-primary-gradient: linear-gradient(45deg, #005e9f, #b3d4ff);
 }
@@ -54,6 +58,7 @@
 :root[data-theme='admin'] {
   --color-primary: #334155;
   --color-primary-container: #cbd5e1;
+  --color-on-primary-container: #334155;
   --color-on-primary: #f8fafc;
   --color-primary-gradient: linear-gradient(45deg, #1e293b, #475569);
 }

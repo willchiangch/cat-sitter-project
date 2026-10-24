@@ -195,7 +195,7 @@ export const GatekeeperSettings: React.FC = () => {
               height: '72px',
               borderRadius: '50%',
               backgroundColor: 'var(--color-primary-container)',
-              color: 'var(--color-primary)',
+              color: 'var(--color-on-primary-container)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -427,7 +427,7 @@ export const GatekeeperSettings: React.FC = () => {
                   cursor: 'pointer',
                   border: scopeType === 'GLOBAL' ? '1px solid var(--color-primary)' : '1px solid var(--color-surface-high)',
                   backgroundColor: scopeType === 'GLOBAL' ? 'var(--color-primary-container)' : 'white',
-                  color: scopeType === 'GLOBAL' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)'
+                  color: scopeType === 'GLOBAL' ? 'var(--color-on-primary-container)' : 'var(--color-on-surface-variant)'
                 }}
               >
                 全域
@@ -444,7 +444,7 @@ export const GatekeeperSettings: React.FC = () => {
                   cursor: 'pointer',
                   border: scopeType === 'PLAN' ? '1px solid var(--color-primary)' : '1px solid var(--color-surface-high)',
                   backgroundColor: scopeType === 'PLAN' ? 'var(--color-primary-container)' : 'white',
-                  color: scopeType === 'PLAN' ? 'var(--color-primary)' : 'var(--color-on-surface-variant)'
+                  color: scopeType === 'PLAN' ? 'var(--color-on-primary-container)' : 'var(--color-on-surface-variant)'
                 }}
               >
                 特定方案

@@ -156,7 +156,7 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
             fontSize: '0.75rem',
             fontWeight: '600',
             backgroundColor: 'var(--color-primary-container)',
-            color: 'var(--color-primary)'
+            color: 'var(--color-on-primary-container)'
           }}
         >
           已送出

@@ -381,3 +381,5 @@
 
 **Check-out 後提示「請填寫文字日誌並送出」，文字框卻唯讀（2026-10-24，驗收 N13）**：PRD-022 A.2 規定行程 `DONE` 且未逾期、未送出時仍可編輯草稿與上傳媒體，後端 `saveDraft()`/`uploadMedia()` 也放行 `DONE`；但前端 `VisitReportManager` 的 `isEditable` 額外要求 `visitStatus == IN_PROGRESS`，Check-out 後文字框置灰、暫存鈕消失，送出鈕卻在（逾期也在，按了才 403）。後端另有同類缺口：還沒有日誌列時回傳的合成草稿 `isEditable` 只認 `IN_PROGRESS`。修正：前端改為 `IN_PROGRESS || DONE`（再由後端 `isEditable` 判逾期），送出鈕只在 `DONE && isEditable` 顯示，送出前有未暫存的修改先存再送；後端合成草稿改 `IN_PROGRESS || (DONE && !isExpired)`。迴歸：`VisitReportControllerTest` Scenario 16f（拿掉後端修正時紅）/ 16g；`frontend/e2e/service-execution.spec.ts`（Check-out 後文字框可編輯、補寫後直接送出會先 PUT；逾期草稿唯讀且無暫存 / 送出鈕，舊前端兩支皆紅）。這是契約修正：原本該 spec 斷言 Check-out 後 `toBeDisabled()`，編碼的是與 PRD 衝突的行為。
 
+**「暫存草稿」黃底深金字對比不足（2026-10-24，驗收 N18）**：按鈕是 `--color-primary-container`（`#ffbf00`）底配 `--color-primary`（`#765600`）字，實測 4.1:1，未達 AA 4.5:1（0.875rem / 600 不算大字）。飼主主題同一組合 4.44:1 也不足。新增 `--color-on-primary-container` token（sitter `#5c4300` 5.6:1、client `#00528c` 5.3:1），所有 primary-container 底的文字改用它（SD-FRONTEND-SPEC §2.3）。迴歸：`ui-layout-contrast.spec.ts` N18。另量到同頁「執行中」徽章 `#d97706` 對 `#fef3c7` 2.86:1、「待送出日誌」`#ea580c` 對 `#ffedd5` 3.11:1，不在本項範圍，列入待修。
+
