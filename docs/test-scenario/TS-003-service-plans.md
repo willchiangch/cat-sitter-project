@@ -50,7 +50,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | PUT 編輯方案 | 返回 200 OK，`message="修改成功"`，回傳最新資料 | DB `version` 由 0 遞增為 1；欄位內容更新成功 |
 | 2 | 驗證操作日誌 | — | `care_logs` 新增 1 筆，其 `action="SERVICE_PLAN_CRUD"`, `status="UPDATE_SUCCESS"`，`details` 記錄方案異動 |
-| **自動化對應** | `ServicePlanControllerTest.ts003_02_should_UpdateServicePlanSuccessfully()`；mock E2E `service-plans.spec.ts`「保母編輯方案與預設任務動態刪減」（編輯前 / 刪減任務後 / 儲存後卡片截圖 + `apiStep` 驗 PUT body） | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_02_should_UpdateServicePlanSuccessfully()`；mock E2E `service-plans.spec.ts`「保母編輯方案與預設任務動態刪減」（編輯前名稱價格 / 編輯前兩項預設任務 / 改後名稱價格 / 刪減任務後 / 儲存後卡片截圖 + `apiStep` 驗 PUT body；表單在 modal 內捲動，名稱價格與任務區分開截，每張截圖前把對應欄位捲進畫面並斷言 `toBeInViewport`，驗收 R5） | — | — |
 
 ---
 

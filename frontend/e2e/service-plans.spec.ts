@@ -151,23 +151,52 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
       await ok(route, mockPlans[0], '修改成功');
     });
 
-    await step('開啟編輯：表單帶入原方案與兩項預設任務', page, async () => {
+    // 驗收 R5：表單在 modal 內自己捲動，名稱價格與任務區塞不進同一個 viewport，
+    // 拆成兩張：每張截圖前把對應欄位捲進畫面並斷言 toBeInViewport
+    await step('開啟編輯：表單帶入原方案名稱與價格', page, async () => {
       await openPlansFromDemo(page);
       await page.getByTestId('sitter-plan-btn-edit-plan-1').click();
       await expect(page.getByTestId('sitter-plan-input-name')).toHaveValue('基礎照護');
-      await expect(page.getByTestId('sitter-plan-input-task-0')).toHaveValue('基本餵食');
-      await expect(page.getByTestId('sitter-plan-input-task-1')).toHaveValue('清理砂盆');
+      await expect(page.getByTestId('sitter-plan-input-price')).toHaveValue('500');
+      // 價格欄置中：名稱欄（含標題）與價格欄都在 modal 可視區，不會被 modal 圓角頂端裁掉
+      await page
+        .getByTestId('sitter-plan-input-price')
+        .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect(page.getByTestId('sitter-plan-input-name')).toBeInViewport();
+      await expect(page.getByTestId('sitter-plan-input-price')).toBeInViewport();
     });
 
-    await step('改名稱價格、刪除「清理砂盆」、新增「拍照 5 張」', page, async () => {
+    await step('編輯表單帶入兩項預設任務「基本餵食」「清理砂盆」', page, async () => {
+      await page.getByTestId('sitter-plan-input-task-1').scrollIntoViewIfNeeded();
+      await expect(page.getByTestId('sitter-plan-input-task-0')).toHaveValue('基本餵食');
+      await expect(page.getByTestId('sitter-plan-input-task-1')).toHaveValue('清理砂盆');
+      await expect(page.getByTestId('sitter-plan-input-task-0')).toBeInViewport();
+      await expect(page.getByTestId('sitter-plan-input-task-1')).toBeInViewport();
+    });
+
+    await step('改名稱「基礎照護 (新版)」、價格 600', page, async () => {
       await page.getByTestId('sitter-plan-input-name').fill('基礎照護 (新版)');
       await page.getByTestId('sitter-plan-input-price').fill('600');
+      // 價格欄置中：名稱欄（含標題）與價格欄都在 modal 可視區，不會被 modal 圓角頂端裁掉
+      await page
+        .getByTestId('sitter-plan-input-price')
+        .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await expect(page.getByTestId('sitter-plan-input-name')).toHaveValue('基礎照護 (新版)');
+      await expect(page.getByTestId('sitter-plan-input-price')).toHaveValue('600');
+      await expect(page.getByTestId('sitter-plan-input-name')).toBeInViewport();
+      await expect(page.getByTestId('sitter-plan-input-price')).toBeInViewport();
+    });
+
+    await step('刪除「清理砂盆」、新增「拍照 5 張」', page, async () => {
       await page.getByTestId('sitter-plan-btn-delete-task-1').click();
       await expect(page.getByTestId('sitter-plan-input-task-1')).toHaveCount(0);
       await page.getByTestId('sitter-plan-btn-add-task').click();
       await page.getByTestId('sitter-plan-input-task-1').fill('拍照 5 張');
+      await page.getByTestId('sitter-plan-input-task-1').scrollIntoViewIfNeeded();
       await expect(page.getByTestId('sitter-plan-input-task-0')).toHaveValue('基本餵食');
       await expect(page.getByTestId('sitter-plan-input-task-1')).toHaveValue('拍照 5 張');
+      await expect(page.getByTestId('sitter-plan-input-task-0')).toBeInViewport();
+      await expect(page.getByTestId('sitter-plan-input-task-1')).toBeInViewport();
     });
 
     await step('儲存後卡片顯示新名稱、新價格與新任務', page, async () => {
