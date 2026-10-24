@@ -120,10 +120,11 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '2rem'
+          marginBottom: '2rem',
+          gap: '0.75rem'
         }}
       >
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h2
             style={{
               fontSize: '1.75rem',
@@ -144,8 +145,12 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
             以下為保母於行程結束後為您回報的即時狀態。
           </p>
         </div>
+        {/* 標題說明文字長，徽章被 flex 壓縮成「已送 / 出」兩行（驗收 N12，manage 頁同類問題見 N5） */}
         <span
+          data-testid="client-report-status-badge"
           style={{
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
             padding: '0.375rem 0.75rem',
             borderRadius: '9999px',
             fontSize: '0.75rem',

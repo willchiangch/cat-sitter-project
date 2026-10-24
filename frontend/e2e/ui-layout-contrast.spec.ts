@@ -231,6 +231,48 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  test('N12：飼主日誌檢視頁「已送出」徽章單行，不被標題擠成兩行', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await page.route('**/api/visits/v-n12/report', (route) =>
+      route.fulfill(
+        json({
+          data: {
+            reportId: 'r-n12',
+            visitId: 'v-n12',
+            status: 'SUBMITTED',
+            content: '貓咪精神很好，已完成餵食與清砂。',
+            submittedAt: '2026-10-24T08:00:00Z',
+            media: [],
+            isEditable: false,
+            version: 2,
+            visitStatus: 'DONE',
+            isPurged: false
+          }
+        })
+      )
+    );
+
+    await step('已送出日誌：徽章單行、在標題列右側', page, async () => {
+      await page.goto('/visit-reports/view/v-n12');
+      await expect(page.getByTestId('client-report-text-card')).toContainText('貓咪精神很好');
+      const badge = page.getByTestId('client-report-status-badge');
+      await expect(badge).toHaveText('已送出');
+      await expectNoHorizontalOverflow(page);
+      // 過去被擠成「已送 / 出」兩行：高度約兩倍、寬小於高的兩倍。單行時寬 > 高
+      const box = (await badge.boundingBox())!;
+      expect(box.width, '徽章寬應大於高').toBeGreaterThan(box.height);
+      // line-height 可能是 normal（算不出數字），改以字級判斷：兩行文字高度至少約 2 倍字級
+      const { fontSize, padding } = await badge.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          fontSize: parseFloat(cs.fontSize),
+          padding: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+        };
+      });
+      expect(box.height - padding, '徽章文字只有一行').toBeLessThan(fontSize * 1.8);
+    });
+  });
+
   test('N6：飼主訂單詳情「申請訂單變更」「申報爭議」實色底、文字對比度 ≥ 4.5:1', async ({
     page
   }) => {

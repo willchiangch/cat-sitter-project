@@ -376,3 +376,5 @@
 ## 本測試發現並修復的真實 bug
 
 **日誌回報頁「上傳」按鈕溢出媒體卡片、狀態徽章被擠成直排（2026-10-24，驗收 N5 / backlog 第 6 批 G5）**：媒體描述 `<input>` 是 `flex: 1` 但沒有 `minWidth: 0`，預設約 20 字元寬不肯縮，「上傳」被推出卡片右緣；頁首標題區不肯讓位，徽章「執行中」被擠成一字一行。改 input `minWidth: 0`、按鈕與徽章 `flexShrink: 0` + `nowrap`、標題區 `flex: 1; minWidth: 0`。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N5（上傳鈕落在 `sitter-report-media-card` 內、徽章寬 > 高）。
+
+**飼主日誌檢視頁「已送出」徽章擠成兩行（2026-10-24，驗收 N12）**：N5 只修了保母 manage 頁，飼主 `/visit-reports/view` 的頁首是同一寫法：標題區沒有 `flex: 1; minWidth: 0`、徽章沒有 `flexShrink: 0`，說明文字一長徽章被壓成「已送 / 出」。比照 N5 修正並補 `client-report-status-badge` testid。迴歸：`ui-layout-contrast.spec.ts` N12（徽章文字高度 < 1.8 倍字級，即單行；只看「寬 > 高」抓不到兩行的情況，舊版此斷言紅）。
