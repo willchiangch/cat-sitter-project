@@ -21,6 +21,8 @@ import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
 import { useActiveQuestionsQuery } from '../../hooks/useQuestions';
 import { getMyFavorites, addFavoriteSitter, removeFavoriteSitter } from '../../api/favoriteApi';
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const formatDatesGroupedByYear = (dates: string[]) => {
   if (!dates || dates.length === 0) return null;
   const grouped: Record<string, string[]> = {};
@@ -269,7 +271,16 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
       }
       const res = await createBooking(requestBody, submitKeyRef.current);
       submitKeyRef.current = null;
-      const orderId = res.orderId || res;
+      // 後端契約：201 { orderId: <uuid> }（OrderController.createBooking）。過去寫成 `res.orderId || res`，
+      // 格式不符時把整個物件塞進網址，導去 /owner/orders/[object Object]。此時訂單其實已建立，
+      // 不能當成送出失敗讓使用者重送（會重複下單），改明確提示並導去訂單列表
+      const orderId = res?.orderId;
+      if (typeof orderId !== 'string' || !UUID_PATTERN.test(orderId)) {
+        console.error('POST /orders/booking 回應格式不符，預期 { orderId: <uuid> }：', res);
+        alert('預約已送出，但無法取得訂單編號，請到「我的訂單」確認預約狀態');
+        navigate('/owner/orders');
+        return;
+      }
       navigate(`/owner/orders/${orderId}`);
     } catch (err: any) {
       console.error('送出預約失敗：', err);

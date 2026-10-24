@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { mockDemoSession } from './support/mockSession';
+import { step, trackDialogs, expectDialog } from './support/evidence';
 
 const sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda';
 const questionId = 'q1023000-0000-0000-0000-000000000001';
+const BOOKED_ORDER_ID = 'a1023000-0000-0000-0000-000000000000';
 
 test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
   test.setTimeout(60000);
 
   let lastBookingBody: any = null;
+  // 預設照真實契約 201 { orderId }（OrderController.createBooking）；F3 迴歸測試改成舊的錯誤格式
+  let bookingResponseBody: object = { orderId: BOOKED_ORDER_ID };
 
   test.beforeEach(async ({ page }) => {
     // 假 token 打真後端的 header API 會 401 → refresh 失敗清 token → 換頁被 RequireAuth 導去 /login，
@@ -18,6 +22,7 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     });
     lastBookingBody = null;
+    bookingResponseBody = { orderId: BOOKED_ORDER_ID };
 
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
       await route.fulfill({
@@ -127,9 +132,9 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
     await page.route(url => url.pathname === '/api/orders/booking', async (route) => {
       lastBookingBody = route.request().postDataJSON();
       await route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({ code: 200, message: 'OK', data: 'a1023000-0000-0000-0000-000000000000' })
+        body: JSON.stringify(bookingResponseBody)
       });
     });
 
@@ -179,5 +184,52 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
       { questionId, answerValues: ['不會'] }
     ]);
     expect(lastBookingBody.expectedTotalAmount).toBe(500);
+
+    await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
+      await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
+    });
+  });
+
+  test('迴歸 (F3)：預約回應缺 orderId 時明確提示並導向訂單列表，不導去 /owner/orders/[object Object]', async ({
+    page
+  }) => {
+    // 舊 mock 的錯誤格式：過去 `res.orderId || res` 會把整個物件塞進網址
+    bookingResponseBody = { code: 200, message: 'OK', data: BOOKED_ORDER_ID };
+    const dialogs = trackDialogs(page);
+    const orderDetailRequests: string[] = [];
+    page.on('request', (req) => {
+      const { pathname } = new URL(req.url());
+      if (pathname.startsWith('/api/orders/') && pathname !== '/api/orders/booking') {
+        orderDetailRequests.push(pathname);
+      }
+    });
+
+    await step('進入預約摘要並作答', page, async () => {
+      const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
+      if (roleText?.includes('貓咪保母')) {
+        await page.getByTestId('btn-role-toggle').click();
+      }
+      await page.click('text=進入預約精靈 (飼主端)');
+      await expect(page.getByRole('heading', { name: '選擇服務方案' })).toBeVisible();
+      await page.getByTestId('client-booking-plan-card-0').click();
+      await expect(page.getByRole('heading', { name: '排程配置' })).toBeVisible();
+      const target = new Date();
+      target.setDate(target.getDate() + 1);
+      const dateStr = target.toISOString().split('T')[0];
+      await page.getByTestId(`client-booking-date-0-0-${dateStr}`).click();
+      await page.getByTestId('client-booking-btn-confirm-date-0-0').click();
+      await page.getByTestId('client-booking-btn-step1-next').click();
+      await expect(page.getByRole('heading', { name: '預約摘要' })).toBeVisible();
+      await page.getByTestId(`booking-question-${questionId}-option-不會`).click();
+      await expect(page.getByTestId(`booking-question-${questionId}-option-不會`)).toBeChecked();
+    });
+
+    await step('送出：明確提示無法取得訂單編號並導向訂單列表', page, async () => {
+      await page.getByTestId('client-booking-btn-submit').click();
+      await expectDialog(dialogs, /^預約已送出，但無法取得訂單編號，請到「我的訂單」確認預約狀態$/);
+      await expect(page).toHaveURL(/\/owner\/orders$/);
+      expect(lastBookingBody).not.toBeNull();
+      expect(orderDetailRequests.filter((p) => p.includes('object'))).toEqual([]);
+    });
   });
 });

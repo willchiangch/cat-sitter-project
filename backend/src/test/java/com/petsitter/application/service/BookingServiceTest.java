@@ -12,8 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -28,8 +31,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @Testcontainers
 @ActiveProfiles("local")
 @WithMockUser(roles = "OWNER")
@@ -50,6 +58,12 @@ class BookingServiceTest {
 
     @Autowired
     private ConfirmOrderService confirmOrderService;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+            new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
 
     @Autowired
     private OrderRepository orderRepository;
@@ -243,6 +257,38 @@ class BookingServiceTest {
             assertThat(visitRepository.countBookedVisitsBySitterIdAndDate(
                     sitterId, date.atStartOfDay().atOffset(java.time.ZoneOffset.UTC))).isEqualTo(2);
         }
+    }
+
+    @Test
+    @DisplayName("TS-005-06: POST /api/orders/booking 回應契約 - 201 且 body 只有 { orderId: <uuid> }，不包 data 外層")
+    void ts005_06_should_ReturnOrderIdObject_When_BookingCreated() throws Exception {
+        BookingRequest request = BookingRequest.builder()
+                .ownerId(ownerId)
+                .sitterId(sitterId)
+                .items(List.of(com.petsitter.application.dto.BookingItemRequest.builder()
+                        .planId(planId)
+                        .dates(List.of(LocalDate.of(2026, 8, 1)))
+                        .timesPerDay(1)
+                        .build()))
+                .expectedTotalAmount(500)
+                .build();
+
+        String body = mockMvc.perform(post("/api/orders/booking")
+                        .with(user(ownerId.toString()).roles("OWNER"))
+                        .header("Idempotency-Key", "contract-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.orderId").isString())
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        // 前端 PublicBookingPage 只認這個形狀（backlog F3 移除了 `res.orderId || res` fallback），契約變了要一起改前端
+        java.util.Map<String, Object> json = objectMapper.readValue(body,
+                new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, Object>>() {});
+        assertThat(json.keySet()).containsExactly("orderId");
+        UUID orderId = UUID.fromString((String) json.get("orderId"));
+        assertThat(orderRepository.findById(orderId)).isPresent();
     }
 
     @Test

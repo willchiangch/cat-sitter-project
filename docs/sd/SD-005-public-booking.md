@@ -114,6 +114,9 @@ sequenceDiagram
 > [!NOTE]
 > **Advisory Lock 與 Capacity Check** 已移至 SD-006 (保母報價與接單階段) 執行。
 
+> [!IMPORTANT]
+> **回應契約**：`POST /api/orders/booking` 回 `201`，body **只有** `{ "orderId": "<uuid>" }`，不包 `{ code, message, data }` 外層（`OrderController.createBooking` 回 `Map.of("orderId", orderId)`）。前端 `PublicBookingPage` 只認這個形狀：`orderId` 不是 UUID 字串時不再 fallback 成整個物件（過去 `res.orderId || res` 會導去 `/owner/orders/[object Object]`），改 alert「預約已送出，但無法取得訂單編號，請到「我的訂單」確認預約狀態」並導去 `/owner/orders`——此時訂單可能已建立，不可當送出失敗讓使用者重送。契約測試：`BookingServiceTest.ts005_06_should_ReturnOrderIdObject_When_BookingCreated`（2026-10 backlog F3）。
+
 ---
 
 ## 4. 資料庫異動與限制 (DB Constraint)

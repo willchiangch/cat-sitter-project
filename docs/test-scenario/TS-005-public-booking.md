@@ -39,6 +39,12 @@
 * **Then**: 系統回傳 400 `PRICING_MISMATCH`，不建立訂單。
 * **自動化狀態**: ⬜ 未自動化。目前 `BookingServiceTest` 僅涵蓋金額計算「正確」路徑（Scenario 3），未有測試驗證金額「不符時拒絕」的分支，為已知待補項目。
 
+## Scenario 6: 送單回應契約與送出後導頁 (backlog F3)
+* **Given**: 飼主完成預約摘要。
+* **When**: 送出預約，後端回 `201 { orderId: <uuid> }`。
+* **Then**: 前端導向 `/owner/orders/{orderId}`。若回應缺 `orderId`（或不是 UUID），前端 alert「預約已送出，但無法取得訂單編號，請到「我的訂單」確認預約狀態」並導向 `/owner/orders`，不得導去 `/owner/orders/[object Object]`、不得打 `GET /api/orders/[object Object]`。
+* **自動化對應**: 後端契約 `BookingServiceTest.ts005_06_should_ReturnOrderIdObject_When_BookingCreated()`（201、body 只有 `orderId` 一個 key、無 `data`）；前端 `client-booking.spec.ts` TS-005-01/02 最後一步、`public-booking-questionnaire.spec.ts` 主流程最後一步斷言導向 `/owner/orders/a1023000-...`；`public-booking-questionnaire.spec.ts`「迴歸 (F3)」以舊錯誤格式 `{ code, message, data }` 驗證錯誤提示與導向列表。
+
 ## Scenario 5: 事前問卷必填題未作答應擋下送單 (PRD-004 AC-4)
 * **Given**: 保母設有 1 題必填問卷題目。
 * **When**: 飼主送出預約申請，未包含該題的作答值。
@@ -70,3 +76,4 @@
 ## 本測試發現並修復的真實 bug
 - **選擇方案頁寫死「尊榮包月 $15,000/月・此方案目前檔期已滿」（2026-10，驗收 P2）**：`PublicBookingPage.tsx` 在真實方案清單後面固定多渲染一張註解為「檔期不足模擬」的灰色卡片，是 2026-05 設計稿/展示用的 mock 佔位，沒有對應任何資料。正式站每一位保母的下單頁都會出現這張卡，飼主會以為保母有包月方案、只是剛好額滿。PRD-005/SD-005 都沒有包月方案或「方案層級檔期已滿」的需求（SD-005 §5：檔期已滿於送單階段不阻擋，由保母接單時判斷），`ServicePlan` 也沒有計費週期欄位，因此直接移除，不改成資料驅動。迴歸測試見驗證矩陣第 4 步。
 - **併發接單測試測的是死碼（2026-10，backlog F2；測試盲點，非產品超賣）**：`ts005_02` 原本呼叫 `BookingService.confirmBooking()`，但這個方法沒有任何 controller 呼叫，正式接單走的是 `ConfirmOrderService.confirmOrder()`（鎖的實作也不同：舊死碼用 `hashtext` 雙鍵、正式路徑用排序後的 bigint 鍵），而且死碼會把 visit 設成 `CONFIRMED`，違反 SD-008 狀態機。等於正式路徑的超賣保護完全沒有自動化覆蓋。改測正式路徑後：有鎖 → 綠（連跑 3 次皆綠）；暫時拿掉 `advisoryLockService.acquireLocks()` → `ts005_02`、`ts005_02b` 第 1 輪就紅（兩張都接成功），證明測試確實擋得住超賣、而正式路徑的保護是有效的。死碼與 `OrderRepository.acquireAdvisoryLock` 一併刪除；`ConfirmOrderService` 撈行程從 `findAll().stream().filter()` 全表掃描改 `findByOrderId`。
+- **送出預約後導去 `/owner/orders/[object Object]`（2026-10，backlog F3）**：`PublicBookingPage.tsx` 以 `res.orderId || res` 取訂單編號，回應格式不符時把整個物件塞進網址。真實後端回 `{ orderId }` 所以正式站沒踩到，但 `client-booking.spec.ts`、`public-booking-questionnaire.spec.ts` 的 mock 一直回錯誤格式 `{ code, message, data }`，trace 有 `GET /api/orders/[object%20Object]` 400，因為測試沒斷言送出後的頁面而沒紅。修正：移除 fallback、格式不符明確提示並導向訂單列表；兩支 mock 改成真實格式 201 `{ orderId }` 並補導頁斷言；後端補契約測試。舊前端跑「迴歸 (F3)」→ 紅（沒有提示、導去 `[object Object]`）。

@@ -74,4 +74,5 @@
 - **E2E 對應**: [sitter-question-manager.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/sitter-question-manager.spec.ts), [public-booking-questionnaire.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/public-booking-questionnaire.spec.ts)
 - **執行指令**: `mvn test -Dtest=SitterQuestionServiceTest`
 - **mock E2E 前置（2026-10，Backlog 第 4 批 E1）**：`public-booking-questionnaire.spec.ts` 以假 token 進 Demo，必須先呼叫 `e2e/support/mockSession.ts` 的 `mockDemoSession()` 攔 AppHeader 每頁都打的通知 / KYC 狀態 API，並 mock `GET /api/owner/favorites`（預約頁愛心）。漏攔的 API 打到真後端會 401 → axios refresh 也 401 → 清掉 accessToken，下一次換頁被 `RequireAuth`（C1 起訂閱 location）導去 `/login?redirect=...`。這是測試 mock 不完整，不是產品 bug：真實使用者只有 refresh token 真的失效時才會被清 token 並導去登入。
+- **送單 mock 契約（2026-10，backlog F3）**：`public-booking-questionnaire.spec.ts` 的 `POST /api/orders/booking` mock 改為真實格式 `201 { orderId }`（過去 `{ code, message, data }` 會讓前端導去 `/owner/orders/[object Object]`），主流程最後斷言導向 `/owner/orders/{orderId}`；另有「迴歸 (F3)」驗證回應缺 `orderId` 時的錯誤提示，詳見 TS-005 Scenario 6
 - **最後驗證日期**: 2026-07-18

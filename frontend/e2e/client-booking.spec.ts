@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { mockDemoSession } from './support/mockSession';
 import { step } from './support/evidence';
 
+const BOOKED_ORDER_ID = 'a1023000-0000-0000-0000-000000000000';
+
 class CalendarHelper {
   private page: any;
   private currentYear: number;
@@ -136,16 +138,13 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       });
     });
 
-    // 4. Mock Order Booking Submission
+    // 4. Mock Order Booking Submission：照真實契約 201 { orderId }（OrderController.createBooking）。
+    // 過去回 { code, message, data }，前端 `res.orderId || res` 導去 /owner/orders/[object Object] 沒被發現（backlog F3）
     await page.route(url => url.pathname === '/api/orders/booking', async (route) => {
       await route.fulfill({
-        status: 200,
+        status: 201,
         contentType: 'application/json',
-        body: JSON.stringify({
-          code: 200,
-          message: 'OK',
-          data: 'a1023000-0000-0000-0000-000000000000'
-        })
+        body: JSON.stringify({ orderId: BOOKED_ORDER_ID })
       });
     });
 
@@ -204,6 +203,10 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       const screenshot = await page.screenshot();
       await testInfo.attach('步驟 3: 摘要確認', { body: screenshot, contentType: 'image/png' });
       await page.click('[data-testid="client-booking-btn-submit"]');
+    });
+
+    await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
+      await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
     });
   });
 
@@ -283,6 +286,10 @@ test.describe('TS-005 飼主預約精靈流程', () => {
 
       await page.click('[data-testid="client-booking-btn-submit"]');
       await testInfo.attach('2-16-送出', { body: await page.screenshot(), contentType: 'image/png' });
+    });
+
+    await step('複合預約送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
+      await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
     });
   });
 
