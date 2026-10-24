@@ -56,3 +56,27 @@ export const profileKycStatusLabel = (s: string | null | undefined) =>
   label(PROFILE_KYC_STATUS_LABELS, s);
 export const kycRecordStatusLabel = (s: string | null | undefined) =>
   label(KYC_RECORD_STATUS_LABELS, s);
+
+/**
+ * 行程清單（訂單詳情 / 保母訂單卡）右側入口按鈕的文案，回 null 代表不顯示入口（驗收 N11）。
+ * 過去不分狀態一律顯示「查看日誌」，飼主點「待執行」行程只會看到空日誌。
+ * - 保母：待執行 → 打卡；執行中 → 繼續回報 / Check-out；已完工 → 查看或送出日誌（24h 內可補送）；
+ *   系統結案（沒打卡、沒有日誌）、已取消 → 不顯示
+ * - 飼主：只有已完工的行程可能有已送出的日誌（SD-022 SUBMITTED-only Gate），其餘不顯示
+ */
+export const sitterVisitActionLabel = (s: string | null | undefined): string | null => {
+  switch (s) {
+    case 'PENDING':
+    case 'CONFIRMED':
+      return '打卡 / 回報';
+    case 'IN_PROGRESS':
+      return '繼續回報';
+    case 'DONE':
+      return '查看 / 送出日誌';
+    default:
+      return null;
+  }
+};
+
+export const ownerVisitActionLabel = (s: string | null | undefined): string | null =>
+  s === 'DONE' ? '查看日誌' : null;

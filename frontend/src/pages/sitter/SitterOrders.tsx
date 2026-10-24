@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { visitStatusLabel } from '../../components/ui/statusLabels';
+import { sitterVisitActionLabel, visitStatusLabel } from '../../components/ui/statusLabels';
 import Card from '../../components/ui/Card';
 import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
@@ -34,34 +34,39 @@ const SitterOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
       }}
     >
       <h4 style={{ margin: '0 0 0.25rem 0', color: 'var(--color-on-surface)' }}>行程</h4>
-      {visits.map((visit) => (
-        <div
-          key={visit.id}
-          data-testid="sitter-order-visit-item"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0.5rem 0.75rem',
-            backgroundColor: 'var(--color-surface-low)',
-            borderRadius: '8px',
-            fontSize: '0.875rem'
-          }}
-        >
-          <span>
-            {new Date(visit.scheduledAt).toLocaleDateString()}（{visitStatusLabel(visit.status)}）
-          </span>
-          <button
-            type="button"
-            onClick={() => navigate(`/visit-reports/manage/${visit.id}`)}
-            className="btn-primary"
-            data-testid="sitter-order-visit-link"
-            style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+      {visits.map((visit) => {
+        const action = sitterVisitActionLabel(visit.status);
+        return (
+          <div
+            key={visit.id}
+            data-testid="sitter-order-visit-item"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0.5rem 0.75rem',
+              backgroundColor: 'var(--color-surface-low)',
+              borderRadius: '8px',
+              fontSize: '0.875rem'
+            }}
           >
-            {visit.status === 'PENDING' ? '打卡 / 回報' : '查看日誌'}
-          </button>
-        </div>
-      ))}
+            <span>
+              {new Date(visit.scheduledAt).toLocaleDateString()}（{visitStatusLabel(visit.status)}）
+            </span>
+            {action && (
+              <button
+                type="button"
+                onClick={() => navigate(`/visit-reports/manage/${visit.id}`)}
+                className="btn-primary"
+                data-testid="sitter-order-visit-link"
+                style={{ padding: '4px 12px', fontSize: '0.8rem', flexShrink: 0 }}
+              >
+                {action}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };

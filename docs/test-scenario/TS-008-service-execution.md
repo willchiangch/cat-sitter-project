@@ -71,3 +71,10 @@
 | :--- | :--- | :--- | :--- |
 | 1 | 對已處於 `IN_PROGRESS` 狀態之行程重複呼叫 `/start` | 提示「行程非待執行狀態，無法開始」 | API Status: 422 Unprocessable Entity<br/>Code: `MSG_DATA_INVALID_STATUS` |
 | 2 | 對處於 `PENDING` 狀態之行程直接呼叫 `/end` | 提示「行程非執行中狀態，無法結束」 | API Status: 422 Unprocessable Entity<br/>Code: `MSG_DATA_INVALID_STATUS` |
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**行程清單不分狀態一律顯示「查看日誌」（2026-10-24，驗收 N11）**：飼主訂單詳情對「待執行」行程也顯示「查看日誌」，點進去只會看到「尚未回報」空狀態；保母訂單卡除了 `PENDING` 以外全部是「查看日誌」，執行中的行程看不出要點進去 Check-out，`CONFIRMED`（也是待執行）甚至不會顯示「打卡」。改依行程狀態給文案或不給入口（對照表見 SD-008 §4.3）。迴歸：`frontend/e2e/order-visit-gating.spec.ts` N11（飼主 / 保母各一支，五種狀態逐列比對入口文字；舊版兩支皆紅）。
+

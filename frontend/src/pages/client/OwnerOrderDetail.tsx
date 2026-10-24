@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { visitStatusLabel } from '../../components/ui/statusLabels';
+import { ownerVisitActionLabel, visitStatusLabel } from '../../components/ui/statusLabels';
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
 import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
@@ -30,34 +30,40 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
       <h4 style={{ margin: '0 0 0.25rem 0' }}>行程</h4>
-      {visits.map((visit) => (
-        <div
-          key={visit.id}
-          data-testid="owner-order-visit-item"
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0.5rem 0.75rem',
-            backgroundColor: 'var(--color-surface-low)',
-            borderRadius: '8px',
-            fontSize: '0.875rem'
-          }}
-        >
-          <span>
-            {new Date(visit.scheduledAt).toLocaleDateString()}（{visitStatusLabel(visit.status)}）
-          </span>
-          <button
-            type="button"
-            onClick={() => navigate(`/visit-reports/view/${visit.id}`)}
-            className="btn-primary"
-            data-testid="owner-order-visit-link"
-            style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+      {visits.map((visit) => {
+        // 只有已完工的行程才可能有已送出的日誌；待執行 / 執行中點進去只會是空日誌（驗收 N11）
+        const action = ownerVisitActionLabel(visit.status);
+        return (
+          <div
+            key={visit.id}
+            data-testid="owner-order-visit-item"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '0.5rem 0.75rem',
+              backgroundColor: 'var(--color-surface-low)',
+              borderRadius: '8px',
+              fontSize: '0.875rem'
+            }}
           >
-            查看日誌
-          </button>
-        </div>
-      ))}
+            <span>
+              {new Date(visit.scheduledAt).toLocaleDateString()}（{visitStatusLabel(visit.status)}）
+            </span>
+            {action && (
+              <button
+                type="button"
+                onClick={() => navigate(`/visit-reports/view/${visit.id}`)}
+                className="btn-primary"
+                data-testid="owner-order-visit-link"
+                style={{ padding: '4px 12px', fontSize: '0.8rem', flexShrink: 0 }}
+              >
+                {action}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
