@@ -129,4 +129,36 @@ class ModificationServiceIntegrationTest {
         long dbCount = modRepo.count();
         assertThat(dbCount).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("Scenario C2: 併發防禦 - 同一變更請求被同時確認兩次，只結轉一次，另一個 409（移除容量 advisory lock 後仍由 version 樂觀鎖保證）")
+    void should_ApplyOnce_When_SameModificationConfirmedConcurrently() throws Exception {
+        // 2026-10 backlog 第 7 批移除 confirmModification 的保母 + 日期 advisory lock 與名額檢查（系統不做容量控管），
+        // 同一張單的重複確認改由 orders / modification_requests 的 @Version 擋下
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        order.setStatus("MODIFYING");
+        orderRepository.save(order);
+        ModificationRequest modReq = modRepo.save(ModificationRequest.builder()
+                .order(order)
+                .requestedBy("OWNER")
+                .payload(new ArrayList<>(java.util.List.of(new OrderItem(
+                        "CARE", "Standard Plan", 500, 1, UUID.randomUUID(), java.util.List.of(), 1, java.util.List.of()))))
+                .dates(java.util.List.of())
+                .diffAmount(-200)
+                .newTotalAmount(800)
+                .previousStatus("CONFIRMED")
+                .status("QUOTED")
+                .build());
+
+        ConcurrentTransitionSupport.Result result = ConcurrentTransitionSupport.runConcurrently(java.util.List.of(
+                () -> modificationService.confirmModification(ownerId, orderId, modReq.getId(), -200),
+                () -> modificationService.confirmModification(ownerId, orderId, modReq.getId(), -200)));
+
+        assertThat(result.success()).isEqualTo(1);
+        assertThat(result.failureStatuses()).as("失敗回應（%s）", result.failures()).containsExactly(409);
+        Order after = orderRepository.findById(orderId).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("REFUND_VERIFY");
+        assertThat(after.getTotalAmount()).as("差額只套用一次").isEqualTo(800);
+        assertThat(modRepo.findById(modReq.getId()).orElseThrow().getStatus()).isEqualTo("M_DONE");
+    }
 }
