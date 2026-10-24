@@ -55,6 +55,9 @@ class OrderEvaluationTest {
     private EvaluationService evaluationService;
 
     @Autowired
+    private ConfirmOrderService confirmOrderService;
+
+    @Autowired
     private OrderSnapshotRepository orderSnapshotRepository;
 
     @Autowired
@@ -218,5 +221,149 @@ class OrderEvaluationTest {
 
         assertThatThrownBy(() -> evaluationService.sendQuote(sitterId, orderId, quoteReq, "send-quote-test-3"))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // TS-006-04 ~ 06：議價報價路徑的容量保護（backlog G1）
+    // 報價後訂單直接轉 PENDING_PAYMENT（SD-006 §2.1），容量在「報價當下」就被佔用，
+    // 所以 sendQuote 必須和原價接單 ConfirmOrderService 走同一組鎖 + 鎖內 count（CapacityGuard）。
+    // ---------------------------------------------------------------------------------------------
+
+    private void setDailyCapacity(int capacity) {
+        ServicePlan plan = servicePlanRepository.findById(planId).orElseThrow();
+        plan.setDailyCapacity(capacity);
+        servicePlanRepository.saveAndFlush(plan);
+    }
+
+    private UUID createPendingOrder(LocalDate date, String key) {
+        return bookingService.createBooking(BookingRequest.builder()
+                .sitterId(sitterId).ownerId(ownerId)
+                .items(List.of(com.petsitter.application.dto.BookingItemRequest.builder()
+                        .planId(planId).dates(List.of(date)).timesPerDay(1).build()))
+                .expectedTotalAmount(500)
+                .idempotencyKey(key).build());
+    }
+
+    /** 原價報價（adjustment 0，FREE 方案可用），帶入訂單目前 version。 */
+    private void quoteAtOriginalPrice(UUID orderId, String idempotencyKey) {
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        evaluationService.sendQuote(sitterId, orderId, QuoteRequest.builder()
+                .adjustmentAmount(0)
+                .expectedTotalAmount(order.getTotalAmount())
+                .version(order.getVersion())
+                .build(), idempotencyKey);
+    }
+
+    /**
+     * 每個 action 一個執行緒，用 CyclicBarrier 同時起跑。回傳 [成功數, CapacityFullException 數]；
+     * 其他例外（例如 409 樂觀鎖、或沒有保護時根本不會丟例外）讓測試直接失敗或由數量斷言抓出。
+     */
+    private int[] runConcurrently(List<Runnable> actions) throws Exception {
+        java.util.concurrent.ExecutorService executor =
+                java.util.concurrent.Executors.newFixedThreadPool(actions.size());
+        java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(actions.size());
+        java.util.concurrent.atomic.AtomicInteger success = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger full = new java.util.concurrent.atomic.AtomicInteger();
+        try {
+            List<java.util.concurrent.CompletableFuture<Void>> futures = new java.util.ArrayList<>();
+            for (Runnable action : actions) {
+                futures.add(java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        barrier.await();
+                        action.run();
+                        success.incrementAndGet();
+                    } catch (com.petsitter.application.exception.CapacityFullException e) {
+                        full.incrementAndGet();
+                    } catch (Exception e) {
+                        throw new IllegalStateException("接單 / 報價應只有成功或 CapacityFullException 兩種結果", e);
+                    }
+                }, executor));
+            }
+            java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                    .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+        return new int[] { success.get(), full.get() };
+    }
+
+    private long countStatus(List<UUID> orderIds, String status) {
+        return orderRepository.findAllById(orderIds).stream().filter(o -> status.equals(o.getStatus())).count();
+    }
+
+    private long countBooked(LocalDate date) {
+        return visitRepository.countBookedVisitsBySitterIdAndDate(
+                sitterId, date.atStartOfDay().atOffset(java.time.ZoneOffset.UTC));
+    }
+
+    @Test
+    @DisplayName("TS-006-04: 容量 1 已被原價接單佔滿，同日另一張單改用報價也應 CapacityFull，訂單維持 PENDING 且不建快照")
+    void ts006_04_should_RejectQuote_When_DayAlreadyFullByConfirm() {
+        setDailyCapacity(1);
+        LocalDate date = LocalDate.of(2026, 9, 1);
+        UUID confirmed = createPendingOrder(date, "g1-seq-a");
+        UUID quoted = createPendingOrder(date, "g1-seq-b");
+
+        confirmOrderService.confirmOrder(sitterId, confirmed);
+
+        assertThatThrownBy(() -> quoteAtOriginalPrice(quoted, "g1-seq-quote"))
+                .isInstanceOf(com.petsitter.application.exception.CapacityFullException.class)
+                .hasMessageContaining(date.toString());
+
+        assertThat(orderRepository.findById(quoted).orElseThrow().getStatus()).isEqualTo("PENDING");
+        assertThat(orderSnapshotRepository.findAll().stream()
+                .filter(snap -> snap.getOrder().getId().equals(quoted)).count()).isZero();
+        assertThat(countBooked(date)).isEqualTo(1);
+        // 容量不足時整筆 rollback（含冪等鍵），保母調高容量後用同一顆 key 重試不會被當成重送
+        setDailyCapacity(2);
+        quoteAtOriginalPrice(quoted, "g1-seq-quote");
+        assertThat(orderRepository.findById(quoted).orElseThrow().getStatus()).isEqualTo("PENDING_PAYMENT");
+        assertThat(countBooked(date)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("TS-006-05: 容量 1、同日兩張單一張原價接單一張報價同時起跑，只成功一張（兩條路徑共用同一組鎖）")
+    void ts006_05_should_PreventOverselling_When_ConfirmAndQuoteRace() throws Exception {
+        setDailyCapacity(1);
+        for (int round = 0; round < 5; round++) {
+            LocalDate date = LocalDate.of(2026, 9, 10).plusDays(round);
+            UUID a = createPendingOrder(date, "g1-mix-a-" + round);
+            UUID b = createPendingOrder(date, "g1-mix-b-" + round);
+            String quoteKey = "g1-mix-quote-" + round;
+
+            int[] result = runConcurrently(List.of(
+                    () -> confirmOrderService.confirmOrder(sitterId, a),
+                    () -> quoteAtOriginalPrice(b, quoteKey)));
+
+            assertThat(result[0]).as("第 %d 輪成功數（容量 1）", round + 1).isEqualTo(1);
+            assertThat(result[1]).as("第 %d 輪 CapacityFullException 數", round + 1).isEqualTo(1);
+            assertThat(countStatus(List.of(a, b), "PENDING_PAYMENT")).isEqualTo(1);
+            assertThat(countStatus(List.of(a, b), "PENDING")).isEqualTo(1);
+            assertThat(countBooked(date)).isEqualTo(1);
+        }
+    }
+
+    @Test
+    @DisplayName("TS-006-06: 容量 1、同日兩張單同時報價，只成功一張")
+    void ts006_06_should_PreventOverselling_When_ConcurrentQuotes() throws Exception {
+        setDailyCapacity(1);
+        for (int round = 0; round < 5; round++) {
+            LocalDate date = LocalDate.of(2026, 9, 20).plusDays(round);
+            UUID a = createPendingOrder(date, "g1-qq-a-" + round);
+            UUID b = createPendingOrder(date, "g1-qq-b-" + round);
+            String keyA = "g1-qq-quote-a-" + round;
+            String keyB = "g1-qq-quote-b-" + round;
+
+            int[] result = runConcurrently(List.of(
+                    () -> quoteAtOriginalPrice(a, keyA),
+                    () -> quoteAtOriginalPrice(b, keyB)));
+
+            assertThat(result[0]).as("第 %d 輪成功數（容量 1）", round + 1).isEqualTo(1);
+            assertThat(result[1]).as("第 %d 輪 CapacityFullException 數", round + 1).isEqualTo(1);
+            assertThat(countStatus(List.of(a, b), "PENDING_PAYMENT")).isEqualTo(1);
+            assertThat(countBooked(date)).isEqualTo(1);
+            assertThat(orderSnapshotRepository.findAll().stream()
+                    .filter(snap -> List.of(a, b).contains(snap.getOrder().getId())).count()).isEqualTo(1);
+        }
     }
 }

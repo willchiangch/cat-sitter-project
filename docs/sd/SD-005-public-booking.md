@@ -16,7 +16,7 @@
 
 ### 1.2 併發與冪等性
 1. **送單階段**：主要透過 `idempotency_key` 的資料庫 `UNIQUE` 約束防止重複送單。
-2. **鎖定階段**：已移至 SD-006 (Confirm Order)。在保母接單時，系統將執行 **Sorted Advisory Locks** 以確保配額檢核的原子性。實作唯一入口為 `ConfirmOrderService.confirmOrder()`（`POST /api/orders/{id}/confirm`）：依 `findByOrderId` 取該單行程 → 每個日期 `AdvisoryLockService.generateLockKey(sitterId, date)` 排序後 `pg_advisory_xact_lock` → `countBookedVisitsBySitterIdAndDate`（只算 `CONFIRMED/PENDING_PAYMENT/IN_PROGRESS/COMPLETED` 訂單的行程）`>= dailyCapacity` 即拋 `CapacityFullException` → 訂單轉 `PENDING_PAYMENT`、建快照。**接單不改 visit 狀態**（維持 `PENDING`，SD-008）。2026-10 backlog F2 刪除了從未被 controller 呼叫、會把 visit 設成 `CONFIRMED` 的舊版 `BookingService.confirmBooking()` 與它專用的 `OrderRepository.acquireAdvisoryLock`。
+2. **鎖定階段**：已移至 SD-006 (Confirm Order)。在保母接單時，系統將執行 **Sorted Advisory Locks** 以確保配額檢核的原子性。會佔用容量的入口有兩個：原價快速接單 `ConfirmOrderService.confirmOrder()`（`POST /api/orders/{id}/confirm`）與議價報價 `EvaluationService.sendQuote()`（`POST /api/orders/{id}/quote`，報價後直接 `PENDING_PAYMENT`，見 SD-006 §2.1），兩者共用 `CapacityGuard.lockAndCheck()`（2026-10 backlog G1 之前報價路徑漏掉這段）：依 `findByOrderId` 取該單行程 → 每個日期 `AdvisoryLockService.generateLockKey(sitterId, date)` 排序後 `pg_advisory_xact_lock` → `countBookedVisitsBySitterIdAndDate`（只算 `CONFIRMED/PENDING_PAYMENT/IN_PROGRESS/COMPLETED` 訂單的行程）`>= dailyCapacity` 即拋 `CapacityFullException` → 訂單轉 `PENDING_PAYMENT`、建快照。**接單不改 visit 狀態**（維持 `PENDING`，SD-008）。2026-10 backlog F2 刪除了從未被 controller 呼叫、會把 visit 設成 `CONFIRMED` 的舊版 `BookingService.confirmBooking()` 與它專用的 `OrderRepository.acquireAdvisoryLock`。
 
 ### 1.3 動態問卷渲染與快照 (PRD-004 聯動)
 飼主進入預約 Step 2 時，前端呼叫 `GET /api/sitters/{sitterId}/questions`（見 SD-004）動態渲染保母自訂的問卷表單。送單時：

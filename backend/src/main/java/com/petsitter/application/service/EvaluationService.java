@@ -28,6 +28,7 @@ public class EvaluationService {
     private final VisitRepository visitRepository;
     private final OrderLogRepository orderLogRepository;
     private final IdempotencyService idempotencyService;
+    private final CapacityGuard capacityGuard;
 
     @RequirePlan(PlanTier.FREE)
     @Transactional
@@ -69,6 +70,11 @@ public class EvaluationService {
         // 媒體保留規則快照也以這個主要方案為準
         ServicePlan plan = servicePlanRepository.findById(order.getPlanId())
                 .orElseThrow(() -> new IllegalStateException("找不到訂單對應的服務方案"));
+
+        // --- 容量保護 (SD-006 §2.1)：報價後訂單直接轉 PENDING_PAYMENT、立即佔用容量，
+        // 必須與原價接單 ConfirmOrderService 走同一組 Sorted Advisory Locks + 鎖內 count。
+        // 2026-10 backlog G1 之前這裡完全沒檢查，保母可先原價接滿某天再用報價接同日的單 → 超賣
+        capacityGuard.lockAndCheck(sitterId, orderId, plan);
 
         // --- 建立 Snapshot (SD-006) ---
         OrderSnapshot snapshot = OrderSnapshot.builder()
