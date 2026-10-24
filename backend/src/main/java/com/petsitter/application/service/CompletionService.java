@@ -139,6 +139,12 @@ public class CompletionService {
         }
 
         List<Visit> visits = visitRepository.findByOrderId(orderId);
+        // 零行程時 allMatch 回 true，會讓「沒有任何服務」的訂單直接結案放款。資料模型不保證至少一筆行程：
+        // 預約的 dates 可為空陣列（BookingItemRequest 沒有 @NotEmpty，總額 0 也能通過 Zero-Trust 校驗），
+        // 訂單變更確認時 updateVisitsSafely 會刪掉全部未執行行程、dates 為 null/空則不補新行程（驗收 N10）
+        if (visits.isEmpty()) {
+            throw new IllegalStateException("此訂單沒有任何行程，不可結案");
+        }
         boolean allFinished = visits.stream()
                 .allMatch(v -> List.of("DONE", "CLOSED_BY_SYSTEM").contains(v.getStatus()));
         

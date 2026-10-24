@@ -62,6 +62,9 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
   );
 };
 
+/** 行程已結束（打卡完工或逾期被系統關閉），與後端 CompletionService.manualComplete 的判斷一致 */
+const FINISHED_VISIT_STATUSES = new Set(['DONE', 'CLOSED_BY_SYSTEM']);
+
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = (Math.random() * 16) | 0,
@@ -87,6 +90,16 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
   const paymentProofKeyRef = useRef<string | null>(null);
 
   const { userId: ownerId } = useCurrentUser();
+
+  // 確認結案按鈕只在「所有行程都已結束」時顯示（PRD-009 A.1 / 例外表「仍有行程尚未完成」）。
+  // 過去 CONFIRMED（服務還沒開始）就顯示，按了只會被後端 manualComplete 擋下（驗收 N10）
+  const isServiceStage = order?.status === 'CONFIRMED' || order?.status === 'IN_PROGRESS';
+  const { data: visits = [], isSuccess: visitsLoaded } = useOrderVisitsQuery(
+    orderId,
+    isServiceStage
+  );
+  const canComplete =
+    visitsLoaded && visits.length > 0 && visits.every((v) => FINISHED_VISIT_STATUSES.has(v.status));
 
   const fetchOrderDetail = async () => {
     try {
@@ -549,15 +562,31 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
               >
                 申請訂單變更 (改期 / 取消)
               </button>
-              <button
-                onClick={handleComplete}
-                disabled={loading}
-                className="btn-primary"
-                style={{ width: '100%', padding: '1rem' }}
-                data-testid="complete-order-btn"
-              >
-                {loading ? '處理中...' : '確認結案 (完成預約)'}
-              </button>
+              {canComplete ? (
+                <button
+                  onClick={handleComplete}
+                  disabled={loading}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '1rem' }}
+                  data-testid="complete-order-btn"
+                >
+                  {loading ? '處理中...' : '確認結案 (完成預約)'}
+                </button>
+              ) : (
+                visitsLoaded && (
+                  <p
+                    data-testid="complete-order-hint"
+                    style={{
+                      margin: 0,
+                      fontSize: '0.875rem',
+                      color: 'var(--color-on-surface-variant)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    所有行程完工後即可確認結案
+                  </p>
+                )
+              )}
               <button
                 onClick={() => setIsDisputeOpen(true)}
                 disabled={loading}

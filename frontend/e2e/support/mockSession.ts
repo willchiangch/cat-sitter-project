@@ -122,16 +122,24 @@ export async function mockDemoSession(
   return mockSessionApis(page);
 }
 
+export interface MockVisit {
+  id: string;
+  status: string;
+  scheduledAt?: string;
+}
+
 /**
  * 飼主訂單詳情頁（/owner/orders/{id}）的最小 mock：訂單本體 + 行程清單。
  * 導頁到詳情的 spec（預約送出、通知連結）都要接，否則 catch-all 501、截圖停在錯誤畫面（驗收 R1）。
  * totalAmount 請傳實際預約的方案金額（驗收 R6：過去寫死 600，預約 $500 方案的截圖卻顯示 $600）。
+ * visits 是 GET /visits 的行程清單：確認結案鈕只在全部 DONE / CLOSED_BY_SYSTEM 時出現（驗收 N10）。
  */
 export async function mockOwnerOrderDetail(
   page: Page,
   orderId: string,
   status = 'PENDING',
-  totalAmount = 600
+  totalAmount = 600,
+  visits: MockVisit[] = [{ id: 'v-1', status: 'PENDING' }]
 ) {
   await page.route(`**/api/orders/${orderId}`, (route) =>
     route.fulfill({
@@ -157,7 +165,7 @@ export async function mockOwnerOrderDetail(
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ id: 'v-1', status: 'PENDING', scheduledAt: '2026-12-01T00:00:00Z' }])
+      body: JSON.stringify(visits.map((v) => ({ scheduledAt: '2026-12-01T00:00:00Z', ...v })))
     })
   );
 }

@@ -173,6 +173,60 @@ class CompletionServiceTest {
         assertThat(untouchedOrder.getStatus()).isEqualTo("DISPUTED");
     }
 
+    @Test
+    @DisplayName("飼主手動結案：訂單沒有任何行程時應拒絕，維持 CONFIRMED 不放款 (驗收 N10)")
+    void should_RejectManualComplete_When_OrderHasNoVisits() {
+        Order order = createOrder("CONFIRMED");
+
+        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> completionService.manualComplete(order.getId(), owner.getId()));
+        assertThat(ex.getMessage()).contains("沒有任何行程");
+
+        Order untouched = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(untouched.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(untouched.getCompletedAt()).isNull();
+        assertThat(untouched.getPayoutAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("飼主手動結案：仍有待執行行程時應拒絕 (PRD-009 A.1)")
+    void should_RejectManualComplete_When_VisitStillPending() {
+        Order order = createOrder("CONFIRMED");
+        visitRepository.save(Visit.builder()
+                .order(order)
+                .status("PENDING")
+                .planId(UUID.randomUUID())
+                .snapshotPlanTitle("Pending Plan")
+                .scheduledAt(OffsetDateTime.now().plusDays(1))
+                .build());
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> completionService.manualComplete(order.getId(), owner.getId()));
+
+        assertThat(orderRepository.findById(order.getId()).orElseThrow().getStatus()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("飼主手動結案：所有行程 DONE 時轉為 COMPLETED 並排定撥款")
+    void should_ManualComplete_When_AllVisitsDone() {
+        Order order = createOrder("IN_PROGRESS");
+        visitRepository.save(Visit.builder()
+                .order(order)
+                .status("DONE")
+                .planId(UUID.randomUUID())
+                .snapshotPlanTitle("Done Plan")
+                .scheduledAt(OffsetDateTime.now().minusHours(2))
+                .build());
+
+        completionService.manualComplete(order.getId(), owner.getId());
+
+        Order completed = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(completed.getStatus()).isEqualTo("COMPLETED");
+        assertThat(completed.getPayoutAt()).isEqualTo(completed.getCompletedAt().plusDays(3));
+    }
+
     private Order createOrder(String status) {
         com.petsitter.domain.model.OrderItem orderItem = new com.petsitter.domain.model.OrderItem();
         orderItem.setCategory("CAT_SITTING");

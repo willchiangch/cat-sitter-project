@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { step, trackDialogs, expectDialog } from './support/evidence';
 
 test.describe('Dispute and Completion Flow', () => {
   let orderStatus = 'CONFIRMED';
@@ -94,29 +95,40 @@ test.describe('Dispute and Completion Flow', () => {
   });
 
   test('should complete order from owner side', async ({ page }) => {
-    // 切換為飼主角色 (訂單管理清單頁僅飼主角色可見)
-    await page.getByRole('button', { name: '切換為飼主' }).click();
+    // 驗收 N10：確認結案鈕只在所有行程都已結束時顯示，這裡的行程全部 DONE
+    await page.route('**/api/orders/a1023000-0000-0000-0000-000000000000/visits', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 'v-done-1', status: 'DONE', scheduledAt: '2026-05-25T00:00:00Z' },
+          { id: 'v-done-2', status: 'DONE', scheduledAt: '2026-05-26T00:00:00Z' }
+        ])
+      })
+    );
+    const dialogs = trackDialogs(page);
 
-    // 進入飼主端訂單管理
-    await page.getByRole('button', { name: '進入訂單管理 (飼主端)' }).click();
-    await expect(page.locator('text=飼主訂單管理')).toBeVisible();
+    await step('飼主訂單詳情：行程全部已完工，顯示確認結案', page, async () => {
+      // 切換為飼主角色 (訂單管理清單頁僅飼主角色可見)
+      await page.getByRole('button', { name: '切換為飼主' }).click();
 
-    // 點擊第一個卡片進入詳情
-    await page.locator('text=ORDER #a1023000').first().click();
-    await expect(page.locator('text=ORDER #a1023000')).toBeVisible();
+      // 進入飼主端訂單管理
+      await page.getByRole('button', { name: '進入訂單管理 (飼主端)' }).click();
+      await expect(page.locator('text=飼主訂單管理')).toBeVisible();
 
-    // 點擊結案按鈕
-    page.once('dialog', async dialog => {
-      expect(dialog.message()).toContain('確定要將此訂單結案嗎');
-      await dialog.accept();
+      // 點擊第一個卡片進入詳情
+      await page.locator('text=ORDER #a1023000').first().click();
+      await expect(page.locator('text=ORDER #a1023000')).toBeVisible();
+      await expect(page.getByTestId('owner-order-visit-item')).toHaveCount(2);
+      await expect(page.getByTestId('complete-order-btn')).toBeVisible();
     });
-    
-    const completeBtn = page.getByTestId('complete-order-btn');
-    await completeBtn.click();
 
-    // 檢查結案後的 banner
-    await expect(page.getByTestId('completed-status-banner')).toBeVisible();
-    await expect(page.getByTestId('completed-status-banner')).toContainText('訂單已順利結案');
+    await step('確認結案後顯示「訂單已順利結案」', page, async () => {
+      await page.getByTestId('complete-order-btn').click();
+      await expectDialog(dialogs, /確定要將此訂單結案嗎/);
+      await expect(page.getByTestId('completed-status-banner')).toBeVisible();
+      await expect(page.getByTestId('completed-status-banner')).toContainText('訂單已順利結案');
+    });
   });
 
   test('should report dispute and resolve by admin', async ({ page }) => {
