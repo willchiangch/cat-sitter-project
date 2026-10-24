@@ -54,8 +54,16 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
     );
   }
 
-  const isEditable = (report?.isEditable ?? true) && report?.visitStatus === 'IN_PROGRESS';
   const isSubmitted = report?.status === 'SUBMITTED';
+  // PRD-022 A.2 / SD-022：執行中、或已完工且未逾期（finished_at + 24h，後端以 isEditable 回報）且未送出，
+  // 都可以編輯草稿、上傳媒體。過去只認 IN_PROGRESS，Check-out 後橫幅寫「請填寫文字日誌並送出」
+  // 文字框卻是唯讀，Check-out 後才想補寫的內容無處可寫（驗收 N13）
+  const isEditable =
+    !!report &&
+    report.isEditable &&
+    !isSubmitted &&
+    (report.visitStatus === 'IN_PROGRESS' || report.visitStatus === 'DONE');
+  const canSubmit = report?.visitStatus === 'DONE' && isEditable;
 
   const renderExpiryBanner = () => {
     if (!report || !report.expiryTime) return null;
@@ -313,7 +321,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
   };
 
   const handleSubmitReport = async () => {
-    if (isSubmitted || report?.visitStatus !== 'DONE') return;
+    if (!canSubmit) return;
     if (!submitKeyRef.current) {
       submitKeyRef.current = getUuid();
     }
@@ -322,6 +330,18 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
     setSuccessMsg(null);
 
     try {
+      // DONE 也能編輯後，文字框可能有還沒暫存的修改；送出只會鎖定伺服器上的草稿，先存再送，避免修改被丟掉
+      if (content !== (report?.content ?? '')) {
+        if (!saveKeyRef.current) {
+          saveKeyRef.current = getUuid();
+        }
+        await saveMutation.mutateAsync({
+          content,
+          version: report?.version ?? 0,
+          idempotencyKey: saveKeyRef.current
+        });
+        saveKeyRef.current = null;
+      }
       await submitMutation.mutateAsync(submitKeyRef.current);
       setSuccessMsg('照護日誌已成功送出！');
       submitKeyRef.current = null;
@@ -797,8 +817,8 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
               </button>
             )}
 
-            {/* DONE 狀態下且非已送出，顯示正式送出日誌 */}
-            {report?.visitStatus === 'DONE' && !isSubmitted && (
+            {/* DONE、未送出且未逾期才可送出（逾期後後端 403，入口一併關閉：PRD-022 AC-2.4） */}
+            {canSubmit && (
               <button
                 data-testid="sitter-report-submit-btn"
                 onClick={handleSubmitReport}

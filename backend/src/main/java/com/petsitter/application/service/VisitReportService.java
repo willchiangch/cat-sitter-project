@@ -428,7 +428,11 @@ public class VisitReportService {
                         .content("")
                         .submittedAt(null)
                         .media(List.of())
-                        .isEditable("IN_PROGRESS".equals(visit.getStatus()))
+                        // PRD-022 A.2：DONE 且未逾期（finished_at + 24h）仍可建立 / 編輯草稿並送出，
+                        // 與 saveDraft()/uploadMedia() 的放行條件一致。過去只認 IN_PROGRESS，
+                        // Check-out 前沒存過草稿的行程，Check-out 後畫面被判成唯讀（驗收 N13）
+                        .isEditable("IN_PROGRESS".equals(visit.getStatus())
+                                || ("DONE".equals(visit.getStatus()) && !isExpired(null, visit)))
                         .version(0)
                         .visitStatus(visit.getStatus())
                         .isPurged(false)

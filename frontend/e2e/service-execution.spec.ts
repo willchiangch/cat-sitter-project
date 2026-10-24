@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
+import { step, trackDialogs, expectDialog } from './support/evidence';
 
 test.describe('Service Execution & Check-in Flow E2E', () => {
   // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
@@ -19,20 +20,23 @@ test.describe('Service Execution & Check-in Flow E2E', () => {
     reportContent = '';
 
     // Mock Login
-    await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          accessToken: 'fake-token',
-          refreshToken: 'fake-refresh',
-          userId: '3d498178-14c0-4376-b81e-7fb02e615dda',
-          email: 'sitter@test.com',
-          fullName: '本地測試保母',
-          role: 'SITTER'
-        })
-      });
-    });
+    await page.route(
+      (url) => url.pathname.includes('/api/auth/login'),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            accessToken: 'fake-token',
+            refreshToken: 'fake-refresh',
+            userId: '3d498178-14c0-4376-b81e-7fb02e615dda',
+            email: 'sitter@test.com',
+            fullName: '本地測試保母',
+            role: 'SITTER'
+          })
+        });
+      }
+    );
 
     // Mock Visit Report GET & PUT
     await page.route('**/api/visits/2624511e-3f10-4376-b81e-7fb02e615dda/report', async (route) => {
@@ -120,70 +124,133 @@ test.describe('Service Execution & Check-in Flow E2E', () => {
     });
 
     // Mock Submit Report API
-    await page.route('**/api/visits/2624511e-3f10-4376-b81e-7fb02e615dda/report/submit', async (route) => {
-      reportStatus = 'SUBMITTED';
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: 200,
-          message: '修改成功',
-          data: null
-        })
-      });
-    });
+    await page.route(
+      '**/api/visits/2624511e-3f10-4376-b81e-7fb02e615dda/report/submit',
+      async (route) => {
+        reportStatus = 'SUBMITTED';
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 200,
+            message: '修改成功',
+            data: null
+          })
+        });
+      }
+    );
 
-    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
-    page.on('pageerror', err => console.log('BROWSER ERROR:', err.message));
+    page.on('console', (msg) => console.log('BROWSER LOG:', msg.text()));
+    page.on('pageerror', (err) => console.log('BROWSER ERROR:', err.message));
 
     await page.goto('/');
   });
 
-  test('should complete the entire check-in, execution, check-out and submission flow successfully', async ({ page }) => {
-    // 1. 進入日誌回報頁面 (保母端)
-    await page.getByRole('button', { name: '進入日誌回報 (保母端)' }).click();
-
-    // 2. 驗證 PENDING 狀態之 UI
-    await expect(page.locator('text=待執行')).toBeVisible();
-    await expect(page.getByTestId('sitter-report-start-visit-btn')).toBeVisible();
-    // 編輯日誌文字框在 PENDING 狀態不應顯示
-    await expect(page.getByTestId('sitter-report-content-input')).not.toBeVisible();
-
-    // 3. 點擊開始服務 (Check-in)
-    await page.getByTestId('sitter-report-start-visit-btn').click();
-    await expect(page.locator('text=已成功 Check-in，照護服務開始！')).toBeVisible();
-
-    // 4. 驗證 IN_PROGRESS 狀態之 UI
-    await expect(page.locator('text=執行中')).toBeVisible();
-    await expect(page.getByTestId('sitter-report-content-input')).toBeVisible();
-    await expect(page.getByTestId('sitter-report-end-visit-btn')).toBeVisible();
-
-    // 5. 填寫文字日誌並暫存草稿
-    await page.getByTestId('sitter-report-content-input').fill('貓咪精神很好，已完成餵食。');
-    await page.getByTestId('sitter-report-save-draft-btn').click();
-    await expect(page.locator('text=暫存草稿儲存成功')).toBeVisible();
-    expect(reportContent).toBe('貓咪精神很好，已完成餵食。');
-
-    // 6. 點擊結束服務 (Check-out) - 需要確認 dialog
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('確定要結束本次照護服務嗎？');
-      await dialog.accept();
+  test('should complete the entire check-in, execution, check-out and submission flow successfully', async ({
+    page
+  }) => {
+    const dialogs = trackDialogs(page);
+    const putBodies: string[] = [];
+    page.on('request', (r) => {
+      if (r.method() === 'PUT' && r.url().endsWith('/report')) {
+        putBodies.push(JSON.parse(r.postData() || '{}').content);
+      }
     });
-    await page.getByTestId('sitter-report-end-visit-btn').click();
-    await expect(page.locator('text=已成功 Check-out，行程已完工！請填寫文字日誌並送出。')).toBeVisible();
 
-    // 7. 驗證 DONE 狀態之 UI (唯讀、出現正式送出按鈕)
-    await expect(page.locator('text=待送出日誌')).toBeVisible();
-    await expect(page.getByTestId('sitter-report-content-input')).toBeDisabled();
-    await expect(page.getByTestId('sitter-report-submit-btn')).toBeVisible();
+    await step('待執行：只有 Check-in，沒有日誌編輯區', page, async () => {
+      // 1. 進入日誌回報頁面 (保母端)
+      await page.getByRole('button', { name: '進入日誌回報 (保母端)' }).click();
+      // 2. 驗證 PENDING 狀態之 UI
+      await expect(page.locator('text=待執行')).toBeVisible();
+      await expect(page.getByTestId('sitter-report-start-visit-btn')).toBeVisible();
+      // 編輯日誌文字框在 PENDING 狀態不應顯示
+      await expect(page.getByTestId('sitter-report-content-input')).not.toBeVisible();
+    });
 
-    // 8. 點擊正式送出日誌
-    await page.getByTestId('sitter-report-submit-btn').click();
-    await expect(page.locator('text=照護日誌已成功送出！')).toBeVisible();
+    await step('Check-in 後執行中：可編輯並暫存草稿', page, async () => {
+      // 3. 點擊開始服務 (Check-in)
+      await page.getByTestId('sitter-report-start-visit-btn').click();
+      await expect(page.locator('text=已成功 Check-in，照護服務開始！')).toBeVisible();
+      // 4. 驗證 IN_PROGRESS 狀態之 UI
+      await expect(page.locator('text=執行中')).toBeVisible();
+      await expect(page.getByTestId('sitter-report-content-input')).toBeVisible();
+      await expect(page.getByTestId('sitter-report-end-visit-btn')).toBeVisible();
+      // 5. 填寫文字日誌並暫存草稿
+      await page.getByTestId('sitter-report-content-input').fill('貓咪精神很好，已完成餵食。');
+      await page.getByTestId('sitter-report-save-draft-btn').click();
+      await expect(page.locator('text=暫存草稿儲存成功')).toBeVisible();
+      expect(reportContent).toBe('貓咪精神很好，已完成餵食。');
+    });
 
-    // 9. 驗證最終完工狀態之 UI (只讀、狀態為已完工、無操作按鈕)
-    await expect(page.locator('text=已完工 (已送出)')).toBeVisible();
-    await expect(page.getByTestId('sitter-report-submit-btn')).not.toBeVisible();
-    await expect(page.getByTestId('sitter-report-save-draft-btn')).not.toBeVisible();
+    await step(
+      'Check-out 後待送出日誌：文字框仍可編輯（與橫幅「請填寫文字日誌並送出」一致）',
+      page,
+      async () => {
+        // 6. 點擊結束服務 (Check-out) - 需要確認 dialog
+        await page.getByTestId('sitter-report-end-visit-btn').click();
+        await expectDialog(dialogs, /確定要結束本次照護服務嗎？/);
+        await expect(
+          page.locator('text=已成功 Check-out，行程已完工！請填寫文字日誌並送出。')
+        ).toBeVisible();
+        // 7. 驗證 DONE 狀態之 UI：PRD-022 A.2 已結束且未逾期仍可編輯草稿並送出（驗收 N13：過去這裡是唯讀）
+        await expect(page.locator('text=待送出日誌')).toBeVisible();
+        await expect(page.getByTestId('sitter-report-content-input')).toBeEnabled();
+        await expect(page.getByTestId('sitter-report-save-draft-btn')).toBeVisible();
+        await expect(page.getByTestId('sitter-report-submit-btn')).toBeVisible();
+      }
+    );
+
+    await step(
+      'Check-out 後補寫內容直接送出：先暫存再送出，已完工 (已送出) 唯讀',
+      page,
+      async () => {
+        // 8. 補一句話不按暫存、直接正式送出：內容要先存進草稿，不能被丟掉
+        await page
+          .getByTestId('sitter-report-content-input')
+          .fill('貓咪精神很好，已完成餵食。離開前已補滿飲水。');
+        await page.getByTestId('sitter-report-submit-btn').click();
+        await expect(page.locator('text=照護日誌已成功送出！')).toBeVisible();
+        expect(putBodies.at(-1)).toBe('貓咪精神很好，已完成餵食。離開前已補滿飲水。');
+        // 9. 驗證最終完工狀態之 UI (只讀、狀態為已完工、無操作按鈕)
+        await expect(page.locator('text=已完工 (已送出)')).toBeVisible();
+        await expect(page.getByTestId('sitter-report-content-input')).toBeDisabled();
+        await expect(page.getByTestId('sitter-report-submit-btn')).not.toBeVisible();
+        await expect(page.getByTestId('sitter-report-save-draft-btn')).not.toBeVisible();
+      }
+    );
+  });
+
+  test('已完工但超過 24 小時未送出：唯讀、不顯示暫存與送出（PRD-022 AC-2.4）', async ({ page }) => {
+    // 後端對逾期草稿回 isEditable:false（後註冊者優先，覆蓋 beforeEach 的 GET mock）
+    await page.route('**/api/visits/2624511e-3f10-4376-b81e-7fb02e615dda/report', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 200,
+          message: 'OK',
+          data: {
+            reportId: 'report-12345',
+            visitId: '2624511e-3f10-4376-b81e-7fb02e615dda',
+            status: 'DRAFT',
+            content: '逾期未送出的草稿',
+            submittedAt: null,
+            media: [],
+            isEditable: false,
+            version: 1,
+            visitStatus: 'DONE'
+          }
+        })
+      })
+    );
+
+    await step('逾期草稿：已逾期 (唯讀)', page, async () => {
+      await page.getByRole('button', { name: '進入日誌回報 (保母端)' }).click();
+      await expect(page.locator('text=已逾期 (唯讀)')).toBeVisible();
+      await expect(page.getByTestId('sitter-report-content-input')).toHaveValue('逾期未送出的草稿');
+      await expect(page.getByTestId('sitter-report-content-input')).toBeDisabled();
+      await expect(page.getByTestId('sitter-report-save-draft-btn')).toHaveCount(0);
+      await expect(page.getByTestId('sitter-report-submit-btn')).toHaveCount(0);
+    });
   });
 });

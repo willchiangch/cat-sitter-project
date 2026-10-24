@@ -378,3 +378,6 @@
 **日誌回報頁「上傳」按鈕溢出媒體卡片、狀態徽章被擠成直排（2026-10-24，驗收 N5 / backlog 第 6 批 G5）**：媒體描述 `<input>` 是 `flex: 1` 但沒有 `minWidth: 0`，預設約 20 字元寬不肯縮，「上傳」被推出卡片右緣；頁首標題區不肯讓位，徽章「執行中」被擠成一字一行。改 input `minWidth: 0`、按鈕與徽章 `flexShrink: 0` + `nowrap`、標題區 `flex: 1; minWidth: 0`。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N5（上傳鈕落在 `sitter-report-media-card` 內、徽章寬 > 高）。
 
 **飼主日誌檢視頁「已送出」徽章擠成兩行（2026-10-24，驗收 N12）**：N5 只修了保母 manage 頁，飼主 `/visit-reports/view` 的頁首是同一寫法：標題區沒有 `flex: 1; minWidth: 0`、徽章沒有 `flexShrink: 0`，說明文字一長徽章被壓成「已送 / 出」。比照 N5 修正並補 `client-report-status-badge` testid。迴歸：`ui-layout-contrast.spec.ts` N12（徽章文字高度 < 1.8 倍字級，即單行；只看「寬 > 高」抓不到兩行的情況，舊版此斷言紅）。
+
+**Check-out 後提示「請填寫文字日誌並送出」，文字框卻唯讀（2026-10-24，驗收 N13）**：PRD-022 A.2 規定行程 `DONE` 且未逾期、未送出時仍可編輯草稿與上傳媒體，後端 `saveDraft()`/`uploadMedia()` 也放行 `DONE`；但前端 `VisitReportManager` 的 `isEditable` 額外要求 `visitStatus == IN_PROGRESS`，Check-out 後文字框置灰、暫存鈕消失，送出鈕卻在（逾期也在，按了才 403）。後端另有同類缺口：還沒有日誌列時回傳的合成草稿 `isEditable` 只認 `IN_PROGRESS`。修正：前端改為 `IN_PROGRESS || DONE`（再由後端 `isEditable` 判逾期），送出鈕只在 `DONE && isEditable` 顯示，送出前有未暫存的修改先存再送；後端合成草稿改 `IN_PROGRESS || (DONE && !isExpired)`。迴歸：`VisitReportControllerTest` Scenario 16f（拿掉後端修正時紅）/ 16g；`frontend/e2e/service-execution.spec.ts`（Check-out 後文字框可編輯、補寫後直接送出會先 PUT；逾期草稿唯讀且無暫存 / 送出鈕，舊前端兩支皆紅）。這是契約修正：原本該 spec 斷言 Check-out 後 `toBeDisabled()`，編碼的是與 PRD 衝突的行為。
+

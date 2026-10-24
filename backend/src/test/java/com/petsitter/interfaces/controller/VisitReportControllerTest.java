@@ -658,6 +658,51 @@ class VisitReportControllerTest {
     }
 
     @Test
+    @DisplayName("Scenario 16f: 迴歸測試 — Check-out 前沒存過草稿，Check-out 後 24h 內查報告應可編輯 (PRD-022 A.2，驗收 N13)")
+    void should_ReturnEditableDraft_When_VisitDoneWithoutReportWithin24h() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+        Visit doneVisit = saveVisitWithoutReport("DONE", OffsetDateTime.now().minusHours(1));
+
+        mockMvc.perform(get("/api/visits/{visitId}/report", doneVisit.getId())
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visitStatus").value("DONE"))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.isEditable").value(true));
+    }
+
+    @Test
+    @DisplayName("Scenario 16g: Check-out 已超過 24h 且沒有草稿，查報告應為唯讀 (PRD-022 AC-2.4)")
+    void should_ReturnReadOnlyDraft_When_VisitDoneWithoutReportAfter24h() throws Exception {
+        TokenContext.setUserId(sitter.getId());
+        Visit doneVisit = saveVisitWithoutReport("DONE", OffsetDateTime.now().minusHours(25));
+
+        mockMvc.perform(get("/api/visits/{visitId}/report", doneVisit.getId())
+                .with(user(sitter.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visitStatus").value("DONE"))
+                .andExpect(jsonPath("$.data.isEditable").value(false));
+    }
+
+    private Visit saveVisitWithoutReport(String visitStatus, OffsetDateTime finishedAt) {
+        Order order = orderRepository.save(Order.builder()
+                .sitter(sitter)
+                .owner(owner)
+                .items(List.of())
+                .status("IN_PROGRESS")
+                .planId(UUID.randomUUID())
+                .build());
+        return visitRepository.save(Visit.builder()
+                .order(order)
+                .status(visitStatus)
+                .planId(order.getPlanId())
+                .snapshotPlanTitle("Pro")
+                .scheduledAt(finishedAt.minusHours(1))
+                .finishedAt(finishedAt)
+                .build());
+    }
+
+    @Test
     @DisplayName("Scenario 16e: 迴歸測試 — 存草稿與上傳媒體同時抵達不應互相蓋掉（get-or-create 併發競爭）")
     void should_KeepBothWrites_When_SaveDraftAndUploadMediaRaceOnFreshVisit() throws Exception {
         // saveDraft() 與 uploadMedia() 對同一個尚未有 VisitServiceReport 資料列的 visit，
