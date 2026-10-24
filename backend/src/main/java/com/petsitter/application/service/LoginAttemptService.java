@@ -1,6 +1,5 @@
 package com.petsitter.application.service;
 
-import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,16 +24,14 @@ public class LoginAttemptService {
 
     private final UserRepository userRepository;
 
+    /**
+     * 條件式 bulk UPDATE 原子完成「+1、達門檻設鎖定」，同帳號併發打錯密碼不會撞 users.version 409（backlog G3），
+     * 見 {@link UserRepository#registerFailedLoginAttempt}。
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registerFailedLoginAttempt(UUID userId) {
-        User user = userRepository.findById(userId).orElseThrow();
-        int attempts = user.getFailedLoginAttempts() + 1;
-        if (attempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
-            user.setLockedUntil(OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(LOCKOUT_MINUTES));
-            user.setFailedLoginAttempts(0); // 鎖定期間過後重新從 0 開始累計
-        } else {
-            user.setFailedLoginAttempts(attempts);
-        }
-        userRepository.save(user);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        userRepository.registerFailedLoginAttempt(userId, MAX_FAILED_LOGIN_ATTEMPTS, now,
+                now.plusMinutes(LOCKOUT_MINUTES));
     }
 }

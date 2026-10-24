@@ -99,7 +99,7 @@ sequenceDiagram
     alt 密碼錯誤
         SVC->>LAS: registerFailedLoginAttempt(userId)
         Note over LAS: 獨立 Bean + REQUIRES_NEW：<br/>即使 login() 最終拋出例外導致外層回滾，<br/>失敗次數仍必須成功寫入
-        LAS->>DB: attempts += 1；達 5 次則設定 locked_until = now+10min 並歸零計數
+        LAS->>DB: 單一條件式 UPDATE（未鎖定才執行）：attempts += 1；達 5 次則同一條 UPDATE 設定 locked_until = now+10min 並歸零計數，version + 1
         SVC-->>FE: 401 帳號或密碼錯誤
     else 密碼正確
         SVC->>DB: 重設 failed_login_attempts=0, locked_until=null
@@ -109,6 +109,8 @@ sequenceDiagram
 ```
 > [!IMPORTANT]
 > `registerFailedLoginAttempt` 必須是**獨立 Spring Bean**（`LoginAttemptService`），不可寫成 `AuthService` 內的 self-invocation 私有方法——Spring AOP 無法攔截同類別內部呼叫，`@Transactional(propagation = REQUIRES_NEW)` 在 self-invocation 下會被靜默忽略，導致失敗次數計數隨著 `login()` 拋出的 `BadCredentialsException` 一併回滾，鎖定機制形同虛設。
+>
+> 計數寫入用 `UserRepository.registerFailedLoginAttempt` 的**條件式 bulk UPDATE**，不可用 `findById` + `save`（backlog G3）：同帳號同時打錯密碼時兩筆交易持有同一個 `users.version`，晚到者撞樂觀鎖 → 409 `MSG_DATA_CONCURRENCY_CONFLICT`（應為 401），且那次失敗被 rollback、沒有計入。UPDATE 的 `SET` 以舊列值計算 `CASE WHEN failed_login_attempts + 1 >= 5`，Postgres 列鎖讓併發 UPDATE 依序套用，計數精確。`WHERE locked_until IS NULL OR locked_until <= now`：鎖定期間的失敗不累加（否則解鎖後額度不足 5 次）。
 
 ### 5. 忘記密碼 / 重設密碼流程
 ```mermaid

@@ -52,6 +52,8 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -945,6 +947,73 @@ class AuthControllerTest {
             assertSingleSessionAfterRound(userId, results, "第 " + (round + 1) + " 輪登入");
             assertEquals(0, userRepository.findById(userId).orElseThrow().getFailedLoginAttempts());
         }
+    }
+
+    @Test
+    @DisplayName("迴歸測試 G3：同帳號併發打錯密碼不應 409，失敗次數要精確累加（未達門檻不鎖）")
+    void should_CountEveryFailure_When_ConcurrentWrongPasswords() throws Exception {
+        String json = registerAndVerify("concurrentwrong@test.com", "password123", "Concurrent Wrong", "OWNER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(json, "$.userId"));
+
+        LoginRequest wrongLogin = new LoginRequest();
+        wrongLogin.setEmail("concurrentwrong@test.com");
+        wrongLogin.setPassword("wrongpassword");
+        String body = objectMapper.writeValueAsString(wrongLogin);
+
+        for (int round = 0; round < 5; round++) {
+            User reset = userRepository.findById(userId).orElseThrow();
+            reset.setFailedLoginAttempts(0);
+            reset.setLockedUntil(null);
+            userRepository.save(reset);
+
+            List<String[]> results = fireConcurrently(4, () -> mockMvc.perform(post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)).andReturn());
+
+            for (String[] r : results) {
+                assertEquals("401", r[0], "第 " + (round + 1) + " 輪打錯密碼應一律 401，實際回應：" + r[1]);
+            }
+            User after = userRepository.findById(userId).orElseThrow();
+            // 舊寫法 findById + save：晚到者撞 users.version → 409，且 lost update 讓計數少算
+            assertEquals(4, after.getFailedLoginAttempts(), "第 " + (round + 1) + " 輪 4 次失敗都要被計入");
+            assertNull(after.getLockedUntil(), "未達 5 次不應鎖定");
+        }
+    }
+
+    @Test
+    @DisplayName("迴歸測試 G3：同帳號併發打錯密碼超過門檻，應恰好鎖定一次，之後正確密碼也回 ACCOUNT_LOCKED")
+    void should_LockExactlyOnce_When_ConcurrentWrongPasswordsExceedThreshold() throws Exception {
+        String json = registerAndVerify("concurrentlock@test.com", "password123", "Concurrent Lock", "OWNER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(json, "$.userId"));
+
+        LoginRequest wrongLogin = new LoginRequest();
+        wrongLogin.setEmail("concurrentlock@test.com");
+        wrongLogin.setPassword("wrongpassword");
+        String body = objectMapper.writeValueAsString(wrongLogin);
+
+        List<String[]> results = fireConcurrently(7, () -> mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andReturn());
+
+        for (String[] r : results) {
+            // 已讀到「未鎖定」快照的請求照樣驗密碼失敗 → 401；不得出現 409
+            assertTrue("401".equals(r[0]) || "429".equals(r[0]), "併發打錯密碼只能 401 / 429，實際：" + r[0] + " " + r[1]);
+        }
+        User after = userRepository.findById(userId).orElseThrow();
+        assertNotNull(after.getLockedUntil(), "累計達 5 次應鎖定");
+        assertTrue(after.getLockedUntil().isAfter(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).plusMinutes(9)),
+                "鎖定時間應約為 10 分鐘");
+        // 第 5 次鎖定時歸零；鎖定期間的失敗不再累加，否則解鎖後只剩不到 5 次額度
+        assertEquals(0, after.getFailedLoginAttempts(), "鎖定後失敗次數歸零，鎖定期間的失敗不累加");
+
+        LoginRequest correctLogin = new LoginRequest();
+        correctLogin.setEmail("concurrentlock@test.com");
+        correctLogin.setPassword("password123");
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(correctLogin)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.error").value("ACCOUNT_LOCKED"));
     }
 
     @Test
