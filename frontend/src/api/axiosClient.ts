@@ -89,8 +89,9 @@ axiosClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
+      // 記住本次 refresh 用的是哪一顆：失敗時只清「還是這一顆」的 token（見 catch）
+      const refreshToken = localStorage.getItem('refreshToken');
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
         // 呼叫後端刷新介面 (需對應 SD-000)
         const response = await axios.post('/api/auth/refresh', { refreshToken });
         const { accessToken, refreshToken: newRefreshToken } = response.data;
@@ -105,6 +106,18 @@ axiosClient.interceptors.response.use(
 
         return axiosClient(originalRequest);
       } catch (refreshError) {
+        // refresh 進行中，別的分頁可能已經重新登入、把新 token 寫進共用的 localStorage
+        // （單一 session：舊 refresh token 隨即失效，這裡的 refresh 必然 401）。
+        // 過去無條件清 localStorage，會把別分頁剛拿到的新 token 一起清掉（backlog G2）；
+        // 現在 refreshToken 已被換掉就不清，改用新的 access token 重試原請求。
+        const latestRefreshToken = localStorage.getItem('refreshToken');
+        const latestAccessToken = localStorage.getItem('accessToken');
+        if (latestRefreshToken && latestRefreshToken !== refreshToken && latestAccessToken) {
+          axiosClient.defaults.headers.common['Authorization'] = `Bearer ${latestAccessToken}`;
+          processQueue(null, latestAccessToken);
+          originalRequest.headers.Authorization = `Bearer ${latestAccessToken}`;
+          return axiosClient(originalRequest);
+        }
         processQueue(refreshError, null);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
