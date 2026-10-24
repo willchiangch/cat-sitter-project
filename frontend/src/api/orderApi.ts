@@ -106,12 +106,12 @@ export const confirmModification = async (
   return response.data;
 };
 
-// 3b. 查詢訂單目前進行中的變更請求 (PRD-016)
+// 3b. 查詢訂單目前進行中的變更請求 (PRD-016)。沒有進行中的協商時後端回 204 → null（正常空狀態，驗收 N8）
 export const getActiveModificationRequest = async (
   orderId: string
-): Promise<ModificationRequestDetailDto> => {
+): Promise<ModificationRequestDetailDto | null> => {
   const response = await axiosClient.get(`/orders/${orderId}/modification`);
-  return response.data;
+  return response.status === 204 || !response.data ? null : response.data;
 };
 
 // 3c. 保母審核變更並提供差額報價 (PRD-016 主流程 B)

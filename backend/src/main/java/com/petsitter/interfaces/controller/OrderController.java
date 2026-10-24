@@ -66,14 +66,16 @@ public class OrderController {
     }
 
     /**
-     * 查詢訂單目前進行中的變更請求 (PRD-016)
+     * 查詢訂單目前進行中的變更請求 (PRD-016)。沒有進行中的協商 → 204 No Content（正常空狀態，不是衝突）
      */
     @PreAuthorize("hasAnyRole('OWNER', 'SITTER')")
     @GetMapping("/{orderId}/modification")
     public ResponseEntity<com.petsitter.application.dto.ModificationRequestDetailDto> getActiveModificationRequest(
             @PathVariable UUID orderId) {
         UUID requesterId = TokenContext.getUserId();
-        return ResponseEntity.ok(modificationService.getActiveModificationRequest(requesterId, orderId));
+        return modificationService.getActiveModificationRequest(requesterId, orderId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     /**

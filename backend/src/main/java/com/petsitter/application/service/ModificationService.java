@@ -206,10 +206,12 @@ public class ModificationService {
     }
 
     /**
-     * 查詢訂單目前進行中的變更請求 (PRD-016)，供保母報價頁 / 飼主確認頁串接真實資料，取代前端寫死測試 UUID
+     * 查詢訂單目前進行中的變更請求 (PRD-016)，供保母報價頁 / 飼主確認頁串接真實資料，取代前端寫死測試 UUID。
+     * 沒有進行中的協商（從未發起、已結清、已拒絕）是正常狀態，回 Optional.empty()，由 controller 回 204；
+     * 2026-10 前丟 IllegalStateException → 409，前端只能把正常終態當成錯誤紅字顯示（驗收 N8）。
      */
     @Transactional(readOnly = true)
-    public com.petsitter.application.dto.ModificationRequestDetailDto getActiveModificationRequest(UUID requesterId, UUID orderId) {
+    public java.util.Optional<com.petsitter.application.dto.ModificationRequestDetailDto> getActiveModificationRequest(UUID requesterId, UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
@@ -232,10 +234,10 @@ public class ModificationService {
             modReq = modRepo.findByOrderIdAndStatusIn(orderId, List.of("PENDING_REVIEW", "QUOTED")).orElse(null);
         }
         if (modReq == null) {
-            throw new IllegalStateException("此訂單目前沒有進行中的變更請求");
+            return java.util.Optional.empty();
         }
 
-        return com.petsitter.application.dto.ModificationRequestDetailDto.builder()
+        return java.util.Optional.of(com.petsitter.application.dto.ModificationRequestDetailDto.builder()
                 .id(modReq.getId())
                 .orderId(orderId)
                 .status(modReq.getStatus())
@@ -247,7 +249,7 @@ public class ModificationService {
                 .orderVersion(order.getVersion())
                 .dates(modReq.getDates())
                 .hasRefundProof(modReq.getRefundProofUrl() != null && !modReq.getRefundProofUrl().isBlank())
-                .build();
+                .build());
     }
 
     private void updateVisitsSafely(Order order, List<LocalDate> newDates) {

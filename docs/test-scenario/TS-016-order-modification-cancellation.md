@@ -48,7 +48,7 @@
 * **自動化對應**: `ModificationServiceTest.should_Cancel_When_NoDiffModificationIsWholeCancellation`、`should_DetectWholeCancellation_OnlyWhenNoItemsLeft`。
 
 ## Scenario 2c: 協商頁依狀態收斂可執行動作、端點重送 409 (2026-10，C2 迴歸 / 驗收 P7)
-* **Given**: 變更請求分別處於 `PENDING_REVIEW`、`QUOTED`、`M_DONE`+`REFUND_VERIFY`、`M_DONE`+`PENDING_PAYMENT`，以及已結清（查無進行中變更，GET 409）。
+* **Given**: 變更請求分別處於 `PENDING_REVIEW`、`QUOTED`、`M_DONE`+`REFUND_VERIFY`、`M_DONE`+`PENDING_PAYMENT`，以及已結清（查無進行中變更，GET 204；2026-10-24 前為 409）。
 * **When**: 保母進入報價頁、飼主進入確認頁；以及直接對後端重送已完成的動作。
 * **Then**:
   - 前端：報價後不再有報價表單（只剩拒絕）；同意後不再有同意表單；補款分支兩頁都沒有退款區塊；退款分支憑證未上傳前飼主沒有「確認已收到退款」；結清後重新進頁兩頁都沒有任何按鈕。
@@ -137,3 +137,5 @@
 **退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：`POST .../modification/refund-proof` 收 `{"refundProofUrl": "<任意字串>"}` 直接存進 DB，系統不上傳、不驗證；這個網址原樣回到 `GET .../modification`。飼主端若顯示或點開，等於打開保母提供的任意外部網址（釣魚、追蹤像素、惡意下載）；即使是合法網址，憑證本身也是公開可讀的財務截圖。修法：比照付款憑證（第 1 批 B1）改為 multipart 上傳到私有物件 `refund-proofs/...`、DTO 只回 `hasRefundProof`、檢視走 BOLA 檢查後的 10 分鐘簽名網址，且只簽 `refund-proofs/` 開頭的 key——舊的外部網址永遠不會被簽或回傳。迴歸見 Scenario 2d。
 
 **無差額的整筆取消回到 `previous_status` 而非 `CANCELLED`（2026-10，Backlog 第 3 批 D2）**：C3 把 `confirmModification()` 差額為 0 的分支改成 `restoreStatus()`，但沒有考慮「整筆取消、保母同意不退款」這種差額也是 0 的情境；整筆取消的判斷只寫在 `confirmRefund()`。結果訂單已經沒有任何預約項目（行程也被 `updateVisitsSafely` 刪光），狀態卻回到 `CONFIRMED`/`IN_PROGRESS`，違反 PRD-016 AC-4，也會讓這筆空訂單繼續出現在進行中清單、被自動結案排程撈到。修法：抽出 `ModificationService.isWholeCancellation(order)`（變更後 `Order.items` 為空），退款確認與無差額結清共用，整筆取消一律 `CANCELLED`。迴歸見 Scenario 2e。
+
+**協商結清後的正常終態以紅色錯誤字呈現、API 回 409（2026-10-24，驗收 N8 / backlog 第 6 批 G5）**：`GET /api/orders/{id}/modification` 查無進行中的協商時丟 `IllegalStateException` → 409「此訂單目前沒有進行中的變更請求」，兩個協商頁一律把它當成讀取失敗，以紅字「目前沒有進行中的變更協商（可能已完成、已拒絕或不存在）」顯示。這是正常空狀態，不是衝突：改成 `ModificationService.getActiveModificationRequest` 回 `Optional`、controller 回 204；前端 204 → null 顯示中性空狀態，其他錯誤才紅字。迴歸：`OrderControllerTest.should_Return204_When_NoActiveModificationRequest`（飼主與保母各打一次，204 且 body 為空）、`ModificationServiceTest.should_ReturnEmpty_When_OrderHasNoNegotiationRelatedStatus`；mock `order-modification.spec.ts` 結清步驟改斷言 `mod-confirm-empty` 全文與灰色、`mod-confirm-error` 數量 0；Journey D 步驟 9 改斷言 `mod-*-empty`。

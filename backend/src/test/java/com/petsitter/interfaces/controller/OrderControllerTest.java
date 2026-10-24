@@ -396,6 +396,23 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("N8：協商結清後查詢進行中的變更請求 → 204 No Content（正常空狀態），不再是 409")
+    void should_Return204_When_NoActiveModificationRequest() throws Exception {
+        // 已確認收到退款：訂單回到 CONFIRMED、變更請求為終態 M_DONE
+        saveModRequest("CONFIRMED", "M_DONE", -500);
+
+        for (UUID requester : List.of(ownerId, sitterId)) {
+            TokenContext.setUserId(requester);
+            String role = requester.equals(ownerId) ? "OWNER" : "SITTER";
+            String body = mockMvc.perform(get("/api/orders/{orderId}/modification", realOrderId)
+                            .with(user(requester.toString()).roles(role)))
+                    .andExpect(status().isNoContent())
+                    .andReturn().getResponse().getContentAsString();
+            org.assertj.core.api.Assertions.assertThat(body).isEmpty();
+        }
+    }
+
+    @Test
     @DisplayName("C2：查詢變更請求回傳 orderStatus，前端據此收斂可執行動作")
     void should_ReturnOrderStatus_When_QueryingModificationRequest() throws Exception {
         saveModRequest("REFUND_VERIFY", "M_DONE", -500);

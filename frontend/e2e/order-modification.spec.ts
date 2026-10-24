@@ -72,14 +72,8 @@ test.describe('Order Modification Flow', () => {
     await page.route(`**/api/orders/${orderId}/modification`, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       if (!mod) {
-        await route.fulfill({
-          status: 409,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            error: 'STATE_CONFLICT',
-            message: '此訂單目前沒有進行中的變更請求'
-          })
-        });
+        // 真實契約（N8 起）：沒有進行中的協商 → 204 No Content，不再是 409
+        await route.fulfill({ status: 204, body: '' });
         return;
       }
       await route.fulfill({
@@ -371,7 +365,12 @@ test.describe('Order Modification Flow', () => {
       await page.goBack();
       await expect(page).toHaveURL(/\/demo$/);
       await page.goForward();
-      await expect(page.getByTestId('mod-confirm-error')).toBeVisible();
+      // N8：結清是正常終態，顯示中性空狀態（不是紅色錯誤字）
+      await expect(page.getByTestId('mod-confirm-empty')).toHaveText(
+        '目前沒有進行中的變更協商：先前的協商已結清或已拒絕，或這筆訂單尚未發起變更。'
+      );
+      await expect(page.getByTestId('mod-confirm-empty')).toHaveCSS('color', 'rgb(90, 92, 91)');
+      await expect(page.getByTestId('mod-confirm-error')).toHaveCount(0);
       await expect(page.getByTestId('confirm-submit-btn')).toHaveCount(0);
       await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
     });

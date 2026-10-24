@@ -70,7 +70,7 @@ stateDiagram-v2
   | `REFUND` | `M_DONE` + `REFUND_VERIFY` + 差額 < 0 | 唯讀摘要＋退款憑證上傳（已上傳則顯示完成） | 「變更已確認」＋退款區塊：憑證未上傳時只顯示等待，上傳後才有「確認已收到退款」 |
   | `CLOSED` | 其餘 | 唯讀 | 唯讀 |
 
-  每個動作成功後前端重新讀取本端點，不靠本地旗標猜下一步；拒絕、確認收到退款後訂單已不在協商狀態，本端點回 409，頁面顯示「目前沒有進行中的變更協商」且無任何按鈕。過去兩頁把所有表單同時渲染，只用本地 `quoteSent`/`confirmStatus` 旗標隱藏剛按過的那一個，重新進頁後報價、同意都能再按，補款分支也顯示退款區塊（驗收 P7）。
+  每個動作成功後前端重新讀取本端點，不靠本地旗標猜下一步；拒絕、確認收到退款後訂單已不在協商狀態，本端點回 **204 No Content**（2026-10-24 驗收 N8 起；過去丟 `IllegalStateException` → 409，前端只能當錯誤顯示），頁面以中性資訊樣式（`mod-quote-empty` / `mod-confirm-empty`，`--color-on-surface-variant`）顯示「目前沒有進行中的變更協商：先前的協商已結清或已拒絕，或這筆訂單尚未發起變更。」且無任何按鈕；只有真正的錯誤（權限、網路、找不到訂單）才走紅字 `mod-*-error`。過去兩頁把所有表單同時渲染，只用本地 `quoteSent`/`confirmStatus` 旗標隱藏剛按過的那一個，重新進頁後報價、同意都能再按，補款分支也顯示退款區塊（驗收 P7）。
 - **同批修復：真實入口缺失**：`SitterOrders.tsx`（`MODIFYING`/`REFUND_VERIFY` 訂單）與 `OwnerOrderDetail.tsx`（`MODIFYING`/`REFUND_VERIFY` 訂單）過去完全沒有導向本節三個變更協商頁面的按鈕，僅 `DemoHome.tsx` 有寫死假 orderId 的展示連結，真實使用者的訂單一旦進入協商狀態便無法從訂單列表/詳情頁點進去處理——跨模組 journey 測試（`docs/test-scenario/TS-JOURNEY-04`）設計階段發現此缺口後一併補上對應按鈕。
 
 ### 2.3 審核變更並提供差額報價 (保母)

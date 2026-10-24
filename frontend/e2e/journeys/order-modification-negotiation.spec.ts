@@ -16,14 +16,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 async function expectNegotiationPagesClosed(ownerPage: Page, sitterPage: Page, orderId: string) {
   await step('結清後保母重新進入報價頁：無任何可操作按鈕', sitterPage, async () => {
     await sitterPage.goto(`/sitter/orders/${orderId}/quote`);
-    await expect(sitterPage.getByTestId('mod-quote-error')).toBeVisible({ timeout: 10000 });
+    // N8：後端回 204、頁面顯示中性空狀態，不是紅色錯誤
+    await expect(sitterPage.getByTestId('mod-quote-empty')).toBeVisible({ timeout: 10000 });
+    await expect(sitterPage.getByTestId('mod-quote-error')).toHaveCount(0);
     await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
     await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
     await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
   });
   await step('結清後飼主重新進入確認頁：無任何可操作按鈕', ownerPage, async () => {
     await ownerPage.goto(`/owner/orders/${orderId}/modification-confirm`);
-    await expect(ownerPage.getByTestId('mod-confirm-error')).toBeVisible({ timeout: 10000 });
+    await expect(ownerPage.getByTestId('mod-confirm-empty')).toBeVisible({ timeout: 10000 });
+    await expect(ownerPage.getByTestId('mod-confirm-error')).toHaveCount(0);
     await expect(ownerPage.getByTestId('confirm-submit-btn')).toHaveCount(0);
     await expect(ownerPage.getByTestId('refund-confirm-btn')).toHaveCount(0);
   });

@@ -254,7 +254,7 @@ class ModificationServiceTest {
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(modRepo.findByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(List.of(modReq));
 
-        var dto = modificationService.getActiveModificationRequest(sitterId, orderId);
+        var dto = modificationService.getActiveModificationRequest(sitterId, orderId).orElseThrow();
 
         assertThat(dto.getId()).isEqualTo(modReqId);
         assertThat(dto.getDiffAmount()).isEqualTo(-500);
@@ -262,16 +262,16 @@ class ModificationServiceTest {
     }
 
     @Test
-    @DisplayName("訂單本身無任何變更協商關聯狀態時，查詢變更請求應拋錯而非誤傳歷史資料")
-    void should_ThrowIllegalState_When_OrderHasNoNegotiationRelatedStatus() {
+    @DisplayName("訂單本身無任何變更協商關聯狀態時，查詢變更請求應回空（controller 回 204）而非誤傳歷史資料")
+    void should_ReturnEmpty_When_OrderHasNoNegotiationRelatedStatus() {
         order.setStatus("CONFIRMED");
 
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(modRepo.findByOrderIdAndStatusIn(orderId, List.of("PENDING_REVIEW", "QUOTED")))
                 .thenReturn(Optional.empty());
 
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                () -> modificationService.getActiveModificationRequest(sitterId, orderId));
+        // N8：沒有進行中的協商是正常終態，不再丟 IllegalStateException（→ 409，前端只能當錯誤紅字顯示）
+        assertThat(modificationService.getActiveModificationRequest(sitterId, orderId)).isEmpty();
 
         verify(modRepo, never()).findByOrderIdOrderByCreatedAtDesc(any());
     }

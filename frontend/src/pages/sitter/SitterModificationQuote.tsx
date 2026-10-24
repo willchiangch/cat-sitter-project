@@ -50,12 +50,13 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
       getActiveModificationRequest(orderId)
         .then((detail) => {
           setModRequest(detail);
-          setNewTotalAmount(detail.newTotalAmount);
+          if (detail) setNewTotalAmount(detail.newTotalAmount);
           setFetchError(null);
         })
         .catch((err) => {
+          // 「沒有進行中的協商」後端回 204（不會進 catch）；這裡只剩真正的錯誤（權限、網路、找不到訂單）
           console.error(err);
-          setFetchError('目前沒有進行中的變更協商（可能已完成、已拒絕或不存在）。');
+          setFetchError(err.response?.data?.message || '讀取變更協商失敗，請稍後再試。');
         }),
     [orderId]
   );
@@ -276,12 +277,24 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
 
       {fetchLoading ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
-      ) : fetchError || !modRequest ? (
+      ) : fetchError ? (
         <div
           style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}
           data-testid="mod-quote-error"
         >
           {fetchError}
+        </div>
+      ) : !modRequest ? (
+        // 協商已結清 / 已拒絕 / 從未發起是正常終態，用中性資訊樣式，不用錯誤紅字（驗收 N8）
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 1rem',
+            color: 'var(--color-on-surface-variant)'
+          }}
+          data-testid="mod-quote-empty"
+        >
+          目前沒有進行中的變更協商：先前的協商已結清或已拒絕，或這筆訂單尚未發起變更。
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

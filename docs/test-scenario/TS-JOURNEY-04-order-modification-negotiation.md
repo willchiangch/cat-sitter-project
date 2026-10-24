@@ -35,7 +35,7 @@
 | 6b | UI：保母直接打網址重新進入報價頁 | 唯讀摘要「應補款 $ 600」，無報價、拒絕、退款憑證區塊 | `quote-submit-btn`、`reject-mod-btn`、`refund-proof-section` 數量為 0（C2） |
 | 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
 | 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（差額 `verify-amount-due-value` 完全比對 `$ 600`，整段 `verify-amount-due` 以 `/^本次應收補款差額：\s*\$ 600\s*（變更後總額 \$ 1,200）$/` 錨定；2026-10 前用 `toContainText('$ 600')`，`$ 6000` 也會過，驗收 S2）、**補款**憑證後五碼 `54321`（`verify-last-five`，不是首次付款的 `12345`）與補款憑證預覽（簽名網址，SD-007 §4.7）；訂單回到發起變更前的狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED`（變更是在 CONFIRMED 時發起，SD-016 §4.3）；核帳後 `paymentProofLastFive` 回到首次付款 `12345`、`paidAt` 與前置步驟記下的首次核帳時間相同、`amountDue=1200`（這組值以 `apiStep`「核帳後首次付款資料未被補款覆寫」留 JSON，驗收 S2）；補款憑證預覽 `apiStep` 留遮簽名的網址 JSON，且不帶簽名 GET 該物件斷言 403（驗收 S1/S3） |
-| 9 | UI：結清後雙方直接打網址重新進入兩個協商頁 | 兩頁都顯示「目前沒有進行中的變更協商」，沒有任何可操作按鈕 | `mod-quote-error`/`mod-confirm-error` 可見；`quote-submit-btn`、`reject-mod-btn`、`refund-proof-submit-btn`、`confirm-submit-btn`、`refund-confirm-btn` 數量為 0（C2） |
+| 9 | UI：結清後雙方直接打網址重新進入兩個協商頁 | 兩頁都以中性樣式顯示「目前沒有進行中的變更協商」，沒有任何可操作按鈕 | `GET .../modification` 204；`mod-quote-empty`/`mod-confirm-empty` 可見、`mod-*-error` 數量 0（2026-10-24 驗收 N8 前為紅字 error + 409）；`quote-submit-btn`、`reject-mod-btn`、`refund-proof-submit-btn`、`confirm-submit-btn`、`refund-confirm-btn` 數量為 0（C2） |
 
 ### 退款分支
 
