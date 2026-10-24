@@ -134,8 +134,12 @@ public class CompletionService {
             throw new IllegalArgumentException("無權操作此訂單");
         }
 
-        if ("DISPUTED".equals(order.getStatus())) {
-            throw new IllegalStateException("爭議中的訂單不可結案");
+        // 狀態白名單（PRD-009 狀態機：服務中的訂單才可結案；fix-batch10 H2）。過去只擋 DISPUTED：
+        // - COMPLETED 重複呼叫會重設 completedAt / payoutAt，撥款日期被往後推
+        // - MODIFYING / REFUND_VERIFY 等協商中狀態結案會繞過 PRD-016 協商
+        String status = order.getStatus();
+        if (!MANUAL_COMPLETABLE_STATUSES.contains(status)) {
+            throw new IllegalStateException(manualCompleteRejectMessage(status));
         }
 
         List<Visit> visits = visitRepository.findByOrderId(orderId);
@@ -159,6 +163,22 @@ public class CompletionService {
         
         orderRepository.save(order);
         log.info("[CompletionService] Order {} manual completed by owner {}", order.getId(), ownerId);
+    }
+
+    /** 飼主可手動結案的訂單狀態（與 disputeOrder 一致） */
+    static final List<String> MANUAL_COMPLETABLE_STATUSES = List.of("CONFIRMED", "IN_PROGRESS");
+
+    private static String manualCompleteRejectMessage(String status) {
+        if ("COMPLETED".equals(status)) {
+            return "此訂單已結案，不可重複結案";
+        }
+        if ("DISPUTED".equals(status)) {
+            return "爭議中的訂單不可結案";
+        }
+        if ("MODIFYING".equals(status) || "REFUND_VERIFY".equals(status)) {
+            return "訂單變更協商中，請待協商完成後再結案";
+        }
+        return "此訂單狀態（" + status + "）不可結案";
     }
 
     private void writeAuditLog(UUID orderId, String operator, String action, Map<String, Object> payload) {

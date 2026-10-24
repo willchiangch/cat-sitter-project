@@ -140,6 +140,33 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("fix-batch10 H2：POST /{orderId}/complete 對已 COMPLETED 訂單回 409 STATE_CONFLICT，撥款日期不變")
+    void should_Return409_And_KeepPayoutAt_When_CompletingCompletedOrder() throws Exception {
+        Order order = orderRepository.findById(realOrderId).orElseThrow();
+        OffsetDateTime completedAt = OffsetDateTime.now().minusDays(1).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        order.setStatus("COMPLETED");
+        order.setCompletedAt(completedAt);
+        order.setPayoutAt(completedAt.plusDays(3));
+        orderRepository.save(order);
+        Visit visit = visitRepository.findById(visitId).orElseThrow();
+        visit.setStatus("DONE");
+        visitRepository.save(visit);
+        Order before = orderRepository.findById(realOrderId).orElseThrow();
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/complete", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER"))
+                .param("ownerId", ownerId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("STATE_CONFLICT"))
+                .andExpect(jsonPath("$.message").value("此訂單已結案，不可重複結案"));
+
+        Order after = orderRepository.findById(realOrderId).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(after.getPayoutAt()).isEqualTo(before.getPayoutAt());
+        org.assertj.core.api.Assertions.assertThat(after.getCompletedAt()).isEqualTo(before.getCompletedAt());
+    }
+
+    @Test
     @DisplayName("FREE 方案保母若嘗試調價 (adjustment != 0)，應被 AOP 攔截並回傳 403")
     void should_BlockAdjustment_For_FreePlan() throws Exception {
         // Given: FREE 方案

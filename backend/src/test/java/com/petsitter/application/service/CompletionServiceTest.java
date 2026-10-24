@@ -11,6 +11,8 @@ import com.petsitter.domain.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -219,6 +221,86 @@ class CompletionServiceTest {
                 .snapshotPlanTitle("Done Plan")
                 .scheduledAt(OffsetDateTime.now().minusHours(2))
                 .build());
+
+        completionService.manualComplete(order.getId(), owner.getId());
+
+        Order completed = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(completed.getStatus()).isEqualTo("COMPLETED");
+        assertThat(completed.getPayoutAt()).isEqualTo(completed.getCompletedAt().plusDays(3));
+    }
+
+    private void addVisit(Order order, String status, OffsetDateTime scheduledAt) {
+        visitRepository.save(Visit.builder()
+                .order(order)
+                .status(status)
+                .planId(UUID.randomUUID())
+                .snapshotPlanTitle("Plan")
+                .scheduledAt(scheduledAt)
+                .build());
+    }
+
+    // ===== fix-batch10 H2：manualComplete 狀態白名單（只允許 CONFIRMED / IN_PROGRESS） =====
+
+    @ParameterizedTest(name = "{0} → 409，狀態與撥款日期不變")
+    @ValueSource(strings = {"PENDING", "PENDING_PAYMENT", "PAID", "MODIFYING", "REFUND_VERIFY",
+            "DISPUTED", "CANCELLED", "REJECTED"})
+    @DisplayName("飼主手動結案：非 CONFIRMED / IN_PROGRESS 一律拒絕（行程全部 DONE 也不行）")
+    void should_RejectManualComplete_When_StatusNotCompletable(String status) {
+        Order order = createOrder(status);
+        addVisit(order, "DONE", OffsetDateTime.now().minusHours(2));
+
+        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> completionService.manualComplete(order.getId(), owner.getId()));
+        assertThat(ex.getMessage()).isNotBlank();
+
+        Order untouched = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(untouched.getStatus()).isEqualTo(status);
+        assertThat(untouched.getCompletedAt()).isNull();
+        assertThat(untouched.getPayoutAt()).isNull();
+    }
+
+    @ParameterizedTest(name = "{0} 協商中 → 拒絕並提示協商")
+    @ValueSource(strings = {"MODIFYING", "REFUND_VERIFY"})
+    @DisplayName("飼主手動結案：訂單變更協商中拒絕，訊息提示待協商完成")
+    void should_RejectManualComplete_When_Negotiating(String status) {
+        Order order = createOrder(status);
+        addVisit(order, "DONE", OffsetDateTime.now().minusHours(2));
+
+        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> completionService.manualComplete(order.getId(), owner.getId()));
+        assertThat(ex.getMessage()).contains("協商");
+    }
+
+    @Test
+    @DisplayName("飼主手動結案：COMPLETED 重複呼叫 → 409，completedAt / payoutAt 不被往後推")
+    void should_RejectManualComplete_And_KeepPayoutDate_When_AlreadyCompleted() {
+        Order order = createOrder("COMPLETED");
+        OffsetDateTime completedAt = OffsetDateTime.now().minusDays(2).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        order.setCompletedAt(completedAt);
+        order.setPayoutAt(completedAt.plusDays(3));
+        orderRepository.save(order);
+        addVisit(order, "DONE", OffsetDateTime.now().minusDays(3));
+        Order before = orderRepository.findById(order.getId()).orElseThrow();
+
+        IllegalStateException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> completionService.manualComplete(order.getId(), owner.getId()));
+        assertThat(ex.getMessage()).contains("已結案");
+
+        Order after = orderRepository.findById(order.getId()).orElseThrow();
+        assertThat(after.getStatus()).isEqualTo("COMPLETED");
+        assertThat(after.getCompletedAt()).isEqualTo(before.getCompletedAt());
+        assertThat(after.getPayoutAt()).isEqualTo(before.getPayoutAt());
+    }
+
+    @Test
+    @DisplayName("飼主手動結案：CONFIRMED 且行程全部 DONE / CLOSED_BY_SYSTEM 可結案")
+    void should_ManualComplete_When_ConfirmedAndAllVisitsFinished() {
+        Order order = createOrder("CONFIRMED");
+        addVisit(order, "DONE", OffsetDateTime.now().minusHours(5));
+        addVisit(order, "CLOSED_BY_SYSTEM", OffsetDateTime.now().minusHours(80));
 
         completionService.manualComplete(order.getId(), owner.getId());
 
