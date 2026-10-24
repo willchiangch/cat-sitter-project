@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
+import { assertNoUnmockedApi, mockSessionApis } from './support/mockSession';
 
 /**
  * 迴歸 (Backlog 第 2 批 C1 / 驗收 X2)：Demo 種子帳號自動登入只能在明確的 Demo 模式下發生。
@@ -49,6 +50,9 @@ async function mockPublicProfile(page: Page) {
 }
 
 test.describe('Demo 種子帳號自動登入範圍 (C1 / X2 迴歸)', () => {
+  // N9：用了 mockSessionApis 的測試，漏 mock 的 /api 請求會被 catch-all 攔下回 501 並在這裡變紅
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test('匿名訪客開保母公開頁：不送出任何登入請求，公開頁 API 不帶 token', async ({ page }) => {
     const logins = countSeedLogins(page);
     const authHeaders = await mockPublicProfile(page);
@@ -114,6 +118,29 @@ test.describe('Demo 種子帳號自動登入範圍 (C1 / X2 迴歸)', () => {
       });
     });
     const authHeaders = await mockPublicProfile(page);
+    // 驗收 R3：登入後頁面的 API 全 mock（header 通知 / KYC + 帳務），否則假 token 打到後端 401 → refresh 失敗 →
+    // token 被清，截圖是「載入失敗」反而像 session 失效。不用 mockDemoSession：本測試要從非 Demo 狀態開始
+    await mockSessionApis(page);
+    await page.route('**/api/orders/sitter/ledger**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          yearMonth: '2026-10',
+          totalRevenue: 2400,
+          entries: [
+            {
+              orderId: 'a1023000-0000-0000-0000-0000000000e1',
+              ownerName: 'Demo 測試飼主',
+              totalAmount: 2400,
+              paidAt: '2026-10-01T10:00:00Z',
+              completedAt: '2026-10-10T10:00:00Z',
+              payoutAt: '2026-10-13T10:00:00Z'
+            }
+          ]
+        })
+      })
+    );
 
     await step('開 /demo：送出種子登入，authMode=seed', page, async () => {
       await page.goto('/demo');
@@ -126,6 +153,13 @@ test.describe('Demo 種子帳號自動登入範圍 (C1 / X2 迴歸)', () => {
       await page.goto('/sitter/ledger');
       await expect.poll(() => logins.count).toBeGreaterThan(before);
       await expect(page).toHaveURL(/\/sitter\/ledger$/);
+      // 帳務內容真的以種子 session 渲染出來，且頁面穩定後 token 仍在（沒有被 401 → refresh 清掉）
+      await expect(page.getByTestId('ledger-total-revenue')).toHaveText('$ 2,400');
+      await expect(page.getByText('Demo 測試飼主')).toBeVisible();
+      await expect(page.getByText('載入失敗，請稍後再試')).toHaveCount(0);
+      expect(await page.evaluate(() => localStorage.getItem('accessToken'))).toBe(
+        'mock-seed-token'
+      );
     });
 
     await step('Demo 模式中開保母公開頁：仍不送登入請求', page, async () => {

@@ -66,7 +66,7 @@
 | 匿名開保母公開頁、點立即預約 | 0 次 `POST /api/auth/login`，公開頁 API 不帶 `Authorization`，`localStorage` 無 token | `e2e/seed-auto-login-scope.spec.ts` 測試 1；Journey A 步驟 8、Journey E 測試 1/2 的匿名步驟 |
 | 匿名開 `/login`、`/register`、`/forgot-password` | 0 次登入請求 | 同上測試 2 |
 | 匿名開 `/booking/{id}`、`/owner/orders/{id}` | 0 次登入請求，導到 `/login?redirect=<原路徑>` | 同上測試 3 |
-| 開 `/demo`；之後在 Demo 模式深連結 `/sitter/ledger`；再開公開頁 | `/demo` 送出種子登入、`authMode=seed`；深連結沿用（再登入）；公開頁 0 次 | 同上測試 4 |
+| 開 `/demo`；之後在 Demo 模式深連結 `/sitter/ledger`；再開公開頁 | `/demo` 送出種子登入、`authMode=seed`；深連結沿用（再登入），帳務內容以種子 session 渲染、`accessToken` 仍在；公開頁 0 次 | 同上測試 4（2026-10-24 驗收 R3：以 `mockSessionApis` mock header API 與帳務 API，過去截圖是「載入失敗」且 token 已被 refresh 401 清掉） |
 
 `order-eval.spec.ts`（SD-006 區塊）、`sitter-ledger.spec.ts` 每個測試都直接深連結進受保護頁面，改在 `beforeEach` 以 `addInitScript` 標記 `authMode=seed`（模擬「已從 Demo 入口進來過」）。
 
