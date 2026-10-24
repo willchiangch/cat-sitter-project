@@ -40,6 +40,8 @@
 - **實作規範 (`vite.config.ts`)**：
   - 在配置 `vite-plugin-pwa` 時，必須在 `workbox` 選項中明確定義：**僅快取靜態資源 (HTML/CSS/JS/Fonts/Images)**。
   - **絕對不快取 `/api/` 結尾的網路請求**。API 的快取與失效管理 (Invalidation) 全權交由 React Query 負責。
+  - **現行做法（2026-10-24 確認）**：`navigateFallbackDenylist: [/^\/api/]` 讓 `/api` 開頭的整頁導覽不回 precache 的 `index.html`；fetch/XHR 則**刻意不寫 `runtimeCaching`**——SW 沒有任何 route 命中 `/api` 時不會 `respondWith`，請求直接由瀏覽器走網路，不經 SW、不進任何 cache。過去的 `{ urlPattern: /^\/api\/.*$/, handler: 'NetworkOnly' }` 因 Workbox 的 RegExp route 是拿完整 href（`https://…`）比對而永遠不會命中，屬無效規則，已移除（實測新舊 build 的 `/api` 回應 `fromServiceWorker` 皆為 false，行為不變）。
+  - **不要讓 SW 接手 `/api`**（例如改成 `({ url }) => url.pathname.startsWith('/api/')`）：除了沒有產品上的好處，SW 代發的請求 Playwright `page.route` 攔不到，E2E 的 API mock 會全部失效。E2E 已在 `playwright.config.ts` 全域 `serviceWorkers: 'block'`（E2E 不驗 SW/PWA 行為），正式 build 的 SW 導覽 precache 會讓攔 document 的 mock 失效（`.e2e-runs/20261024-1939` F1）。
 
 ### 2.3 雙主題與設計標記 (Design Tokens)
 - **場景**：系統具備保母 (Amber 琥珀色) 與飼主 (Blue 藍色) 雙主題。

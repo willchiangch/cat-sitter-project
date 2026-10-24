@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -31,14 +31,15 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // 核心防雷：絕對不要快取 /api/ 結尾的網路請求
-        navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\/.*$/,
-            handler: 'NetworkOnly' // 確保 API 請求永遠走網路
-          }
-        ]
+        // 核心防雷：絕對不要快取 /api/ 的網路請求（SD-FRONTEND-SPEC §2.2）。
+        // - 導覽：/api 開頭的整頁導覽不回 precache 的 index.html（比對的是 pathname，有效）
+        // - fetch/XHR：刻意「不」寫 runtimeCaching。SW 沒有任何 route 命中 /api 時不會 respondWith，
+        //   請求直接由瀏覽器走網路，不經 SW、也不進任何 cache。
+        //   過去這裡有一條 { urlPattern: /^\/api\/.*$/, handler: 'NetworkOnly' }，但 Workbox 的 RegExp route
+        //   是拿完整 href（https://...）比對，^\/api 永遠不會命中，等於無效規則，已移除（行為不變）。
+        //   不要把它「修好」成 ({ url }) => url.pathname.startsWith('/api/')：API 會改由 SW 代發，
+        //   Playwright 的 page.route 攔不到 SW 發出的請求，E2E 的 API mock 會全部失效（.e2e-runs/20261024-1939 F1）
+        navigateFallbackDenylist: [/^\/api/]
       }
     })
   ],
@@ -54,4 +55,4 @@ export default defineConfig({
       }
     }
   }
-})
+});

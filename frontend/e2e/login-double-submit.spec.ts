@@ -32,6 +32,10 @@ async function holdApi(page: Page, url: string, body: object) {
  * 攔下登入成功後的整頁導覽並回 204：瀏覽器收到 204 不會換頁，登入頁留在原地，
  * 等同把「成功後、換頁前」那一刻凍結住，按鈕狀態才斷言得到（卡住 document 請求不行：
  * 導覽 pending 時 page.evaluate 會一起卡住）。回傳導覽次數。
+ *
+ * 前提：Service Worker 被擋（playwright.config.ts 全域 serviceWorkers:'block'）。正式 build 的 Workbox SW
+ * 會用 precache 的 index.html 直接回應導覽，page.route 攔不到，頁面會真的換到 /register
+ * （.e2e-runs/20261024-1939 F1：CI 紅、dev server 綠）。
  */
 async function captureNavigation(page: Page, pathname: string) {
   const navigations: string[] = [];
@@ -74,6 +78,8 @@ test.describe('F1 登入送出中防重複送出', () => {
     await step('登入成功、換頁前：按鈕仍 disabled，不會被再按一次', page, async () => {
       login.release();
       await expect.poll(() => navigations.length).toBe(1);
+      // 凍結點失效（例如 SW 接手導覽）時，這裡會直接報「頁面已換頁」，而不是只剩計數 0
+      await expect(page).toHaveURL(/\/login\?redirect=/);
       await expect
         .poll(() => page.evaluate(() => localStorage.getItem('refreshToken')))
         .toBe('refresh-first');
@@ -102,6 +108,7 @@ test.describe('F1 登入送出中防重複送出', () => {
       userId: 'u-1',
       role: 'OWNER'
     });
+    const navigations = await captureNavigation(page, '/register');
 
     await step('開啟登入頁', page, async () => {
       await page.goto('/login?redirect=%2Fregister');
@@ -130,15 +137,30 @@ test.describe('F1 登入送出中防重複送出', () => {
       await expect.poll(() => google.held.length).toBe(1);
     });
 
-    await step('放行：導向 redirect 目標', page, async () => {
+    await step('Google 登入成功、換頁前：Google 按鈕與帳密按鈕仍停用', page, async () => {
       google.release();
-      await expect(page).toHaveURL(/\/register$/);
+      await expect.poll(() => navigations.length).toBe(1);
+      await expect(page).toHaveURL(/\/login\?redirect=/);
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem('refreshToken')))
+        .toBe('refresh-google');
+      await expect(page.getByTestId('google-signin-button')).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      );
+      await expect(page.getByTestId('google-signin-button')).toHaveCSS('pointer-events', 'none');
+      await expect(page.getByTestId('google-signin-loading')).toHaveText('Google 登入中...');
+      await expect(page.getByTestId('login-submit-btn')).toBeDisabled();
     });
 
-    await apiStep('POST /api/auth/google 只有 1 次，送的是第一個 credential', async () => {
-      expect(google.held).toHaveLength(1);
-      expect(google.held[0].request().postDataJSON()).toEqual({ idToken: 'google-id-token-1' });
-      return { googleCalls: google.held.length };
-    });
+    await apiStep(
+      'POST /api/auth/google 只有 1 次、送的是第一個 credential，導向 redirect 目標 1 次',
+      async () => {
+        expect(google.held).toHaveLength(1);
+        expect(google.held[0].request().postDataJSON()).toEqual({ idToken: 'google-id-token-1' });
+        expect(navigations).toEqual([expect.stringMatching(/\/register$/)]);
+        return { googleCalls: google.held.length, navigations };
+      }
+    );
   });
 });
