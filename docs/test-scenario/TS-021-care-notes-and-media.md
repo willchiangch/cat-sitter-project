@@ -267,3 +267,5 @@
 ## 本測試發現並修復的真實 bug
 
 **照護記事本管理頁卡片與「儲存備忘錄」溢出（2026-10-24，驗收 N4 / backlog 第 6 批 G5）**：主格線 `gridTemplateColumns: '1fr'`（下限 = min-content），「照護備忘錄項目」標題列與兩顆按鈕不換行，min-content 357px 大於內容區 342px，整欄連同六張分區卡片被撐寬、按鈕右緣 827 超出內容區 811。改 `minmax(0, 1fr)`、標題列 `flexWrap: wrap`。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N4。
+
+**照護記事本條目的「移除」疊在標題輸入框右上角（2026-10-24，驗收截圖附帶觀察，`.e2e-runs/20261024-1939`）**：「移除」是 `position:absolute` 疊在條目卡片右上角，旁邊欄位以 `paddingRight: 2.5rem` 讓位，但欄位所在 flex 子項沒有 `minWidth: 0`、標題 `<input>` 沒有 `width: 100%`，input 預設固有寬度把欄位撐寬 1.5px，右緣壓進「移除」的範圍。`expectNoHorizontalOverflow` 只看是否超出 `<main>`，抓不到卡片內的重疊。改欄位 `minWidth: 0`、input `width: '100%'` + `minWidth: 0`（SD-FRONTEND-SPEC §2.4）；「移除」補 `data-testid="sitter-carenote-item-remove"`。迴歸：`ui-layout-contrast.spec.ts` N4 新增 `expectNoOverlap(移除, 標題輸入框)`，舊版紅（重疊 1.5×17px）。

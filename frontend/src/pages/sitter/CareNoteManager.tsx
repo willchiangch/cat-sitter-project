@@ -491,6 +491,7 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                           {/* Remove button */}
                           <button
                             onClick={() => handleRemoveItem(idx)}
+                            data-testid="sitter-carenote-item-remove"
                             style={{
                               position: 'absolute',
                               top: '12px',
@@ -546,12 +547,15 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                               </button>
                             </div>
 
+                            {/* minWidth 0 + input width 100%：input 的預設固有寬度（size=20）會撐破 flex 欄位，
+                                右緣壓進給「移除」留的 paddingRight（驗收附帶觀察，.e2e-runs/20261024-1939） */}
                             <div
                               style={{
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '0.5rem',
-                                flex: 1
+                                flex: 1,
+                                minWidth: 0
                               }}
                             >
                               <input
@@ -564,7 +568,9 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                                   padding: '0.5rem',
                                   borderRadius: 'var(--radius-sm)',
                                   border: '1px solid var(--color-surface-high)',
-                                  fontSize: '0.95rem'
+                                  fontSize: '0.95rem',
+                                  width: '100%',
+                                  minWidth: 0
                                 }}
                               />
                               <textarea

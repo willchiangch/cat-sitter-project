@@ -142,3 +142,71 @@ export async function gradientContrastOf(
     };
   });
 }
+
+/** 兩個元素的外框不相交（容許 0.5px 次像素誤差）：例如卡片角落的「移除」不可壓到輸入框 */
+export async function expectNoOverlap(a: Locator, b: Locator, label: string) {
+  const ra = (await a.boundingBox())!;
+  const rb = (await b.boundingBox())!;
+  expect(ra, `${label}：找不到元素 A`).toBeTruthy();
+  expect(rb, `${label}：找不到元素 B`).toBeTruthy();
+  const overlapX = Math.min(ra.x + ra.width, rb.x + rb.width) - Math.max(ra.x, rb.x);
+  const overlapY = Math.min(ra.y + ra.height, rb.y + rb.height) - Math.max(ra.y, rb.y);
+  expect(
+    overlapX > 0.5 && overlapY > 0.5,
+    `${label}：A=${JSON.stringify(ra)} B=${JSON.stringify(rb)} 重疊 ${overlapX.toFixed(1)}x${overlapY.toFixed(1)}`
+  ).toBe(false);
+}
+
+/**
+ * 同 {@link gradientContrastOf}（沒有漸層時改用實色底），但把元素（含祖先）的 opacity 算進去：半透明按鈕實際看到的是
+ * 「文字色 / 漸層色標」與後方底色混合後的顏色（驗收 N7 附帶觀察：未選中的切換鈕 opacity 0.6，
+ * 白字壓在變淡的灰底上）。後方底色取祖先第一個不透明的 background-color，找不到時用白色。
+ */
+export async function effectiveGradientContrastOf(
+  locator: Locator
+): Promise<{ opacity: number; backdrop: string; stops: string[]; minRatio: number }> {
+  return locator.evaluate((el) => {
+    const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number);
+    const lum = ([r, g, b]: number[]) => {
+      const ch = (v: number) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+    };
+    let opacity = 1;
+    for (let n: Element | null = el; n; n = n.parentElement) {
+      opacity *= parseFloat(getComputedStyle(n).opacity);
+    }
+    let backdrop = [255, 255, 255];
+    let backdropText = 'rgb(255, 255, 255)';
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const c = parse(getComputedStyle(n).backgroundColor);
+      if (c.length === 3 || (c.length === 4 && c[3] === 1)) {
+        backdrop = c.slice(0, 3);
+        backdropText = getComputedStyle(n).backgroundColor;
+        break;
+      }
+    }
+    const blend = (c: number[]) =>
+      c.slice(0, 3).map((v, i) => v * opacity + backdrop[i] * (1 - opacity));
+    const cs = getComputedStyle(el);
+    // 沒有漸層（例如未選中改成白底細框）時，以實色底當唯一色標；底色透明則就是後方底色
+    const bg = parse(cs.backgroundColor);
+    const solid =
+      bg.length === 3 || (bg.length === 4 && bg[3] === 1) ? cs.backgroundColor : backdropText;
+    const gradientStops = cs.backgroundImage.match(/rgba?\([^)]+\)/g) ?? [];
+    const stops = gradientStops.length ? gradientStops : [solid];
+    const fg = lum(blend(parse(cs.color)));
+    const ratios = stops.map((stop) => {
+      const [hi, lo] = [fg, lum(blend(parse(stop)))].sort((a, b) => b - a);
+      return (hi + 0.05) / (lo + 0.05);
+    });
+    return {
+      opacity: Math.round(opacity * 100) / 100,
+      backdrop: backdropText,
+      stops,
+      minRatio: ratios.length ? Math.round(Math.min(...ratios) * 100) / 100 : 0
+    };
+  });
+}

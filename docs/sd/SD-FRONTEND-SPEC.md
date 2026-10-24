@@ -67,7 +67,10 @@ AppShell 內容區只有 390 − 48 = 342px，`<main>` 自己 `overflow:auto`。
   - 不在全域對 `<main>` 下 `overflow-wrap: anywhere`：會降低所有 flex 子項的 min-content，實測頁首 Logo「WhiskerWatch」被從字中間斷成「WhiskerWa / tch」，副作用比收益大，改在需要的元素上個別設定。
   - `.btn-primary` 的底色是 `background` 簡寫的漸層；要做次要按鈕時必須用 `background:` 覆蓋，只寫 `backgroundColor` 蓋不掉 `background-image`（驗收 N6：灰字疊藍漸層，對比度不到 4.5:1）。
   - `.btn-primary:disabled` 為 `opacity .45 + grayscale + not-allowed`（驗收 N2）；非 `.btn-primary` 的按鈕停用時自行給相同視覺。
-  - 迴歸：`e2e/ui-layout-contrast.spec.ts`（`e2e/support/layout.ts` 的 `expectNoHorizontalOverflow` / `expectInside` / `contrastOf` / `gradientContrastOf`）。
+  - 卡片角落用 `position:absolute` 疊放的按鈕（例如照護記事本條目的「移除」），旁邊欄位靠 `paddingRight` 讓位時，欄位所在的 flex 子項要 `minWidth: 0`、`<input>` 要 `width: '100%'`，否則 input 預設固有寬度撐破欄位、壓進讓出的空間（2026-10-24 驗收附帶觀察：「移除」疊在標題輸入框右上角 1.5px）。
+  - 切換鈕的「未選中」狀態不要用 `opacity` 表示：半透明會讓文字與底色一起淡化，`/demo` 管理員主題未選中的切換鈕實際對比度只有 2.84:1。改用白底（`--color-surface-lowest`）+ `--color-primary` 字 + 主色細框，選中的維持 `.btn-primary` 實色漸層，並以 `aria-pressed` 標示目前角色。
+  - 迴歸：`e2e/ui-layout-contrast.spec.ts`（`e2e/support/layout.ts` 的 `expectNoHorizontalOverflow` / `expectInside` / `expectNoOverlap` / `contrastOf` / `gradientContrastOf` / `effectiveGradientContrastOf`（把元素與祖先的 opacity 混色算進對比度））。
+  - 已知未修（設計系統層，待設計決策）：sitter / client 主題的 `.btn-primary` 漸層亮端與 `--color-on-primary` 對比度不足（sitter `#fff1db` 對 `#ffbf00` 約 1.45:1、client `#edf3ff` 對 `#b3d4ff` 約 1.4:1），影響全站主要按鈕，不在個別頁面修補。
 
 
 ## 3. 目錄與元件架構

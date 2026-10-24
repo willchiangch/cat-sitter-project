@@ -3,8 +3,10 @@ import { step } from './support/evidence';
 import { assertNoUnmockedApi, mockDemoSession, mockOwnerOrderDetail } from './support/mockSession';
 import {
   contrastOf,
+  effectiveGradientContrastOf,
   expectInside,
   expectNoHorizontalOverflow,
+  expectNoOverlap,
   gradientContrastOf
 } from './support/layout';
 
@@ -184,6 +186,14 @@ test.describe('G5 版面溢出與對比度', () => {
         page.locator('main'),
         '儲存備忘錄'
       );
+      // 驗收截圖附帶觀察（.e2e-runs/20261024-1939）：紅色「移除」疊在標題輸入框右上角，
+      // expectNoHorizontalOverflow 抓不到卡片內的重疊
+      await expect(page.getByTestId('sitter-carenote-item-remove')).toHaveText('移除');
+      await expectNoOverlap(
+        page.getByTestId('sitter-carenote-item-remove'),
+        page.getByTestId('sitter-carenote-item-title'),
+        '「移除」與標題輸入框'
+      );
     });
   });
 
@@ -266,6 +276,17 @@ test.describe('G5 版面溢出與對比度', () => {
         expect(
           g.minRatio,
           `${name} 文字 ${g.color} 對 ${g.stops.join(' / ')}`
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+      // 驗收截圖附帶觀察（.e2e-runs/20261024-1939）：沒被選中的切換鈕過去用 opacity 0.6 表示，
+      // 白字壓在變淡的灰底上約 3:1。對比度要把 opacity 與後方底色混色算進去
+      for (const name of ['切換為保母', '切換為飼主']) {
+        const btn = page.getByRole('button', { name });
+        await expect(btn).toBeVisible();
+        const g = await effectiveGradientContrastOf(btn);
+        expect(
+          g.minRatio,
+          `未選中「${name}」實際對比度（opacity ${g.opacity}、底 ${g.backdrop}、色標 ${g.stops.join(' / ') || '無漸層'}）`
         ).toBeGreaterThanOrEqual(4.5);
       }
     });

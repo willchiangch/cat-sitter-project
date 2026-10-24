@@ -85,3 +85,5 @@
 | manual 管理員點「切換為保母」 | alert「管理員帳號沒有保母/飼主身分」，`switch-role`/`login` 皆 0 次 | 同上測試 2 |
 
 **管理員身分 /demo 的按鈕沒有底色（2026-10-24，驗收 N7 / backlog 第 6 批 G5）**：`RoleContext` 設 `data-theme="admin"`，但 `global.css` 只有 sitter / client 兩組主題變數，`--color-primary-gradient`、`--color-on-primary` 未定義，管理員畫面所有 `.btn-primary`（/demo 切換鈕、功能入口、KYC 清單「進入審查」）都只剩純文字。補 admin 主題（SD-FRONTEND-SPEC §2.3）。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N7（漸層兩個色標都存在，文字對兩端對比度 ≥ 4.5:1）。
+
+**/demo 未選中的角色切換鈕對比度不足（2026-10-24，驗收截圖附帶觀察，`.e2e-runs/20261024-1939`）**：未選中的「切換為保母 / 切換為飼主」用 `opacity: 0.6` 表示，文字與漸層底一起淡化，管理員主題實際對比度 2.84:1（< 4.5:1）。改成白底 + `--color-primary` 字 + 主色細框，選中的維持實色漸層，並加 `aria-pressed`（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` N7 新增以 `effectiveGradientContrastOf`（opacity 混色後）斷言未選中切換鈕 ≥ 4.5:1，舊版紅（2.84）。保母 / 飼主主題 `.btn-primary` 漸層亮端本身對比度不足屬設計系統層，未修，見 SD-FRONTEND-SPEC §2.4。
