@@ -979,13 +979,19 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'flex-start',
+                          // 驗收 N14：下方「照護對象」區塊是 width 100% 的第三個子元素，過去沒換行，
+                          // 跟日期欄擠同一列，日期被壓成「2026 / 年 / 10/25」。wrap 後它獨佔下一列
+                          flexWrap: 'wrap',
                           marginTop: '0',
                           gap: '16px',
                           paddingTop: '20px',
                           borderTop: '1px solid rgba(0,0,0,0.05)'
                         }}
                       >
-                        <div style={{ flex: 1, paddingTop: '0' }}>
+                        <div
+                          data-testid={`client-booking-schedule-dates-${pIdx}-${sIdx}`}
+                          style={{ flex: 1, minWidth: 0, paddingTop: '0' }}
+                        >
                           {!groupedDates ? (
                             <div
                               style={{
@@ -1073,11 +1079,12 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
 
                         {/* 選擇毛孩區域 */}
                         <div
+                          data-testid={`client-booking-pet-section-${pIdx}-${sIdx}`}
                           style={{
-                            marginTop: '16px',
+                            marginTop: '0',
                             paddingTop: '16px',
                             borderTop: '1px solid rgba(0,0,0,0.05)',
-                            width: '100%'
+                            flexBasis: '100%'
                           }}
                         >
                           <div
@@ -1639,56 +1646,88 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
         style={{ marginBottom: '2rem', padding: '1.5rem' }}
         data-testid="client-booking-sitter-card"
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <img
-            src={profile?.avatarUrl || 'https://via.placeholder.com/150'}
-            alt="Sitter Avatar"
+        {/* 驗收 N14：過去頭像 80px + 名稱 + 愛心擠同一列，名稱欄只剩約 100px，長顯示名稱被擠成 6 行。
+            改成上列「頭像 + 愛心」、下列名稱與介紹佔滿卡片寬度 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div
             style={{
-              flexShrink: 0,
-              width: '80px',
-              height: '80px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: '2px solid var(--color-primary-light)'
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem'
             }}
-          />
-          {/* minWidth 0：長顯示名稱過去把這欄撐寬，愛心被擠出卡片與殼外（驗收 N3） */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <h2
-                data-testid="client-booking-sitter-name"
-                style={{
-                  margin: 0,
-                  minWidth: 0,
-                  overflowWrap: 'anywhere',
-                  fontSize: '1.5rem',
-                  fontWeight: '800',
-                  color: 'var(--color-on-surface)'
-                }}
-              >
-                {profile?.displayName || '保母'}
-              </h2>
-              <button
-                onClick={handleToggleFavorite}
-                disabled={isFavoriteLoading}
-                data-testid="client-booking-favorite-toggle"
-                aria-label={isFavorited ? '移除收藏' : '加入收藏'}
+          >
+            {profile?.avatarUrl ? (
+              <img
+                src={profile.avatarUrl}
+                alt="Sitter Avatar"
+                data-testid="client-booking-sitter-avatar"
                 style={{
                   flexShrink: 0,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'inline-flex'
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '2px solid var(--color-primary-light)'
+                }}
+              />
+            ) : (
+              // 沒有頭像時用名稱首字佔位：過去指向外部 via.placeholder.com，載不到就是一塊寫著「150 x 150」的灰圓
+              <div
+                data-testid="client-booking-sitter-avatar"
+                aria-hidden="true"
+                style={{
+                  flexShrink: 0,
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'var(--color-primary-container)',
+                  color: 'var(--color-primary)',
+                  fontSize: '1.5rem',
+                  fontWeight: '800'
                 }}
               >
-                <Heart
-                  size={22}
-                  fill={isFavorited ? '#dc2626' : 'none'}
-                  color={isFavorited ? '#dc2626' : 'var(--color-on-surface-variant)'}
-                />
-              </button>
-            </div>
+                {(profile?.displayName || '保')[0]}
+              </div>
+            )}
+            <button
+              onClick={handleToggleFavorite}
+              disabled={isFavoriteLoading}
+              data-testid="client-booking-favorite-toggle"
+              aria-label={isFavorited ? '移除收藏' : '加入收藏'}
+              style={{
+                flexShrink: 0,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'inline-flex'
+              }}
+            >
+              <Heart
+                size={22}
+                fill={isFavorited ? '#dc2626' : 'none'}
+                color={isFavorited ? '#dc2626' : 'var(--color-on-surface-variant)'}
+              />
+            </button>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <h2
+              data-testid="client-booking-sitter-name"
+              style={{
+                margin: 0,
+                overflowWrap: 'anywhere',
+                fontSize: '1.375rem',
+                fontWeight: '800',
+                lineHeight: '1.3',
+                color: 'var(--color-on-surface)'
+              }}
+            >
+              {profile?.displayName || '保母'}
+            </h2>
             <p
               ref={bioRef}
               data-testid="client-booking-sitter-bio"

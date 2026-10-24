@@ -35,6 +35,55 @@ async function mockKycPending(page: Page, content: object[]) {
   );
 }
 
+/** 預約頁（/booking/{id}）mock：長顯示名稱、沒有頭像、一個貓咪方案、沒有寵物 */
+async function mockLongNameBookingPage(page: Page) {
+  await page.route(
+    (url) => url.pathname === `/api/sitter/profile/${SITTER_ID}`,
+    (route) =>
+      route.fulfill(
+        json({
+          gated: false,
+          sitterId: SITTER_ID,
+          displayName: `Journey保母A公開顯示名稱-${LONG_ID}`,
+          avatarUrl: '',
+          bio: '版面測試',
+          tags: [],
+          serviceAreas: [],
+          isOpen: true
+        })
+      )
+  );
+  await page.route(
+    (url) => url.pathname === `/api/sitters/${SITTER_ID}/plans`,
+    (route) =>
+      route.fulfill(
+        json({
+          data: [
+            {
+              id: 'p-n3',
+              sitterId: SITTER_ID,
+              name: '基礎照顧',
+              price: 600,
+              durationMinutes: 60,
+              applicablePetTypes: ['CAT'],
+              defaultTasks: [],
+              isActive: true
+            }
+          ]
+        })
+      )
+  );
+  await page.route(
+    (url) => url.pathname === `/api/sitters/${SITTER_ID}/questions`,
+    (route) => route.fulfill(json([]))
+  );
+  await page.route('**/api/owner/favorites', (route) => route.fulfill(json([])));
+  await page.route(
+    (url) => url.pathname === '/api/pets',
+    (route) => route.fulfill(json({ data: [] }))
+  );
+}
+
 test.describe('G5 版面溢出與對比度', () => {
   // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
   test.afterEach(({ page }) => assertNoUnmockedApi(page));
@@ -84,51 +133,7 @@ test.describe('G5 版面溢出與對比度', () => {
 
   test('N3：預約頁保母卡片長顯示名稱換行，愛心留在卡片內', async ({ page }) => {
     await mockDemoSession(page, 'client');
-    await page.route(
-      (url) => url.pathname === `/api/sitter/profile/${SITTER_ID}`,
-      (route) =>
-        route.fulfill(
-          json({
-            gated: false,
-            sitterId: SITTER_ID,
-            displayName: `Journey保母A公開顯示名稱-${LONG_ID}`,
-            avatarUrl: '',
-            bio: '版面測試',
-            tags: [],
-            serviceAreas: [],
-            isOpen: true
-          })
-        )
-    );
-    await page.route(
-      (url) => url.pathname === `/api/sitters/${SITTER_ID}/plans`,
-      (route) =>
-        route.fulfill(
-          json({
-            data: [
-              {
-                id: 'p-n3',
-                sitterId: SITTER_ID,
-                name: '基礎照顧',
-                price: 600,
-                durationMinutes: 60,
-                applicablePetTypes: ['CAT'],
-                defaultTasks: [],
-                isActive: true
-              }
-            ]
-          })
-        )
-    );
-    await page.route(
-      (url) => url.pathname === `/api/sitters/${SITTER_ID}/questions`,
-      (route) => route.fulfill(json([]))
-    );
-    await page.route('**/api/owner/favorites', (route) => route.fulfill(json([])));
-    await page.route(
-      (url) => url.pathname === '/api/pets',
-      (route) => route.fulfill(json({ data: [] }))
-    );
+    await mockLongNameBookingPage(page);
 
     await step('保母卡片：名稱、愛心都在卡片內', page, async () => {
       await page.goto(`/booking/${SITTER_ID}`);
@@ -139,6 +144,57 @@ test.describe('G5 版面溢出與對比度', () => {
       const card = page.getByTestId('client-booking-sitter-card');
       await expectInside(page.getByTestId('client-booking-sitter-name'), card, '保母名稱');
       await expectInside(page.getByTestId('client-booking-favorite-toggle'), card, '愛心');
+    });
+  });
+
+  test('N14：預約頁保母卡長名稱不被頭像擠成多行、日期欄不被照護對象區塊擠壞', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await mockLongNameBookingPage(page);
+    const placeholderRequests: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('via.placeholder.com')) placeholderRequests.push(r.url());
+    });
+
+    await step('保母卡：頭像與愛心同列，名稱佔滿卡片寬度、最多兩行', page, async () => {
+      await page.goto(`/booking/${SITTER_ID}`);
+      const name = page.getByTestId('client-booking-sitter-name');
+      await expect(name).toHaveText(`Journey保母A公開顯示名稱-${LONG_ID}`);
+      // 沒有頭像：名稱首字佔位，不再打外部 placeholder 服務
+      await expect(page.getByTestId('client-booking-sitter-avatar')).toHaveText('J');
+      expect(placeholderRequests).toEqual([]);
+      const card = page.getByTestId('client-booking-sitter-card');
+      await expectInside(name, card, '保母名稱');
+      await expectInside(page.getByTestId('client-booking-favorite-toggle'), card, '愛心');
+      const { height, lineHeight } = await name.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        lineHeight: parseFloat(getComputedStyle(el).lineHeight)
+      }));
+      // 過去名稱欄只剩約 100px，同一個名稱是 6 行
+      expect(Math.round(height / lineHeight), '名稱行數').toBeLessThanOrEqual(2);
+    });
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split('T')[0];
+    await step('排程配置：日期欄單行顯示，照護對象區塊在下一列', page, async () => {
+      await page.getByTestId('client-booking-plan-card-0').click();
+      await expect(page.getByRole('heading', { name: '排程配置' })).toBeVisible();
+      await page.getByTestId(`client-booking-date-0-0-${dateStr}`).click();
+      await page.getByTestId('client-booking-btn-confirm-date-0-0').click();
+      const dates = page.getByTestId('client-booking-schedule-dates-0-0');
+      const pets = page.getByTestId('client-booking-pet-section-0-0');
+      await expect(dates).toContainText(`${tomorrow.getFullYear()}年`);
+      await expect(pets).toContainText('照護對象 (毛孩)');
+      await expectNoHorizontalOverflow(page);
+      await expectNoOverlap(dates, pets, '日期欄與照護對象');
+      const datesBox = (await dates.boundingBox())!;
+      const petsBox = (await pets.boundingBox())!;
+      expect(petsBox.y, '照護對象在日期下方').toBeGreaterThanOrEqual(datesBox.y + datesBox.height);
+      // 過去日期欄被壓到約 60px，「2026年」拆成兩行
+      const year = dates.getByText(`${tomorrow.getFullYear()}年`);
+      const yearBox = (await year.boundingBox())!;
+      const fontSize = await year.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      expect(yearBox.height, '年份單行').toBeLessThan(fontSize * 1.8);
     });
   });
 
