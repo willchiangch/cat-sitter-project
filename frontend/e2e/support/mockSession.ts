@@ -125,8 +125,14 @@ export async function mockDemoSession(
 /**
  * 飼主訂單詳情頁（/owner/orders/{id}）的最小 mock：訂單本體 + 行程清單。
  * 導頁到詳情的 spec（預約送出、通知連結）都要接，否則 catch-all 501、截圖停在錯誤畫面（驗收 R1）。
+ * totalAmount 請傳實際預約的方案金額（驗收 R6：過去寫死 600，預約 $500 方案的截圖卻顯示 $600）。
  */
-export async function mockOwnerOrderDetail(page: Page, orderId: string, status = 'PENDING') {
+export async function mockOwnerOrderDetail(
+  page: Page,
+  orderId: string,
+  status = 'PENDING',
+  totalAmount = 600
+) {
   await page.route(`**/api/orders/${orderId}`, (route) =>
     route.fulfill({
       status: 200,
@@ -136,8 +142,8 @@ export async function mockOwnerOrderDetail(page: Page, orderId: string, status =
         ownerId: 'o-1',
         sitterId: 's-1',
         status,
-        totalAmount: 600,
-        amountDue: 600,
+        totalAmount,
+        amountDue: totalAmount,
         adjustmentAmount: 0,
         disclaimerAgreed: true,
         hasPaymentProof: false,

@@ -184,6 +184,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
   });
 
   test('TS-005-01 【飼主端】基礎預約流程驗證 (單一項目)', async ({ page }, testInfo) => {
+    // 驗收 R6：詳情頁 mock 回本次預約的實際總額（p2 800 × 2 天 × 2 趟），截圖與預約內容一致
+    await mockOwnerOrderDetail(page, BOOKED_ORDER_ID, 'PENDING', 3200);
     await test.step('進入預約精靈並確認角色', async () => {
       const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
       if (roleText?.includes('貓咪保母')) {
@@ -237,14 +239,17 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await page.click('[data-testid="client-booking-btn-submit"]');
     });
 
-    await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
+    await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}（$ 3,200）', page, async () => {
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
       // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
       await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
+      await expect(page.getByTestId('order-total-amount')).toHaveText('$ 3,200');
     });
   });
 
   test('TS-005-02 【飼主端】複合式預約案例驗證 (多方案、多排程)', async ({ page }, testInfo) => {
+    // 驗收 R6：詳情頁 mock 回本次預約的實際總額 $5,200
+    await mockOwnerOrderDetail(page, BOOKED_ORDER_ID, 'PENDING', 5200);
     await test.step('初始化頁面', async () => {
       const roleText = await page.locator('p').filter({ hasText: '當前角色:' }).textContent();
       if (roleText?.includes('貓咪保母')) {
@@ -322,11 +327,16 @@ test.describe('TS-005 飼主預約精靈流程', () => {
       await testInfo.attach('2-16-送出', { body: await page.screenshot(), contentType: 'image/png' });
     });
 
-    await step('複合預約送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
-      await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
-      // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
-      await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
-    });
+    await step(
+      '複合預約送出後導向新訂單詳情頁 /owner/orders/{orderId}（$ 5,200）',
+      page,
+      async () => {
+        await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
+        // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
+        await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
+        await expect(page.getByTestId('order-total-amount')).toHaveText('$ 5,200');
+      }
+    );
   });
 
 

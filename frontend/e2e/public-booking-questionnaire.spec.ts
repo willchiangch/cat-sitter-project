@@ -32,7 +32,8 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
     lastBookingBody = null;
     bookingResponseBody = { orderId: BOOKED_ORDER_ID };
     // N9：送出後導去的詳情頁 / F3 的訂單列表也要 mock，否則截圖停在錯誤畫面
-    await mockOwnerOrderDetail(page, BOOKED_ORDER_ID);
+    // 驗收 R6：詳情頁回本檔預約的 $500 方案金額（與 expectedTotalAmount 一致）
+    await mockOwnerOrderDetail(page, BOOKED_ORDER_ID, 'PENDING', 500);
     await mockOwnerOrderList(page);
 
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
@@ -195,10 +196,11 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
     ]);
     expect(lastBookingBody.expectedTotalAmount).toBe(500);
 
-    await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
+    await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}（$ 500）', page, async () => {
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
       // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
       await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
+      await expect(page.getByTestId('order-total-amount')).toHaveText('$ 500');
     });
   });
 
