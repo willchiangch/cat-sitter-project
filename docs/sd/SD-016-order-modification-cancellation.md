@@ -4,7 +4,7 @@
 |------|------|
 | 模組編號 | SD-016 |
 | 對應 PRD | PRD-016 |
-| 核心技術 | Bidirectional Snapshot Recalculation, Refund Proof Verification, Sorted Advisory Locks |
+| 核心技術 | Bidirectional Snapshot Recalculation, Refund Proof Verification, Optimistic Locking |
 | 狀態 | **Approved with Consultant Feedback** |
 
 ---
@@ -12,8 +12,8 @@
 ## 1. 業務邏輯與流程設計
 
 ### 1.1 變更請求與生效樞紐
-1. **提案階段 (Proposal)**：不論由哪一方發起變更，系統僅紀錄 `MODIFICATION_REQUEST` 數據。此階段 **不觸發** 檔期鎖定或金流行為。
-2. **生效階段 (Confirm)**：必須由 **飼主 (Owner)** 執行最終確認。此時系統才會執行實質的行程重刷、Sorted Advisory Locks 檢查以及退/補款邏輯。
+1. **提案階段 (Proposal)**：不論由哪一方發起變更，系統僅紀錄 `MODIFICATION_REQUEST` 數據。此階段 **不觸發** 行程重刷或金流行為。
+2. **生效階段 (Confirm)**：必須由 **飼主 (Owner)** 執行最終確認。此時系統才會執行實質的行程重刷以及退/補款邏輯。系統**不做容量控管**（PRD-005 / PRD-016「檔期衝突由保母判斷」），新增日期不檢查名額；2026-10 backlog 第 7 批移除了原本的保母 + 日期 Sorted Advisory Locks 與 `countOccupiedCapacityWithSelfExclusion` 名額檢查。同一變更請求被重複確認由 `orders` / `modification_requests` 的 `@Version` 樂觀鎖擋下，後到者 409 `MSG_DATA_CONCURRENCY_CONFLICT`（`ModificationServiceIntegrationTest` Scenario C2）。
 
 ### 1.2 金額試算與對帳
 - **快照優先**：所有增減金額皆以 `ORDER_SNAPSHOT` 紀錄的合約單價為準。
@@ -121,7 +121,7 @@ stateDiagram-v2
 }
 ```
 - **前置條件**: `ModificationRequest.status == QUOTED`，且 `agreedDiffAmount` 須與 `ModificationRequest.diffAmount` 一致（Zero-Trust，見 §1.2）。已同意（`M_DONE`）後重送 → 409，訂單狀態不變（`OrderControllerTest.should_Return409_When_ConfirmResubmittedAfterDone`）。
-- **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照）、檔期鎖定與金流派發。訂單狀態依差額結轉（4.1）：正 → `PENDING_PAYMENT`、負 → `REFUND_VERIFY`、0 → `previousStatus`（2026-10 前寫死 `CONFIRMED`，迴歸：`ModificationServiceTest.should_RestoreInProgress_When_NoDiffModificationConfirmed`）；0 且變更後無預約項目（整筆取消、保母同意不退款）→ `CANCELLED`（`ModificationService.isWholeCancellation()`，與 2.7 共用；Backlog 第 3 批 D2 前會回 `previousStatus`，迴歸：`should_Cancel_When_NoDiffModificationIsWholeCancellation`）。
+- **邏輯**: 執行實質的行程重算（讀取 `ModificationRequest.dates` 快照，不檢查名額）與金流派發。訂單狀態依差額結轉（4.1）：正 → `PENDING_PAYMENT`、負 → `REFUND_VERIFY`、0 → `previousStatus`（2026-10 前寫死 `CONFIRMED`，迴歸：`ModificationServiceTest.should_RestoreInProgress_When_NoDiffModificationConfirmed`）；0 且變更後無預約項目（整筆取消、保母同意不退款）→ `CANCELLED`（`ModificationService.isWholeCancellation()`，與 2.7 共用；Backlog 第 3 批 D2 前會回 `previousStatus`，迴歸：`should_Cancel_When_NoDiffModificationIsWholeCancellation`）。
 
 ### 2.7 確認收到退款 (飼主) [新增]
 - **Endpoint**: `POST /api/orders/{orderId}/modification/refund-confirm`
@@ -175,22 +175,15 @@ sequenceDiagram
     
     Note over SVC: 1. 校驗同意差額與 Request 最新報價一致
     
-    Note over SVC: [Deadlock Defense] 2. 抽取出新增日期並升序排列
-    SVC->>SVC: sortedNewDates = sort(addedDates)
-    
     SVC->>DB: BEGIN Transaction
     
-    loop For each date in sortedNewDates
-        SVC->>DB: SELECT pg_advisory_xact_lock(Hash(sitterId + date))
-    end
+    Note over SVC, DB: 2. 不檢查名額（系統不做容量控管）；重複確認由 @Version 樂觀鎖擋下 → 409
     
-    SVC->>DB: 3. 檢查新增日期配額 (Capacity Check)
-    
-    Note over SVC, DB: 4. 執行實質變更
+    Note over SVC, DB: 3. 執行實質變更
     SVC->>DB: 刪除舊 PENDING Visits / 寫入新 PENDING Visits
     SVC->>DB: 更新 Order 最終總額、狀態 (轉 PENDING_PAYMENT / REFUND_VERIFY / previousStatus)
     
-    Note over SVC: 5. 觸發非同步金流 (若為線上且需退/補款)
+    Note over SVC: 4. 觸發非同步金流 (若為線上且需退/補款)
     alt 線上退刷
         SVC-)+Pay: Async Refund Request
     end

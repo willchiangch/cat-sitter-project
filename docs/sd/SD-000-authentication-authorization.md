@@ -52,7 +52,7 @@ sequenceDiagram
 ### 2.1 單一 session 語意（後登入者覆蓋）
 一個帳號同時只保留**一組** refresh token（2026-10 產品決策：維持單裝置情境，不做多裝置 token）。
 - **會換發 refresh token 的入口**：帳密登入、OTP 註冊完成、Google 登入、WebAuthn 登入（以上共用 `AuthService.createAuthResponse()` → `createRefreshToken()`）、`switch-role`。全部收斂到 `AuthService.replaceRefreshToken(user, activeRole)`：
-  1. `AdvisoryLockService.acquireUserSessionLock(userId)`：`pg_advisory_xact_lock(7001, userId.hashCode())`，同一帳號的換發排隊執行（雙參數鍵空間與保母 + 日期的單一 bigint 鎖不重疊）
+  1. `AdvisoryLockService.acquireUserSessionLock(userId)`：`pg_advisory_xact_lock(7001, userId.hashCode())`，同一帳號的換發排隊執行（雙參數鍵空間與其他單一 bigint 鍵的 advisory lock 不重疊）
   2. `RefreshTokenRepository.deleteByUser(user)`：JPQL bulk `DELETE FROM RefreshToken t WHERE t.user = :user`
   3. INSERT 新 token
 - **併發語意**：同帳號同時登入 N 次，N 個請求**全部 200**，DB 最後只剩最後提交那一筆；先拿到 token 的裝置下次 refresh 會 401 `REFRESH_TOKEN_INVALID`（被後登入者踢掉）。

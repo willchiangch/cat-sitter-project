@@ -31,6 +31,15 @@
 
 ---
 
+## Scenario 1b: 方案沒有每日容量欄位 (2026-10，backlog 第 7 批)
+
+* **Given**: 產品決策「系統不做接單容量控管」（PRD-003 / PRD-005 / PRD-006），方案已移除 `dailyCapacity`。
+* **When**: 舊前端仍送 `dailyCapacity: 2` 呼叫 `POST /api/sitter/plans`；之後 `GET /api/sitter/plans`。
+* **Then**: 照常 200 建立（Jackson 忽略未知欄位，部署過渡期舊前端不會 400）；回應與列表都**沒有** `dailyCapacity`；DB 舊欄位 `daily_capacity` 落 `DEFAULT 1`、`information_schema` 顯示可為 NULL（`V20261024_02`）。前端新增方案表單沒有 `sitter-plan-input-capacity`、送出 body 不帶 `dailyCapacity`、方案卡不顯示「限額 N 次/日」。
+* **自動化對應**: `ServicePlanControllerTest.ts003_01b_should_NotExposeDailyCapacity_When_PlanCreated()`；mock E2E `service-plans.spec.ts`（新增方案步驟 + `apiStep` 驗 POST body）、`plan-default-tasks.spec.ts`、`sitter-plan-card-layout.spec.ts`；Journey A 步驟 7。
+
+---
+
 ## Scenario 2: 保母成功編輯服務方案 (Happy Path)
 
 * **Given**: DB 中已存在保母 A 且 `version = 0` 的方案（`planId = P1`）。
@@ -262,3 +271,4 @@
 
 **方案卡價格溢出卡片右邊界（2026-10，驗收 N2 / Backlog 第 3 批 U7）**：方案名稱含無法斷行的長英數字串時，卡片左欄不縮、右側價格 `flex-shrink:0`，價格被擠出卡片。修法見 SD-003 §0.2；迴歸 `frontend/e2e/sitter-plan-card-layout.spec.ts`（逐張斷言價格區塊落在卡片內、卡片無水平溢出）。
 
+**每日容量 `dailyCapacity` 是規格沒要求的設計，依產品決策移除（2026-10-24，backlog 第 7 批）**：SD 層自行加入的「每日接單容量限制」與 PRD-005（同日已有訂單不阻擋，由保母審核決定）、PRD-006（保母依自身檔期審核、最終決定權）矛盾，且前後兩批為了它補了 `CapacityGuard` 與「算趟還是算單」的待決策。產品決策為系統不做任何接單容量控管，`ServicePlan.dailyCapacity`、DTO 驗證、方案表單欄位與卡片徽章一併移除。迴歸見 Scenario 1b。

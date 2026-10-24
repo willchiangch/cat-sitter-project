@@ -43,7 +43,7 @@ sequenceDiagram
     
     alt 預約付款成功
         BE->>DB: UPDATE orders SET status=CONFIRMED, paid_at=NOW() WHERE id=?
-        Note over BE: 自動觸發 Order Snapshot 檔期鎖定與事件通知
+        Note over BE: 自動觸發 Order Snapshot 與事件通知（系統不做容量控管，無檔期鎖定）
     end
     BE-->>Gateway: 200 SUCCESS (Webhook 響應)
     

@@ -202,7 +202,7 @@ erDiagram
         uuid id PK
         uuid sitter_id FK
         varchar name
-        int daily_capacity
+        int daily_capacity "已停用（2026-10）：entity 不映射、可為 NULL、DEFAULT 1，待 DROP COLUMN"
         bigint price "維持 BIGINT 儲存整數金額"
         jsonb default_tasks
         jsonb applicable_pet_types
@@ -261,7 +261,10 @@ erDiagram
 - 2026-10 前不論寵物類型一律預填貓咪的三項，狗狗方案也帶著「清理砂盆」（驗收 N1 / Backlog 第 3 批 U6）。迴歸：`e2e/plan-default-tasks.spec.ts`、Journey A 步驟 8。
 
 ### 0.2 方案卡排版（前端，2026-10）
-保母方案清單卡片頂部為「左：名稱＋寵物/限額標籤（`flex:1; min-width:0`，名稱 `overflow-wrap:anywhere` 可斷行）／右：價格與時長上下兩行（`white-space:nowrap`、不縮）」。2026-10 前左欄不能縮，名稱含長串英數時「$ 600 / 60 分鐘」被擠出卡片右緣（驗收 N2 / Backlog 第 3 批 U7）。迴歸：`e2e/sitter-plan-card-layout.spec.ts`、Journey A 步驟 7。
+保母方案清單卡片頂部為「左：名稱＋寵物標籤（`flex:1; min-width:0`，名稱 `overflow-wrap:anywhere` 可斷行）／右：價格與時長上下兩行（`white-space:nowrap`、不縮）」。2026-10 前左欄不能縮，名稱含長串英數時「$ 600 / 60 分鐘」被擠出卡片右緣（驗收 N2 / Backlog 第 3 批 U7）。迴歸：`e2e/sitter-plan-card-layout.spec.ts`、Journey A 步驟 7。2026-10 backlog 第 7 批移除「限額 N 次/日」徽章（方案沒有容量欄位，見 §0.3），該 spec 斷言卡片不含「次/日」。
+
+### 0.3 方案沒有每日容量欄位（產品決策，2026-10）
+系統不做接單容量控管（PRD-003「不做接單容量控管」、PRD-005、PRD-006）。2026-10 backlog 第 7 批移除 `ServicePlan.dailyCapacity`、`ServicePlanDto.dailyCapacity`（含 `@NotNull` / `@Min(1)`「每日最大接單量」驗證）與前端表單 `sitter-plan-input-capacity`。API 不再回傳此欄位；請求多帶 `dailyCapacity`（部署過渡期的舊前端）會被 Jackson 忽略、照常建立（`ServicePlanControllerTest` Scenario 1b）。DB 欄位 `service_plans.daily_capacity` 由 `V20261024_02` 放寬為可 NULL、保留 `DEFAULT 1`，待確認沒有舊 revision 後再 `DROP COLUMN`。
 
 ### 1. 建立服務方案
 * **Method & Path**：`POST /api/sitter/plans`
@@ -273,7 +276,6 @@ erDiagram
 {
   "name": "30 分鐘到府餵食",
   "price": 500,
-  "dailyCapacity": 3,
   "defaultTasks": ["基本餵食", "清理砂盆", "更換新鮮水"],
   "applicablePetTypes": ["CAT", "DOG"],
   "description": "30分鐘專業照護與陪伴",
@@ -293,7 +295,6 @@ erDiagram
     "id": "2d1e9ae3-3607-42ac-afa7-23ae29ea4e91",
     "name": "30 分鐘到府餵食",
     "price": 500,
-    "dailyCapacity": 3,
     "defaultTasks": ["基本餵食", "清理砂盆", "更換新鮮水"],
     "applicablePetTypes": ["CAT", "DOG"],
     "description": "30分鐘專業照護與陪伴",
@@ -316,7 +317,6 @@ erDiagram
 {
   "name": "30 分鐘到府餵食 (暑期特惠)",
   "price": 550,
-  "dailyCapacity": 3,
   "defaultTasks": ["基本餵食", "清理砂盆", "更換新鮮水"],
   "applicablePetTypes": ["CAT"],
   "description": "暑期貓咪專業到府照護",
@@ -337,7 +337,6 @@ erDiagram
     "id": "2d1e9ae3-3607-42ac-afa7-23ae29ea4e91",
     "name": "30 分鐘到府餵食 (暑期特惠)",
     "price": 550,
-    "dailyCapacity": 3,
     "defaultTasks": ["基本餵食", "清理砂盆", "更換新鮮水"],
     "applicablePetTypes": ["CAT"],
     "description": "暑期貓咪專業到府照護",
@@ -404,7 +403,6 @@ erDiagram
       "id": "2d1e9ae3-3607-42ac-afa7-23ae29ea4e91",
       "name": "30 分鐘到府餵食",
       "price": 500,
-      "dailyCapacity": 3,
       "defaultTasks": ["基本餵食", "清理砂盆"],
       "applicablePetTypes": ["CAT"],
       "description": "貓咪到府照顧",
@@ -438,7 +436,6 @@ erDiagram
       "id": "2d1e9ae3-3607-42ac-afa7-23ae29ea4e91",
       "name": "30 分鐘到府餵食",
       "price": 500,
-      "dailyCapacity": 3,
       "defaultTasks": ["基本餵食", "清理砂盆"],
       "applicablePetTypes": ["CAT"],
       "description": "貓咪到府照顧",

@@ -11,7 +11,7 @@
 ## Scenario 1: 雙向變更與快照重算 (補款路徑)
 * **Given**: 訂單已支付，狀態 `CONFIRMED`。
 * **When**: 飼主申請「增加兩天」，保母報價後，飼主點擊 `confirm` 同意支付差額。
-* **Then**: 系統重新獲取 **Sorted Advisory Locks**。訂單狀態轉回 `PENDING_PAYMENT`；訂單詳情/清單的 `amountDue` 為差額（非新總額），飼主付款頁顯示「本次應補差額」。
+* **Then**: 新增日期不檢查名額（系統不做容量控管，2026-10 移除 Sorted Advisory Locks 與名額檢查）。訂單狀態轉回 `PENDING_PAYMENT`；訂單詳情/清單的 `amountDue` 為差額（非新總額），飼主付款頁顯示「本次應補差額」。
 
 ## Scenario 1b: 補款核帳後狀態復原與首次付款紀錄保留 (2026-10，B2 迴歸)
 * **Given**: 首次付款已核帳（憑證後五碼 `11111`、`paid_at` 已填）；訂單在 `IN_PROGRESS`（或 `CONFIRMED`）時發起變更，飼主確認差額 +600，訂單 `PENDING_PAYMENT`。
@@ -97,10 +97,16 @@
 * **Then**: 僅 `PENDING` 的行程被刪除重建，已完成 (`DONE`) 的行程不受影響。
 * **自動化對應**: `ModificationServiceTest.should_OnlyDeletePendingVisits_WhenConfirming()`
 
+## Scenario C2: 同一變更請求同時確認兩次只結轉一次 (2026-10，backlog 第 7 批)
+* **Given**: 訂單 `MODIFYING`、變更請求 `QUOTED`、`diffAmount = -200`。
+* **When**: 兩個執行緒同時以相同金額呼叫 `confirmModification`（`CyclicBarrier` 對齊）。
+* **Then**: 恰好一個成功、另一個經 `GlobalExceptionHandler` 換算為 409；訂單 `REFUND_VERIFY`、`totalAmount` 只扣一次（1000 → 800）、變更請求 `M_DONE`。保護來源是 `orders` / `modification_requests` 的 `@Version`（容量用的 advisory lock 已移除）。
+* **自動化對應**: `ModificationServiceIntegrationTest.should_ApplyOnce_When_SameModificationConfirmedConcurrently()`
+
 ## 驗證矩陣
 | 步驟 | 動作 | 預期功能結果 | 技術校驗 (DB/NFR) |
 | :--- | :--- | :--- | :--- |
-| 1 | 飼主點擊 Confirm | 執行實質變更與鎖定 | **Snapshot Recalc**: 確認按原合約價計算，非現行價。 |
+| 1 | 飼主點擊 Confirm | 執行實質變更（不檢查名額） | **Snapshot Recalc**: 確認按原合約價計算，非現行價。 |
 | 2 | 保母上傳憑證 | 圖片上傳成功，雙方可見預覽 | **GCP Storage**: 私有物件 `refund-proofs/...`，DTO 只有 `hasRefundProof`，簽名網址僅訂單雙方可取（Scenario 2d） |
 | 3 | 飼主最終確認 | 解除退款凍結 | **State Cleanup**: `waiting_for_owner_action` 轉為 `false`。 |
 | 4 | 保母拒絕變更 | 訂單狀態依快照復原 | `modification_requests.previous_status` 讀取，非寫死值 |

@@ -4,7 +4,7 @@
 |------|------|
 | 模組編號 | SD-005 |
 | 對應 PRD | PRD-005 |
-| 核心技術 | Zero-Trust Pricing, DB-Level Idempotency, Deferred Capacity Check |
+| 核心技術 | Zero-Trust Pricing, DB-Level Idempotency |
 | 狀態 | **Approved (Marketplace Model)** |
 
 ---
@@ -12,11 +12,11 @@
 ## 1. 業務邏輯與流程設計
 
 ### 1.1 核心流程說明
-飼主提交預約申請。根據 **PRD-005**，預約送單階段 **不佔用名額**，允許多位飼主同時對同一時段送單，實際檔期佔用延遲至保母審核確認階段 (SD-006)。
+飼主提交預約申請。根據 **PRD-005**，系統**不做接單容量控管**（產品決策，2026-10）：送單、接單、報價、變更協商都不計算或鎖定任何名額，允許多位飼主同時對同一時段送單，要不要接由保母於審核階段 (SD-006) 自行判斷。
 
 ### 1.2 併發與冪等性
 1. **送單階段**：主要透過 `idempotency_key` 的資料庫 `UNIQUE` 約束防止重複送單。
-2. **鎖定階段**：已移至 SD-006 (Confirm Order)。在保母接單時，系統將執行 **Sorted Advisory Locks** 以確保配額檢核的原子性。會佔用容量的入口有兩個：原價快速接單 `ConfirmOrderService.confirmOrder()`（`POST /api/orders/{id}/confirm`）與議價報價 `EvaluationService.sendQuote()`（`POST /api/orders/{id}/quote`，報價後直接 `PENDING_PAYMENT`，見 SD-006 §2.1），兩者共用 `CapacityGuard.lockAndCheck()`（2026-10 backlog G1 之前報價路徑漏掉這段）：依 `findByOrderId` 取該單行程 → 每個日期 `AdvisoryLockService.generateLockKey(sitterId, date)` 排序後 `pg_advisory_xact_lock` → `countBookedVisitsBySitterIdAndDate`（只算 `CONFIRMED/PENDING_PAYMENT/IN_PROGRESS/COMPLETED` 訂單的行程）`>= dailyCapacity` 即拋 `CapacityFullException` → 訂單轉 `PENDING_PAYMENT`、建快照。**接單不改 visit 狀態**（維持 `PENDING`，SD-008）。2026-10 backlog F2 刪除了從未被 controller 呼叫、會把 visit 設成 `CONFIRMED` 的舊版 `BookingService.confirmBooking()` 與它專用的 `OrderRepository.acquireAdvisoryLock`。
+2. **接單 / 報價階段**（SD-006）：不做容量檢查、沒有保母 + 日期的 advisory lock。唯一的併發保護是**同一張訂單**只能從 `PENDING` 轉出一次：原價快速接單 `ConfirmOrderService.confirmOrder()`（`POST /api/orders/{id}/confirm`）與議價報價 `EvaluationService.sendQuote()`（`POST /api/orders/{id}/quote`）都以 `OrderRepository.findByIdAndSitterIdForUpdate`（`SELECT ... FOR UPDATE`）讀訂單，同一張單的併發請求在此排隊，後到者讀到 `PENDING_PAYMENT` → 409 `STATE_CONFLICT`。**接單不改 visit 狀態**（維持 `PENDING`，SD-008）。2026-10 backlog 第 7 批移除 `dailyCapacity`、`CapacityGuard`、`CapacityFullException`（409 `CAPACITY_FULL`）與 `countBookedVisitsBySitterIdAndDate`；第 5 批（F2）已刪除從未被 controller 呼叫的舊版 `BookingService.confirmBooking()`。
 
 ### 1.3 動態問卷渲染與快照 (PRD-004 聯動)
 飼主進入預約 Step 2 時，前端呼叫 `GET /api/sitters/{sitterId}/questions`（見 SD-004）動態渲染保母自訂的問卷表單。送單時：
@@ -112,7 +112,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> **Advisory Lock 與 Capacity Check** 已移至 SD-006 (保母報價與接單階段) 執行。
+> 系統不做容量檢查（PRD-005 / PRD-006）。同一張訂單的併發接單 / 報價保護見 SD-006 §2.1。
 
 > [!IMPORTANT]
 > **回應契約**：`POST /api/orders/booking` 回 `201`，body **只有** `{ "orderId": "<uuid>" }`，不包 `{ code, message, data }` 外層（`OrderController.createBooking` 回 `Map.of("orderId", orderId)`）。前端 `PublicBookingPage` 只認這個形狀：`orderId` 不是 UUID 字串時不再 fallback 成整個物件（過去 `res.orderId || res` 會導去 `/owner/orders/[object Object]`），改 alert「預約已送出，但無法取得訂單編號，請到「我的訂單」確認預約狀態」並導去 `/owner/orders`——此時訂單可能已建立，不可當送出失敗讓使用者重送。契約測試：`BookingServiceTest.ts005_06_should_ReturnOrderIdObject_When_BookingCreated`（2026-10 backlog F3）。
@@ -132,7 +132,7 @@ sequenceDiagram
 | 情境 | 處理方式 |
 |------|---------|
 | 併發送單 | 透過 `Idempotency-Key` 攔截，後到者回傳 409 或重複成功訊息。 |
-| 檔期已滿 | 送單階段不阻擋。保母在接單時若名額已滿，系統將提示保母無法接單。前端選擇方案頁也**不**顯示任何「檔期已滿」的方案卡（2026-10 移除遺留的寫死「尊榮包月・此方案目前檔期已滿」mock 卡片，見 TS-005）。 |
+| 同日已有其他訂單 | 送單、接單、報價都不阻擋，系統沒有「額滿」概念；接不接由保母自行判斷。前端選擇方案頁也**不**顯示任何「檔期已滿」的方案卡（2026-10 移除遺留的寫死「尊榮包月・此方案目前檔期已滿」mock 卡片，見 TS-005）。 |
 | 送單金額與方案現價不符 | 400 `PRICING_MISMATCH`，不建立訂單，提示飼主重新整理頁面。 |
 | 保母問卷必填題未作答 | 400，訊息附題目名稱，不建立訂單。 |
 | 送單當下保母剛停用某題目 | 該題不在後端查到的「啟用中題目」清單內，不驗證也不快照，視同題目不存在。 |

@@ -15,17 +15,17 @@
 - **基礎資料**：保母已建立至少一個服務方案。
 
 ## Scenario 1: 多人同時送單 (媒合式模型)
-* **Given**: 保母 A 的方案「專業餵食」在 2026-06-01 僅剩 1 個名額。
+* **Given**: 保母 A 的方案「專業餵食」在 2026-06-01 已有其他預約（系統不做容量控管，沒有「名額」概念）。
 * **When**: 飼主甲與飼主乙同時送出該日期的預約申請（帶入不同 Idempotency-Key）。
 * **Then**: 系統應允許兩張訂單皆成功建立，狀態皆為 `PENDING`。
 * **自動化對應**: `BookingServiceTest.ts005_01_should_AllowMultiplePendingOrders_When_ConcurrentSubmission()`
 
-## Scenario 2: 保母併發接單 (配額鎖定)
-* **Given**: 存在兩筆對應同一日期、同一保母的 `PENDING` 訂單。
-* **When**: 保母嘗試同時確認這兩筆訂單（正式接單路徑 `ConfirmOrderService.confirmOrder()` = `POST /api/orders/{id}/confirm`，兩個執行緒以 `CyclicBarrier` 對齊起跑，換 5 個日期各跑一輪）。
-* **Then**: 系統應利用 Advisory Lock 確保僅有一筆能成功變更為 `PENDING_PAYMENT`，另一筆應拋出 `CapacityFullException`（不得出現其他例外）；只有成功那筆有快照；兩筆的行程都維持 `PENDING`（SD-008，接單不改 visit 狀態）。
-* **邊界（2b）**：`dailyCapacity=2`、三筆同日單同時接 → 恰好兩筆成功、一筆 `CapacityFullException`，`countBookedVisitsBySitterIdAndDate` = 2。
-* **自動化對應**: `BookingServiceTest.ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm()`、`ts005_02b_should_AcceptUpToDailyCapacity_When_ConcurrentConfirmExceedsCapacity()`
+## Scenario 2: 同一張單併發接單只成功一次（狀態轉移保護）
+* **Given**: 一筆 `PENDING` 訂單。
+* **When**: 兩個請求同時對**同一張**單原價接單（正式接單路徑 `ConfirmOrderService.confirmOrder()` = `POST /api/orders/{id}/confirm`，`CyclicBarrier` 對齊起跑，換 5 個日期各跑一輪）。
+* **Then**: 恰好一個成功、另一個經 `GlobalExceptionHandler` 換算為 **409**（`STATE_CONFLICT`，訂單列 `SELECT ... FOR UPDATE` 讓後到者讀到 `PENDING_PAYMENT`）；訂單為 `PENDING_PAYMENT`、快照只有 1 筆；行程維持 `PENDING`（SD-008，接單不改 visit 狀態）。
+* **2b（不做容量控管）**：同日三張不同的 `PENDING` 單同時接單 → **三張全部成功**、各自一筆快照（PRD-005 / PRD-006：同日已有訂單不阻擋，由保母決定；方案沒有 `dailyCapacity`）。
+* **自動化對應**: `BookingServiceTest.ts005_02_should_AcceptOnce_When_SameOrderConfirmedConcurrently()`、`ts005_02b_should_AcceptAllSameDayOrders_When_ConcurrentConfirm()`
 
 ## Scenario 3: 複合方案預約驗證 (Multi-Plan / Multi-Visit)
 * **Given**: 保母有方案 A ($500) 與方案 B ($800)。
@@ -57,7 +57,7 @@
 | 步驟 | 動作 | 預期功能結果 | 技術校驗 (DB/NFR) |
 | :--- | :--- | :--- | :--- |
 | 1 | 併發送出預約 | 多筆 PENDING 成功 | 檢查 `orders` 記錄是否存在多筆且 ID 不同。 |
-| 2 | 併發確認接單 | 僅一勝，其餘敗 | **Advisory Lock**: 檢查接單時是否成功攔截。 |
+| 2 | 同一張單併發確認接單 | 僅一勝，另一個 409 | 訂單列 `SELECT ... FOR UPDATE`；快照 1 筆。不同張的同日單同時接 → 全部成功（不做容量控管）。 |
 | 3 | 檢查狀態變更 | 成功者轉為 `PENDING_PAYMENT` | 狀態機轉換正確性驗證。 |
 | 4 | 飼主進入「選擇服務方案」頁 | 只顯示 `GET /api/sitters/{id}/plans` 回傳的方案，不得出現任何寫死的佔位方案 | 方案卡數量 = API 回傳數量、名稱逐一對上；頁面不含「尊榮包月」「此方案目前檔期已滿」（`frontend/e2e/client-booking.spec.ts` 迴歸 (P2)） |
 
@@ -76,7 +76,8 @@
 
 ## 本測試發現並修復的真實 bug
 - **選擇方案頁寫死「尊榮包月 $15,000/月・此方案目前檔期已滿」（2026-10，驗收 P2）**：`PublicBookingPage.tsx` 在真實方案清單後面固定多渲染一張註解為「檔期不足模擬」的灰色卡片，是 2026-05 設計稿/展示用的 mock 佔位，沒有對應任何資料。正式站每一位保母的下單頁都會出現這張卡，飼主會以為保母有包月方案、只是剛好額滿。PRD-005/SD-005 都沒有包月方案或「方案層級檔期已滿」的需求（SD-005 §5：檔期已滿於送單階段不阻擋，由保母接單時判斷），`ServicePlan` 也沒有計費週期欄位，因此直接移除，不改成資料驅動。迴歸測試見驗證矩陣第 4 步。
-- **併發接單測試測的是死碼（2026-10，backlog F2；測試盲點，非產品超賣）**：`ts005_02` 原本呼叫 `BookingService.confirmBooking()`，但這個方法沒有任何 controller 呼叫，正式接單走的是 `ConfirmOrderService.confirmOrder()`（鎖的實作也不同：舊死碼用 `hashtext` 雙鍵、正式路徑用排序後的 bigint 鍵），而且死碼會把 visit 設成 `CONFIRMED`，違反 SD-008 狀態機。等於正式路徑的超賣保護完全沒有自動化覆蓋。改測正式路徑後：有鎖 → 綠（連跑 3 次皆綠）；暫時拿掉 `advisoryLockService.acquireLocks()` → `ts005_02`、`ts005_02b` 第 1 輪就紅（兩張都接成功），證明測試確實擋得住超賣、而正式路徑的保護是有效的。死碼與 `OrderRepository.acquireAdvisoryLock` 一併刪除；`ConfirmOrderService` 撈行程從 `findAll().stream().filter()` 全表掃描改 `findByOrderId`。（2026-10-24 backlog G1：鎖 + count 段落抽成 `CapacityGuard.lockAndCheck()`，原價接單與議價報價共用；議價路徑的超賣與覆蓋見 TS-006 Scenario 4~6。）
+- **併發接單測試測的是死碼（2026-10，backlog F2；測試盲點，非產品超賣）**：`ts005_02` 原本呼叫 `BookingService.confirmBooking()`，但這個方法沒有任何 controller 呼叫，正式接單走的是 `ConfirmOrderService.confirmOrder()`（鎖的實作也不同：舊死碼用 `hashtext` 雙鍵、正式路徑用排序後的 bigint 鍵），而且死碼會把 visit 設成 `CONFIRMED`，違反 SD-008 狀態機。等於正式路徑的超賣保護完全沒有自動化覆蓋。改測正式路徑後：有鎖 → 綠（連跑 3 次皆綠）；暫時拿掉 `advisoryLockService.acquireLocks()` → `ts005_02`、`ts005_02b` 第 1 輪就紅（兩張都接成功），證明測試確實擋得住超賣、而正式路徑的保護是有效的。死碼與 `OrderRepository.acquireAdvisoryLock` 一併刪除；`ConfirmOrderService` 撈行程從 `findAll().stream().filter()` 全表掃描改 `findByOrderId`。（2026-10-24 backlog G1：鎖 + count 段落抽成 `CapacityGuard.lockAndCheck()`，原價接單與議價報價共用。**2026-10-24 backlog 第 7 批依產品決策整個移除容量控管**，`ts005_02/02b` 改寫為同一張單的狀態轉移保護，見下一條。）
 - **送出預約後導去 `/owner/orders/[object Object]`（2026-10，backlog F3）**：`PublicBookingPage.tsx` 以 `res.orderId || res` 取訂單編號，回應格式不符時把整個物件塞進網址。真實後端回 `{ orderId }` 所以正式站沒踩到，但 `client-booking.spec.ts`、`public-booking-questionnaire.spec.ts` 的 mock 一直回錯誤格式 `{ code, message, data }`，trace 有 `GET /api/orders/[object%20Object]` 400，因為測試沒斷言送出後的頁面而沒紅。修正：移除 fallback、格式不符明確提示並導向訂單列表；兩支 mock 改成真實格式 201 `{ orderId }` 並補導頁斷言；後端補契約測試。舊前端跑「迴歸 (F3)」→ 紅（沒有提示、導去 `[object Object]`）。
+- **移除容量鎖後，同一張單併發接單的後到者回 400 而非 409（2026-10-24，backlog 第 7 批）**：產品決策「系統不做接單容量控管」後移除 `CapacityGuard`（保母 + 日期 advisory lock + 鎖內 count）。改寫後的 `ts005_02`（同一張單兩個請求同時接單）在沒有其他保護時第 1 輪就紅：兩邊都讀到 `PENDING`，後到者 flush 時撞 `uk_order_snapshot_order_id` → `DataIntegrityViolationException` → `GlobalExceptionHandler` 回 **400 `DATA_ERROR`「資料處理異常」**（資料仍一致、只有一張快照，但回應錯誤，前端會顯示成資料錯誤而非「狀態已變更」）。原本的 advisory lock 只序列化了兩個請求，後到者拿的仍是鎖前讀到的舊實體，同樣會撞 unique。修法：`OrderRepository.findByIdAndSitterIdForUpdate`（`PESSIMISTIC_WRITE`），接單與報價都以此讀訂單，後到者讀到 `PENDING_PAYMENT` → 409 `STATE_CONFLICT`。修正後連跑 3 次皆綠。
 
 - **預約頁保母卡片長名稱 + 愛心溢出（2026-10-24，驗收 N3 / backlog 第 6 批 G5）**：名稱欄 `flex: 1` 沒有 `minWidth: 0`，Journey 的長顯示名稱（含時間戳）把它撐到 249px，愛心被擠到殼外（x≈871，內容區右緣 811）。改 `minWidth: 0` + 名稱 `overflowWrap: anywhere`、頭像與愛心 `flexShrink: 0`。迴歸：`ui-layout-contrast.spec.ts` N3（名稱、愛心落在 `client-booking-sitter-card` 內，`<main>` 沒被撐寬）。

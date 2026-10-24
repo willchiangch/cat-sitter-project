@@ -39,7 +39,8 @@
   - 若 `adjustmentAmount != 0` 且保母方案 < `PRO`，拋出 `AUTH_PLAN_LIMIT`。
   - **Zero-Trust**: 校驗 `serverTotal == expectedTotalAmount`。
   - **Cleanup**: 強制將 `waiting_for_owner_action` 設為 `false`。
-  - **容量保護（Capacity Guard）**：報價成功後訂單**直接**轉 `PENDING_PAYMENT`（沒有「飼主接受報價」的中間狀態，飼主不同意只能不付款 / 取消），而 `countBookedVisitsBySitterIdAndDate` 把 `PENDING_PAYMENT` 算成已佔用，所以**容量在報價當下就被佔用**，與原價快速接單 `POST /api/orders/{id}/confirm` 相同。兩條路徑都在改狀態之前、同一筆交易內呼叫共用元件 `CapacityGuard.lockAndCheck(sitterId, orderId, plan)`：依保母 + 日期取排序後的 `pg_advisory_xact_lock` → 鎖內 count `>= dailyCapacity` 即拋 `CapacityFullException`（409 `CAPACITY_FULL`，前端 alert 後端訊息「該日期預約已滿 …」）。失敗時整筆 rollback，快照、狀態、冪等鍵都不會寫入。
+  - **不做容量控管（產品決策，2026-10）**：報價不檢查同日已有幾張單，系統沒有 `dailyCapacity`（PRD-005 / PRD-006：接不接由保母判斷）。2026-10 backlog 第 7 批移除了 `CapacityGuard`（保母 + 日期 advisory lock + 鎖內 count）與 409 `CAPACITY_FULL`。
+  - **同一張單只轉出一次**：報價成功後訂單**直接**轉 `PENDING_PAYMENT`（沒有「飼主接受報價」的中間狀態）。`sendQuote` 與原價快速接單 `ConfirmOrderService.confirmOrder()` 都以 `OrderRepository.findByIdAndSitterIdForUpdate`（`@Lock(PESSIMISTIC_WRITE)` → `SELECT ... FOR UPDATE`）讀訂單；同一張單同時「原價接單 + 報價」、兩次報價（不同冪等鍵）或兩次接單時，後到者在列鎖上排隊，先到者 commit 後讀到 `PENDING_PAYMENT`，由狀態檢查拋 `IllegalStateException` → 409 `STATE_CONFLICT`。沒有這把列鎖時兩邊都讀到 `PENDING`，後到者會在 flush 時撞 `uk_order_snapshot_order_id`，回 400 `DATA_ERROR`（資料仍一致，但回應錯誤）。
 
 ### 2.2 要求回填問卷 (Request Info)
 - **Endpoint**: `POST /api/orders/{orderId}/request-info`
@@ -71,7 +72,10 @@ sequenceDiagram
     
     SVC->>DB: BEGIN Transaction
     
-    SVC->>DB: SELECT o FROM Order o WHERE o.id = :id AND o.sitter_id = :sitterId
+    SVC->>DB: SELECT o FROM Order o WHERE o.id = :id AND o.sitter_id = :sitterId FOR UPDATE
+    alt status != PENDING (同一張單已被併發的接單 / 報價轉出)
+        SVC-->>S: 409 Conflict (STATE_CONFLICT)
+    end
     
     Note over SVC: [Zero Trust] 2. 校驗 expectedTotalAmount
     alt serverTotal != expectedTotalAmount
@@ -81,13 +85,6 @@ sequenceDiagram
     Note over SVC: [SaaS Gating] 3. 檢查調價權限
     alt adjustmentAmount != 0 && plan < PRO
         SVC-->>S: 403 Forbidden (AUTH_PLAN_LIMIT)
-    end
-
-    Note over SVC, DB: [Capacity Guard] 3.5 與原價接單共用 (CapacityGuard)
-    SVC->>DB: SELECT pg_advisory_xact_lock(hash(sitterId, date)) -- 依日期排序逐一取鎖
-    SVC->>DB: SELECT COUNT(visits) WHERE 訂單狀態佔用容量 AND 同日
-    alt bookedCount >= dailyCapacity
-        SVC-->>S: 409 Conflict (CAPACITY_FULL)，整筆 rollback
     end
 
     Note over SVC: [Snapshot] 4. 建立 1:1 ERD 快照
@@ -142,8 +139,8 @@ sequenceDiagram
 |------|---------|
 | 報價重複送單 | `Idempotency-Key` 透過資料庫 `UNIQUE` 限制攔截並報錯。 |
 | 報價時方案已調價 | 系統依據 **預約送單時的單價** 進行重算。若與保母畫面上的 `expectedTotalAmount` 不同則報錯。 |
-| 報價時該日容量已滿 / 與原價接單同時搶最後一格 | `CapacityGuard` 與 `ConfirmOrderService` 共用同一組 advisory lock 與 count，只會成功一張，另一張 409 `CAPACITY_FULL` 且維持 `PENDING`。2026-10 backlog G1 之前 `sendQuote` 完全沒有鎖與容量檢查，保母先原價接滿某天、再用報價接同日的單就會超賣（JUnit 拿掉保護後 TS-006-04/05/06 全紅）。 |
-| 容量口徑（**待產品決策**） | 沿用接單現行口徑：(1) count 不含本單自己的行程，容量 1 的單若 `timesPerDay=2` 仍可接；(2) 多方案訂單以 `order.planId`（第一個方案）的 `dailyCapacity` 為準，而非每趟各自的方案。`dailyCapacity` 究竟算「趟」還是「單」、多方案以哪個方案為準，待使用者決策後兩條路徑在 `CapacityGuard` 一處改即可。 |
+| 同日已有其他已接 / 已報價的訂單 | 不阻擋，系統不做容量控管（PRD-005 / PRD-006）。 |
+| 同一張單同時原價接單 + 報價、兩次報價或兩次接單 | 訂單列 `SELECT ... FOR UPDATE` 序列化，只成功一個、快照只建一份，另一個 409 `STATE_CONFLICT`（TS-006-05 / 06、TS-005-02）。 |
 | 髒資料防護 | 無論執行報價或婉拒，皆會強制清空 `waiting_for_owner_action` 標記。 |
 | 前端列表快取 | `OrderEvalView.tsx` 原價接單 / 送出報價 / 婉拒成功後，先 `queryClient.invalidateQueries({ queryKey: ['orders'] })` 再導回 `/sitter/orders`。訂單列表 `useSitterOrdersQuery` 的 `staleTime` 為 60 秒，沒有 invalidate 的話列表會繼續吃快取，剛處理完的訂單仍停在「評估中」、徽章為「待評估」。 |
 | 品項明細排版 | 每列「說明」可換行（`flex:1; min-width:0`）、價格 `white-space:nowrap` 不壓縮，兩者間距 1rem。2026-10 前兩個 span 直接貼齊，方案名稱一長價格欄被擠壓，「每天 1 次」的「1」緊貼「$ 600」看起來像「$ 1600」（驗收 P5 / Backlog 第 3 批 U4）。 |

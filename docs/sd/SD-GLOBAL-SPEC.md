@@ -32,7 +32,8 @@
 
 ### 2.3 併發控制 (Concurrency Control)
 - **資料列級鎖**：實體更新使用 JPA `@Version` 樂觀鎖。
-- **業務級分散式鎖**：針對 PRD-005 的「檔期佔用鎖」，統一使用 **PostgreSQL Advisory Locks**。
+- **業務級分散式鎖**：需要跨列序列化的業務規則（例如 SD-021 記事模板 / 媒體上限、SD-022 草稿 get-or-create、SD-000 單一 session），統一使用 **PostgreSQL Advisory Locks**。
+  - **不做檔期 / 容量鎖**：系統不做接單容量控管（PRD-005 / PRD-006，2026-10 產品決策），沒有「保母 + 日期」的檔期佔用鎖（2026-10 backlog 第 7 批移除 `CapacityGuard` 與 `AdvisoryLockService.acquireLocks/generateLockKey`）。同一張訂單的狀態轉移（`PENDING` → `PENDING_PAYMENT`）以訂單列 `SELECT ... FOR UPDATE` 序列化（SD-006 §2.1）。
   - **實作規範**：直接使用 `JdbcTemplate` 呼叫 `pg_advisory_xact_lock(lockId)`。
   - **生命週期**：必須與 Transaction 綁定（Transaction-level lock），確保事務結束（Commit/Rollback）時自動釋放，避免 Deadlock。
 

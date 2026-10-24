@@ -51,7 +51,7 @@ stateDiagram-v2
 為了避免已啟用接單的保母在被停權、退件時仍對外開放預約，本設計將在 `profiles` 中引入 `is_open`（對應 Java Entity 屬性 `isOpen`）用以卡控，並定義以下聯動機制：
 1. **防呆強制關閉**：當管理員將保母狀態變更為 `SUSPENDED` 或 `REJECTED` 時，系統必須在**同一個數據庫事務**內，強制將 `profiles.is_open` 設為 `false`。
 2. **開啟接單卡控**：保母嘗試開啟接單狀態（將 `isOpen` 設為 `true`）時，API 必須前置檢驗 `profiles.kyc_status == 'VERIFIED'`，否則拋出 `403 FORBIDDEN` 攔截，提示保母需先通過實名審查。
-3. **預約送單雙重校驗 (SD-005 聯動)**：飼主提交預約申請（SD-005）時，在 Advisory Lock 檔期鎖定與訂單建立的前置條件檢驗中，除了檢驗保母 `profiles.is_open == true`，必須**同時驗證 `profiles.kyc_status == 'VERIFIED'`**，任何一項不符即拋出 `422 UNPROCESSABLE_ENTITY` (代碼：`MSG_DATA_INVALID_STATUS`)。
+3. **預約送單雙重校驗 (SD-005 聯動)**：飼主提交預約申請（SD-005）時，在訂單建立的前置條件檢驗中（送單不鎖檔期，系統不做容量控管），除了檢驗保母 `profiles.is_open == true`，必須**同時驗證 `profiles.kyc_status == 'VERIFIED'`**，任何一項不符即拋出 `422 UNPROCESSABLE_ENTITY` (代碼：`MSG_DATA_INVALID_STATUS`)。
 
 ---
 
