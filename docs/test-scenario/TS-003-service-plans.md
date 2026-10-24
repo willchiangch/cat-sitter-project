@@ -27,7 +27,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | POST 建立常態方案 | 返回 200 OK，包含 `code=200`，`message="新增成功"` | DB `service_plans` 新增 1 筆；`version = 0`，`price` 在 DB 儲存為 `Long` 整數 |
 | 2 | 驗證操作日誌 | — | `care_logs` 新增 1 筆，其 `action="SERVICE_PLAN_CRUD"`, `status="CREATE_SUCCESS"`，`details` 內含 `planId` |
-| **自動化對應** | `ServicePlanControllerTest.ts003_01_should_CreateNormalServicePlanSuccessfully()` | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_01_should_CreateNormalServicePlanSuccessfully()`；mock E2E `service-plans.spec.ts`「保母成功查詢方案列表與新增常態方案」（從 Demo 進入、填表、儲存後卡片，逐步截圖） | — | — |
 
 ---
 
@@ -50,7 +50,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | PUT 編輯方案 | 返回 200 OK，`message="修改成功"`，回傳最新資料 | DB `version` 由 0 遞增為 1；欄位內容更新成功 |
 | 2 | 驗證操作日誌 | — | `care_logs` 新增 1 筆，其 `action="SERVICE_PLAN_CRUD"`, `status="UPDATE_SUCCESS"`，`details` 記錄方案異動 |
-| **自動化對應** | `ServicePlanControllerTest.ts003_02_should_UpdateServicePlanSuccessfully()` | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_02_should_UpdateServicePlanSuccessfully()`；mock E2E `service-plans.spec.ts`「保母編輯方案與預設任務動態刪減」（編輯前 / 刪減任務後 / 儲存後卡片截圖 + `apiStep` 驗 PUT body） | — | — |
 
 ---
 
@@ -63,7 +63,7 @@
 | Step | Action | Functional Result | Technical Metric (NFR) |
 | :--- | :--- | :--- | :--- |
 | 1 | PUT 傳入 version = 0 編輯 | 返回 409 Conflict，`error="MSG_DATA_CONCURRENCY_CONFLICT"` | DB 資料無任何變更，`version` 依然為 1，`ObjectOptimisticLockingFailureException` 被 `GlobalExceptionHandler` 全域攔截（此為全專案共用慣例，非本方案獨有錯誤碼） |
-| **自動化對應** | `ServicePlanControllerTest.ts003_03_should_ThrowConflictException_When_OptimisticLockingFailure()` | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_03_should_ThrowConflictException_When_OptimisticLockingFailure()`；mock E2E `service-plans.spec.ts`「樂觀鎖衝突 409」（表單紅字截圖） | — | — |
 
 ---
 
@@ -77,7 +77,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | DELETE 刪除方案 P1 | 返回 200 OK，`message="刪除成功"` | DB 中 `service_plans.is_deleted` 變為 `true`（物理資料未被刪除，以利歷史訂單回溯） |
 | 2 | 驗證操作日誌 | — | `care_logs` 新增 1 筆，其 `action="SERVICE_PLAN_CRUD"`, `status="DELETE_SUCCESS"` |
-| **自動化對應** | `ServicePlanControllerTest.ts003_04_should_DeleteServicePlanLogically()` | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_04_should_DeleteServicePlanLogically()`；mock E2E `service-plans.spec.ts`「方案排序調整與下架功能」（`trackDialogs`+`expectDialog` 接手下架確認框，下架後卡片保留並標示已下架） | — | — |
 
 ---
 
@@ -90,7 +90,7 @@
 | Step | Action | Functional Result | Technical Metric (NFR) |
 | :--- | :--- | :--- | :--- |
 | 1 | POST 傳入排序陣列 [P2, P1] | 返回 200 OK，`message="修改成功"` | DB 中 `service_plans` 記錄批次更新：P2.sort_order = 0, P1.sort_order = 1 |
-| **自動化對應** | `ServicePlanControllerTest.ts003_05_should_SortServicePlansSuccessfully()` | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_05_should_SortServicePlansSuccessfully()`；mock E2E `service-plans.spec.ts`「方案排序調整與下架功能」（排序前後截圖 + `apiStep` 驗送出 `[plan-2, plan-1]`） | — | — |
 
 ---
 
@@ -117,7 +117,7 @@
 | Step | Action | Functional Result | Technical Metric (NFR) |
 | :--- | :--- | :--- | :--- |
 | 1 | POST 帶日期區間建立方案 | 返回 403 Forbidden，`error="AUTH_PLAN_LIMIT"` | `ServicePlanService` 拋出 `AuthPlanLimitException` 並被全域攔截；DB 無新增資料 |
-| **自動化對應** | `ServicePlanControllerTest.ts003_07_should_RejectDateLimit_When_FreeSitter()` | — | — |
+| **自動化對應** | `ServicePlanControllerTest.ts003_07_should_RejectDateLimit_When_FreeSitter()`；mock E2E `service-plans.spec.ts`「SaaS 日期區間 403」（表單紅字截圖） | — | — |
 
 ---
 
