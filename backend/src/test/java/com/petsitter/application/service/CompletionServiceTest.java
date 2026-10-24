@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 @WithMockUser(roles = "INTERNAL")
 @DisplayName("SD-009: 訂單結案服務測試")
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class CompletionServiceTest {
 
     static {
@@ -227,6 +228,27 @@ class CompletionServiceTest {
         Order completed = orderRepository.findById(order.getId()).orElseThrow();
         assertThat(completed.getStatus()).isEqualTo("COMPLETED");
         assertThat(completed.getPayoutAt()).isEqualTo(completed.getCompletedAt().plusDays(3));
+    }
+
+    @Test
+    @DisplayName("自動結案：IN_PROGRESS 零行程訂單不結案、不排撥款、不寫 AUTO_COMPLETED 日誌（fix-batch10 H3，與 N10 一致）")
+    void should_SkipAutoCompletion_When_OrderHasNoVisits(org.springframework.boot.test.system.CapturedOutput output) {
+        Order empty = createOrder("IN_PROGRESS");
+        Order normal = createOrder("IN_PROGRESS");
+        addVisit(normal, "DONE", OffsetDateTime.now().minusHours(50));
+
+        completionService.triggerAutoCompletion();
+
+        Order untouched = orderRepository.findById(empty.getId()).orElseThrow();
+        assertThat(untouched.getStatus()).isEqualTo("IN_PROGRESS");
+        assertThat(untouched.getCompletedAt()).isNull();
+        assertThat(untouched.getPayoutAt()).isNull();
+        assertThat(orderLogRepository.findAll())
+                .noneMatch(l -> l.getOrder().getId().equals(empty.getId()));
+        assertThat(output.getAll()).contains("Order " + empty.getId() + " (IN_PROGRESS) has no visits");
+
+        // 同一批的正常訂單照常結案，零行程那張不會中斷排程
+        assertThat(orderRepository.findById(normal.getId()).orElseThrow().getStatus()).isEqualTo("COMPLETED");
     }
 
     private void addVisit(Order order, String status, OffsetDateTime scheduledAt) {

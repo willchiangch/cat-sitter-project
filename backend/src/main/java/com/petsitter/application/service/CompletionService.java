@@ -52,7 +52,16 @@ public class CompletionService {
         
         for (Order order : inProgressOrders) {
             List<Visit> visits = visitRepository.findByOrderId(order.getId());
-            
+
+            // 零行程訂單不自動結案（與 manualComplete 的 N10 檢查一致；fix-batch10 H3）：allMatch 對空集合回 true、
+            // lastVisitTime 退回 OffsetDateTime.MIN 必定早於門檻，過去會把「沒有任何服務」的訂單直接結案放款。
+            // 留 WARN log 供人工處理（例如訂單變更把行程全刪掉、或預約 dates 為空的異常單）
+            if (visits.isEmpty()) {
+                log.warn("[AutoCompletion] Order {} ({}) has no visits, skipped auto-completion; needs manual review",
+                        order.getId(), order.getStatus());
+                continue;
+            }
+
             // 檢查是否所有行程都已結束 (打卡或被系統關閉)
             boolean allFinished = visits.stream().allMatch(v -> 
                 "DONE".equals(v.getStatus()) || "CLOSED_BY_SYSTEM".equals(v.getStatus()));
