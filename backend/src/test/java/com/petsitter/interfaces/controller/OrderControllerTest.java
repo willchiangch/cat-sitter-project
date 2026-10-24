@@ -140,6 +140,82 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("fix-batch10 H5：POST /{orderId}/cancel 飼主本人撤 PENDING 單 → 200，身分取自 token")
+    void should_CancelOrder_When_OwnerCancelsOwnPendingOrder() throws Exception {
+        Order order = orderRepository.findById(realOrderId).orElseThrow();
+        order.setStatus("PENDING");
+        orderRepository.saveAndFlush(order);
+        int version = orderRepository.findById(realOrderId).orElseThrow().getVersion();
+        TokenContext.setUserId(ownerId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":" + version + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("已取消預約"));
+
+        Order after = orderRepository.findById(realOrderId).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(after.getStatus()).isEqualTo("CANCELLED");
+        org.assertj.core.api.Assertions.assertThat(after.getCancelledBy()).isEqualTo("OWNER");
+
+        // 保母端訂單詳情 / 清單看得到 cancelledBy=OWNER（前端據此顯示「飼主已取消預約」）
+        TokenContext.setUserId(sitterId);
+        mockMvc.perform(get("/api/orders/{orderId}", realOrderId)
+                .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cancelledBy").value("OWNER"))
+                .andExpect(jsonPath("$.cancellableByOwner").value(false));
+        mockMvc.perform(get("/api/orders/sitter")
+                .with(user(sitterId.toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].cancelledBy").value("OWNER"));
+    }
+
+    @Test
+    @DisplayName("fix-batch10 H5：POST /{orderId}/cancel 保母角色 → 403、別的飼主 → 403、已付款 → 409、缺 version → 400")
+    void should_RejectCancel_When_NotOwnerOrNotCancellable() throws Exception {
+        Order order = orderRepository.findById(realOrderId).orElseThrow();
+        order.setStatus("PENDING");
+        orderRepository.saveAndFlush(order);
+        int version = orderRepository.findById(realOrderId).orElseThrow().getVersion();
+        String body = "{\"version\":" + version + "}";
+
+        TokenContext.setUserId(sitterId);
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", realOrderId)
+                .with(user(sitterId.toString()).roles("SITTER"))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+
+        User stranger = userRepository.save(User.builder().email("stranger-h5@test.com").passwordHash("hash").role("OWNER").build());
+        TokenContext.setUserId(stranger.getId());
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", realOrderId)
+                .with(user(stranger.getId().toString()).roles("OWNER"))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+
+        TokenContext.setUserId(ownerId);
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER"))
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+
+        org.assertj.core.api.Assertions.assertThat(orderRepository.findById(realOrderId).orElseThrow().getStatus())
+                .isEqualTo("PENDING");
+
+        Order paid = orderRepository.findById(realOrderId).orElseThrow();
+        paid.setStatus("PAID");
+        orderRepository.saveAndFlush(paid);
+        int paidVersion = orderRepository.findById(realOrderId).orElseThrow().getVersion();
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"version\":" + paidVersion + "}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("STATE_CONFLICT"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("PRD-016")));
+    }
+
+    @Test
     @DisplayName("fix-batch10 H2：POST /{orderId}/complete 對已 COMPLETED 訂單回 409 STATE_CONFLICT，撥款日期不變")
     void should_Return409_And_KeepPayoutAt_When_CompletingCompletedOrder() throws Exception {
         Order order = orderRepository.findById(realOrderId).orElseThrow();

@@ -204,6 +204,15 @@ export const completeOrder = async (
   return response.data;
 };
 
+// 飼主付款前撤單（PRD-006 例外處理 / SD-006 §2.5）。version 是畫面上的訂單版本，保母已接單 / 報價時回 409
+export const cancelOrderByOwner = async (
+  orderId: string,
+  version: number
+): Promise<{ status: string; message: string }> => {
+  const response = await axiosClient.post(`/orders/${orderId}/cancel`, { version });
+  return response.data;
+};
+
 // 7. 飼主回報爭議 (SD-009)
 export const disputeOrder = async (
   orderId: string,
@@ -294,6 +303,10 @@ export interface OrderDetailResponseDto {
   payoutAt?: string;
   items: OrderItemDto[];
   sitterPaymentInfo?: BankAccountInfo;
+  // 取消者：'OWNER' = 飼主付款前撤單；保母婉拒 / 訂單變更取消等為 undefined（fix-batch10 H5）
+  cancelledBy?: string;
+  // 目前是否可由飼主撤單（後端 OwnerCancellationService 判斷：PENDING，或未上傳憑證且非補款的 PENDING_PAYMENT）
+  cancellableByOwner?: boolean;
 }
 
 // 取得訂單詳情 (SD-007)
@@ -338,6 +351,7 @@ export interface OrderSummaryDto {
   hasPaymentProof?: boolean; // 定義同 OrderDetailResponseDto.hasPaymentProof
   paymentProofLastFive?: string;
   scheduledDatesLabel: string;
+  cancelledBy?: string; // 定義同 OrderDetailResponseDto.cancelledBy
 }
 
 // 飼主查詢自己的訂單清單

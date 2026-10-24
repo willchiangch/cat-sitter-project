@@ -162,8 +162,11 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
     return (
       <div
         style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+        data-testid="sitter-order-eval-not-pending"
       >
-        此訂單目前狀態為「{orderStatusLabel(order.status)}」，非待評估狀態，無法在此頁面操作。
+        {order.status === 'CANCELLED' && order.cancelledBy === 'OWNER'
+          ? '飼主已取消預約，無法在此頁面操作。'
+          : `此訂單目前狀態為「${orderStatusLabel(order.status)}」，非待評估狀態，無法在此頁面操作。`}
       </div>
     );
   }

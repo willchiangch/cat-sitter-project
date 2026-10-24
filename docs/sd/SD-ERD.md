@@ -52,6 +52,7 @@ erDiagram
   - **`payout_at`**: TIMESTAMPTZ (預計撥款給保母之日期)
   - **`adjustment_reason`**: TEXT (保母手動調價的原因說明)
   - **`is_disputed`**: BOOLEAN (是否處於爭議凍結狀態，預設為 false)
+  - **`cancelled_by`**: VARCHAR(16) (取消者，`OWNER` = 飼主付款前撤單，見 SD-006 §2.5；保母婉拒 / 訂單變更取消 / 舊資料為 NULL。V20261025_01)
 - **VISIT**
   - `order_id`: UUID (FK)
   - `plan_id`: UUID (FK, 關聯方案)

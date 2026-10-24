@@ -28,6 +28,14 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("SELECT o FROM Order o WHERE o.id = :id AND o.sitter.id = :sitterId")
     Optional<Order> findByIdAndSitterIdForUpdate(@Param("id") UUID id, @Param("sitterId") UUID sitterId);
 
+    /**
+     * 飼主撤單（OwnerCancellationService）前鎖住訂單列。與保母接單 / 報價的 findByIdAndSitterIdForUpdate
+     * 是同一列的同一把 FOR UPDATE 鎖，跨角色的併發請求在這裡排隊，後到者讀到先到者提交的狀態 / version → 409。
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") UUID id);
+
     @Query("SELECT o FROM Order o WHERE o.status IN ('IN_PROGRESS', 'CONFIRMED') " +
            "AND NOT EXISTS (SELECT v FROM Visit v WHERE v.order = o AND v.status NOT IN ('DONE', 'CLOSED_BY_SYSTEM')) " +
            "AND NOT EXISTS (SELECT v2 FROM Visit v2 WHERE v2.order = o AND v2.scheduledAt > :threshold)")

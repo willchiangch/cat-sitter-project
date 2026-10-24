@@ -294,6 +294,24 @@ const SitterOrders: React.FC = () => {
                 </span>
               </div>
 
+              {/* 飼主付款前撤單（PRD-006 例外處理）：保母婉拒、訂單變更取消不顯示這行 */}
+              {order.status === 'CANCELLED' && order.cancelledBy === 'OWNER' && (
+                <p
+                  data-testid={`sitter-order-owner-cancelled-${order.id}`}
+                  style={{
+                    margin: '0 0 1rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--color-surface-high)',
+                    color: 'var(--color-on-surface-variant)',
+                    fontSize: '0.875rem',
+                    fontWeight: '600'
+                  }}
+                >
+                  飼主已取消預約
+                </p>
+              )}
+
               {/* 評估面板 (僅在 status === 'PENDING' 時顯示)：導去評估頁選擇原價接受/調整報價/拒絕 */}
               {order.status === 'PENDING' && (
                 <div

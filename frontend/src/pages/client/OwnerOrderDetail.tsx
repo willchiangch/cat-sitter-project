@@ -6,6 +6,7 @@ import { ownerVisitActionLabel, visitStatusLabel } from '../../components/ui/sta
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
 import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
+  cancelOrderByOwner,
   completeOrder,
   disputeOrder,
   getOrderDetail,
@@ -135,6 +136,25 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
     } catch (err) {
       console.error(err);
       alert('結案失敗，請稍後再試。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 飼主付款前撤單（PRD-006 例外處理）。可不可撤由後端 cancellableByOwner 決定（含補款階段排除），前端不自行推論
+  const handleCancelBooking = async () => {
+    if (!order) return;
+    if (!window.confirm('確定要取消這筆預約嗎？取消後保母會收到通知，此動作無法復原。')) return;
+    setLoading(true);
+    try {
+      await cancelOrderByOwner(orderId, order.version ?? 0);
+      await fetchOrderDetail();
+      alert('已取消預約');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || '取消預約失敗，請稍後再試');
+      // 409（保母剛接單 / 報價、已上傳憑證）時重抓，讓畫面反映最新狀態
+      await fetchOrderDetail();
     } finally {
       setLoading(false);
     }
@@ -549,6 +569,41 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {order.cancellableByOwner && (
+            <button
+              onClick={handleCancelBooking}
+              disabled={loading}
+              className="btn-primary"
+              style={{
+                width: '100%',
+                padding: '1rem',
+                background: 'var(--color-surface-high)',
+                color: 'var(--color-on-surface-variant)',
+                boxShadow: 'none'
+              }}
+              data-testid="owner-cancel-booking-btn"
+            >
+              {loading ? '處理中...' : '取消預約'}
+            </button>
+          )}
+
+          {status === 'CANCELLED' && (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '1rem',
+                backgroundColor: 'var(--color-surface-high)',
+                color: 'var(--color-on-surface-variant)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+              data-testid="cancelled-status-banner"
+            >
+              {order.cancelledBy === 'OWNER' ? '您已取消此預約' : '此預約已取消'}
+            </div>
+          )}
+
           {(status === 'CONFIRMED' || status === 'IN_PROGRESS') && (
             <>
               <OwnerOrderVisitList orderId={orderId} />

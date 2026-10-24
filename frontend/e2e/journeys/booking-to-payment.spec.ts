@@ -8,6 +8,7 @@ import {
   bootstrapPendingOrder,
   setSitterPlanTier,
   awaitOrderStatus,
+  awaitNotification,
   pollUntil,
   apiAuthed,
   expectSignedPaymentProof
@@ -367,6 +368,100 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
         paymentProofLastFive: order.paymentProofLastFive,
         paidAt: order.paidAt
       };
+    });
+
+    await ownerContext.close();
+  });
+
+  /**
+   * 撤單分支（fix-batch10 H5，PRD-006 例外處理「飼主在保母審核中嘗試取消」）：
+   * 保母評估中（PENDING）飼主在詳情頁取消預約 → 訂單 CANCELLED、cancelledBy OWNER，保母收到 ORDER_AFFAIR 通知，
+   * 保母端歷史訂單顯示「飼主已取消預約」、評估頁沒有接單按鈕，保母直接打接單 API 也是 409。
+   */
+  test('保母評估中飼主取消預約：保母端顯示「飼主已取消預約」且無法接單', async ({
+    page,
+    request,
+    browser
+  }) => {
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：API 兜出 VERIFIED 保母 + 飼主 + PENDING 訂單（$600）',
+      async () => {
+        const ctx = await bootstrapPendingOrder(request, 'bc', 'Journey撤單方案');
+        const order = await awaitOrderStatus(request, ctx.owner, ctx.orderId, ['PENDING']);
+        expect(order.cancellableByOwner).toBe(true);
+        return { ...ctx, status: order.status, cancellableByOwner: order.cancellableByOwner };
+      }
+    );
+
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    const ownerDialogs = trackDialogs(ownerPage);
+    await setBrowserAuth(ownerPage, owner, 'client');
+
+    await step('BC-01 飼主開訂單詳情：保母評估中，顯示「取消預約」', ownerPage, async () => {
+      await ownerPage.goto(`/owner/orders/${orderId}`);
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('待評估');
+      await expect(ownerPage.getByTestId('owner-cancel-booking-btn')).toHaveText('取消預約');
+    });
+
+    await step('BC-02 確認取消：訂單已取消、顯示「您已取消此預約」', ownerPage, async () => {
+      await ownerPage.getByTestId('owner-cancel-booking-btn').click();
+      await expectDialog(ownerDialogs, /確定要取消這筆預約嗎？/);
+      await expectDialog(ownerDialogs, /^已取消預約$/);
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已取消');
+      await expect(ownerPage.getByTestId('cancelled-status-banner')).toHaveText('您已取消此預約');
+      await expect(ownerPage.getByTestId('owner-cancel-booking-btn')).toHaveCount(0);
+    });
+
+    await apiStep('撤單後訂單：CANCELLED、cancelledBy OWNER、不可再撤', async () => {
+      const order = await awaitOrderStatus(request, owner, orderId, ['CANCELLED']);
+      expect(order.cancelledBy).toBe('OWNER');
+      expect(order.cancellableByOwner).toBe(false);
+      return {
+        status: order.status,
+        cancelledBy: order.cancelledBy,
+        cancellableByOwner: order.cancellableByOwner
+      };
+    });
+
+    await apiStep('保母收到「飼主已取消預約」通知（ORDER_AFFAIR）', async () => {
+      const n = await awaitNotification(request, sitter, {
+        category: 'ORDER_AFFAIR',
+        role: 'SITTER',
+        predicate: (x: any) => x.title === '飼主已取消預約'
+      });
+      expect(n.linkUrl).toBe('/sitter/orders');
+      return { title: n.title, category: n.category, linkUrl: n.linkUrl };
+    });
+
+    await apiStep('保母直接打原價接單 API：409，訂單仍是 CANCELLED', async () => {
+      const res = await request.post(`/api/orders/${orderId}/confirm`, {
+        headers: apiAuthed(sitter),
+        params: { sitterId: sitter.userId }
+      });
+      expect(res.status()).toBe(409);
+      const order = await awaitOrderStatus(request, owner, orderId, ['CANCELLED']);
+      return { confirmStatus: res.status(), orderStatus: order.status };
+    });
+
+    await setBrowserAuth(page, sitter, 'sitter');
+
+    await step('BC-03 保母歷史訂單：顯示「飼主已取消預約」，評估中沒有這張單', page, async () => {
+      await page.goto('/sitter/orders');
+      await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
+      await page.getByTestId('sitter-orders-tab-history').click();
+      await expect(page.getByTestId(`sitter-order-owner-cancelled-${orderId}`)).toHaveText(
+        '飼主已取消預約'
+      );
+    });
+
+    await step('BC-04 保母評估頁：顯示「飼主已取消預約」，沒有接單 / 報價按鈕', page, async () => {
+      await page.goto(`/sitter/eval/${orderId}`);
+      await expect(page.getByTestId('sitter-order-eval-not-pending')).toHaveText(
+        '飼主已取消預約，無法在此頁面操作。'
+      );
+      await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toHaveCount(0);
+      await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toHaveCount(0);
     });
 
     await ownerContext.close();

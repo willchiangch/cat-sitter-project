@@ -35,6 +35,7 @@ public class OrderController {
     private final PaymentService paymentService;
     private final OrderQueryService orderQueryService;
     private final PaymentProofAccessService paymentProofAccessService;
+    private final OwnerCancellationService ownerCancellationService;
 
     /**
      * 飼主送出預約申請
@@ -164,6 +165,20 @@ public class OrderController {
 
         evaluationService.rejectOrder(sitterId, orderId, request, idempotencyKey);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已拒絕此訂單"));
+    }
+
+    /**
+     * 飼主付款前撤單（PRD-006 例外處理 / SD-006 §2.5，fix-batch10 H5）。
+     * 身分一律取自 token（TokenContext），只有訂單的飼主能撤；可撤狀態見 OwnerCancellationService
+     */
+    @PreAuthorize("hasRole('OWNER')")
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<Map<String, String>> cancelOrderByOwner(
+            @PathVariable UUID orderId,
+            @jakarta.validation.Valid @RequestBody com.petsitter.application.dto.OwnerCancelOrderRequest request) {
+        UUID ownerId = TokenContext.getUserId();
+        ownerCancellationService.cancelByOwner(ownerId, orderId, request.getVersion());
+        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已取消預約"));
     }
 
     /**

@@ -3,6 +3,7 @@ package com.petsitter.application.listener;
 import com.petsitter.application.event.VisitNotificationEvent;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
+import com.petsitter.domain.event.OrderCancelledByOwnerEvent;
 import com.petsitter.domain.event.PaymentProofSubmittedEvent;
 import com.petsitter.domain.event.PaymentRejectedEvent;
 import com.petsitter.domain.event.PaymentVerifiedEvent;
@@ -47,6 +48,28 @@ public class NotificationListener {
                     order.getSitter().getId(),
                     "收到付款憑證",
                     "飼主已上傳訂單的線下付款憑證，請前往核對並入帳。",
+                    "ORDER_AFFAIR",
+                    "/sitter/orders",
+                    "SITTER"
+            );
+        }
+    }
+
+    /**
+     * 飼主於付款前撤單（PRD-006 例外處理 / fix-batch10 H5）：通知保母，類別沿用訂單事務 ORDER_AFFAIR
+     */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrderCancelledByOwner(OrderCancelledByOwnerEvent event) {
+        log.info("Async notification - Order {} cancelled by owner {} (was {})",
+                event.orderId(), event.ownerId(), event.previousStatus());
+
+        Order order = orderRepository.findById(event.orderId()).orElse(null);
+        if (order != null) {
+            notificationService.createNotification(
+                    order.getSitter().getId(),
+                    "飼主已取消預約",
+                    "飼主已取消訂單 #" + event.orderId().toString().substring(0, 8) + " 的預約，無需再處理此筆訂單。",
                     "ORDER_AFFAIR",
                     "/sitter/orders",
                     "SITTER"

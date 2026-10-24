@@ -42,6 +42,10 @@ public class OrderDetailResponseDto {
     private OffsetDateTime completedAt;
     private OffsetDateTime payoutAt;
     private List<OrderItem> items; // 預約內容快照清單
+    /** 取消者：OWNER = 飼主付款前撤單；其他取消方式為 null（fix-batch10 H5） */
+    private String cancelledBy;
+    /** 目前是否可由飼主撤單（OwnerCancellationService.rejectReason 為空），前端據此顯示「取消預約」 */
+    private boolean cancellableByOwner;
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
     private BankAccountInfo sitterPaymentInfo; // 解密後之保母收款資訊 (動態過濾，其餘狀態為 null)
 }

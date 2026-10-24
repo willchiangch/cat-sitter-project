@@ -45,7 +45,21 @@
 | B2-05 | UI：飼主上傳憑證（後五碼 `24680`） | 「付款憑證提交成功」；reload 後徽章「已付款」、金額仍 `$ 800` | `Order=PAID` |
 | B2-06 | UI：保母「進行中」核對入帳 | 後五碼 `24680`、卡片 `$ 800`、首次付款不顯示「補款差額」列；確認後成立 | `POST /verify-payment` 200，`Order=CONFIRMED`；最後 `apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`paymentProofLastFive 24680` |
 
-* **未涵蓋**：報價快照（`order_snapshots`）沒有對外 API，快照金額只由 JUnit `OrderEvaluationTest` 驗證；同一張單併發報價只成功一次（409）真後端無法用 E2E 穩定重現，仍只有 JUnit TS-006-05/06。
+### 二-C、飼主撤單分支（保母評估中取消預約，2026-10-25 fix-batch10 H5 新增，需 CI 驗證）
+
+PRD-006 例外處理「飼主在保母審核中嘗試取消」。用 `bootstrapPendingOrder` 純 API 兜出 PENDING 訂單（$600），從飼主取消開始走 UI。本機不跑真後端（:8080 不重啟、跑的是舊版），這條只在 CI 對正式站驗證。
+
+| 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
+| :--- | :--- | :--- | :--- |
+| 前置 | API：`bootstrapPendingOrder('bc')` | 訂單 `PENDING`、`cancellableByOwner true` | `apiStep` 留 JSON |
+| BC-01 | UI：飼主 `/owner/orders/{id}` | 徽章「待評估」，顯示「取消預約」 | `owner-cancel-booking-btn` |
+| BC-02 | UI：點「取消預約」→ confirm | alert「已取消預約」；徽章「已取消」、`cancelled-status-banner`「您已取消此預約」、取消按鈕消失 | `POST /api/orders/{id}/cancel` 200；`apiStep` 斷言 `CANCELLED`、`cancelledBy OWNER`、`cancellableByOwner false` |
+| 通知 | API：保母 `GET /api/notifications?role=SITTER` | 「飼主已取消預約」 | `awaitNotification` 輪詢（AFTER_COMMIT + @Async）；`ORDER_AFFAIR`、`linkUrl /sitter/orders` |
+| 接單 | API：保母 `POST /api/orders/{id}/confirm` | 409，訂單仍 `CANCELLED` | 跨角色：撤單後保母無法再接 |
+| BC-03 | UI：保母 `/sitter/orders` | 「評估中」沒有這張單；「歷史訂單」顯示「飼主已取消預約」 | `btn-go-order-eval` 0、`sitter-order-owner-cancelled-{id}` |
+| BC-04 | UI：保母 `/sitter/eval/{id}` | 「飼主已取消預約，無法在此頁面操作。」，沒有原價接受 / 報價按鈕 | `sitter-order-eval-not-pending` |
+
+* **未涵蓋**：報價快照（`order_snapshots`）沒有對外 API，快照金額只由 JUnit `OrderEvaluationTest` 驗證；同一張單併發報價只成功一次（409）、飼主撤單 vs 保母接單 / 報價併發只成功一方，真後端無法用 E2E 穩定重現，仍只有 JUnit TS-006-05/06/08。
 
 ---
 

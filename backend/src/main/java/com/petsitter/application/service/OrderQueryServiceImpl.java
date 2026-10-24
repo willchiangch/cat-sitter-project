@@ -35,6 +35,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     private final ProfileRepository profileRepository;
     private final VisitRepository visitRepository;
     private final SupplementPaymentResolver supplementPaymentResolver;
+    private final OwnerCancellationService ownerCancellationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -75,6 +76,8 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .completedAt(order.getCompletedAt())
                 .payoutAt(order.getPayoutAt())
                 .items(order.getItems())
+                .cancelledBy(order.getCancelledBy())
+                .cancellableByOwner(ownerCancellationService.isCancellableByOwner(order))
                 .sitterPaymentInfo(bankAccountInfo)
                 .build();
     }
@@ -170,6 +173,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .hasPaymentProof(hasText(proof.storedRef()))
                 .paymentProofLastFive(proof.lastFive())
                 .scheduledDatesLabel(buildScheduledDatesLabel(order.getItems()))
+                .cancelledBy(order.getCancelledBy())
                 .build();
     }
 

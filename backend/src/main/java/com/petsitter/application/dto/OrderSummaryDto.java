@@ -28,4 +28,6 @@ public class OrderSummaryDto {
     private boolean hasPaymentProof;
     private String paymentProofLastFive;
     private String scheduledDatesLabel;
+    /** 取消者：OWNER = 飼主付款前撤單（保母端顯示「飼主已取消預約」）；其他取消方式為 null */
+    private String cancelledBy;
 }

@@ -4,6 +4,7 @@ import com.petsitter.application.event.VisitNotificationEvent;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.MediaExpiryWarningEvent;
+import com.petsitter.domain.event.OrderCancelledByOwnerEvent;
 import com.petsitter.domain.event.PaymentProofSubmittedEvent;
 import com.petsitter.domain.event.PaymentRejectedEvent;
 import com.petsitter.domain.event.PaymentVerifiedEvent;
@@ -109,6 +110,25 @@ class NotificationListenerLinkTest {
         String link = capturedLink();
         assertThat(link).isEqualTo("/owner/orders/" + orderId);
         assertIsFrontendRoute(link);
+    }
+
+    @Test
+    @DisplayName("飼主撤單（fix-batch10 H5）→ 通知保母，ORDER_AFFAIR，連到保母訂單管理 /sitter/orders")
+    void orderCancelledByOwnerNotifiesSitter() {
+        stubOrder();
+        UUID sitterId = orderRepository.findById(orderId).orElseThrow().getSitter().getId();
+        listener.onOrderCancelledByOwner(new OrderCancelledByOwnerEvent(orderId, UUID.randomUUID(), "PENDING"));
+
+        ArgumentCaptor<String> category = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> role = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).createNotification(org.mockito.ArgumentMatchers.eq(sitterId),
+                org.mockito.ArgumentMatchers.eq("飼主已取消預約"), anyString(), category.capture(), link.capture(),
+                role.capture());
+        assertThat(category.getValue()).isEqualTo("ORDER_AFFAIR");
+        assertThat(role.getValue()).isEqualTo("SITTER");
+        assertThat(link.getValue()).isEqualTo("/sitter/orders");
+        assertIsFrontendRoute(link.getValue());
     }
 
     @Test
