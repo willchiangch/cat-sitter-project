@@ -131,9 +131,9 @@
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術驗證指標 (Then - NFR) |
 | :--- | :--- | :--- | :--- |
 | 1 | 觸發各監聽器 | 連結為真實路由 | `NotificationListenerLinkTest`：解析 `routes.tsx` 的 `path="..."` 逐一比對，不得以 `/client/` 開頭 |
-| 2 | 點新格式通知 `/owner/orders/{id}` | 導到該筆訂單詳情 | `e2e/notification-links.spec.ts` `toHaveURL` |
-| 3 | 點舊通知 `/client/orders`、`/visits/report?orderId={id}` | 分別導到 `/owner/orders`、`/owner/orders/{id}` | 同上 |
-| 4 | 點推薦通知 `/booking/{sitterId}` | 導到預約頁 | 同上 |
+| 2 | 點新格式通知 `/owner/orders/{id}` | 導到該筆訂單詳情 | `e2e/notification-links.spec.ts` `toHaveURL` + 截圖前斷言 `order-status-badge`「已確認」 |
+| 3 | 點舊通知 `/client/orders`、`/visits/report?orderId={id}` | 分別導到 `/owner/orders`、`/owner/orders/{id}` | 同上（列表斷言空狀態文字、詳情斷言徽章） |
+| 4 | 點推薦通知 `/booking/{sitterId}` | 導到預約頁 | 同上（斷言「選擇服務方案」標題） |
 | 5 | 點 `//evil.example.com/...` | 不導覽，留在 `/notifications` | 同上 |
 
 ---
@@ -141,3 +141,5 @@
 ## 本測試發現並修復的真實 bug
 
 **通知連結寫成不存在的路由（2026-10，Backlog 第 3 批 D1 / 第 2 批另外發現 #2）**：`NotificationListener` 的付款確認、付款退回、照護日誌通知 `linkUrl` 都是 `/client/orders`，影像到期提醒是 `/visits/report?orderId=`，前端 `routes.tsx` 根本沒有這兩條路徑（飼主端是 `/owner/orders`）。前端點擊處理只認 `/sitter/orders`、`/client/orders`、`/sitter/kyc` 三個寫死字串，`/client/orders` 被硬轉成 `/owner/orders` 才看起來正常；影像到期提醒、保母推薦（`/booking/{id}`）點了完全沒反應。修法：後端改寫真實路由，飼主訂單相關一律導 `/owner/orders/{orderId}`（`VisitNotificationEvent` 補 `orderId`）；前端改成 `resolveNotificationLink()` 原樣導覽，舊通知於前端轉換、拒絕非同源路徑。迴歸見情境六。
+
+**mock E2E 落地截圖是錯誤畫面（2026-10-24，驗收 R1 / backlog 第 6 批，測試缺陷非產品 bug）**：`notification-links.spec.ts` 自己寫一份 session mock，沒有攔訂單詳情與 visits，點通知後詳情頁帶假 token 打到後端 401 → refresh 401，截圖是紅字「Refresh token 找不到或無效」，斷言只看 URL 所以照樣綠。改用 `mockDemoSession` + `mockOwnerOrderDetail` / `mockOwnerOrderList` + 推薦預約頁的公開檔案 / 方案 / 問卷 / 收藏 / 寵物 mock；每個案例導頁後先斷言落地頁業務內容再截圖，`test.afterEach` 斷言沒有漏 mock（SD-FRONTEND-SPEC §4.1）。
