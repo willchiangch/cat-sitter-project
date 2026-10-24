@@ -237,7 +237,8 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
           .getByTestId('public-profile-plan-item')
           .filter({ hasText: plan.name });
         await expect(item).toBeVisible();
-        await expect(item).toContainText(`NT$ ${plan.price}`);
+        // 驗收 N15：全站金額統一 formatMoney（`$ 1,200`），公開頁不再是 `NT$ 600`
+        await expect(item).toContainText(`$ ${plan.price.toLocaleString('en-US')}`);
       }
       // C1 迴歸 (X2)：匿名公開頁不得在背景以種子帳號登入
       await expectStillAnonymous(anonPage, anonLogins);

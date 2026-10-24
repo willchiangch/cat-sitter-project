@@ -272,3 +272,6 @@
 **方案卡價格溢出卡片右邊界（2026-10，驗收 N2 / Backlog 第 3 批 U7）**：方案名稱含無法斷行的長英數字串時，卡片左欄不縮、右側價格 `flex-shrink:0`，價格被擠出卡片。修法見 SD-003 §0.2；迴歸 `frontend/e2e/sitter-plan-card-layout.spec.ts`（逐張斷言價格區塊落在卡片內、卡片無水平溢出）。
 
 **每日容量 `dailyCapacity` 是規格沒要求的設計，依產品決策移除（2026-10-24，backlog 第 7 批）**：SD 層自行加入的「每日接單容量限制」與 PRD-005（同日已有訂單不阻擋，由保母審核決定）、PRD-006（保母依自身檔期審核、最終決定權）矛盾，且前後兩批為了它補了 `CapacityGuard` 與「算趟還是算單」的待決策。產品決策為系統不做任何接單容量控管，`ServicePlan.dailyCapacity`、DTO 驗證、方案表單欄位與卡片徽章一併移除。迴歸見 Scenario 1b。
+
+**方案卡價格沒有千分位「$ 1200」（2026-10-24，驗收 N15）**：`SitterPlans` 方案卡與預約頁方案價格直接印 `$ {plan.price}`，其他頁面是 `$ {x.toLocaleString()}`，公開頁又是 `NT$ 600`。新增全站唯一的 `formatMoney`（`src/utils/money.ts`，固定 en-US 千分位）並替換所有金額顯示（SD-FRONTEND-SPEC §6.4.1）。迴歸：`service-plans.spec.ts` 新增方案後卡片斷言 `$ 1,200`（舊版紅）。
+

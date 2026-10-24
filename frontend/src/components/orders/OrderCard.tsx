@@ -1,6 +1,7 @@
 import React from 'react';
 import Card from '../ui/Card';
 import StatusBadge from '../ui/StatusBadge';
+import { formatMoney } from '../../utils/money';
 
 interface OrderCardProps {
   order: {
@@ -109,7 +110,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick }) => {
           預估總額
         </span>
         <span style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '1.125rem' }}>
-          $ {order.totalAmount.toLocaleString()}
+          {formatMoney(order.totalAmount)}
         </span>
       </div>
 

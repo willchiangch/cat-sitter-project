@@ -8,6 +8,7 @@ import { getOrderDetail, confirmOrder, sendOrderQuote, rejectOrder } from '../..
 import type { OrderDetailResponseDto } from '../../api/orderApi';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { orderStatusLabel } from '../../components/ui/statusLabels';
+import { formatMoney } from '../../utils/money';
 
 const generateUUID = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -296,7 +297,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
                 style={{ fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}
                 data-testid={`sitter-order-eval-item-price-${idx}`}
               >
-                $ {(item.unitPrice * item.quantity).toLocaleString()}
+                {formatMoney(item.unitPrice * item.quantity)}
               </span>
             </div>
           ))}
@@ -332,7 +333,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
             }}
           >
             <span>飼主原始下單金額</span>
-            <span>$ {baseTotal.toLocaleString()}</span>
+            <span>{formatMoney(baseTotal)}</span>
           </div>
 
           <div
@@ -439,7 +440,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
             }}
           >
             <span>報價總計</span>
-            <span data-testid="sitter-order-eval-total">$ {finalTotal.toLocaleString()}</span>
+            <span data-testid="sitter-order-eval-total">{formatMoney(finalTotal)}</span>
           </div>
         </div>
       </Card>

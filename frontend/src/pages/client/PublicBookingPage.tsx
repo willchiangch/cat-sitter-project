@@ -20,6 +20,7 @@ import { createBooking } from '../../api/orderApi';
 import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
 import { useActiveQuestionsQuery } from '../../hooks/useQuestions';
 import { getMyFavorites, addFavoriteSitter, removeFavoriteSitter } from '../../api/favoriteApi';
+import { formatMoney } from '../../utils/money';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -466,7 +467,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                         fontSize: '1.1rem'
                       }}
                     >
-                      $ {plan.price} / {plan.durationMinutes ?? 60} 分鐘
+                      {formatMoney(plan.price)} / {plan.durationMinutes ?? 60} 分鐘
                     </span>
                   </div>
                   <p
@@ -1402,12 +1403,10 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                           color: 'var(--color-primary)'
                         }}
                       >
-                        小計: ${' '}
-                        {(
-                          (plan?.price || 0) *
-                          schedule.dates.length *
-                          schedule.timesPerDay
-                        ).toLocaleString()}
+                        小計:{' '}
+                        {formatMoney(
+                          (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay
+                        )}
                       </div>
                     </div>
                   );
@@ -1433,7 +1432,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
               data-testid="client-booking-total"
               style={{ fontWeight: '800', fontSize: '1.5rem', color: 'var(--color-primary)' }}
             >
-              $ {total.toLocaleString()}
+              {formatMoney(total)}
             </span>
           </div>
         </Card>

@@ -10,6 +10,7 @@ import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
 import { formatDiff, resolveModificationPhase } from '../../components/orders/modificationPhase';
 import RefundProofImage from '../../components/orders/RefundProofImage';
+import { formatMoney } from '../../utils/money';
 
 interface OwnerModificationConfirmProps {
   orderId: string;
@@ -345,7 +346,7 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
                   style={{ color: modRequest.diffAmount < 0 ? '#dc2626' : '#16a34a' }}
                   data-testid="mod-confirm-diff-amount"
                 >
-                  $ {modRequest.diffAmount.toLocaleString()} (負值為退款)
+                  {formatMoney(modRequest.diffAmount)} (負值為退款)
                 </strong>
               </div>
             )}

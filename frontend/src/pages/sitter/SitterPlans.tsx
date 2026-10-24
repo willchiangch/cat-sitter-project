@@ -10,6 +10,7 @@ import type { ServicePlan } from '../../types/servicePlan';
 import { ArrowUp, ArrowDown, Plus, Trash2, Upload, Edit2, X, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { defaultTasksFor } from '../../components/plans/defaultTasks';
+import { formatMoney } from '../../utils/money';
 
 const PET_TYPE_LABELS: Record<string, string> = {
   CAT: '🐱 貓咪',
@@ -390,7 +391,7 @@ const SitterPlans: React.FC = () => {
                         color: 'var(--color-primary)'
                       }}
                     >
-                      $ {plan.price}
+                      {formatMoney(plan.price)}
                     </div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
                       / {plan.durationMinutes ?? 60} 分鐘

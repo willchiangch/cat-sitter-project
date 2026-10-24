@@ -176,6 +176,9 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 
 2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。迴歸：`e2e/order-status-labels.spec.ts`（10 種訂單狀態逐一比對、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
 
+### 6.4.1 金額顯示（2026-10-24，驗收 N15）
+畫面上所有金額一律經由 `src/utils/money.ts` 的 `formatMoney(amount)` 輸出 `$ 1,200`（負數 `$ -600`），不得在頁面自己寫 `$ {x.toLocaleString()}` 或直接印 `$ {plan.price}`。千分位固定 `en-US`，不跟瀏覽器語系（無參數 `toLocaleString()` 在 de-DE 會是 `1.200`）。過去方案卡（`SitterPlans`）、預約頁方案價格是沒有千分位的 `$ 1200`，公開頁是 `NT$ 600`，其餘頁面 `$ 1,200`。迴歸：`e2e/service-plans.spec.ts` 新增方案卡斷言 `$ 1,200`；Journey A 步驟 8 公開頁斷言 `$ 600` / `$ 900`。
+
 ### 6.5 按鈕對比度（WCAG AA，2026-10）
 - 文字對背景對比度至少 4.5:1（一般文字）。
 - `.btn-primary` 的底色是 `background: var(--color-primary-gradient)`（`background-image`）。要做次要/破壞性按鈕時，**必須用 `background` 簡寫覆蓋**，只寫 `backgroundColor` 蓋不掉漸層。

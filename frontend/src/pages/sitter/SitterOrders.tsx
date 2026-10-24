@@ -10,6 +10,7 @@ import {
   useVerifyPaymentMutation,
   useRejectPaymentMutation
 } from '../../hooks/useOrders';
+import { formatMoney } from '../../utils/money';
 
 type TabType = 'evaluating' | 'ongoing' | 'history';
 
@@ -286,7 +287,7 @@ const SitterOrders: React.FC = () => {
                   style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '1.125rem' }}
                   data-testid={`sitter-order-total-${order.id}`}
                 >
-                  $ {order.totalAmount.toLocaleString()}
+                  {formatMoney(order.totalAmount)}
                 </span>
               </div>
 
@@ -385,9 +386,9 @@ const SitterOrders: React.FC = () => {
                           style={{ color: 'var(--color-primary)' }}
                           data-testid="verify-amount-due-value"
                         >
-                          $ {order.amountDue.toLocaleString()}
+                          {formatMoney(order.amountDue)}
                         </strong>
-                        （變更後總額 $ {order.totalAmount.toLocaleString()}）
+                        （變更後總額 {formatMoney(order.totalAmount)}）
                       </div>
                     )}
                     <div>

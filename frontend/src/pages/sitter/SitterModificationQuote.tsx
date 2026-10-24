@@ -10,6 +10,7 @@ import type { ModificationRequestDetailDto } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
 import { formatDiff, resolveModificationPhase } from '../../components/orders/modificationPhase';
 import RefundProofImage from '../../components/orders/RefundProofImage';
+import { formatMoney } from '../../utils/money';
 
 interface SitterModificationQuoteProps {
   orderId: string;
@@ -197,7 +198,7 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div style={noticeStyle} data-testid="quote-success-banner">
-            ✓ 報價已送出 (總額: $ {modRequest.newTotalAmount.toLocaleString()})，等待飼主確認
+            ✓ 報價已送出 (總額: {formatMoney(modRequest.newTotalAmount)})，等待飼主確認
           </div>
           {renderRejectButton()}
         </div>
@@ -208,7 +209,7 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
       <div style={mutedNoticeStyle} data-testid="mod-quote-readonly-summary">
         {phase === 'CLOSED'
           ? '此變更請求已結束'
-          : `飼主已同意變更：新總額 $ ${modRequest.newTotalAmount.toLocaleString()}（${formatDiff(modRequest.diffAmount)}）`}
+          : `飼主已同意變更：新總額 ${formatMoney(modRequest.newTotalAmount)}（${formatDiff(modRequest.diffAmount)}）`}
         {phase === 'SUPPLEMENT' && (
           <div style={{ fontWeight: 400, marginTop: '0.5rem', fontSize: '0.875rem' }}>
             等待飼主補款，收到補款憑證後請至訂單列表核對入帳。
@@ -319,7 +320,7 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
             >
               <span>目前訂單總額：</span>
               <strong data-testid="mod-quote-current-total">
-                $ {modRequest.currentOrderTotalAmount.toLocaleString()}
+                {formatMoney(modRequest.currentOrderTotalAmount)}
               </strong>
             </div>
 

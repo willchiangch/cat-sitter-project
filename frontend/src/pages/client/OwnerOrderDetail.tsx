@@ -14,6 +14,7 @@ import {
 import type { OrderDetailResponseDto } from '../../api/orderApi';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useOrderVisitsQuery } from '../../hooks/useOrders';
+import { formatMoney } from '../../utils/money';
 
 interface OwnerOrderDetailProps {
   orderId: string;
@@ -308,7 +309,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
               color: isTopUp ? 'var(--color-on-surface-variant)' : 'var(--color-primary)'
             }}
           >
-            $ {totalAmount.toLocaleString()}
+            {formatMoney(totalAmount)}
           </span>
         </div>
 
@@ -338,12 +339,12 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                 data-testid="payment-amount-due"
                 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-primary)' }}
               >
-                $ {amountDue.toLocaleString()}
+                {formatMoney(amountDue)}
               </span>
             </div>
             <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8125rem', color: '#92400e' }}>
-              訂單已依變更協商調整為 $ {totalAmount.toLocaleString()}，原訂單款項已付清，
-              本次只需匯入差額 $ {amountDue.toLocaleString()}。
+              訂單已依變更協商調整為 {formatMoney(totalAmount)}，原訂單款項已付清， 本次只需匯入差額{' '}
+              {formatMoney(amountDue)}。
             </p>
           </div>
         )}

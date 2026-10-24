@@ -3,6 +3,7 @@ import axios from 'axios';
 import Card from '../../components/ui/Card';
 import { resolveDisputedOrder } from '../../api/orderApi';
 import { useRole } from '../../contexts/RoleContext';
+import { formatMoney } from '../../utils/money';
 
 interface AdminResolvePanelProps {
   orderId: string;
@@ -105,7 +106,7 @@ const AdminResolvePanel: React.FC<AdminResolvePanelProps> = ({ orderId }) => {
                 marginTop: '0.5rem'
               }}
             >
-              訂單金額已重設為 $ {finalAmount.toLocaleString()}，款項將於 3 日後撥付。
+              訂單金額已重設為 {formatMoney(finalAmount)}，款項將於 3 日後撥付。
             </p>
           </div>
         ) : (

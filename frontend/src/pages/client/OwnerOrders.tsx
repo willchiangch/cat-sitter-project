@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useOwnerOrdersQuery } from '../../hooks/useOrders';
+import { formatMoney } from '../../utils/money';
 
 type TabType = 'ongoing' | 'history';
 
@@ -165,7 +166,7 @@ const OwnerOrders: React.FC = () => {
                 <span
                   style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '1.125rem' }}
                 >
-                  $ {order.totalAmount.toLocaleString()}
+                  {formatMoney(order.totalAmount)}
                 </span>
               </div>
             </Card>

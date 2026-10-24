@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import Card from '../../components/ui/Card';
 import { useSitterLedgerQuery } from '../../hooks/useOrders';
-
-const formatCurrency = (amount: number) => `$ ${amount.toLocaleString()}`;
+import { formatMoney } from '../../utils/money';
 
 const formatDate = (iso?: string) => {
   if (!iso) return '—';
@@ -96,7 +95,7 @@ const SitterLedger: React.FC = () => {
           data-testid="ledger-total-revenue"
           style={{ fontSize: '2.25rem', fontWeight: '800', color: 'var(--color-primary)' }}
         >
-          {formatCurrency(data?.totalRevenue ?? 0)}
+          {formatMoney(data?.totalRevenue ?? 0)}
         </div>
       </Card>
 
@@ -111,7 +110,7 @@ const SitterLedger: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <span style={{ fontWeight: '700' }}>{entry.ownerName}</span>
                 <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>
-                  {formatCurrency(entry.totalAmount)}
+                  {formatMoney(entry.totalAmount)}
                 </span>
               </div>
               <div

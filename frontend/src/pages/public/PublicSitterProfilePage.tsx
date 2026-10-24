@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { getPublicProfile, type PublicProfileResponse } from '../../api/publicProfileApi';
 import { getActivePlansForOwner } from '../../api/servicePlanApi';
 import type { ServicePlan } from '../../types/servicePlan';
+import { formatMoney } from '../../utils/money';
 
 const isLoggedInAsClient = (): boolean =>
   Boolean(localStorage.getItem('accessToken')) && localStorage.getItem('userRole') === 'client';
@@ -134,7 +135,7 @@ const PublicSitterProfilePage: React.FC = () => {
                     }}
                   >
                     <span>{plan.name}</span>
-                    <span>NT$ {plan.price}</span>
+                    <span>{formatMoney(plan.price)}</span>
                   </div>
                 ))
               )}

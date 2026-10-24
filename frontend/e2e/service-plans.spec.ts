@@ -121,13 +121,14 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
       await expect(page.getByTestId('sitter-plan-input-task-0')).toHaveValue('梳毛 15 分鐘');
     });
 
-    await step('儲存後清單出現新方案「暑假豪華陪玩 / $ 1200」', page, async () => {
+    await step('儲存後清單出現新方案「暑假豪華陪玩 / $ 1,200」', page, async () => {
       await page.getByTestId('sitter-plan-btn-save').click();
       await expect.poll(() => createdBodies.length).toBe(1);
       const card = page.getByTestId('sitter-plan-card-plan-2');
       await expect(card).toBeVisible();
       await expect(card).toContainText('暑假豪華陪玩');
-      await expect(page.getByTestId('sitter-plan-price-plan-2')).toContainText('$ 1200');
+      // 驗收 N15：金額統一 formatMoney，方案卡過去是沒有千分位的「$ 1200」
+      await expect(page.getByTestId('sitter-plan-price-plan-2')).toContainText('$ 1,200');
       await expect(page.getByTestId('sitter-plan-input-name')).toHaveCount(0);
     });
 

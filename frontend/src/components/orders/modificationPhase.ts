@@ -1,4 +1,5 @@
 import type { ModificationRequestDetailDto } from '../../api/orderApi';
+import { formatMoney } from '../../utils/money';
 
 /**
  * 變更協商目前所處階段 (SD-016 §2.2)。保母報價頁與飼主確認頁都依這個階段只顯示「當下可執行」的動作，
@@ -28,7 +29,7 @@ export function resolveModificationPhase(mod: ModificationRequestDetailDto): Mod
 
 export const formatDiff = (diff: number) =>
   diff < 0
-    ? `應退款 $ ${Math.abs(diff).toLocaleString()}`
+    ? `應退款 ${formatMoney(Math.abs(diff))}`
     : diff > 0
-      ? `應補款 $ ${diff.toLocaleString()}`
+      ? `應補款 ${formatMoney(diff)}`
       : '無差額';
