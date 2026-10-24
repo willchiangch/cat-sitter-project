@@ -6,7 +6,7 @@
 | **測試類型** | ✅ 跨模組整合測試（真後端、真資料庫，非 mock） |
 | **優先級** | P0（需求端下單到成交是平台核心交易鏈路） |
 | **自動化狀態** | ✅ 已自動化 |
-| **自動化路徑** | `frontend/e2e/journeys/booking-to-payment.spec.ts` |
+| **自動化路徑** | `frontend/e2e/journeys/booking-to-payment.spec.ts`（主流程：原價接單；議價分支：保母調整報價，見 §二-B） |
 
 ---
 
@@ -31,12 +31,28 @@
 | 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板（後五碼 `12345`、憑證預覽）→ 確認入帳 | 訂單正式成立 | 核對面板憑證預覽為簽名網址且已載入；「駁回憑證」按鈕 `background-image: none`、文字為錯誤色 `#b02500`（U8）；`POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED`；核對面板預覽同步驟 6 留 JSON 並斷言不帶簽名 403 |
 | 8 | UI：保母在 `/care-notes/manage/{sitterId}/{ownerId}` 新增一則「其他說明」項目並儲存；飼主在 `/care-notes/view/{sitterId}/{ownerId}` 確認看得到 | 雙方都能看到同一份記事本內容 | `PUT` 記事本 API 200，飼主端查詢包含剛寫入的內容 |
 
+### 二-B、議價分支（保母調整報價，2026-10-24 驗收 R7 新增）
+
+走 `EvaluationService.sendQuote`（第 7 批加了 `findByIdAndSitterIdForUpdate` 列鎖）。過去真後端沒有任何 E2E 走到這條路徑，只有 JUnit（TS-006-04~06）。前段上架、下單的 UI 主流程已驗過，這裡用 `bootstrapPendingOrder` 純 API 兜出 PENDING 訂單（$600），從報價開始走 UI。
+
+| 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
+| :--- | :--- | :--- | :--- |
+| 前置 | API：`bootstrapPendingOrder`；管理員 `POST /api/admin/subscriptions/{sitterId}` 設 `PRO` | 訂單 `PENDING`、`totalAmount 600`；保母 `planTier PRO` | 有調整金額時 `PlanGatingAspect` 要求 PRO 以上，新保母沒有 `subscriptions` 資料列視為 FREE 會 403 `AUTH_PLAN_LIMIT`。兩者皆 `apiStep` 留 JSON |
+| B2-01 | UI：保母 `/sitter/orders` →「查看並處理訂單」 | 導到 `/sitter/eval/{orderId}`，報價總計 `$ 600`，只有「原價直接接受」 | `sitter-order-eval-btn-confirm` 數量 0 |
+| B2-02 | UI：加價 300、折扣 100、填調整原因 | 報價總計 `$ 800`；原價按鈕消失，改顯示「發送調整後報價」 | 有調整時才出現原因欄（`sitter-order-eval-input-reason`）；截圖前把總計捲進畫面 |
+| B2-03 | UI：發送調整後報價 | alert「報價已成功送出」；導回 `/sitter/orders`，不 reload 在「進行中」看到「待付款」與 `$ 800` | `POST /api/orders/{id}/quote` 200，`Order=PENDING_PAYMENT`；`apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`adjustmentReason` 與輸入一致、`amountDue 800` |
+| B2-04 | UI：飼主 `/owner/orders/{id}` | 徽章「待付款」、訂單金額 `$ 800`，不顯示補款差額提示 | `order-total-amount`、`payment-top-up-notice` 數量 0 |
+| B2-05 | UI：飼主上傳憑證（後五碼 `24680`） | 「付款憑證提交成功」；reload 後徽章「已付款」、金額仍 `$ 800` | `Order=PAID` |
+| B2-06 | UI：保母「進行中」核對入帳 | 後五碼 `24680`、卡片 `$ 800`、首次付款不顯示「補款差額」列；確認後成立 | `POST /verify-payment` 200，`Order=CONFIRMED`；最後 `apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`paymentProofLastFive 24680` |
+
+* **未涵蓋**：報價快照（`order_snapshots`）沒有對外 API，快照金額只由 JUnit `OrderEvaluationTest` 驗證；同一張單併發報價只成功一次（409）真後端無法用 E2E 穩定重現，仍只有 JUnit TS-006-05/06。
+
 ---
 
 ## 三、邊界條件 / 例外場景
 
 * **開放重導向防護**：`redirect` 參數只接受同源相對路徑（`/^\/(?!\/)/`），本測試只驗證合法 redirect 生效這一半，惡意 `//evil.com` 或絕對網址的防護屬於程式碼審查範圍，未來若要專門測這塊建議另開一條純前端單元測試，不需要動用真後端 journey。
-* **保母接單方式選擇**：本測試選「原價直接接受」（`ConfirmOrderService.confirmOrder` 快速接單路徑），不是保母議價路徑（`EvaluationService.sendQuote`）。議價路徑的零信任金額校驗已經有 `OrderControllerTest`/`OrderEvaluationTest` 覆蓋，這裡不重複測。
+* **保母接單方式選擇**：主流程選「原價直接接受」（`ConfirmOrderService.confirmOrder` 快速接單路徑）；保母議價路徑（`EvaluationService.sendQuote`）由 §二-B 議價分支在真後端走一次（2026-10-24 起）。議價的零信任金額校驗（`expectedTotalAmount` 不符 → 400 `PRICING_MISMATCH`）與 FREE 方案調價 403 仍由 `OrderControllerTest`/`OrderEvaluationTest` 覆蓋，journey 不重複測。
 * **`window.confirm`/`alert` 對話框**：本頁面群（訂單評估、訂單結案、記事本儲存等）大量使用瀏覽器原生 `alert()` 顯示操作結果，Playwright 預設會自動關閉不阻塞；但 `OrderEvalView.tsx` 的「原價直接接受」與 `OwnerOrderDetail.tsx` 的「訂單結案」用 `window.confirm()` **閘控真實邏輯**，沒有主動 accept 對話框會讓整個動作變成無效點擊，是最容易寫出「測試通過但其實什麼都沒發生」假陽性的地方。
 * **讀寫時序**：實測發現正式站極短時間內（約 1 秒內）用不同身份查詢剛寫入的訂單有機率撲空（`POST /api/orders/booking` 201 之後，緊接著用保母帳號查 `GET /api/orders/sitter` 查到空陣列），改用 `awaitOrderStatus` helper 在每個狀態轉移後 poll 過一輪再繼續操作，不能假設「動作 API 回應成功後，下一個查詢就一定看得到」。
 

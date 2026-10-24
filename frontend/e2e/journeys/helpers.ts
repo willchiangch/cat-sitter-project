@@ -445,10 +445,33 @@ export interface ConfirmedOrderContext {
 }
 
 /**
- * 純 API 重跑 Journey A（保母上架）+ Journey B（下單到付款）驗證過的機械部分，
- * 兜出一筆 CONFIRMED 訂單，給 Journey C/D/E 當前置條件用，不重複走 UI。
+ * 用共用種子管理員把保母的訂閱等級改成 tier（POST /api/admin/subscriptions/{sitterId}）。
+ * 議價報價有調整金額時 PlanGatingAspect 要求 PRO 以上，新保母沒有 subscriptions 資料列視為 FREE。
  */
-export async function bootstrapConfirmedOrder(
+export async function setSitterPlanTier(
+  request: APIRequestContext,
+  sitterId: string,
+  tier: 'FREE' | 'BASIC' | 'PRO' | 'ULTIMATE'
+): Promise<{ planTier: string }> {
+  const admin = await loginAsSeedAdmin(request);
+  const { res, ok } = await withGatewayRetry(() =>
+    request.post(`/api/admin/subscriptions/${sitterId}`, {
+      headers: apiAuthed(admin),
+      data: { planTier: tier }
+    })
+  );
+  if (!ok) {
+    throw new Error(`set subscription failed (${res.status()}): ${await res.text()}`);
+  }
+  const body = await res.json();
+  return { planTier: body.planTier };
+}
+
+/**
+ * 純 API 兜出一筆 PENDING 訂單（VERIFIED 保母 + 飼主 + 一隻貓 + 單一方案 $600/天）。
+ * Journey B 議價分支從這裡接手走 UI 報價；bootstrapConfirmedOrder 接著原價接單到 CONFIRMED。
+ */
+export async function bootstrapPendingOrder(
   request: APIRequestContext,
   scenario: string,
   planNamePrefix: string,
@@ -495,6 +518,26 @@ export async function bootstrapConfirmedOrder(
   }
   const { orderId } = await bookingRes.json();
   await awaitOrderStatus(request, owner, orderId, ['PENDING']);
+
+  return { sitter, owner, orderId };
+}
+
+/**
+ * 純 API 重跑 Journey A（保母上架）+ Journey B（下單到付款）驗證過的機械部分，
+ * 兜出一筆 CONFIRMED 訂單，給 Journey C/D/E 當前置條件用，不重複走 UI。
+ */
+export async function bootstrapConfirmedOrder(
+  request: APIRequestContext,
+  scenario: string,
+  planNamePrefix: string,
+  datesOverride?: string[]
+): Promise<ConfirmedOrderContext> {
+  const { sitter, owner, orderId } = await bootstrapPendingOrder(
+    request,
+    scenario,
+    planNamePrefix,
+    datesOverride
+  );
 
   const { res: confirmRes, ok: confirmResOk } = await withGatewayRetry(
     () =>

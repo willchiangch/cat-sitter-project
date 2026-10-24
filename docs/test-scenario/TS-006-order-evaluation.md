@@ -72,6 +72,7 @@
 - **測試類別**: [OrderEvaluationTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/OrderEvaluationTest.java), [OrderControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/OrderControllerTest.java)
 - **執行指令**: `mvn test -Dtest=OrderControllerTest,OrderEvaluationTest`
 - **最後驗證日期**: 2026-10-24（TS-006-04~06 依「不做容量控管」決策改寫，backlog 第 7 批）
+- **真後端 E2E**：`frontend/e2e/journeys/booking-to-payment.spec.ts`「保母調整報價（加價 + 折扣 + 原因）…」（TS-JOURNEY-02 §二-B，2026-10-24 驗收 R7）：PRO 保母在評估頁加價 300、折扣 100 送出報價 → `PENDING_PAYMENT`、`totalAmount 800`、`adjustmentAmount 200`、`adjustmentReason` 一致 → 飼主依 $800 付款 → 保母核對入帳 → `CONFIRMED`。快照與併發 409 仍只有 JUnit。
 - **前端迴歸**: `frontend/e2e/order-eval.spec.ts`「從列表進入原價接單後回到列表，訂單不再停留在「評估中」」（mock 訂單 API；2026-10-23 對正式站舊版前端執行為紅燈、修正後本機為綠燈）
 
 ---

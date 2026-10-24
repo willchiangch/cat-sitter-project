@@ -5,6 +5,8 @@ import {
   provisionAndLogin,
   setBrowserAuth,
   bootstrapVerifiedSitter,
+  bootstrapPendingOrder,
+  setSitterPlanTier,
   awaitOrderStatus,
   pollUntil,
   apiAuthed,
@@ -210,6 +212,161 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
 
       await ownerPage.goto(`/care-notes/view/${sitter.userId}/${owner.userId}`);
       await expect(ownerPage.getByText(careNoteContent)).toBeVisible({ timeout: 10000 });
+    });
+
+    await ownerContext.close();
+  });
+
+  /**
+   * 議價分支（驗收 R7）：保母不走原價快速通道，改在評估頁「報價微調」加價 + 折扣並填原因，
+   * 走 EvaluationService.sendQuote（第 7 批加了 FOR UPDATE 列鎖，過去只有 JUnit 覆蓋）。
+   * 前段（上架、下單）主流程已驗過 UI，這裡用 API 兜出 PENDING 訂單，從報價開始走 UI。
+   */
+  test('保母調整報價（加價 + 折扣 + 原因）後飼主依調整後金額付款，保母核對入帳成立', async ({
+    page,
+    request,
+    browser
+  }) => {
+    const ADD_FEE = 300;
+    const DISCOUNT = 100;
+    const ORIGINAL_TOTAL = 600;
+    const QUOTED_TOTAL = ORIGINAL_TOTAL + ADD_FEE - DISCOUNT;
+    const reason = `Journey B 議價：距離較遠加收車馬費、老客戶折扣-${Date.now()}`;
+
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：API 兜出 VERIFIED 保母 + 飼主 + PENDING 訂單（$600）',
+      async () => {
+        const ctx = await bootstrapPendingOrder(request, 'bq', 'Journey議價方案');
+        const order = await awaitOrderStatus(request, ctx.owner, ctx.orderId, ['PENDING']);
+        expect(order.totalAmount).toBe(ORIGINAL_TOTAL);
+        return { ...ctx, status: order.status, totalAmount: order.totalAmount };
+      }
+    );
+
+    await apiStep('前置：管理員把保母訂閱設為 PRO（調價需要專業方案以上）', async () => {
+      const sub = await setSitterPlanTier(request, sitter.userId, 'PRO');
+      expect(sub.planTier).toBe('PRO');
+      return { sitterId: sitter.userId, ...sub };
+    });
+
+    await setBrowserAuth(page, sitter, 'sitter');
+    const sitterDialogs = trackDialogs(page);
+
+    await step('B2-01 保母開啟訂單評估頁：原始下單金額 $600', page, async () => {
+      await page.goto('/sitter/orders');
+      await page.getByTestId('btn-go-order-eval').click();
+      await expect(page).toHaveURL(new RegExp(`/sitter/eval/${orderId}$`));
+      await expect(page.getByTestId('sitter-order-eval-total')).toHaveText('$ 600');
+      await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toBeVisible();
+      await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toHaveCount(0);
+    });
+
+    await step('B2-02 加價 300、折扣 100、填寫調整原因：報價總計 $800', page, async () => {
+      await page.getByTestId('sitter-order-eval-input-add-fee').fill(String(ADD_FEE));
+      await page.getByTestId('sitter-order-eval-input-discount').fill(String(DISCOUNT));
+      await expect(page.getByTestId('sitter-order-eval-input-reason')).toBeVisible();
+      await page.getByTestId('sitter-order-eval-input-reason').fill(reason);
+      await expect(page.getByTestId('sitter-order-eval-total')).toHaveText('$ 800');
+      // 有調整金額時原價快速通道消失，只剩「發送調整後報價」
+      await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toHaveCount(0);
+      await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toHaveText('發送調整後報價');
+      await page.getByTestId('sitter-order-eval-btn-confirm').scrollIntoViewIfNeeded();
+      await expect(page.getByTestId('sitter-order-eval-total')).toBeInViewport();
+    });
+
+    await step('B2-03 送出報價：導回列表，「進行中」顯示待付款 $800', page, async () => {
+      await page.getByTestId('sitter-order-eval-btn-confirm').click();
+      await expectDialog(sitterDialogs, /報價已成功送出/);
+      await expect(page).toHaveURL(/\/sitter\/orders$/, { timeout: 15000 });
+      await awaitOrderStatus(request, sitter, orderId, ['PENDING_PAYMENT']);
+      // 不 reload：OrderEvalView 送報價後 invalidate 訂單快取，列表要直接反映新狀態與金額
+      await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
+      await page.getByTestId('sitter-orders-tab-ongoing').click();
+      await expect(page.getByText('待付款', { exact: true })).toBeVisible();
+      await expect(page.getByTestId(`sitter-order-total-${orderId}`)).toHaveText('$ 800');
+    });
+
+    await apiStep(
+      '報價後訂單：PENDING_PAYMENT、totalAmount 800、adjustmentAmount 200、原因與應付金額一致',
+      async () => {
+        const order = await awaitOrderStatus(request, owner, orderId, ['PENDING_PAYMENT']);
+        expect(order.totalAmount).toBe(QUOTED_TOTAL);
+        expect(order.adjustmentAmount).toBe(ADD_FEE - DISCOUNT);
+        expect(order.adjustmentReason).toBe(reason);
+        expect(order.amountDue).toBe(QUOTED_TOTAL);
+        return {
+          status: order.status,
+          totalAmount: order.totalAmount,
+          adjustmentAmount: order.adjustmentAmount,
+          adjustmentReason: order.adjustmentReason,
+          amountDue: order.amountDue,
+          version: order.version
+        };
+      }
+    );
+
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    const ownerDialogs = trackDialogs(ownerPage);
+    await setBrowserAuth(ownerPage, owner, 'client');
+
+    await step('B2-04 飼主付款頁顯示調整後金額 $800（非補款差額）', ownerPage, async () => {
+      await ownerPage.goto(`/owner/orders/${orderId}`);
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('待付款');
+      await expect(ownerPage.getByTestId('order-total-amount')).toHaveText('$ 800');
+      await expect(ownerPage.getByTestId('payment-top-up-notice')).toHaveCount(0);
+      await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toBeVisible();
+    });
+
+    await step('B2-05 飼主上傳付款憑證：已付款', ownerPage, async () => {
+      await ownerPage.getByTestId('input-payment-last-five').fill('24680');
+      await ownerPage
+        .getByTestId('input-payment-file')
+        .setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
+      await ownerPage.getByTestId('checkbox-disclaimer-agreed').check();
+      await expect(ownerPage.getByTestId('checkbox-disclaimer-agreed')).toBeChecked();
+      await snap(ownerPage, 'B2-05 付款表單填寫完成（$800）');
+      await ownerPage.getByTestId('btn-submit-payment-proof').click();
+      await expectDialog(ownerDialogs, /付款憑證提交成功/);
+      await awaitOrderStatus(request, owner, orderId, ['PAID']);
+      await ownerPage.reload();
+      await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toHaveCount(0, {
+        timeout: 10000
+      });
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已付款');
+      await expect(ownerPage.getByTestId('order-total-amount')).toHaveText('$ 800');
+    });
+
+    await step('B2-06 保母核對入帳：金額 $800、後五碼 24680，確認後成立', page, async () => {
+      await page.goto('/sitter/orders');
+      await page.getByTestId('sitter-orders-tab-ongoing').click();
+      await expect(page.getByTestId('btn-verify-payment')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId('verify-last-five')).toHaveText('24680');
+      await expect(page.getByTestId(`sitter-order-total-${orderId}`)).toHaveText('$ 800');
+      // 首次付款：應收 = 報價後總額，不顯示「補款差額」列
+      await expect(page.getByTestId('verify-amount-due')).toHaveCount(0);
+      await snap(page, 'B2-06 核對入帳前（$800）');
+      await page.getByTestId('btn-verify-payment').click();
+      await expectDialog(sitterDialogs, /入帳核對確認成功/);
+      await awaitOrderStatus(request, sitter, orderId, ['CONFIRMED']);
+      await page.reload();
+      await page.getByTestId('sitter-orders-tab-ongoing').click();
+      await expect(page.getByTestId('btn-verify-payment')).toHaveCount(0, { timeout: 10000 });
+      await expect(page.getByTestId(`sitter-order-total-${orderId}`)).toHaveText('$ 800');
+    });
+
+    await apiStep('成立後訂單：CONFIRMED、金額維持報價後 $800', async () => {
+      const order = await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
+      expect(order.totalAmount).toBe(QUOTED_TOTAL);
+      expect(order.adjustmentAmount).toBe(ADD_FEE - DISCOUNT);
+      expect(order.paymentProofLastFive).toBe('24680');
+      return {
+        status: order.status,
+        totalAmount: order.totalAmount,
+        adjustmentAmount: order.adjustmentAmount,
+        paymentProofLastFive: order.paymentProofLastFive,
+        paidAt: order.paidAt
+      };
     });
 
     await ownerContext.close();

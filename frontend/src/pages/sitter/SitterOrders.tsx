@@ -279,6 +279,7 @@ const SitterOrders: React.FC = () => {
                 </span>
                 <span
                   style={{ fontWeight: '700', color: 'var(--color-primary)', fontSize: '1.125rem' }}
+                  data-testid={`sitter-order-total-${order.id}`}
                 >
                   $ {order.totalAmount.toLocaleString()}
                 </span>
