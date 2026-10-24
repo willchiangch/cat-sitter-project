@@ -342,7 +342,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
           marginBottom: '2rem'
         }}
       >
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h2
             style={{
               fontSize: '1.75rem',
@@ -364,7 +364,10 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
           </p>
         </div>
         <span
+          data-testid="sitter-report-status-badge"
           style={{
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
             padding: '0.375rem 0.75rem',
             borderRadius: '9999px',
             fontSize: '0.75rem',
@@ -541,6 +544,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
 
           {/* 媒體管理區 */}
           <div
+            data-testid="sitter-report-media-card"
             style={{
               backgroundColor: 'var(--color-surface-container)',
               borderRadius: '24px',
@@ -730,6 +734,8 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
                     placeholder="輸入媒體描述 (選填，最多 100 字)"
                     style={{
                       flex: 1,
+                      // <input> 有預設寬度（約 20 字元），min-width:auto 時不肯縮，「上傳」被擠出卡片（驗收 N5）
+                      minWidth: 0,
                       backgroundColor: 'var(--color-surface-low)',
                       color: 'var(--color-on-surface)',
                       border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -744,6 +750,8 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
                     type="submit"
                     disabled={!mediaFile || uploadMutation.isPending}
                     style={{
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
                       padding: '0.5rem 1.5rem',
                       borderRadius: '12px',
                       border: 'none',

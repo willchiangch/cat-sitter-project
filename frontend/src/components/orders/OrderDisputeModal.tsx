@@ -161,7 +161,7 @@ const OrderDisputeModal: React.FC<OrderDisputeModalProps> = ({ isOpen, onClose, 
               className="btn-primary"
               style={{
                 flex: 1,
-                backgroundColor: 'var(--color-surface-high)',
+                background: 'var(--color-surface-high)',
                 color: 'var(--color-on-surface-variant)',
                 boxShadow: 'none'
               }}

@@ -55,6 +55,18 @@
     - `var(--color-surface-lowest)`: 互動卡片或容器 (純白)。
 
 ---
+  - **Admin Theme**（2026-10-24，驗收 N7）：`--color-primary` #334155、漸層 `#1e293b → #475569`、`--color-on-primary` #f8fafc（對漸層兩端皆 ≥ 4.5:1）。`RoleContext` 一直會設 `data-theme="admin"`，過去 CSS 沒有這組變數，管理員畫面所有 `.btn-primary` 都是無底色的純文字。
+
+### 2.4 390px 殼內的版面與按鈕規則（2026-10-24，驗收 N1~N6 / backlog 第 6 批 G5）
+AppShell 內容區只有 390 − 48 = 342px，`<main>` 自己 `overflow:auto`。驗收截圖的溢出全部同源：**flex / grid 子項預設 `min-width:auto`（grid `1fr` 的下限是 min-content）**，遇到沒有斷點的長字串（Journey 時間戳名稱、Email）、不換行的按鈕列、`<input>` 預設寬度或寫死的多欄格線時，子項拒絕縮小、把整欄撐寬，真機上整頁可以左右滑，截圖則畫到殼外。規則：
+  - 會放動態長字串的 flex 子項加 `minWidth: 0`（文字本身 `overflowWrap: 'anywhere'`），旁邊的圖示 / 按鈕 / 徽章 `flexShrink: 0`（徽章另加 `whiteSpace: 'nowrap'`，否則會被擠成一字一行）。
+  - grid 欄寬用 `minmax(0, 1fr)`，不要用 `1fr`；行動版不要寫死多欄（`/admin/kyc` 的 `'1fr 320px'`）。多欄表格改堆疊清單。
+  - 標題 + 按鈕列一律 `flexWrap: 'wrap'`。
+  - 不在全域對 `<main>` 下 `overflow-wrap: anywhere`：會降低所有 flex 子項的 min-content，實測頁首 Logo「WhiskerWatch」被從字中間斷成「WhiskerWa / tch」，副作用比收益大，改在需要的元素上個別設定。
+  - `.btn-primary` 的底色是 `background` 簡寫的漸層；要做次要按鈕時必須用 `background:` 覆蓋，只寫 `backgroundColor` 蓋不掉 `background-image`（驗收 N6：灰字疊藍漸層，對比度不到 4.5:1）。
+  - `.btn-primary:disabled` 為 `opacity .45 + grayscale + not-allowed`（驗收 N2）；非 `.btn-primary` 的按鈕停用時自行給相同視覺。
+  - 迴歸：`e2e/ui-layout-contrast.spec.ts`（`e2e/support/layout.ts` 的 `expectNoHorizontalOverflow` / `expectInside` / `contrastOf` / `gradientContrastOf`）。
+
 
 ## 3. 目錄與元件架構
 

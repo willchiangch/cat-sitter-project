@@ -370,3 +370,9 @@
 - **待補自動化 (0/15)**:
 - **執行指令**: `mvn test -Dtest=VisitReportControllerTest`
 - **最後驗證日期**: 2026-05-24
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**日誌回報頁「上傳」按鈕溢出媒體卡片、狀態徽章被擠成直排（2026-10-24，驗收 N5 / backlog 第 6 批 G5）**：媒體描述 `<input>` 是 `flex: 1` 但沒有 `minWidth: 0`，預設約 20 字元寬不肯縮，「上傳」被推出卡片右緣；頁首標題區不肯讓位，徽章「執行中」被擠成一字一行。改 input `minWidth: 0`、按鈕與徽章 `flexShrink: 0` + `nowrap`、標題區 `flex: 1; minWidth: 0`。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N5（上傳鈕落在 `sitter-report-media-card` 內、徽章寬 > 高）。

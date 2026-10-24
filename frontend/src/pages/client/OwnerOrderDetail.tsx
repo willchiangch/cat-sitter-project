@@ -536,10 +536,12 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                 onClick={() => navigate(`/orders/${orderId}/modify`)}
                 disabled={loading}
                 className="btn-primary"
+                // background 要用簡寫：只寫 backgroundColor 蓋不掉 .btn-primary 的漸層 background-image，
+                // 過去灰字疊在藍色漸層上，對比度不到 AA 4.5:1（驗收 N6）
                 style={{
                   width: '100%',
                   padding: '1rem',
-                  backgroundColor: 'var(--color-surface-high)',
+                  background: 'var(--color-surface-high)',
                   color: 'var(--color-on-surface-variant)',
                   boxShadow: 'none'
                 }}
@@ -563,7 +565,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                 style={{
                   width: '100%',
                   padding: '1rem',
-                  backgroundColor: 'var(--color-surface-high)',
+                  background: 'var(--color-surface-high)',
                   color: 'var(--color-on-surface-variant)',
                   boxShadow: 'none'
                 }}

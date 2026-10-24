@@ -503,7 +503,7 @@ const SitterOrders: React.FC = () => {
                           style={{
                             flex: 1,
                             padding: '0.5rem',
-                            backgroundColor: 'var(--color-surface-low)',
+                            background: 'var(--color-surface-low)',
                             color: 'var(--color-on-surface-variant)',
                             boxShadow: 'none'
                           }}

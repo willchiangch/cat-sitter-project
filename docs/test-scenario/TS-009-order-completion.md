@@ -31,3 +31,9 @@
 - **Cron Transaction**: 確保每筆訂單在結案時獨立 Commit，避免批次失敗。
 - **Payout Punctuality**: 驗證 `payout_at` 必須嚴格等於 `completed_at + 3 days`。
 - **Audit Compliance**: `order_logs` 必須完整記錄操作者、變動內容與時間。
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**飼主訂單詳情「申請訂單變更」「申報爭議」低對比（2026-10-24，驗收 N6 / backlog 第 6 批 G5）**：兩顆次要按鈕是 `.btn-primary` 只用 `backgroundColor` 改底色，蓋不掉 class 的漸層 `background-image`，結果是灰字 `#5a5c5b` 疊在藍色漸層上。改用 `background:` 簡寫（實色 `#e1e3e1`，對比度約 5.2:1）。同一寫法另有 `OrderDisputeModal` 取消鈕、`SitterOrders` 駁回表單取消鈕，一併修正。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N6（`background-image: none`、對比度 ≥ 4.5:1）。

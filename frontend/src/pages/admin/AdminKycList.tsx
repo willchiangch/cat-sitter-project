@@ -139,9 +139,11 @@ const AdminKycList: React.FC = () => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem' }}>
+      {/* 390px 行動版殼內只有單欄可用：過去 '1fr 320px' 讓停權工具卡整張落在殼外、待審清單被擠成
+          一字一行（驗收 N1）。minmax(0, 1fr) 避免欄寬被表格 min-content 撐開 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1.5rem' }}>
         <div>
-          <Card style={{ padding: '1.5rem' }}>
+          <Card style={{ padding: '1.5rem' }} data-testid="admin-kyc-pending-card">
             <h3
               style={{
                 fontSize: '1.2rem',
@@ -173,58 +175,64 @@ const AdminKycList: React.FC = () => {
               <div
                 style={{
                   textAlign: 'center',
-                  padding: '3rem',
+                  padding: '3rem 1rem',
                   color: 'var(--color-on-surface-variant)'
                 }}
+                data-testid="admin-kyc-empty"
               >
                 目前無待審核的實名認證申請。
               </div>
             ) : (
               <div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr
+                {/* 四欄表格在 294px 的卡片內每欄只剩一兩個字寬（驗收 N1），改成一筆一列的堆疊清單 */}
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {records.map((record) => (
+                    <li
+                      key={record.recordId}
+                      data-testid="admin-kyc-row"
                       style={{
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                        color: 'var(--color-on-surface-variant)'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '12px 0',
+                        borderBottom: '1px solid var(--color-surface-high)'
                       }}
                     >
-                      <th style={{ padding: '10px' }}>保母姓名</th>
-                      <th style={{ padding: '10px' }}>Email</th>
-                      <th style={{ padding: '10px' }}>提交時間</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((record) => (
-                      <tr
-                        key={record.recordId}
-                        data-testid="admin-kyc-row"
-                        style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}
-                      >
-                        <td style={{ padding: '12px 10px', fontWeight: '500' }}>
-                          {record.fullName}
-                        </td>
-                        <td style={{ padding: '12px 10px', fontSize: '0.85rem' }}>
+                      <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+                        <div style={{ fontWeight: '600' }}>{record.fullName}</div>
+                        <div
+                          style={{
+                            fontSize: '0.85rem',
+                            color: 'var(--color-on-surface-variant)'
+                          }}
+                        >
                           {record.email}
-                        </td>
-                        <td style={{ padding: '12px 10px', fontSize: '0.8rem' }}>
-                          {new Date(record.submittedAt).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                          <button
-                            className="btn-primary"
-                            style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                            data-testid="admin-kyc-review-btn"
-                            onClick={() => navigate(`/admin/kyc/${record.recordId}`)}
-                          >
-                            進入審查
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--color-on-surface-variant)'
+                          }}
+                        >
+                          提交時間：{new Date(record.submittedAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <button
+                        className="btn-primary"
+                        style={{
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.8rem',
+                          padding: '6px 12px'
+                        }}
+                        data-testid="admin-kyc-review-btn"
+                        onClick={() => navigate(`/admin/kyc/${record.recordId}`)}
+                      >
+                        進入審查
+                      </button>
+                    </li>
+                  ))}
+                </ul>
 
                 {totalPages > 1 && (
                   <div
@@ -280,7 +288,7 @@ const AdminKycList: React.FC = () => {
         </div>
 
         <div>
-          <Card style={{ padding: '1.5rem' }}>
+          <Card style={{ padding: '1.5rem' }} data-testid="admin-kyc-suspend-card">
             <h3
               style={{
                 fontSize: '1.15rem',

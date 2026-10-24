@@ -425,6 +425,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
               <button
                 onClick={() => setShowRejectInput(true)}
                 disabled={actionLoading || reviewed}
+                data-testid="admin-kyc-detail-reject-btn"
                 style={{
                   flex: 1,
                   padding: '12px',
@@ -434,7 +435,9 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                   border: '1px solid rgba(239, 68, 68, 0.5)',
                   backgroundColor: 'transparent',
                   color: '#ef4444',
-                  cursor: 'pointer'
+                  // 不是 .btn-primary，停用樣式要自己給（驗收 N2）
+                  cursor: actionLoading || reviewed ? 'not-allowed' : 'pointer',
+                  opacity: actionLoading || reviewed ? 0.45 : 1
                 }}
               >
                 駁回申請

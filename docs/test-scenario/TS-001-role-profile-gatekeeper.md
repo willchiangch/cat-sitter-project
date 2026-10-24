@@ -83,3 +83,5 @@
 | manual 飼主點「切換為保母」 | `switch-role` 1 次、body `{targetRole:"SITTER"}`、帶原 token；`POST /api/auth/login` 0 次；token 換成新 token、`authMode=manual`；畫面「貓咪保母」 | `e2e/manual-role-switch.spec.ts` 測試 1 |
 | 接著點「切換為管理員」 | alert「此帳號沒有管理員權限」，角色、token 不變，無任何 API | 同上 |
 | manual 管理員點「切換為保母」 | alert「管理員帳號沒有保母/飼主身分」，`switch-role`/`login` 皆 0 次 | 同上測試 2 |
+
+**管理員身分 /demo 的按鈕沒有底色（2026-10-24，驗收 N7 / backlog 第 6 批 G5）**：`RoleContext` 設 `data-theme="admin"`，但 `global.css` 只有 sitter / client 兩組主題變數，`--color-primary-gradient`、`--color-on-primary` 未定義，管理員畫面所有 `.btn-primary`（/demo 切換鈕、功能入口、KYC 清單「進入審查」）都只剩純文字。補 admin 主題（SD-FRONTEND-SPEC §2.3）。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N7（漸層兩個色標都存在，文字對兩端對比度 ≥ 4.5:1）。

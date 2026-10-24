@@ -133,12 +133,14 @@ const AppHeader: React.FC = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           height: '64px',
-          padding: '0 1.5rem',
+          // header 本身已在 main 的 1.5rem padding 內；再留 1.5rem 時返回鍵 + Logo + 「返回 Demo 首頁」+ 鈴鐺
+          // 放不下，鈴鐺被擠出殼外約 3px（G5 量測）
+          padding: '0 0.75rem',
           borderBottom: '1px solid var(--color-outline-variant)'
         }}
       >
-        {/* 左側：返回上一頁 + Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {/* 左側：返回上一頁 + Logo（minWidth 0 讓它讓位給右側小鈴鐺，不把鈴鐺擠出殼外） */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
           {location.pathname !== '/demo' && (
             <button
               onClick={() => navigate(-1)}
@@ -197,7 +199,7 @@ const AppHeader: React.FC = () => {
         </div>
 
         {/* 右側小鈴鐺 */}
-        <div style={{ position: 'relative' }} ref={dropdownRef}>
+        <div style={{ position: 'relative', flexShrink: 0 }} ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
             data-testid={`${currentRole}-header-bell`}

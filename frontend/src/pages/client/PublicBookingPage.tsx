@@ -1635,12 +1635,16 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
       )}
 
       {/* 保母基本公開檔案 */}
-      <Card style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+      <Card
+        style={{ marginBottom: '2rem', padding: '1.5rem' }}
+        data-testid="client-booking-sitter-card"
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <img
             src={profile?.avatarUrl || 'https://via.placeholder.com/150'}
             alt="Sitter Avatar"
             style={{
+              flexShrink: 0,
               width: '80px',
               height: '80px',
               borderRadius: '50%',
@@ -1648,11 +1652,19 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
               border: '2px solid var(--color-primary-light)'
             }}
           />
-          <div style={{ flex: 1 }}>
+          {/* minWidth 0：長顯示名稱過去把這欄撐寬，愛心被擠出卡片與殼外（驗收 N3） */}
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <h2
                 data-testid="client-booking-sitter-name"
-                style={{ margin: 0, fontSize: '1.5rem', fontWeight: '800', color: 'var(--color-on-surface)' }}
+                style={{
+                  margin: 0,
+                  minWidth: 0,
+                  overflowWrap: 'anywhere',
+                  fontSize: '1.5rem',
+                  fontWeight: '800',
+                  color: 'var(--color-on-surface)'
+                }}
               >
                 {profile?.displayName || '保母'}
               </h2>
@@ -1662,6 +1674,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                 data-testid="client-booking-favorite-toggle"
                 aria-label={isFavorited ? '移除收藏' : '加入收藏'}
                 style={{
+                  flexShrink: 0,
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',

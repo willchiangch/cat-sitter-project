@@ -261,3 +261,9 @@
   - [CareMediaControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/CareMediaControllerTest.java)
 - **執行指令**: `mvn test -Dtest=CareNoteServiceTest,CareMediaServiceTest,CareNoteControllerTest,CareMediaControllerTest`
 - **最後驗證日期**: 2026-05-23
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**照護記事本管理頁卡片與「儲存備忘錄」溢出（2026-10-24，驗收 N4 / backlog 第 6 批 G5）**：主格線 `gridTemplateColumns: '1fr'`（下限 = min-content），「照護備忘錄項目」標題列與兩顆按鈕不換行，min-content 357px 大於內容區 342px，整欄連同六張分區卡片被撐寬、按鈕右緣 827 超出內容區 811。改 `minmax(0, 1fr)`、標題列 `flexWrap: wrap`。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N4。

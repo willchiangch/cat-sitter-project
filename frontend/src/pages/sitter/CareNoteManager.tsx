@@ -378,14 +378,24 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
       </div>
 
       {/* Grid: Left - Care Note Edit, Right - Media Upload & Wall */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+      {/* minmax(0, 1fr)：'1fr' 的最小值是 min-content，標題列按鈕不換行時整欄被撐寬、
+          分區卡片與「儲存備忘錄」超出殼外（驗收 N4） */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '2rem' }}>
         {/* Care Note Editor */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem'
+            }}
+          >
             <h2 style={{ margin: 0, fontSize: '1.4rem', fontFamily: 'var(--font-display)' }}>
               照護備忘錄項目
             </h2>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
                 className="btn-primary"
                 onClick={() => setIsSaveAsModalOpen(true)}

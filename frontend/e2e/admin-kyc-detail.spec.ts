@@ -104,6 +104,13 @@ test.describe('管理端 KYC 審核詳情 (U1/U2)', () => {
       await expect(page.getByTestId('admin-kyc-detail-status-badge')).toHaveText(/^已通過/);
       await expect(page).toHaveURL(new RegExp(`/admin/kyc/${recordId}$`));
       await expect(page.getByTestId('admin-kyc-detail-approve-btn')).toBeDisabled();
+      // N2：停用要看得出來（過去 .btn-primary 沒有 :disabled 樣式，外觀與可按時完全相同）
+      for (const testId of ['admin-kyc-detail-approve-btn', 'admin-kyc-detail-reject-btn']) {
+        const btn = page.getByTestId(testId);
+        await expect(btn).toBeDisabled();
+        await expect(btn).toHaveCSS('opacity', '0.45');
+        await expect(btn).toHaveCSS('cursor', 'not-allowed');
+      }
       expect(reviews).toEqual([{ action: 'APPROVE', rejectReason: null }]);
     });
 

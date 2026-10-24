@@ -47,6 +47,17 @@
   --color-primary-gradient: linear-gradient(45deg, #005e9f, #b3d4ff);
 }
 
+/* Admin Mode - Slate Neutral
+ * RoleContext 會把 data-theme 設成 'admin'，過去沒有這組變數：--color-primary / --color-primary-gradient /
+ * --color-on-primary 全是未定義，所有 .btn-primary 變成無底色的純文字（驗收 N7：管理員 /demo 切換鈕與入口、
+ * KYC 清單「進入審查」）。漸層兩端與 on-primary 的對比度都 ≥ 4.5:1（#f8fafc 對 #475569 約 7.2:1）。 */
+:root[data-theme='admin'] {
+  --color-primary: #334155;
+  --color-primary-container: #cbd5e1;
+  --color-on-primary: #f8fafc;
+  --color-primary-gradient: linear-gradient(45deg, #1e293b, #475569);
+}
+
 /* Base Reset & Typography */
 *,
 *::before,
@@ -111,6 +122,19 @@ h3,
 .btn-primary:active {
   transform: scale(0.96);
   opacity: 0.9;
+}
+
+/* 停用狀態要看得出來（驗收 N2）：過去 .btn-primary 沒有 :disabled 樣式，KYC 核准後「批准認證」外觀與可按時
+ * 完全相同，管理員會以為還能再按。用去飽和 + 降低不透明度，並取消按下縮放 */
+.btn-primary:disabled {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-primary:disabled:active {
+  transform: none;
 }
 
 /* Glassmorphism Rule */

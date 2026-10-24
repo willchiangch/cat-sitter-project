@@ -95,3 +95,9 @@
 - **測試類別**: [KycControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/KycControllerTest.java), [SitterPublicProfileControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/SitterPublicProfileControllerTest.java)
 - **執行指令**: `mvn test -Dtest=KycControllerTest,SitterPublicProfileControllerTest`
 - **最後驗證日期**: 2026-07-18
+
+---
+
+## 本測試發現並修復的真實 bug
+
+**管理端 KYC 待審清單溢出、核准後按鈕看不出停用（2026-10-24，驗收 N1/N2 / backlog 第 6 批 G5）**：`/admin/kyc` 用 `gridTemplateColumns: '1fr 320px'`，在 390px 殼內停權工具卡整張落在殼外、待審欄被擠到「目前無待審核的實名認證申請。」一字一行；四欄表格每欄只剩一兩個字寬。改單欄 `minmax(0, 1fr)`、待審清單改堆疊列（`admin-kyc-row` / `admin-kyc-review-btn` testid 不變）。核准後「批准認證」「駁回申請」雖然 disabled，外觀與可按時相同：`.btn-primary` 補 `:disabled` 樣式、駁回鈕自行給停用樣式（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` N1 兩支（空清單 / 長 Email）、`admin-kyc-detail.spec.ts` U2 斷言兩顆按鈕 `opacity: 0.45`、`cursor: not-allowed`。
