@@ -61,7 +61,8 @@ function CareNoteViewRoute() {
 
 function VisitReportManagerRoute() {
   const { visitId } = useParams<{ visitId: string }>();
-  return <VisitReportManager visitId={visitId!} />;
+  // key：換行程時重新掛載，未暫存文字的保留邏輯（fix-batch10 H4）不會把上一筆行程的文字帶過去
+  return <VisitReportManager key={visitId} visitId={visitId!} />;
 }
 
 function VisitReportViewRoute() {

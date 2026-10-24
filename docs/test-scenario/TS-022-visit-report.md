@@ -383,3 +383,8 @@
 
 **「暫存草稿」黃底深金字對比不足（2026-10-24，驗收 N18）**：按鈕是 `--color-primary-container`（`#ffbf00`）底配 `--color-primary`（`#765600`）字，實測 4.1:1，未達 AA 4.5:1（0.875rem / 600 不算大字）。飼主主題同一組合 4.44:1 也不足。新增 `--color-on-primary-container` token（sitter `#5c4300` 5.6:1、client `#00528c` 5.3:1），所有 primary-container 底的文字改用它（SD-FRONTEND-SPEC §2.3）。迴歸：`ui-layout-contrast.spec.ts` N18。另量到同頁「執行中」徽章 `#d97706` 對 `#fef3c7` 2.86:1、「待送出日誌」`#ea580c` 對 `#ffedd5` 3.11:1，不在本項範圍，列入待修。
 
+**上傳媒體後沒暫存的文字被蓋掉（2026-10-25，fix-batch10 H4 / 第 9 批另外發現 #6）**：`VisitReportManager` 的 `useEffect` 只要 report 重抓就 `setContent(report.content)`；上傳 / 刪除媒體的 mutation 成功後會 invalidate report，伺服器上的舊草稿把文字框裡還沒暫存的內容整段蓋掉。N13 讓 DONE 也能編輯後更常遇到（Check-out 後補寫文字、再補一張照片）。改為記住最近一次同步的伺服器內容，文字框與它不同（dirty）時重抓不覆蓋，只更新媒體清單（SD-022 §前端）。前端沒有單元測試框架，以 mock spec 當元件整合測試：
+
+| 驗證 | 預期 | 自動化 |
+| :--- | :--- | :--- |
+| 伺服器草稿「伺服器上的舊草稿」→ 改寫不暫存 → 上傳一張照片 | 「多媒體檔案上傳成功」、媒體清單 0→1 筆（證明 report 確實重抓），文字框仍是未暫存的新內容 | `frontend/e2e/service-execution.spec.ts`「未暫存的文字在上傳媒體後的重新抓取中保留」（舊版紅：Received「伺服器上的舊草稿」） |

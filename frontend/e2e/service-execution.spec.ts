@@ -1,5 +1,7 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
-import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
 import { step, trackDialogs, expectDialog } from './support/evidence';
 
 test.describe('Service Execution & Check-in Flow E2E', () => {
@@ -251,6 +253,83 @@ test.describe('Service Execution & Check-in Flow E2E', () => {
       await expect(page.getByTestId('sitter-report-content-input')).toBeDisabled();
       await expect(page.getByTestId('sitter-report-save-draft-btn')).toHaveCount(0);
       await expect(page.getByTestId('sitter-report-submit-btn')).toHaveCount(0);
+    });
+  });
+  test('未暫存的文字在上傳媒體後的重新抓取中保留，媒體清單照常更新（fix-batch10 H4）', async ({
+    page
+  }) => {
+    const visitId = '2624511e-3f10-4376-b81e-7fb02e615dda';
+    const photoUrl = 'https://storage.googleapis.com/e2e-fake/report-photo-1.jpg';
+    const media: object[] = [];
+    let reportGets = 0;
+    await serveFixtureImage(page, photoUrl, 'report-photo.jpg');
+    // 覆蓋 beforeEach 的 GET：執行中、伺服器上已有舊草稿、媒體清單隨上傳成長（後註冊者優先）
+    await page.route(`**/api/visits/${visitId}/report`, (route) => {
+      reportGets++;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 200,
+          message: 'OK',
+          data: {
+            reportId: 'report-12345',
+            visitId,
+            status: 'DRAFT',
+            content: '伺服器上的舊草稿',
+            submittedAt: null,
+            media,
+            isEditable: true,
+            version: 1,
+            visitStatus: 'IN_PROGRESS'
+          }
+        })
+      });
+    });
+    await page.route(`**/api/visits/${visitId}/media`, (route) => {
+      media.push({
+        mediaId: `m-${media.length + 1}`,
+        mediaUrl: photoUrl,
+        mediaType: 'IMAGE',
+        caption: '飲水補滿',
+        version: 0,
+        isPurged: false
+      });
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 200,
+          message: 'OK',
+          data: { mediaId: 'm-1', mediaUrl: photoUrl }
+        })
+      });
+    });
+
+    await step('執行中：載入伺服器草稿，改寫成未暫存的新內容', page, async () => {
+      await page.getByRole('button', { name: '進入日誌回報 (保母端)' }).click();
+      const input = page.getByTestId('sitter-report-content-input');
+      await expect(input).toHaveValue('伺服器上的舊草稿');
+      await input.fill('剛寫好還沒暫存的日誌：貓咪吃了半碗乾糧。');
+      await expect(page.getByText('📸 照護媒體清單 (0 筆)')).toBeVisible();
+    });
+
+    const getsBeforeUpload = reportGets;
+    await step('上傳一張照片：媒體清單變 1 筆，文字框仍是未暫存內容', page, async () => {
+      const fixture = path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        'journeys/fixtures/report-photo.jpg'
+      );
+      await page.getByTestId('sitter-report-media-file-input').setInputFiles(fixture);
+      await page.getByTestId('sitter-report-media-caption-input').fill('飲水補滿');
+      await page.getByTestId('sitter-report-media-upload-btn').click();
+      await expect(page.getByText('多媒體檔案上傳成功')).toBeVisible();
+      // 媒體清單只可能來自上傳後重新抓取的 report，證明 refetch 真的發生過
+      await expect(page.getByText('📸 照護媒體清單 (1 筆)')).toBeVisible();
+      expect(reportGets).toBeGreaterThan(getsBeforeUpload);
+      await expect(page.getByTestId('sitter-report-content-input')).toHaveValue(
+        '剛寫好還沒暫存的日誌：貓咪吃了半碗乾糧。'
+      );
     });
   });
 });

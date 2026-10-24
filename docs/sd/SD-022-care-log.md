@@ -380,7 +380,7 @@ public boolean isExpired(VisitServiceReport report, Visit visit) {
 }
 ```
 * `isEditable` 計算：已有日誌列時為 `status == DRAFT && !isExpired`；**還沒有日誌列**（Check-in 後從未存檔）時回合成草稿，`isEditable = visitStatus == IN_PROGRESS || (visitStatus == DONE && !isExpired)`，與 `saveDraft()`/`uploadMedia()` 的放行條件一致（2026-10-24 驗收 N13：過去合成草稿只認 `IN_PROGRESS`，Check-out 前沒存過草稿的行程 Check-out 後被判唯讀）。
-* 前端 `VisitReportManager.tsx`：`isEditable = report.isEditable && 未送出 && visitStatus ∈ {IN_PROGRESS, DONE}` 決定文字框、暫存草稿、媒體上傳 / 刪除；「正式送出日誌」只在 `DONE && isEditable` 顯示（逾期後入口關閉，PRD-022 AC-2.4）。送出前若文字框有未暫存的修改，先 `PUT` 暫存再 `submit`，避免 Check-out 後補寫的內容被丟掉。過去前端額外要求 `visitStatus == IN_PROGRESS`，Check-out 後橫幅寫「請填寫文字日誌並送出」文字框卻唯讀。
+* 前端 `VisitReportManager.tsx`：`isEditable = report.isEditable && 未送出 && visitStatus ∈ {IN_PROGRESS, DONE}` 決定文字框、暫存草稿、媒體上傳 / 刪除；「正式送出日誌」只在 `DONE && isEditable` 顯示（逾期後入口關閉，PRD-022 AC-2.4）。送出前若文字框有未暫存的修改，先 `PUT` 暫存再 `submit`，避免 Check-out 後補寫的內容被丟掉。**重抓 report 不覆蓋未暫存文字（2026-10-25，fix-batch10 H4）**：上傳 / 刪除媒體、Check-in / out、暫存、送出成功後都會 invalidate `['visit-report', visitId]` 重抓；元件以 `syncedContentRef` 記住最近一次同步進文字框的伺服器內容，文字框與它不同即視為 dirty，dirty 時重抓只更新媒體清單等欄位、不動文字框，沒有修改時才跟著伺服器內容（首次載入、暫存成功後伺服器內容即等於輸入內容）。路由 `/visit-reports/manage/:visitId` 以 `key={visitId}` 掛載，換行程時重新掛載，不會把上一筆的未暫存文字帶過去。過去前端額外要求 `visitStatus == IN_PROGRESS`，Check-out 後橫幅寫「請填寫文字日誌並送出」文字框卻唯讀。
 
 ### 6.2 多媒體命名與 Immutability 規則
 日誌中的媒體檔案命名完全遵循 `SD-GLOBAL-SPEC 4.1` 的規範，前綴從該預約單的訂單快照中讀取：

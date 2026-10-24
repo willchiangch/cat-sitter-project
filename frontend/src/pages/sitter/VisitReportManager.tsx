@@ -38,10 +38,18 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
   const endKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 最近一次同步進文字框的伺服器內容。文字框與它不同 = 有未暫存的修改（dirty）。
+  // 上傳 / 刪除媒體、Check-in / out 之後 invalidate 會重抓 report：過去一律 setContent(report.content)，
+  // 沒按暫存的文字被伺服器上的舊草稿蓋掉（fix-batch10 H4）。現在 dirty 時保留輸入框內容，
+  // 重抓只更新媒體清單等其他欄位；沒有修改時才跟著伺服器內容走（例如暫存成功後、首次載入）
+  const syncedContentRef = useRef('');
+
   useEffect(() => {
-    if (report) {
-      setContent(report.content || '');
-    }
+    if (!report) return;
+    const serverContent = report.content || '';
+    const lastSynced = syncedContentRef.current;
+    syncedContentRef.current = serverContent;
+    setContent((current) => (current === lastSynced ? serverContent : current));
   }, [report]);
 
   if (isLoading) {
