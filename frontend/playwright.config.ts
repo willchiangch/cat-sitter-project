@@ -41,13 +41,16 @@ export default defineConfig({
     // 整頁導覽由 SW 的 NavigationRoute 從 precache 直接回 index.html，page.route 攔不到 SW 處理掉的請求，
     // 所以「攔 document 回 204」之類的 mock 在 dev server 綠、在正式 build 紅。dev server 不註冊 SW，
     // 全域 block 讓兩邊行為一致。同時擋掉 vite.config.ts workbox 註解所述的地雷：若之後有人讓 SW 接手 /api，
-    // 所有 page.route('**/api/**') mock 會一起失效。需要測 PWA 的 spec 請自行 test.use({ serviceWorkers: 'allow' })。
+    // 所有 page.route('**/api/**') mock 會一起失效。需要測 PWA 的 spec 請自行 test.use({ serviceWorkers: 'allow' })（見 e2e/pwa-smoke.spec.ts）。
     serviceWorkers: 'block'
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
+      use: { ...devices['Desktop Chrome'] },
+      // pwa-smoke 驗的是正式 build 的 Service Worker；dev server（沒有 BASE_URL 時自動起的 npm run dev）
+      // 不註冊 SW，在那裡跑必紅。正式站（CI）與本機 vite preview（BASE_URL=http://localhost:4173）才納入
+      testIgnore: process.env.BASE_URL ? undefined : /pwa-smoke\.spec\.ts$/
     }
   ],
   webServer: process.env.BASE_URL
