@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { step } from './support/evidence';
+import { step, apiStep } from './support/evidence';
 import {
   assertNoUnmockedApi,
   mockDemoSession,
@@ -167,14 +167,82 @@ test.describe('通知連結導向真實路由 (D1 迴歸)', () => {
 
   test('通知中心點擊：非同源相對路徑（//host）不導覽', async ({ page }) => {
     await mockOwnerSession(page);
-    await step('開通知中心並點外部連結通知', page, async () => {
-      await page.goto('/notifications');
-      const item = page.getByTestId('client-notifications-item-n-external');
-      await expect(item).toBeVisible();
-      await item.click();
-      // 點擊處理是 async（先 markAsRead 再導覽）；等列表重新渲染後 URL 仍是 /notifications
-      await expect(page.getByTestId('client-notifications-list')).toBeVisible();
-      await expect(page).toHaveURL(/\/notifications$/);
+    // 證據稽核（.e2e-runs/20261024-1939）：過去點擊前後畫面一樣，「沒有導覽」只能從 manifest 的 url 推。
+    // 這裡讓外部連結通知是未讀：點擊會先 await POST /read、再決定要不要導覽，等 read 完成後列表重抓回來，
+    // 就代表「導覽與否」已經執行完，才斷言 URL 沒變（不用固定秒數等待）
+    await page.route(/\/api\/notifications(\?.*)?$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            content: notifications.map((n) =>
+              n.id === 'n-external' ? { ...n, isRead: false } : n
+            ),
+            page: 0,
+            size: 20,
+            totalElements: 5,
+            totalPages: 1
+          }
+        })
+      })
+    );
+    const readCalls: string[] = [];
+    await page.route('**/api/notifications/n-external/read', (route) => {
+      readCalls.push(route.request().method());
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     });
+    const externalRequests: string[] = [];
+    page.on('request', (r) => {
+      if (new URL(r.url()).hostname === 'evil.example.com') externalRequests.push(r.url());
+    });
+    const mainFrameNavigations: string[] = [];
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) mainFrameNavigations.push(frame.url());
+    });
+
+    const before = await step('點擊前：通知中心列出外部連結通知（未讀）', page, async () => {
+      await page.goto('/notifications');
+      await expect(page.getByTestId('client-notifications-item-n-external')).toBeVisible();
+      await expect(page).toHaveURL(/\/notifications$/);
+      return {
+        url: page.url(),
+        historyLength: await page.evaluate(() => history.length),
+        navigations: mainFrameNavigations.length
+      };
+    });
+
+    const after = await step(
+      '點擊後：標為已讀，但 URL 仍是 /notifications、沒有導覽',
+      page,
+      async () => {
+        const refetched = page.waitForResponse(
+          (r) =>
+            /\/api\/notifications(\?.*)?$/.test(new URL(r.url()).pathname) &&
+            r.request().method() === 'GET'
+        );
+        await page.getByTestId('client-notifications-item-n-external').click();
+        await expect.poll(() => readCalls).toEqual(['POST']);
+        await refetched;
+        await expect(page.getByTestId('client-notifications-list')).toBeVisible();
+        await expect(page).toHaveURL(/\/notifications$/);
+        return {
+          url: page.url(),
+          historyLength: await page.evaluate(() => history.length),
+          navigations: mainFrameNavigations.length
+        };
+      }
+    );
+
+    await apiStep(
+      '點擊前後 URL、history 長度、主框架導覽次數不變，沒有對外部主機發出請求',
+      async () => {
+        expect(after.url).toBe(before.url);
+        expect(after.historyLength).toBe(before.historyLength);
+        expect(after.navigations).toBe(before.navigations);
+        expect(externalRequests).toEqual([]);
+        return { before, after, readCalls, externalRequests, mainFrameNavigations };
+      }
+    );
   });
 });

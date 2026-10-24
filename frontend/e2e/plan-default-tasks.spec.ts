@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { step, apiStep } from './support/evidence';
+import { step, apiStep, snap } from './support/evidence';
 import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
 
 /**
@@ -89,6 +89,16 @@ test.describe('方案預設任務依適用寵物給 (U6)', () => {
       await page.getByTestId('sitter-plan-input-task-0').fill('餵食（乾糧 1 杯）');
       await page.getByTestId('sitter-plan-checkbox-pet-BIRD').click();
       await expect(page.getByTestId('sitter-plan-input-task-0')).toHaveValue('餵食（乾糧 1 杯）');
+      // 證據稽核（.e2e-runs/20261024-1939）：「切換寵物後仍保留」要在鳥類勾著的這一刻拍，
+      // 步驟結束的截圖是取消鳥類之後，看不出和剛改完任務有何差別
+      expect(await taskValues(page)).toEqual([
+        '餵食（乾糧 1 杯）',
+        '散步遛狗',
+        '清理排泄物',
+        '更換新鮮水'
+      ]);
+      await showTasks(page);
+      await snap(page, '勾鳥類後手動內容仍在（任務未換成鳥類模板）');
       await page.getByTestId('sitter-plan-checkbox-pet-BIRD').click();
       expect(await taskValues(page)).toEqual([
         '餵食（乾糧 1 杯）',

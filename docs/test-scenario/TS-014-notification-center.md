@@ -134,7 +134,7 @@
 | 2 | 點新格式通知 `/owner/orders/{id}` | 導到該筆訂單詳情 | `e2e/notification-links.spec.ts` `toHaveURL` + 截圖前斷言 `order-status-badge`「已確認」 |
 | 3 | 點舊通知 `/client/orders`、`/visits/report?orderId={id}` | 分別導到 `/owner/orders`、`/owner/orders/{id}` | 同上（列表斷言空狀態文字、詳情斷言徽章） |
 | 4 | 點推薦通知 `/booking/{sitterId}` | 導到預約頁 | 同上（斷言「選擇服務方案」標題） |
-| 5 | 點 `//evil.example.com/...` | 不導覽，留在 `/notifications` | 同上 |
+| 5 | 點 `//evil.example.com/...`（測試中設為未讀） | 標為已讀（POST `/read` 1 次），不導覽，留在 `/notifications` | 同上：等 `/read` 完成且列表重抓回來（導覽決定已執行）才斷言 URL；點擊前、點擊後各一張截圖，`apiStep` 記錄前後 URL / `history.length` / 主框架導覽次數不變、無對 `evil.example.com` 的請求。把 `resolveNotificationLink` 的 `//` 防護拿掉時此案紅 |
 
 ---
 
