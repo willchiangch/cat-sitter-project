@@ -252,6 +252,7 @@
 * **When**: 取消 `CAT`、改勾 `DOG`；再加勾 `CAT`；手動修改任務後再切換寵物；送出。
 * **Then**: 初始為貓咪模板；只勾 `DOG` 時為「基本餵食 / 散步遛狗 / 清理排泄物 / 更換新鮮水」，**不含**「清理砂盆」；多選取聯集；手動改過的任務不被覆蓋；`POST /api/sitter/plans` 的 `defaultTasks` 與畫面一致（SD-003 §0.1）。
 * **自動化狀態**: ✅ `frontend/e2e/plan-default-tasks.spec.ts`（mock）；正式站由 Journey A 步驟 8 斷言公開方案 API 的 `defaultTasks`。
+* **證據（2026-10-24，驗收 R2）**：表單在 modal 內自己捲動，整頁截圖只拍得到 modal 上半部；步驟 1~4 截圖前把「預設照護 SOP 工作項目」捲到 modal 中央（同時看得到適用寵物勾選與整串任務）。送出步驟改斷言 modal 關閉、列表出現新方案卡片；POST body 以 `apiStep` 留 JSON。過去第 5 張截圖是「目前尚無任何服務方案」：mock 的 `GET /api/sitter/plans` 永遠回 `[]`，送出後 invalidate 重抓就是空清單——是 mock 缺口不是時序，現在 POST 後 GET 會回新方案。
 
 ---
 
