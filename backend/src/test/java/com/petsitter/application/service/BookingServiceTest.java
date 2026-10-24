@@ -1,7 +1,6 @@
 package com.petsitter.application.service;
 
 import com.petsitter.application.dto.BookingRequest;
-import com.petsitter.application.exception.CapacityFullException;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.User;
@@ -26,9 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -41,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 @ActiveProfiles("local")
 @WithMockUser(roles = "OWNER")
-@DisplayName("TS-005: 預約建單與併發接單容量控制測試")
+@DisplayName("TS-005: 預約建單與併發接單狀態轉移測試")
 class BookingServiceTest {
 
     static {
@@ -118,7 +114,7 @@ class BookingServiceTest {
         ServicePlan plan = servicePlanRepository.save(ServicePlan.builder()
                 .sitter(sitter)
                 .name("專業餵食")
-                .dailyCapacity(1) // 關鍵：每日僅限 1 單
+                .dailyCapacity(1)
                 .price(500L)
                 .build());
 
@@ -161,37 +157,6 @@ class BookingServiceTest {
         assertThat(pendingCount).isEqualTo(concurrentCount);
     }
 
-    /**
-     * 讓 orderIds 這幾張單由 n 個執行緒同時打正式接單路徑 {@link ConfirmOrderService#confirmOrder}
-     * （= POST /api/orders/{id}/confirm），回傳 [成功數, CapacityFullException 數]。其他例外直接讓測試失敗。
-     */
-    private int[] confirmConcurrently(List<UUID> orderIds) throws Exception {
-        ExecutorService executor = Executors.newFixedThreadPool(orderIds.size());
-        java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(orderIds.size());
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger capacityFullCount = new AtomicInteger(0);
-        try {
-            List<CompletableFuture<Void>> futures = new ArrayList<>();
-            for (UUID orderId : orderIds) {
-                futures.add(CompletableFuture.runAsync(() -> {
-                    try {
-                        barrier.await();
-                        confirmOrderService.confirmOrder(sitterId, orderId);
-                        successCount.incrementAndGet();
-                    } catch (CapacityFullException e) {
-                        capacityFullCount.incrementAndGet();
-                    } catch (Exception e) {
-                        throw new IllegalStateException("接單應只有成功或 CapacityFullException 兩種結果", e);
-                    }
-                }, executor));
-            }
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } finally {
-            executor.shutdownNow();
-        }
-        return new int[] { successCount.get(), capacityFullCount.get() };
-    }
-
     private List<UUID> createPendingOrders(LocalDate date, int count, String keyPrefix) {
         com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
                 .planId(planId)
@@ -212,50 +177,52 @@ class BookingServiceTest {
         return orderRepository.findAllById(orderIds).stream().filter(o -> status.equals(o.getStatus())).count();
     }
 
+    private List<Runnable> confirmActions(List<UUID> orderIds) {
+        return orderIds.stream()
+                .<Runnable>map(orderId -> () -> confirmOrderService.confirmOrder(sitterId, orderId))
+                .toList();
+    }
+
     @Test
-    @DisplayName("TS-005-02: 併發確認接單 (Advisory Lock) - 正式接單路徑 ConfirmOrderService 應防止超賣，容量 1 時兩張只成功一張")
-    void ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm() throws Exception {
-        // 每輪換一天、各自兩張 PENDING 單同時接，多跑幾輪提高撞在同一瞬間的機率
+    @DisplayName("TS-005-02: 同一張 PENDING 單同時兩次原價接單，只成功一次，另一個 409，快照只建一份")
+    void ts005_02_should_AcceptOnce_When_SameOrderConfirmedConcurrently() throws Exception {
+        // 每輪一張新單、兩個請求同時接同一張，多跑幾輪提高撞在同一瞬間的機率
         for (int round = 0; round < 5; round++) {
             LocalDate date = LocalDate.of(2026, 6, 1).plusDays(round);
-            List<UUID> orders = createPendingOrders(date, 2, "cap1-" + round);
+            UUID orderId = createPendingOrders(date, 1, "dup-confirm-" + round).get(0);
 
-            int[] result = confirmConcurrently(orders);
+            ConcurrentTransitionSupport.Result result =
+                    ConcurrentTransitionSupport.runConcurrently(confirmActions(List.of(orderId, orderId)));
 
-            assertThat(result[0]).as("第 %d 輪成功接單數（容量 1）", round + 1).isEqualTo(1);
-            assertThat(result[1]).as("第 %d 輪 CapacityFullException 數", round + 1).isEqualTo(1);
-            assertThat(countOrdersByStatus(orders, "PENDING_PAYMENT")).isEqualTo(1);
-            assertThat(countOrdersByStatus(orders, "PENDING")).isEqualTo(1);
-            // 只有成功那張建立快照；失敗那張整筆 rollback
+            assertThat(result.success()).as("第 %d 輪成功數", round + 1).isEqualTo(1);
+            assertThat(result.failureStatuses()).as("第 %d 輪失敗回應（%s）", round + 1, result.failures())
+                    .containsExactly(409);
+            assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo("PENDING_PAYMENT");
             assertThat(orderSnapshotRepository.findAll().stream()
-                    .filter(snap -> orders.contains(snap.getOrder().getId())).count()).isEqualTo(1);
+                    .filter(snap -> snap.getOrder().getId().equals(orderId)).count()).isEqualTo(1);
             // SD-008：接單不動 visit 狀態，行程維持 PENDING（舊死碼 BookingService.confirmBooking 會改成 CONFIRMED）
-            for (UUID orderId : orders) {
-                assertThat(visitRepository.findByOrderId(orderId))
-                        .extracting(com.petsitter.domain.model.Visit::getStatus)
-                        .containsOnly("PENDING");
-            }
+            assertThat(visitRepository.findByOrderId(orderId))
+                    .extracting(com.petsitter.domain.model.Visit::getStatus)
+                    .containsOnly("PENDING");
         }
     }
 
     @Test
-    @DisplayName("TS-005-02b: 併發確認接單邊界 - 容量 2、三張同日單同時接，只成功兩張")
-    void ts005_02b_should_AcceptUpToDailyCapacity_When_ConcurrentConfirmExceedsCapacity() throws Exception {
-        ServicePlan plan = servicePlanRepository.findById(planId).orElseThrow();
-        plan.setDailyCapacity(2);
-        servicePlanRepository.save(plan);
-
-        for (int round = 0; round < 5; round++) {
+    @DisplayName("TS-005-02b: 系統不做每日容量控管 - 同日三張單同時接單全部成功，各自建立快照")
+    void ts005_02b_should_AcceptAllSameDayOrders_When_ConcurrentConfirm() throws Exception {
+        // PRD-005 / PRD-006：同日已有訂單不阻擋，接不接由保母自行判斷（2026-10 移除 dailyCapacity）
+        for (int round = 0; round < 3; round++) {
             LocalDate date = LocalDate.of(2026, 7, 1).plusDays(round);
-            List<UUID> orders = createPendingOrders(date, 3, "cap2-" + round);
+            List<UUID> orders = createPendingOrders(date, 3, "same-day-" + round);
 
-            int[] result = confirmConcurrently(orders);
+            ConcurrentTransitionSupport.Result result =
+                    ConcurrentTransitionSupport.runConcurrently(confirmActions(orders));
 
-            assertThat(result[0]).as("第 %d 輪成功接單數（容量 2）", round + 1).isEqualTo(2);
-            assertThat(result[1]).as("第 %d 輪 CapacityFullException 數", round + 1).isEqualTo(1);
-            assertThat(countOrdersByStatus(orders, "PENDING_PAYMENT")).isEqualTo(2);
-            assertThat(visitRepository.countBookedVisitsBySitterIdAndDate(
-                    sitterId, date.atStartOfDay().atOffset(java.time.ZoneOffset.UTC))).isEqualTo(2);
+            assertThat(result.success()).as("第 %d 輪成功數（%s）", round + 1, result.failures()).isEqualTo(3);
+            assertThat(result.failureStatuses()).isEmpty();
+            assertThat(countOrdersByStatus(orders, "PENDING_PAYMENT")).isEqualTo(3);
+            assertThat(orderSnapshotRepository.findAll().stream()
+                    .filter(snap -> orders.contains(snap.getOrder().getId())).count()).isEqualTo(3);
         }
     }
 

@@ -3,7 +3,6 @@ package com.petsitter.application.service;
 import com.petsitter.application.dto.ModificationPayloadDto;
 import com.petsitter.domain.model.*;
 import com.petsitter.domain.repository.*;
-import com.petsitter.infrastructure.lock.AdvisoryLockService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,10 +36,6 @@ class ModificationServiceTest {
     private OrderSnapshotRepository snapshotRepo;
     @Mock
     private VisitRepository visitRepository;
-    @Mock
-    private ServicePlanRepository servicePlanRepository;
-    @Mock
-    private AdvisoryLockService lockService;
 
     @InjectMocks
     private ModificationService modificationService;
@@ -120,7 +115,6 @@ class ModificationServiceTest {
         when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
-        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
         // When
         modificationService.confirmModification(ownerId, orderId, modReqId, -500);
@@ -128,14 +122,6 @@ class ModificationServiceTest {
         // Then
         assertThat(order.getStatus()).isEqualTo("REFUND_VERIFY");
         assertThat(order.getTotalAmount()).isEqualTo(500);
-
-        // ✅ 驗證確實呼叫了自我排除的配額檢查
-        verify(visitRepository, times(1)).countOccupiedCapacityWithSelfExclusion(
-                eq(order.getSitter().getId()),
-                any(OffsetDateTime.class),
-                any(OffsetDateTime.class),
-                eq(orderId)
-        );
     }
 
     @Test
@@ -223,7 +209,6 @@ class ModificationServiceTest {
         when(modRepo.findById(modReqId)).thenReturn(Optional.of(modReq));
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(visitRepository.findByOrderId(orderId)).thenReturn(List.of(doneVisit, pendingVisit));
-        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
         modificationService.confirmModification(ownerId, orderId, modReqId, 500);
 
@@ -294,7 +279,6 @@ class ModificationServiceTest {
         when(modRepo.findById(modReq.getId())).thenReturn(Optional.of(modReq));
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
-        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
         modificationService.confirmModification(ownerId, orderId, modReq.getId(), 0);
 
@@ -310,7 +294,6 @@ class ModificationServiceTest {
         when(modRepo.findById(modReq.getId())).thenReturn(Optional.of(modReq));
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
-        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
         modificationService.confirmModification(ownerId, orderId, modReq.getId(), 0);
 
@@ -381,7 +364,6 @@ class ModificationServiceTest {
         when(modRepo.findById(modReq.getId())).thenReturn(Optional.of(modReq));
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         when(visitRepository.findByOrderId(orderId)).thenReturn(new ArrayList<>());
-        when(servicePlanRepository.findById(any())).thenReturn(Optional.of(ServicePlan.builder().dailyCapacity(1).build()));
 
         modificationService.confirmModification(ownerId, orderId, modReq.getId(), 0);
 

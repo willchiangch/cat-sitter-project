@@ -18,7 +18,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ConfirmOrderService {
 
-    private final CapacityGuard capacityGuard;
     private final OrderRepository orderRepository;
     private final ServicePlanRepository servicePlanRepository;
     private final OrderSnapshotRepository orderSnapshotRepository;
@@ -27,8 +26,8 @@ public class ConfirmOrderService {
     public void confirmOrder(UUID sitterId, UUID orderId) {
         log.info("[ConfirmOrderService] Sitter {} is confirming order {}", sitterId, orderId);
 
-        // 1. 獲取訂單與 BOLA 檢查
-        Order order = orderRepository.findByIdAndSitterId(orderId, sitterId)
+        // 1. 獲取訂單與 BOLA 檢查；鎖住訂單列，同一張單併發接單 / 報價時後到者讀到最新狀態 → 409
+        Order order = orderRepository.findByIdAndSitterIdForUpdate(orderId, sitterId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到該保母的指定訂單: " + orderId));
 
         if (!"PENDING".equals(order.getStatus())) {
@@ -39,14 +38,11 @@ public class ConfirmOrderService {
         ServicePlan plan = servicePlanRepository.findById(order.getPlanId())
                 .orElseThrow(() -> new IllegalStateException("找不到訂單對應的服務方案"));
 
-        // 3~4. Sorted Advisory Locks + 鎖內容量檢核，與議價報價 EvaluationService.sendQuote 共用 (backlog G1)
-        capacityGuard.lockAndCheck(sitterId, orderId, plan);
-
-        // 5. 更新狀態
+        // 3. 更新狀態（系統不做每日容量控管：接不接單由保母自行判斷，PRD-005 / PRD-006）
         order.setStatus("PENDING_PAYMENT");
         orderRepository.save(order);
 
-        // 6. 原價快速接單也要建立方案快照，否則保母打卡後上傳照片/影片會因找不到快照而 404 (PRD-008)
+        // 4. 原價快速接單也要建立方案快照，否則保母打卡後上傳照片/影片會因找不到快照而 404 (PRD-008)
         OrderSnapshot snapshot = OrderSnapshot.builder()
                 .order(order)
                 .snapshotPlanTitle(plan.getName())

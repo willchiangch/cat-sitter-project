@@ -3,16 +3,13 @@ package com.petsitter.application.service;
 import com.petsitter.application.dto.ModificationPayloadDto;
 import com.petsitter.domain.model.*;
 import com.petsitter.domain.repository.*;
-import com.petsitter.infrastructure.lock.AdvisoryLockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -27,8 +24,6 @@ public class ModificationService {
     private final ModificationRequestRepository modRepo;
     private final OrderSnapshotRepository snapshotRepo;
     private final VisitRepository visitRepository;
-    private final ServicePlanRepository servicePlanRepository;
-    private final AdvisoryLockService lockService;
     private final MediaStorageService mediaStorageService;
 
     /** 退款憑證檔案限制，與付款憑證 (SD-007 §5.1) 相同 */
@@ -153,32 +148,8 @@ public class ModificationService {
         List<LocalDate> newDates = modReq.getDates() == null ? List.of()
                 : modReq.getDates().stream().map(LocalDate::parse).toList();
 
-        List<LocalDate> currentDates = visitRepository.findByOrderId(orderId).stream()
-                .map(v -> v.getScheduledAt().toLocalDate())
-                .collect(Collectors.toList());
-        
-        Set<LocalDate> allInvolvedDates = new HashSet<>(currentDates);
-        allInvolvedDates.addAll(newDates);
-        
-        List<Long> lockKeys = allInvolvedDates.stream()
-                .map(date -> AdvisoryLockService.generateLockKey(order.getSitter().getId(), date))
-                .sorted()
-                .distinct()
-                .toList();
-        
-        lockService.acquireLocks(lockKeys);
-
-        ServicePlan plan = servicePlanRepository.findById(order.getPlanId()).orElseThrow();
-        for (LocalDate date : newDates) {
-            OffsetDateTime start = date.atStartOfDay().atOffset(ZoneOffset.UTC);
-            OffsetDateTime end = date.atTime(23, 59, 59).atOffset(ZoneOffset.UTC);
-            int occupied = visitRepository.countOccupiedCapacityWithSelfExclusion(
-                    order.getSitter().getId(), start, end, order.getId());
-            
-            if (occupied >= plan.getDailyCapacity()) {
-                throw new IllegalStateException("日期 " + date + " 名額已滿");
-            }
-        }
+        // 系統不做每日容量控管（PRD-005 / PRD-006：接不接單由保母自行判斷），變更日期不檢查名額；
+        // 同一張訂單的併發確認由 orders.version 樂觀鎖擋下（後到者 409）
 
         order.setItems(modReq.getPayload());
         order.setTotalAmount(order.getTotalAmount() + modReq.getDiffAmount());

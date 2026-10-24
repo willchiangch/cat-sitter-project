@@ -78,12 +78,6 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "FORBIDDEN", "message", "權限不足"));
     }
 
-    @ExceptionHandler(CapacityFullException.class)
-    public ResponseEntity<Map<String, String>> handleCapacityFull(CapacityFullException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(Map.of("error", "CAPACITY_FULL", "message", ex.getMessage()));
-    }
-
     // --- SD-006 SaaS Gating ---
     @ExceptionHandler(AuthPlanLimitException.class)
     public ResponseEntity<Map<String, String>> handleAuthPlanLimit(AuthPlanLimitException ex) {
