@@ -210,3 +210,30 @@ export async function effectiveGradientContrastOf(
     };
   });
 }
+
+/**
+ * 頁面最外層容器（App 的 Outlet 包裝裡第一個元素）內容區左右各內縮多少（相對 <main> 外框）。
+ * 標準是 <main> 1.5rem + 頁面容器 PAGE_PADDING 1.5rem = 48px（驗收 N17：KYC 詳情、記事本管理頁過去只有 24px）
+ */
+export async function pageContentInset(page: Page): Promise<{ left: number; right: number }> {
+  const container = page.getByTestId('app-page-outlet').locator(':scope > *').first();
+  await expect(container).toBeVisible();
+  return container.evaluate((el) => {
+    const main = el.closest('main')!.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return {
+      left: Math.round(box.left + parseFloat(cs.paddingLeft) - main.left),
+      right: Math.round(main.right - (box.right - parseFloat(cs.paddingRight)))
+    };
+  });
+}
+
+export const STANDARD_PAGE_INSET = 48;
+
+export async function expectStandardPageInset(page: Page, label: string) {
+  expect(await pageContentInset(page), `${label} 內容左右內縮`).toEqual({
+    left: STANDARD_PAGE_INSET,
+    right: STANDARD_PAGE_INSET
+  });
+}

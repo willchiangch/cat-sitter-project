@@ -5,6 +5,7 @@ import { getKycDetail, getAdminMediaUrl, reviewKyc } from '../../api/kycApi';
 import type { KycRecordDetailDto } from '../../api/kycApi';
 import { useRole } from '../../contexts/RoleContext';
 import { kycRecordStatusLabel } from '../../components/ui/statusLabels';
+import { PAGE_PADDING } from '../../components/layout/pageLayout';
 
 interface AdminKycDetailProps {
   kycRecordId: string;
@@ -111,8 +112,8 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
   return (
     <div
       style={{
-        // <main> 已有 1.5rem 左右內距，這裡不再疊加，否則照片只剩約 240px 寬
-        padding: '1.5rem 0',
+        // 與其他頁同一標準內距（驗收 N17）；照片寬度改由媒體卡片縮小內距保住（見下方）
+        padding: PAGE_PADDING,
         fontFamily: 'var(--font-sans)',
         maxWidth: '1080px',
         margin: '0 auto'
@@ -259,7 +260,8 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
           </div>
         </Card>
 
-        <Card style={{ padding: '1.5rem' }}>
+        {/* 媒體卡內距 1rem（其他卡 1.5rem）：頁面改回標準內距後內容寬約 294px，照片仍要 > 250px 才看得清楚 */}
+        <Card style={{ padding: '1rem' }}>
           <h3
             style={{
               fontSize: '1.2rem',

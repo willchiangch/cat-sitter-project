@@ -101,3 +101,5 @@
 ## 本測試發現並修復的真實 bug
 
 **管理端 KYC 待審清單溢出、核准後按鈕看不出停用（2026-10-24，驗收 N1/N2 / backlog 第 6 批 G5）**：`/admin/kyc` 用 `gridTemplateColumns: '1fr 320px'`，在 390px 殼內停權工具卡整張落在殼外、待審欄被擠到「目前無待審核的實名認證申請。」一字一行；四欄表格每欄只剩一兩個字寬。改單欄 `minmax(0, 1fr)`、待審清單改堆疊列（`admin-kyc-row` / `admin-kyc-review-btn` testid 不變）。核准後「批准認證」「駁回申請」雖然 disabled，外觀與可按時相同：`.btn-primary` 補 `:disabled` 樣式、駁回鈕自行給停用樣式（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` N1 兩支（空清單 / 長 Email）、`admin-kyc-detail.spec.ts` U2 斷言兩顆按鈕 `opacity: 0.45`、`cursor: not-allowed`。
+
+**管理端 KYC 審核詳情頁左右留白比其他頁窄（2026-10-24，驗收 N17）**：`AdminKycDetail` 為了讓證件照變寬，把頁面容器左右內距拿掉（`padding: '1.5rem 0'`），內容比其他頁左右各寬 24px。改回共用 `PAGE_PADDING`，照片寬度改由媒體卡片內距 1rem 保住（仍 > 250px）。迴歸：`admin-kyc-detail.spec.ts` U1 加 `expectStandardPageInset`（舊版紅），原有照片寬 > 250px 斷言不變。

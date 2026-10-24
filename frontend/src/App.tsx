@@ -6,7 +6,7 @@ function App() {
   return (
     <AppShell>
       <AppHeader />
-      <div style={{ flex: 1, padding: '1rem 0' }}>
+      <div data-testid="app-page-outlet" style={{ flex: 1, padding: '1rem 0' }}>
         <Outlet />
       </div>
     </AppShell>

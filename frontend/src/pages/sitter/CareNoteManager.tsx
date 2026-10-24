@@ -14,6 +14,7 @@ import {
 import BottomSheet from '../../components/modals/BottomSheet';
 import TemplateManagerModal from '../../components/modals/TemplateManagerModal';
 import type { CareNoteItemDto } from '../../api/careApi';
+import { PAGE_PADDING } from '../../components/layout/pageLayout';
 
 interface CareNoteManagerProps {
   sitterId: string;
@@ -317,7 +318,7 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
   }
 
   return (
-    <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+    <div style={{ padding: PAGE_PADDING, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       {/* Page Header (Asymmetric Layout) */}
       <div
         style={{

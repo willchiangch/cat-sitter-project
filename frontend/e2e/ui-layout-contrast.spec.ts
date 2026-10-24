@@ -7,6 +7,7 @@ import {
   expectInside,
   expectNoHorizontalOverflow,
   expectNoOverlap,
+  expectStandardPageInset,
   gradientContrastOf
 } from './support/layout';
 
@@ -250,6 +251,21 @@ test.describe('G5 版面溢出與對比度', () => {
         page.getByTestId('sitter-carenote-item-title'),
         '「移除」與標題輸入框'
       );
+      // 驗收 N17：過去頁面容器 padding '1rem 0'，內容比其他頁左右各寬 24px
+      await expectStandardPageInset(page, '記事本管理頁');
+    });
+  });
+
+  test('N17：標準頁面（方案設定）的內容左右內縮是 48px，作為 KYC 詳情 / 記事本管理頁的對照', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/sitter/plans', (route) => route.fulfill(json({ data: [] })));
+
+    await step('方案設定頁：<main> 1.5rem + 頁面容器 1.5rem', page, async () => {
+      await page.goto('/sitter/plans');
+      await expect(page.getByTestId('sitter-plan-btn-add')).toBeVisible();
+      await expectStandardPageInset(page, '方案設定頁');
     });
   });
 

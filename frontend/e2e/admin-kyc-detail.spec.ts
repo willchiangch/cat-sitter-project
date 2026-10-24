@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
 import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
+import { expectStandardPageInset } from './support/layout';
 
 /**
  * Backlog 第 3 批 U1：AdminKycDetail 在 390px 的 AppShell 裡溢出，證件照/自拍被裁掉，管理員看不到要審的照片。
@@ -73,6 +74,8 @@ test.describe('管理端 KYC 審核詳情 (U1/U2)', () => {
       // 審核按鈕也要在可視寬度內
       const approve = await page.getByTestId('admin-kyc-detail-approve-btn').boundingBox();
       expect(approve!.x + approve!.width).toBeLessThanOrEqual(main!.x + main!.width);
+      // 驗收 N17：頁面容器過去是 '1.5rem 0'，內容比其他頁左右各寬 24px；改回標準內距後照片仍 > 250px
+      await expectStandardPageInset(page, 'KYC 審核詳情頁');
     });
   });
 
