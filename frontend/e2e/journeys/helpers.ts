@@ -65,6 +65,64 @@ async function postWithColdStartRetry(
   return res;
 }
 
+/**
+ * Firebase Hosting → Cloud Run 這段（GFE）的暫時性錯誤：502/503/504 + HTML 錯誤頁（"The server encountered a
+ * temporary error … try again in 30 seconds"），request 根本沒進 container（.e2e-runs/20261024-1939 F2：
+ * confirm 502 只花 209ms，Cloud Run 沒有任何 request log）。判斷比照 isFrontendAbort：
+ * **body 是 JSON 的一律不重試**（那是後端自己的錯誤，重試只會把真正的原因藏起來）。
+ * 只包 bootstrapVerifiedSitter / bootstrapConfirmedOrder 的前置 API，不要拿去包業務斷言。
+ */
+const GATEWAY_ERROR_STATUSES = [502, 503, 504];
+const GATEWAY_RETRY_DELAYS_MS = [2000, 4000];
+
+async function isGatewayError(res: APIResponse): Promise<boolean> {
+  if (!GATEWAY_ERROR_STATUSES.includes(res.status())) return false;
+  if ((res.headers()['content-type'] ?? '').includes('application/json')) return false;
+  try {
+    JSON.parse(await res.text());
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 前置 API 遇到 GFE 錯誤頁時退避重試。
+ * alreadyApplied：非冪等的狀態轉移（confirm、verify-payment）若第一發其實有進後端、只是回應在 GFE 斷掉，
+ * 重試會拿到 409；這時查訂單已在目標狀態就視為成功（回傳最後一個 409 response，呼叫方用 ok 判斷）。
+ */
+async function withGatewayRetry(
+  send: () => Promise<APIResponse>,
+  alreadyApplied?: () => Promise<boolean>
+): Promise<{ res: APIResponse; ok: boolean }> {
+  let res = await send();
+  let retried = false;
+  for (const delay of GATEWAY_RETRY_DELAYS_MS) {
+    if (!(await isGatewayError(res))) break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    res = await send();
+    retried = true;
+  }
+  if (res.ok()) return { res, ok: true };
+  if (retried && res.status() === 409 && alreadyApplied && (await alreadyApplied())) {
+    return { res, ok: true };
+  }
+  return { res, ok: false };
+}
+
+/** 訂單已在 expectedStatus（給 withGatewayRetry 的 alreadyApplied 用，含讀取延遲的短輪詢） */
+async function orderAlreadyIn(
+  request: APIRequestContext,
+  account: TestAccount,
+  orderId: string,
+  expectedStatus: string
+): Promise<boolean> {
+  return awaitOrderStatus(request, account, orderId, [expectedStatus], 5000).then(
+    () => true,
+    () => false
+  );
+}
+
 export interface TestAccount {
   email: string;
   password: string;
@@ -94,7 +152,9 @@ export async function provisionAndLogin(
     }
   );
   if (!provisionRes.ok()) {
-    throw new Error(`provision-account failed (${provisionRes.status()}): ${await provisionRes.text()}`);
+    throw new Error(
+      `provision-account failed (${provisionRes.status()}): ${await provisionRes.text()}`
+    );
   }
   const { userId } = await provisionRes.json();
 
@@ -102,7 +162,9 @@ export async function provisionAndLogin(
     data: { email, password: TEST_PASSWORD }
   });
   if (!loginRes.ok()) {
-    throw new Error(`login failed after provisioning (${loginRes.status()}): ${await loginRes.text()}`);
+    throw new Error(
+      `login failed after provisioning (${loginRes.status()}): ${await loginRes.text()}`
+    );
   }
   const loginBody = await loginRes.json();
 
@@ -132,7 +194,11 @@ export async function switchRole(
     throw new Error(`switch-role failed (${res.status()}): ${await res.text()}`);
   }
   const body = await res.json();
-  return { ...account, accessToken: body.accessToken, refreshToken: body.refreshToken ?? account.refreshToken };
+  return {
+    ...account,
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken ?? account.refreshToken
+  };
 }
 
 /**
@@ -245,77 +311,95 @@ export async function bootstrapVerifiedSitter(
   let sitter = await provisionAndLogin(request, scenario, 'SITTER', `Journey保母${scenario}`);
   sitter = await switchRole(request, sitter, 'SITTER');
 
-  const kycRes = await request.post('/api/sitter/kyc', {
-    headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() },
-    multipart: {
-      idCardFront: {
-        name: 'front.jpg',
-        mimeType: 'image/jpeg',
-        buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-id-front.jpg'))
-      },
-      selfie: {
-        name: 'selfie.jpg',
-        mimeType: 'image/jpeg',
-        buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-selfie.jpg'))
+  // 重試沿用同一把 Idempotency-Key：第一發若其實有進後端，重送拿到的是同一筆結果
+  const kycKey = randomUUID();
+  const { res: kycRes, ok: kycResOk } = await withGatewayRetry(() =>
+    request.post('/api/sitter/kyc', {
+      headers: { ...apiAuthed(sitter), 'Idempotency-Key': kycKey },
+      multipart: {
+        idCardFront: {
+          name: 'front.jpg',
+          mimeType: 'image/jpeg',
+          buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-id-front.jpg'))
+        },
+        selfie: {
+          name: 'selfie.jpg',
+          mimeType: 'image/jpeg',
+          buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-selfie.jpg'))
+        }
       }
-    }
-  });
-  if (!kycRes.ok()) {
+    })
+  );
+  if (!kycResOk) {
     throw new Error(`kyc submit failed (${kycRes.status()}): ${await kycRes.text()}`);
   }
 
   const admin = await loginAsSeedAdmin(request);
-  const pendingRes = await request.get('/api/admin/kyc/pending?page=0&size=50', { headers: apiAuthed(admin) });
+  const { res: pendingRes } = await withGatewayRetry(() =>
+    request.get('/api/admin/kyc/pending?page=0&size=50', { headers: apiAuthed(admin) })
+  );
   const pendingBody = await pendingRes.json();
   const record = pendingBody.data.content.find((r: any) => r.email === sitter.email);
   if (!record) {
     throw new Error(`pending kyc record not found for ${sitter.email}`);
   }
 
-  const reviewRes = await request.post(`/api/admin/kyc/${record.recordId}/review`, {
-    headers: { ...apiAuthed(admin), 'Idempotency-Key': randomUUID() },
-    data: { action: 'APPROVE' }
-  });
-  if (!reviewRes.ok()) {
+  // 重試沿用同一把 Idempotency-Key：第一發若其實有進後端，重送拿到的是同一筆結果
+  const reviewKey = randomUUID();
+  const { res: reviewRes, ok: reviewResOk } = await withGatewayRetry(() =>
+    request.post(`/api/admin/kyc/${record.recordId}/review`, {
+      headers: { ...apiAuthed(admin), 'Idempotency-Key': reviewKey },
+      data: { action: 'APPROVE' }
+    })
+  );
+  if (!reviewResOk) {
     throw new Error(`kyc approve failed (${reviewRes.status()}): ${await reviewRes.text()}`);
   }
 
-  const openRes = await request.put('/api/sitter/kyc/open', { headers: apiAuthed(sitter), data: { isOpen: true } });
-  if (!openRes.ok()) {
+  const { res: openRes, ok: openResOk } = await withGatewayRetry(() =>
+    request.put('/api/sitter/kyc/open', { headers: apiAuthed(sitter), data: { isOpen: true } })
+  );
+  if (!openResOk) {
     throw new Error(`open status failed (${openRes.status()}): ${await openRes.text()}`);
   }
 
-  const selfRes = await request.get(`/api/sitter/profile/${sitter.userId}`, { headers: apiAuthed(sitter) });
+  const { res: selfRes } = await withGatewayRetry(() =>
+    request.get(`/api/sitter/profile/${sitter.userId}`, { headers: apiAuthed(sitter) })
+  );
   const selfProfile = await selfRes.json();
-  const profileRes = await request.put('/api/sitter/profile', {
-    headers: apiAuthed(sitter),
-    data: {
-      displayName: `Journey保母${scenario}公開顯示名稱-${Date.now()}`,
-      bio: 'journey bootstrap sitter',
-      isVisible: true,
-      tags: ['細心'],
-      serviceAreas: [],
-      version: selfProfile.version
-    }
-  });
-  if (!profileRes.ok()) {
+  const { res: profileRes, ok: profileResOk } = await withGatewayRetry(() =>
+    request.put('/api/sitter/profile', {
+      headers: apiAuthed(sitter),
+      data: {
+        displayName: `Journey保母${scenario}公開顯示名稱-${Date.now()}`,
+        bio: 'journey bootstrap sitter',
+        isVisible: true,
+        tags: ['細心'],
+        serviceAreas: [],
+        version: selfProfile.version
+      }
+    })
+  );
+  if (!profileResOk) {
     throw new Error(`profile update failed (${profileRes.status()}): ${await profileRes.text()}`);
   }
 
   const planName = `${planNamePrefix}-${Date.now()}`;
-  const planRes = await request.post('/api/sitter/plans', {
-    headers: apiAuthed(sitter),
-    data: {
-      name: planName,
-      price: 600,
-      durationMinutes: 60,
-      defaultTasks: ['基本餵食'],
-      applicablePetTypes: ['CAT'],
-      description: '',
-      isRestricted: false
-    }
-  });
-  if (!planRes.ok()) {
+  const { res: planRes, ok: planResOk } = await withGatewayRetry(() =>
+    request.post('/api/sitter/plans', {
+      headers: apiAuthed(sitter),
+      data: {
+        name: planName,
+        price: 600,
+        durationMinutes: 60,
+        defaultTasks: ['基本餵食'],
+        applicablePetTypes: ['CAT'],
+        description: '',
+        isRestricted: false
+      }
+    })
+  );
+  if (!planResOk) {
     throw new Error(`plan create failed (${planRes.status()}): ${await planRes.text()}`);
   }
   const planBody = await planRes.json();
@@ -373,11 +457,13 @@ export async function bootstrapConfirmedOrder(
   const sitter = await bootstrapVerifiedSitter(request, scenario, planNamePrefix);
   const owner = await provisionAndLogin(request, scenario, 'OWNER', `Journey飼主${scenario}`);
 
-  const petRes = await request.post('/api/pets', {
-    headers: apiAuthed(owner),
-    data: { name: `Journey測試貓${scenario}`, species: 'CAT' }
-  });
-  if (!petRes.ok()) {
+  const { res: petRes, ok: petResOk } = await withGatewayRetry(() =>
+    request.post('/api/pets', {
+      headers: apiAuthed(owner),
+      data: { name: `Journey測試貓${scenario}`, species: 'CAT' }
+    })
+  );
+  if (!petResOk) {
     throw new Error(`pet create failed (${petRes.status()}): ${await petRes.text()}`);
   }
   const petBody = await petRes.json();
@@ -390,49 +476,64 @@ export async function bootstrapConfirmedOrder(
   // 用 datesOverride 讓呼叫方兜出多天的原始訂單，預設仍是單天（沿用 Journey B/C 行為）
   const dates = datesOverride ?? [dateStr];
 
-  const bookingRes = await request.post('/api/orders/booking', {
-    headers: { ...apiAuthed(owner), 'Idempotency-Key': randomUUID() },
-    data: {
-      ownerId: owner.userId,
-      sitterId: sitter.userId,
-      items: [{ planId: sitter.planId, dates, timesPerDay: 1, petIds: [petId] }],
-      answers: [],
-      expectedTotalAmount: 600 * dates.length
-    }
-  });
-  if (!bookingRes.ok()) {
+  // 重試沿用同一把 Idempotency-Key：第一發若其實有進後端，重送拿到的是同一筆結果
+  const bookingKey = randomUUID();
+  const { res: bookingRes, ok: bookingResOk } = await withGatewayRetry(() =>
+    request.post('/api/orders/booking', {
+      headers: { ...apiAuthed(owner), 'Idempotency-Key': bookingKey },
+      data: {
+        ownerId: owner.userId,
+        sitterId: sitter.userId,
+        items: [{ planId: sitter.planId, dates, timesPerDay: 1, petIds: [petId] }],
+        answers: [],
+        expectedTotalAmount: 600 * dates.length
+      }
+    })
+  );
+  if (!bookingResOk) {
     throw new Error(`booking failed (${bookingRes.status()}): ${await bookingRes.text()}`);
   }
   const { orderId } = await bookingRes.json();
   await awaitOrderStatus(request, owner, orderId, ['PENDING']);
 
-  const confirmRes = await request.post(`/api/orders/${orderId}/confirm?sitterId=${sitter.userId}`, {
-    headers: apiAuthed(sitter)
-  });
-  if (!confirmRes.ok()) {
+  const { res: confirmRes, ok: confirmResOk } = await withGatewayRetry(
+    () =>
+      request.post(`/api/orders/${orderId}/confirm?sitterId=${sitter.userId}`, {
+        headers: apiAuthed(sitter)
+      }),
+    () => orderAlreadyIn(request, owner, orderId, 'PENDING_PAYMENT')
+  );
+  if (!confirmResOk) {
     throw new Error(`confirm failed (${confirmRes.status()}): ${await confirmRes.text()}`);
   }
   await awaitOrderStatus(request, owner, orderId, ['PENDING_PAYMENT']);
 
-  const paymentRes = await request.post(`/api/orders/${orderId}/payment-proof`, {
-    headers: { ...apiAuthed(owner), 'Idempotency-Key': randomUUID() },
-    multipart: {
-      file: {
-        name: 'proof.jpg',
-        mimeType: 'image/jpeg',
-        buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-selfie.jpg'))
-      },
-      lastFive: '12345',
-      disclaimerAgreed: 'true'
-    }
-  });
-  if (!paymentRes.ok()) {
+  // 重試沿用同一把 Idempotency-Key：第一發若其實有進後端，重送拿到的是同一筆結果
+  const paymentKey = randomUUID();
+  const { res: paymentRes, ok: paymentResOk } = await withGatewayRetry(() =>
+    request.post(`/api/orders/${orderId}/payment-proof`, {
+      headers: { ...apiAuthed(owner), 'Idempotency-Key': paymentKey },
+      multipart: {
+        file: {
+          name: 'proof.jpg',
+          mimeType: 'image/jpeg',
+          buffer: fs.readFileSync(path.join(__dirname, 'fixtures/kyc-selfie.jpg'))
+        },
+        lastFive: '12345',
+        disclaimerAgreed: 'true'
+      }
+    })
+  );
+  if (!paymentResOk) {
     throw new Error(`payment-proof failed (${paymentRes.status()}): ${await paymentRes.text()}`);
   }
   await awaitOrderStatus(request, sitter, orderId, ['PAID']);
 
-  const verifyRes = await request.post(`/api/orders/${orderId}/verify-payment`, { headers: apiAuthed(sitter) });
-  if (!verifyRes.ok()) {
+  const { res: verifyRes, ok: verifyResOk } = await withGatewayRetry(
+    () => request.post(`/api/orders/${orderId}/verify-payment`, { headers: apiAuthed(sitter) }),
+    () => orderAlreadyIn(request, owner, orderId, 'CONFIRMED')
+  );
+  if (!verifyResOk) {
     throw new Error(`verify-payment failed (${verifyRes.status()}): ${await verifyRes.text()}`);
   }
   await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);

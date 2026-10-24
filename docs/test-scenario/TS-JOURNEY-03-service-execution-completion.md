@@ -47,6 +47,7 @@
 
 * **資料清理**：本測試建立的帳號、訂單、行程、日誌媒體皆落在 `@e2e-journey.test` 網域，由 CI 跑完後呼叫 `cleanup-e2e-journeys` 統一硬刪除（含 GCS 上的日誌照片物件）。
 * **前置依賴**：`bootstrapConfirmedOrder` helper 重跑 Journey A（`bootstrapVerifiedSitter`）+ Journey B（建寵物、下單、快速接單、付款、核對入帳）的機械部分，若這兩條路徑本身失敗，這裡也會連帶失敗。
+* **GFE 暫時性 502（環境因素，非產品 bug，2026-10-24 `.e2e-runs/20261024-1939` F2）**：CI 曾在前置的 `POST /api/orders/{id}/confirm` 收到 502 + Google 錯誤頁 HTML（209ms，Cloud Run 沒有該 request 的 log，代表沒進容器），retry1 才過。`bootstrapVerifiedSitter` / `bootstrapConfirmedOrder` 的前置 API 改經 `withGatewayRetry`：只有 502/503/504 **且 body 不是 JSON** 時退避 2s/4s 重送（JSON 錯誤一律不重試、原樣失敗）；帶 `Idempotency-Key` 的請求重送沿用同一把 key；非冪等的 confirm / verify-payment 重送若得到 409 且訂單已在 `PENDING_PAYMENT` / `CONFIRMED`，視為第一發已生效、算成功。只包前置，不包業務斷言。
 
 ---
 
