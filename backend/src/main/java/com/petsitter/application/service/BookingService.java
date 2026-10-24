@@ -2,7 +2,6 @@ package com.petsitter.application.service;
 
 import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.dto.QuestionnaireAnswerRequest;
-import com.petsitter.application.exception.CapacityFullException;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.QuestionnaireAnswer;
@@ -148,41 +147,6 @@ public class BookingService {
 
         log.info("[BookingService] Successfully created PENDING order ID: {}", savedOrder.getId());
         return savedOrder.getId();
-    }
-
-    @Transactional
-    public void confirmBooking(UUID orderId) {
-        log.info("[BookingService] Sitter confirming order: {}", orderId);
-        
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
-        
-        if (!"PENDING".equals(order.getStatus())) {
-            throw new IllegalStateException("只有 PENDING 狀態的訂單可以確認接單");
-        }
-
-        UUID sitterId = order.getSitter().getId();
-        List<Visit> visits = visitRepository.findByOrderId(orderId);
-
-        for (Visit visit : visits) {
-            String dateStr = visit.getScheduledAt().toLocalDate().toString();
-            orderRepository.acquireAdvisoryLock(sitterId.toString(), dateStr);
-
-            ServicePlan plan = servicePlanRepository.findById(visit.getPlanId())
-                    .orElseThrow(() -> new IllegalStateException("找不到對應的服務方案: " + visit.getPlanId()));
-
-            long bookedCount = visitRepository.countBookedVisitsBySitterIdAndDate(sitterId, visit.getScheduledAt());
-            
-            if (bookedCount >= plan.getDailyCapacity()) {
-                throw new CapacityFullException("日期 " + dateStr + " 的名額已滿，無法接單");
-            }
-        }
-
-        order.setStatus("PENDING_PAYMENT");
-        orderRepository.save(order);
-
-        visits.forEach(v -> v.setStatus("CONFIRMED"));
-        visitRepository.saveAll(visits);
     }
 
     /**

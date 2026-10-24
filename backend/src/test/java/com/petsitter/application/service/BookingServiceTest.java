@@ -49,6 +49,9 @@ class BookingServiceTest {
     private BookingService bookingService;
 
     @Autowired
+    private ConfirmOrderService confirmOrderService;
+
+    @Autowired
     private OrderRepository orderRepository;
 
     @Autowired
@@ -144,57 +147,102 @@ class BookingServiceTest {
         assertThat(pendingCount).isEqualTo(concurrentCount);
     }
 
-    @Test
-    @DisplayName("TS-005-02: 併發確認接單 (Advisory Lock) - 應防止超賣，僅有一筆成功轉為 PENDING_PAYMENT")
-    void ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm() {
+    /**
+     * 讓 orderIds 這幾張單由 n 個執行緒同時打正式接單路徑 {@link ConfirmOrderService#confirmOrder}
+     * （= POST /api/orders/{id}/confirm），回傳 [成功數, CapacityFullException 數]。其他例外直接讓測試失敗。
+     */
+    private int[] confirmConcurrently(List<UUID> orderIds) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(orderIds.size());
+        java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(orderIds.size());
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger capacityFullCount = new AtomicInteger(0);
+        try {
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            for (UUID orderId : orderIds) {
+                futures.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        barrier.await();
+                        confirmOrderService.confirmOrder(sitterId, orderId);
+                        successCount.incrementAndGet();
+                    } catch (CapacityFullException e) {
+                        capacityFullCount.incrementAndGet();
+                    } catch (Exception e) {
+                        throw new IllegalStateException("接單應只有成功或 CapacityFullException 兩種結果", e);
+                    }
+                }, executor));
+            }
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+        return new int[] { successCount.get(), capacityFullCount.get() };
+    }
+
+    private List<UUID> createPendingOrders(LocalDate date, int count, String keyPrefix) {
         com.petsitter.application.dto.BookingItemRequest item = com.petsitter.application.dto.BookingItemRequest.builder()
                 .planId(planId)
-                .dates(List.of(LocalDate.of(2026, 6, 1)))
+                .dates(List.of(date))
                 .timesPerDay(1)
                 .build();
+        List<UUID> ids = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            ids.add(bookingService.createBooking(BookingRequest.builder()
+                    .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+                    .expectedTotalAmount(500)
+                    .idempotencyKey(keyPrefix + "-" + i).build()));
+        }
+        return ids;
+    }
 
-        UUID order1 = bookingService.createBooking(BookingRequest.builder()
-                .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
-                .expectedTotalAmount(500)
-                .idempotencyKey("order-1").build());
+    private long countOrdersByStatus(List<UUID> orderIds, String status) {
+        return orderRepository.findAllById(orderIds).stream().filter(o -> status.equals(o.getStatus())).count();
+    }
 
-        UUID order2 = bookingService.createBooking(BookingRequest.builder()
-                .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
-                .expectedTotalAmount(500)
-                .idempotencyKey("order-2").build());
+    @Test
+    @DisplayName("TS-005-02: 併發確認接單 (Advisory Lock) - 正式接單路徑 ConfirmOrderService 應防止超賣，容量 1 時兩張只成功一張")
+    void ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm() throws Exception {
+        // 每輪換一天、各自兩張 PENDING 單同時接，多跑幾輪提高撞在同一瞬間的機率
+        for (int round = 0; round < 5; round++) {
+            LocalDate date = LocalDate.of(2026, 6, 1).plusDays(round);
+            List<UUID> orders = createPendingOrders(date, 2, "cap1-" + round);
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger failureCount = new AtomicInteger(0);
+            int[] result = confirmConcurrently(orders);
 
-        CompletableFuture<Void> f1 = CompletableFuture.runAsync(() -> {
-            try {
-                bookingService.confirmBooking(order1);
-                successCount.incrementAndGet();
-            } catch (CapacityFullException e) {
-                failureCount.incrementAndGet();
+            assertThat(result[0]).as("第 %d 輪成功接單數（容量 1）", round + 1).isEqualTo(1);
+            assertThat(result[1]).as("第 %d 輪 CapacityFullException 數", round + 1).isEqualTo(1);
+            assertThat(countOrdersByStatus(orders, "PENDING_PAYMENT")).isEqualTo(1);
+            assertThat(countOrdersByStatus(orders, "PENDING")).isEqualTo(1);
+            // 只有成功那張建立快照；失敗那張整筆 rollback
+            assertThat(orderSnapshotRepository.findAll().stream()
+                    .filter(snap -> orders.contains(snap.getOrder().getId())).count()).isEqualTo(1);
+            // SD-008：接單不動 visit 狀態，行程維持 PENDING（舊死碼 BookingService.confirmBooking 會改成 CONFIRMED）
+            for (UUID orderId : orders) {
+                assertThat(visitRepository.findByOrderId(orderId))
+                        .extracting(com.petsitter.domain.model.Visit::getStatus)
+                        .containsOnly("PENDING");
             }
-        }, executor);
+        }
+    }
 
-        CompletableFuture<Void> f2 = CompletableFuture.runAsync(() -> {
-            try {
-                bookingService.confirmBooking(order2);
-                successCount.incrementAndGet();
-            } catch (CapacityFullException e) {
-                failureCount.incrementAndGet();
-            }
-        }, executor);
+    @Test
+    @DisplayName("TS-005-02b: 併發確認接單邊界 - 容量 2、三張同日單同時接，只成功兩張")
+    void ts005_02b_should_AcceptUpToDailyCapacity_When_ConcurrentConfirmExceedsCapacity() throws Exception {
+        ServicePlan plan = servicePlanRepository.findById(planId).orElseThrow();
+        plan.setDailyCapacity(2);
+        servicePlanRepository.save(plan);
 
-        CompletableFuture.allOf(f1, f2).join();
-        executor.shutdown();
+        for (int round = 0; round < 5; round++) {
+            LocalDate date = LocalDate.of(2026, 7, 1).plusDays(round);
+            List<UUID> orders = createPendingOrders(date, 3, "cap2-" + round);
 
-        assertThat(successCount.get()).isEqualTo(1);
-        assertThat(failureCount.get()).isEqualTo(1);
+            int[] result = confirmConcurrently(orders);
 
-        long confirmedCount = orderRepository.findAll().stream()
-                .filter(o -> "PENDING_PAYMENT".equals(o.getStatus()))
-                .count();
-        assertThat(confirmedCount).isEqualTo(1);
+            assertThat(result[0]).as("第 %d 輪成功接單數（容量 2）", round + 1).isEqualTo(2);
+            assertThat(result[1]).as("第 %d 輪 CapacityFullException 數", round + 1).isEqualTo(1);
+            assertThat(countOrdersByStatus(orders, "PENDING_PAYMENT")).isEqualTo(2);
+            assertThat(visitRepository.countBookedVisitsBySitterIdAndDate(
+                    sitterId, date.atStartOfDay().atOffset(java.time.ZoneOffset.UTC))).isEqualTo(2);
+        }
     }
 
     @Test

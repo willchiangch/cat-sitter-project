@@ -22,9 +22,10 @@
 
 ## Scenario 2: 保母併發接單 (配額鎖定)
 * **Given**: 存在兩筆對應同一日期、同一保母的 `PENDING` 訂單。
-* **When**: 保母嘗試同時確認這兩筆訂單。
-* **Then**: 系統應利用 Advisory Lock 確保僅有一筆能成功變更為 `PENDING_PAYMENT`，另一筆應拋出 `CapacityFullException`。
-* **自動化對應**: `BookingServiceTest.ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm()`
+* **When**: 保母嘗試同時確認這兩筆訂單（正式接單路徑 `ConfirmOrderService.confirmOrder()` = `POST /api/orders/{id}/confirm`，兩個執行緒以 `CyclicBarrier` 對齊起跑，換 5 個日期各跑一輪）。
+* **Then**: 系統應利用 Advisory Lock 確保僅有一筆能成功變更為 `PENDING_PAYMENT`，另一筆應拋出 `CapacityFullException`（不得出現其他例外）；只有成功那筆有快照；兩筆的行程都維持 `PENDING`（SD-008，接單不改 visit 狀態）。
+* **邊界（2b）**：`dailyCapacity=2`、三筆同日單同時接 → 恰好兩筆成功、一筆 `CapacityFullException`，`countBookedVisitsBySitterIdAndDate` = 2。
+* **自動化對應**: `BookingServiceTest.ts005_02_should_PreventOverselling_When_SitterConcurrentConfirm()`、`ts005_02b_should_AcceptUpToDailyCapacity_When_ConcurrentConfirmExceedsCapacity()`
 
 ## Scenario 3: 複合方案預約驗證 (Multi-Plan / Multi-Visit)
 * **Given**: 保母有方案 A ($500) 與方案 B ($800)。
@@ -68,3 +69,4 @@
 
 ## 本測試發現並修復的真實 bug
 - **選擇方案頁寫死「尊榮包月 $15,000/月・此方案目前檔期已滿」（2026-10，驗收 P2）**：`PublicBookingPage.tsx` 在真實方案清單後面固定多渲染一張註解為「檔期不足模擬」的灰色卡片，是 2026-05 設計稿/展示用的 mock 佔位，沒有對應任何資料。正式站每一位保母的下單頁都會出現這張卡，飼主會以為保母有包月方案、只是剛好額滿。PRD-005/SD-005 都沒有包月方案或「方案層級檔期已滿」的需求（SD-005 §5：檔期已滿於送單階段不阻擋，由保母接單時判斷），`ServicePlan` 也沒有計費週期欄位，因此直接移除，不改成資料驅動。迴歸測試見驗證矩陣第 4 步。
+- **併發接單測試測的是死碼（2026-10，backlog F2；測試盲點，非產品超賣）**：`ts005_02` 原本呼叫 `BookingService.confirmBooking()`，但這個方法沒有任何 controller 呼叫，正式接單走的是 `ConfirmOrderService.confirmOrder()`（鎖的實作也不同：舊死碼用 `hashtext` 雙鍵、正式路徑用排序後的 bigint 鍵），而且死碼會把 visit 設成 `CONFIRMED`，違反 SD-008 狀態機。等於正式路徑的超賣保護完全沒有自動化覆蓋。改測正式路徑後：有鎖 → 綠（連跑 3 次皆綠）；暫時拿掉 `advisoryLockService.acquireLocks()` → `ts005_02`、`ts005_02b` 第 1 輪就紅（兩張都接成功），證明測試確實擋得住超賣、而正式路徑的保護是有效的。死碼與 `OrderRepository.acquireAdvisoryLock` 一併刪除；`ConfirmOrderService` 撈行程從 `findAll().stream().filter()` 全表掃描改 `findByOrderId`。

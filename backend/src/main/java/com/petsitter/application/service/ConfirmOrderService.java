@@ -44,11 +44,9 @@ public class ConfirmOrderService {
             throw new IllegalStateException("只有 PENDING 狀態的訂單可以被接單，目前狀態: " + order.getStatus());
         }
 
-        // 2. 獲取預約日期列表 (從 Visits 取得)
-        List<Visit> visits = visitRepository.findAll().stream()
-                .filter(v -> v.getOrder().getId().equals(orderId))
-                .collect(Collectors.toList());
-        
+        // 2. 獲取預約日期列表 (從 Visits 取得；過去 findAll() 全表撈回再 filter，改為依 order_id 查詢)
+        List<Visit> visits = visitRepository.findByOrderId(orderId);
+
         List<LocalDate> dates = visits.stream()
                 .map(v -> v.getScheduledAt().toLocalDate())
                 .distinct()
