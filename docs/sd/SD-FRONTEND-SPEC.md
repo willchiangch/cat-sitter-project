@@ -33,6 +33,7 @@
   - 將後續遇到 401 的請求封裝成 Promise 存入 Queue 中。
   - 待 Refresh API 成功取得新 Token 後，統一更新 Header 並依次 Resolve 釋放 Queue 中的請求重試。
   - **Refresh 失敗時只清「還是自己那顆」的 token（2026-10 backlog G2）**：送出 refresh 前記下當下的 `refreshToken`；失敗時若 localStorage 的 `refreshToken` 已不是那顆（別的分頁在這期間重新登入、寫入新 token——SD-000 單一 session 下舊 refresh token 隨即失效，refresh 必然 401），**不清除**，改用 localStorage 現有的 access token 重試原請求並放行 Queue。只有仍是同一顆（或為空）時才清除 `accessToken`/`refreshToken` 並 reject。過去無條件清除，會把別分頁剛拿到的新 token 一起清掉，兩個分頁一起被登出。迴歸：`e2e/axios-refresh-cross-tab.spec.ts`。
+  - **session 失效一律導去登入（2026-10-24，驗收 N16）**：遇 401 時 localStorage 沒有 `refreshToken` 就**不送** `/auth/refresh`；refresh 失敗或沒有 refresh token 時清除 token 並 `window.dispatchEvent(new Event('auth:session-expired'))`（`SESSION_EXPIRED_EVENT`），`RequireAuth` 監聽此事件重新判斷 token、導向 `/login?redirect=<目前路徑>`（與未登入直接開受保護頁同一條路；公開頁沒有掛 `RequireAuth`，不會被導走）。`main.tsx` 的 `QueryClient` 預設 `retry` 對 401 不重試，其餘錯誤維持最多 3 次。過去 token 清掉後停在原頁「$ 0 + 載入失敗」，且 React Query 重試再送 3 次 `{ refreshToken: null }`。
 
 ### 2.2 Vite PWA 快取策略限制 (Service Worker)
 - **場景**：PWA Service Worker 預設行為可能過度快取網路請求。

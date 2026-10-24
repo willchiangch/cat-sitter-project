@@ -38,6 +38,18 @@ const PUBLIC_AUTH_PATH_PREFIXES = [
   '/auth/webauthn/login'
 ];
 
+/**
+ * session 已失效（refresh 失敗或根本沒有 refresh token）時廣播的事件：RequireAuth 收到後導去
+ * /login?redirect=<目前頁>。axiosClient 在 React Router 之外，不能直接 navigate（驗收 N16）
+ */
+export const SESSION_EXPIRED_EVENT = 'auth:session-expired';
+
+const expireSession = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+};
+
 const isPublicAuthEndpoint = (url?: string): boolean => {
   if (!url) return false;
   const path = url.startsWith('http') ? new URL(url).pathname.replace(/^\/api/, '') : url;
@@ -86,11 +98,18 @@ axiosClient.interceptors.response.use(
           .catch((err) => Promise.reject(err));
       }
 
+      // 記住本次 refresh 用的是哪一顆：失敗時只清「還是這一顆」的 token（見 catch）
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        // 沒有 refresh token 就不可能換到新的 access token。過去照樣送 { refreshToken: null }，
+        // 而 token 被清掉之後 React Query 每次重試都會再送一次（驗收 N16：refreshCalls 4 次）
+        expireSession();
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
       isRefreshing = true;
 
-      // 記住本次 refresh 用的是哪一顆：失敗時只清「還是這一顆」的 token（見 catch）
-      const refreshToken = localStorage.getItem('refreshToken');
       try {
         // 呼叫後端刷新介面 (需對應 SD-000)
         const response = await axios.post('/api/auth/refresh', { refreshToken });
@@ -119,8 +138,7 @@ axiosClient.interceptors.response.use(
           return axiosClient(originalRequest);
         }
         processQueue(refreshError, null);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        expireSession();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

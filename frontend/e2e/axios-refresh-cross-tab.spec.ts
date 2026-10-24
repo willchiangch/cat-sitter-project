@@ -3,6 +3,10 @@ import { step, apiStep } from './support/evidence';
 import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
 
 /**
+ * 驗收 N16：refresh 失敗清掉 token 後，過去停在原頁「$ 0 + 載入失敗」；React Query 重試時 refreshToken 已是 null，
+ * 又送 3 次 { refreshToken: null }。現在 refresh 失敗 / 沒有 refresh token 一律清 token 並導向 /login?redirect=，
+ * refreshToken 為空時不送 refresh，React Query 對 401 不重試。
+ *
  * 迴歸 (Backlog 第 6 批 G2)：axiosClient refresh 失敗時過去無條件清 localStorage 的 token。
  * 情境：分頁 A 的 refresh 還在飛，分頁 B 重新登入、把新 token 寫進共用的 localStorage；
  * 單一 session 下 A 手上那顆舊 refresh token 已失效 → refresh 401 → A 把 B 剛拿到的新 token 也清掉，
@@ -114,14 +118,14 @@ test.describe('G2 跨分頁 refresh 失敗不清掉別分頁的新 token', () =>
     });
   });
 
-  test('對照組：refresh 失敗且 localStorage 仍是同一顆 refresh token → 照舊清除 token', async ({
+  test('對照組：refresh 失敗且 localStorage 仍是同一顆 refresh token → 清除 token 並導向登入頁', async ({
     page
   }) => {
     await mockDemoSession(page, 'sitter');
     const authHeaders = await mockLedgerRequiringNewToken(page);
-    let refreshCalls = 0;
+    const refreshBodies: unknown[] = [];
     await page.route('**/api/auth/refresh', (route) => {
-      refreshCalls++;
+      refreshBodies.push(route.request().postDataJSON());
       return route.fulfill({
         status: 401,
         contentType: 'application/json',
@@ -130,23 +134,73 @@ test.describe('G2 跨分頁 refresh 失敗不清掉別分頁的新 token', () =>
     });
 
     await step(
-      '開帳務頁：401 → refresh 401，沒有別的分頁換 token → 清除並顯示載入失敗',
+      '開帳務頁：401 → refresh 401，沒有別的分頁換 token → 清除並導向 /login?redirect=/sitter/ledger',
       page,
       async () => {
         await page.goto('/sitter/ledger');
-        await expect.poll(() => refreshCalls).toBeGreaterThan(0);
+        // 驗收 N16：過去停在原頁顯示「$ 0」+「載入失敗」，$ 0 容易被誤讀成沒有收入。與 RequireAuth 一致導去登入
+        await expect(page).toHaveURL(/\/login\?redirect=%2Fsitter%2Fledger$/);
+        await expect(page.getByTestId('login-email-input')).toBeVisible();
+        await expect(page.getByTestId('ledger-total-revenue')).toHaveCount(0);
         await expect
           .poll(() => readTokens(page))
           .toEqual({ accessToken: null, refreshToken: null });
-        await expect(page.getByText('載入失敗，請稍後再試')).toBeVisible();
       }
     );
 
-    await apiStep('token 已清除、帳務 API 從未帶到別的 token', async () => {
-      const tokens = await readTokens(page);
-      expect(authHeaders).not.toContain(`Bearer ${NEW_ACCESS}`);
-      expect(authHeaders[0]).toBe('Bearer mock-sitter-token');
-      return { tokens, refreshCalls, authHeaders };
+    await apiStep(
+      'token 已清除、refresh 只送一次（不再帶 null 重送）、帳務 API 從未帶到別的 token',
+      async () => {
+        const tokens = await readTokens(page);
+        expect(tokens).toEqual({ accessToken: null, refreshToken: null });
+        expect(refreshBodies).toEqual([{ refreshToken: 'mock-refresh' }]);
+        expect(authHeaders).not.toContain(`Bearer ${NEW_ACCESS}`);
+        expect(authHeaders[0]).toBe('Bearer mock-sitter-token');
+        return { tokens, refreshBodies, authHeaders };
+      }
+    );
+  });
+
+  test('沒有 refresh token：401 不送 /auth/refresh，直接清除 access token 並導向登入頁', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    // 正式登入 session，但 refresh token 已不在（例如被別處清掉）。只在第一次載入時種，導頁後不再寫回
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('__e2e_seeded')) return;
+      sessionStorage.setItem('__e2e_seeded', '1');
+      localStorage.setItem('authMode', 'manual');
+      localStorage.setItem('userRole', 'sitter');
+      localStorage.setItem('accessToken', 'stale-access');
+      localStorage.removeItem('refreshToken');
     });
+    const authHeaders = await mockLedgerRequiringNewToken(page);
+    const refreshBodies: unknown[] = [];
+    await page.route('**/api/auth/refresh', (route) => {
+      refreshBodies.push(route.request().postDataJSON());
+      return route.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
+    });
+
+    await step(
+      '開帳務頁：401 → 不送 refresh，導向 /login?redirect=/sitter/ledger',
+      page,
+      async () => {
+        await page.goto('/sitter/ledger');
+        await expect(page).toHaveURL(/\/login\?redirect=%2Fsitter%2Fledger$/);
+        await expect(page.getByTestId('login-email-input')).toBeVisible();
+        await expect
+          .poll(() => readTokens(page))
+          .toEqual({ accessToken: null, refreshToken: null });
+      }
+    );
+
+    await apiStep(
+      'refresh 0 次（過去送 { refreshToken: null } 並隨 React Query 重試再送 3 次）',
+      async () => {
+        expect(refreshBodies).toEqual([]);
+        expect(authHeaders[0]).toBe('Bearer stale-access');
+        return { refreshBodies, authHeaders, tokens: await readTokens(page) };
+      }
+    );
   });
 });
