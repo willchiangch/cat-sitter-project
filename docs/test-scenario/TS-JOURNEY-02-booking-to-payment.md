@@ -60,7 +60,7 @@
 
 ## 五、本測試發現並修復的真實 bug
 
-跑這條 journey 時，步驟 8（記事本互動）踩到一個跟本次下單流程本身無關、但會擋住所有新保母的既有 bug：`CareNoteController` 整支 class 掛 `@RequirePlan(PlanTier.FREE)`，但 `PlanGatingAspect.doCheckPlan()` 原本是 `subscriptionRepository.findBySitterId(sitterId).orElseThrow(...)`——**保母完全沒有 `subscriptions` 資料列時直接丟例外（403），不是預設當作 FREE tier**。而 `subscriptions` 這張表只有 admin 手動開通、或保母自己呼叫 `/api/sitter/gatekeeper/subscription/mock` 才會寫入，一般註冊/KYC 流程完全不會建立，等於**任何一個真實新保母，只要沒被 admin 手動開通過訂閱，永遠無法使用 Care Notes 及其他 `@RequirePlan` 端點**。這正是 mock-based 單元測試測不到、只有真後端跨模組 journey 才會踩到的那種 bug（既有測試的 `setUp()` 都會手動先塞一筆 `Subscription(planTier=FREE)`，繞過了這個現實中不存在的前提）。
+跑這條 journey 時，步驟 8（記事本互動）踩到一個跟本次下單流程本身無關、但會擋住所有新保母的既有 bug：`CareNoteController` 整支 class 掛 `@RequirePlan(PlanTier.FREE)`，但 `PlanGatingAspect.doCheckPlan()` 原本是 `subscriptionRepository.findBySitterId(sitterId).orElseThrow(...)`——**保母完全沒有 `subscriptions` 資料列時直接丟例外（403），不是預設當作 FREE tier**。而 `subscriptions` 這張表只有 admin 手動開通、或保母自己呼叫 `/api/sitter/gatekeeper/subscription/mock`（2026-10 fix-batch10 H1 起僅非正式環境存在，正式站 404）才會寫入，一般註冊/KYC 流程完全不會建立，等於**任何一個真實新保母，只要沒被 admin 手動開通過訂閱，永遠無法使用 Care Notes 及其他 `@RequirePlan` 端點**。這正是 mock-based 單元測試測不到、只有真後端跨模組 journey 才會踩到的那種 bug（既有測試的 `setUp()` 都會手動先塞一筆 `Subscription(planTier=FREE)`，繞過了這個現實中不存在的前提）。
 
 修法：`PlanGatingAspect` 查不到訂閱資料列時不再 `throw`，改為視為 `PlanTier.FREE` 繼續往下判斷（FREE 本來就該是所有人預設可用的最低層級）。已補上 `CareNoteControllerTest.should_Return200_When_SitterHasNoSubscriptionRow` 迴歸測試，全量 `mvn test` 208 個測試綠燈。
 

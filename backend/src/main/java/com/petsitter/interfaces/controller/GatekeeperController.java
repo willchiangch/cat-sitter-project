@@ -45,35 +45,6 @@ public class GatekeeperController {
         return ResponseEntity.ok(res);
     }
 
-    @PostMapping("/subscription/mock")
-    public ResponseEntity<java.util.Map<String, Object>> mockUpdateSubscription(
-            @RequestBody java.util.Map<String, String> body) {
-        UUID sitterId = TokenContext.getUserId();
-        String tier = body.get("planTier");
-        if (tier == null) {
-            tier = "FREE";
-        }
-        
-        Subscription sub = subscriptionRepository.findBySitterId(sitterId).orElse(null);
-        if (sub == null) {
-            User sitter = userRepository.findById(sitterId).orElseThrow();
-            sub = Subscription.builder()
-                    .sitter(sitter)
-                    .planTier(tier)
-                    .monthlyOrderCount(0)
-                    .build();
-        } else {
-            sub.setPlanTier(tier);
-            sub.setExpiredAt(null);
-        }
-        subscriptionRepository.save(sub);
-        
-        java.util.Map<String, Object> res = new java.util.HashMap<>();
-        res.put("planTier", sub.getPlanTier());
-        res.put("expiredAt", null);
-        return ResponseEntity.ok(res);
-    }
-
     @GetMapping
     public ResponseEntity<List<GatekeeperRuleDto>> getRules() {
         UUID sitterId = TokenContext.getUserId();

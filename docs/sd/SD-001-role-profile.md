@@ -303,13 +303,22 @@ ALTER TABLE refresh_tokens ADD COLUMN active_role VARCHAR(50);
 | POST | `/api/sitter/gatekeeper` | 新增門禁規則 | Sitter |
 | DELETE | `/api/sitter/gatekeeper/{ruleId}` | 刪除門禁規則 | Sitter |
 
+### 3. 訂閱等級查詢與開通（fix-batch10 H1）
+| Method | Path | 說明 | 權限 | 環境 |
+|--------|------|------|-----|-----|
+| GET | `/api/sitter/gatekeeper/subscription` | 保母查自己的 `planTier` / `expiredAt`（無資料列視為 FREE） | Sitter | 全部 |
+| POST | `/api/admin/subscriptions/{sitterId}` | 管理員開通 / 調整等級與到期日，寫 `ADMIN_SUBSCRIPTION_SET` 審計（`AdminSubscriptionController`，class 層 `@PreAuthorize("hasRole('ADMIN')")`） | Admin | 全部 |
+| POST | `/api/sitter/gatekeeper/subscription/mock` | 開發用：保母自助切換等級（`GatekeeperDevSubscriptionController`，`@Profile("!prod")`） | 已登入 | **僅非正式環境**；`SPRING_PROFILES_ACTIVE=prod`（deploy.yml）不註冊 bean，回 404 |
+
+過去 `subscription/mock` 寫在 `GatekeeperController` 裡、沒有 profile 也沒有角色限制，正式站任何已登入使用者都能把自己升到 PRO / ULTIMATE。現在正式站開通只走管理員端點；保母端 `GatekeeperSettings` 不再有「模擬升級 / 降級」按鈕，鎖定畫面顯示「請聯繫平台管理員開通」（`data-testid="gatekeeper-contact-admin"`）。線上訂閱付款待 SD-015。迴歸：`GatekeeperSubscriptionProdProfileTest`（真 prod profile + 真 JWT：bean 不存在、保母打 mock 404、SITTER / OWNER 打管理員端點 403、匿名 401、ADMIN 200）、`GatekeeperDevSubscriptionLocalProfileTest`（local 仍可用）。
+
 ---
 
 ## 權限與訂閱鎖定設計 (SaaS Gating)
 
 | Sitter Subscription | 門禁管理權限 | 容許規則 |
 |--------------------|-------------|---------|
-| `FREE`, `BASIC` | ❌ 禁用 (前端隱藏，後端 403) | 無 |
+| `FREE`, `BASIC` | ❌ 禁用 (前端顯示鎖定畫面＋「請聯繫平台管理員開通」，後端 403) | 無 |
 | `PRO` | 展開設定 (僅限黑名單) | `BLACK` |
 | `ULTIMATE` | 展開設定 (無限制) | `BLACK`, `WHITE`, `NO_QUESTIONNAIRE` |
 

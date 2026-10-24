@@ -89,20 +89,6 @@ export const GatekeeperSettings: React.FC = () => {
     fetchSubscriptionAndData();
   }, []);
 
-  const handleMockUpgrade = async (tier: string) => {
-    try {
-      setActionLoading(true);
-      await axiosClient.post('/sitter/gatekeeper/subscription/mock', { planTier: tier });
-      setSuccessMessage(`已模擬切換訂閱方案為 ${tier}`);
-      setTimeout(() => setSuccessMessage(''), 3000);
-      await fetchSubscriptionAndData();
-    } catch (err: any) {
-      setErrorMessage('模擬切換方案失敗');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleAddRule = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -249,24 +235,24 @@ export const GatekeeperSettings: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'center', width: '100%' }}>
-            <button
-              onClick={() => handleMockUpgrade('PRO')}
-              disabled={actionLoading}
-              className="btn-primary"
-              style={{ fontSize: '0.8125rem', padding: '0.625rem 1.25rem' }}
-            >
-              模擬升級專業版 (PRO)
-            </button>
-            <button
-              onClick={() => handleMockUpgrade('ULTIMATE')}
-              disabled={actionLoading}
-              className="btn-primary"
-              style={{ fontSize: '0.8125rem', padding: '0.625rem 1.25rem' }}
-            >
-              模擬升級頂級版 (ULTIMATE)
-            </button>
-          </div>
+          {/* 正式站只有管理員能開通（POST /api/admin/subscriptions/{id}），保母端沒有自助升級入口；
+              線上訂閱付款待 SD-015。過去這裡的「模擬升級」按鈕打 /subscription/mock，任何人都能自升等級 */}
+          <p
+            data-testid="gatekeeper-contact-admin"
+            style={{
+              margin: 0,
+              width: '100%',
+              padding: '0.875rem 1rem',
+              borderRadius: '12px',
+              backgroundColor: 'var(--color-primary-container)',
+              color: 'var(--color-on-primary-container)',
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              lineHeight: 1.6
+            }}
+          >
+            目前方案：{planTier}。如需開通專業版 / 頂級版，請聯繫平台管理員開通。
+          </p>
         </div>
       </div>
     );
@@ -309,40 +295,6 @@ export const GatekeeperSettings: React.FC = () => {
           >
             方案等級: {planTier}
           </span>
-          {planTier === 'PRO' && (
-            <button
-              onClick={() => handleMockUpgrade('ULTIMATE')}
-              disabled={actionLoading}
-              style={{
-                padding: '4px 12px',
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '9999px',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: 'inherit',
-                cursor: 'pointer'
-              }}
-            >
-              模擬升級頂級版 (ULTIMATE)
-            </button>
-          )}
-          <button
-            onClick={() => handleMockUpgrade('FREE')}
-            disabled={actionLoading}
-            style={{
-              padding: '4px 12px',
-              backgroundColor: 'rgba(0,0,0,0.15)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: '9999px',
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              color: 'inherit',
-              cursor: 'pointer'
-            }}
-          >
-            模擬降級 Free
-          </button>
         </div>
       </div>
 

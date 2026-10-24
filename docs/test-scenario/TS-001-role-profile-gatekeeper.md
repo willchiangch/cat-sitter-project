@@ -28,13 +28,13 @@
 | :--- | :--- | :--- | :---: | :--- |
 | 1 | POST `/api/auth/switch-role` 傳入目標角色 `CLIENT` | 從預設 SITTER 角色切換為 CLIENT，UI 更新為「愛貓飼主」介面。 | E2E <br><hr> 後端整合測試 | API 200 OK / 簽發全新 JWT 且 payload decode 驗證 `activeRole` 為 `CLIENT`<br><hr> **DB 驗證**：自動於 `profiles` 寫入一筆 `type='CLIENT'` 紀錄，且無重複產生。 |
 | 2 | 切換回 `SITTER` 角色 | 切換回 SITTER 角色，UI 更新為「貓咪保母」介面。 | E2E <br><hr> 後端整合測試 | API 200 OK / 新 JWT payload decode 驗證 `activeRole` 為 `SITTER`<br><hr> **DB 驗證**：已存在的 profile 唯讀不重複寫入，`profiles` 數量維持 1 筆。 |
-| 3 | 進入門禁設定頁面 (Sitter 方案為 FREE) | UI 顯示鎖定畫面：「解鎖預約門禁系統 (Gatekeeper)」，拒絕進入設定面板。 | E2E <br><hr> 後端整合測試 | 前端依據 `/subscription` 之 `planTier='FREE'` 卡控 UI 鎖定。<br><hr> 後端 Controller 攔截器作為防線，仍應回傳 403 Forbidden 錯誤。 |
-| 4 | 模擬升級為專業版 (PRO) | 鎖定畫面消失，解鎖呈現「預約門禁管理系統」面板，方案顯示 PRO。 | E2E | API 200 OK / `/subscription` 回傳 planTier='PRO' / 門禁類型中「白名單」與「免填問卷」選項呈現 disabled 禁用。 |
-| 5 | 模擬升級為頂級版 (ULTIMATE) | 面板全部解鎖，門禁類型「白名單」與「免填問卷」選項變為可用啟用狀態。 | E2E | API 200 OK / `/subscription` 回傳 planTier='ULTIMATE' / 所有規則種類均可選取。 |
+| 3 | 進入門禁設定頁面 (Sitter 方案為 FREE) | UI 顯示鎖定畫面：「解鎖預約門禁系統 (Gatekeeper)」與「請聯繫平台管理員開通」，拒絕進入設定面板；畫面上沒有任何升級 / 模擬按鈕。 | E2E <br><hr> 後端整合測試 | 前端依據 `/subscription` 之 `planTier='FREE'` 卡控 UI 鎖定。<br><hr> 後端 Controller 攔截器作為防線，仍應回傳 403 Forbidden 錯誤。 |
+| 4 | 管理員開通專業版 (PRO) 後保母重新進頁（mock：`/subscription` 改回 PRO） | 鎖定畫面消失，解鎖呈現「預約門禁管理系統」面板，方案顯示 PRO。 | E2E | API 200 OK / `/subscription` 回傳 planTier='PRO' / 門禁類型中「白名單」與「免填問卷」選項呈現 disabled 禁用。 |
+| 5 | 管理員開通頂級版 (ULTIMATE) 後保母重新進頁 | 面板全部解鎖，門禁類型「白名單」與「免填問卷」選項變為可用啟用狀態。 | E2E | API 200 OK / `/subscription` 回傳 planTier='ULTIMATE' / 所有規則種類均可選取。 |
 | 6 | 對同一對象 `owner@test.com` 於 GLOBAL 範圍設定 `WHITE` 規則 (此時已有 `BLACK` 規則) | UI 彈出錯誤提示：「同一對象在同範圍內不能同時並存於黑名單與白名單中」，防止設定。 | E2E <br><hr> 後端整合測試 | API 400 Bad Request / 頁面渲染後端返回的互斥提示。<br><hr> **SLF4J Log**：後端拋出異常前印出 `[GatekeeperService] Mutual exclusion conflict: targetUserId ...` 警告。 |
 | 7 | 設定 `GLOBAL` 或 `PLAN` (綁定特定方案) 規則 | 成功新增，規則清單多出一筆，Email 呈現遮蔽格式 (`ow***@test.com`)。 | E2E <br><hr> 後端整合測試 | API 201 Created / 透過對應的 GET `/api/sitter/gatekeeper` endpoint 反查清單確有此規則。<br><hr> **DB 驗證**：`gatekeeper_rules` 新增紀錄 / `log_user_action` 寫入 `CREATE` 審計 / **SLF4J Log**：印出 `Rule created successfully...`。 |
 | 8 | 點擊刪除剛建立的門禁規則 | 成功刪除，清單數量減 1。 | E2E <br><hr> 後端整合測試 | API 204 No Content (或 200 OK) / 透過 GET endpoint 反查此規則已不存在於清單。<br><hr> **DB 驗證**：`gatekeeper_rules` 刪除該筆 / `log_user_action` 寫入 `DELETE` 審計 / **SLF4J Log**：印出 `Rule deleted successfully...`。 |
-| 9 | 方案降級為 FREE | 頁面即刻重新被鎖定畫面遮罩，限制門禁功能使用。 | E2E <br><hr> 後端整合測試 | API 403 Forbidden / 前端重播 FREE 鎖定畫面。<br><hr> 驗證後端 API 返回 403 Forbidden，且 response body 含有代表方案受限之明確錯誤訊息與 code。 |
+| 9 | 方案降級為 FREE（管理員調整或到期回落）後重新進頁 | 頁面重新被鎖定畫面遮罩，限制門禁功能使用。 | E2E <br><hr> 後端整合測試 | API 403 Forbidden / 前端重播 FREE 鎖定畫面。<br><hr> 驗證後端 API 返回 403 Forbidden，且 response body 含有代表方案受限之明確錯誤訊息與 code。 |
 
 ---
 
@@ -87,3 +87,12 @@
 **管理員身分 /demo 的按鈕沒有底色（2026-10-24，驗收 N7 / backlog 第 6 批 G5）**：`RoleContext` 設 `data-theme="admin"`，但 `global.css` 只有 sitter / client 兩組主題變數，`--color-primary-gradient`、`--color-on-primary` 未定義，管理員畫面所有 `.btn-primary`（/demo 切換鈕、功能入口、KYC 清單「進入審查」）都只剩純文字。補 admin 主題（SD-FRONTEND-SPEC §2.3）。迴歸：`frontend/e2e/ui-layout-contrast.spec.ts` N7（漸層兩個色標都存在，文字對兩端對比度 ≥ 4.5:1）。
 
 **/demo 未選中的角色切換鈕對比度不足（2026-10-24，驗收截圖附帶觀察，`.e2e-runs/20261024-1939`）**：未選中的「切換為保母 / 切換為飼主」用 `opacity: 0.6` 表示，文字與漸層底一起淡化，管理員主題實際對比度 2.84:1（< 4.5:1）。改成白底 + `--color-primary` 字 + 主色細框，選中的維持實色漸層，並加 `aria-pressed`（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` N7 新增以 `effectiveGradientContrastOf`（opacity 混色後）斷言未選中切換鈕 ≥ 4.5:1，舊版紅（2.84）。保母 / 飼主主題 `.btn-primary` 漸層亮端本身對比度不足屬設計系統層，未修，見 SD-FRONTEND-SPEC §2.4。
+
+**保母可以自己把訂閱升到任何等級（2026-10-25，fix-batch10 H1 / 第 9 批另外發現 #1，安全）**：`GatekeeperController` 的 `POST /api/sitter/gatekeeper/subscription/mock` 沒有 profile、沒有角色限制，正式站任何已登入使用者帶自己的 token 就能把自己設成 PRO / ULTIMATE，繞過 `PlanGatingAspect` 的付費門檻（議價調整、檔期、白名單）；前端門禁頁的「模擬升級專業版 / 頂級版」「模擬降級 Free」按鈕就是打這支。修法：端點移到 `GatekeeperDevSubscriptionController` 並加 `@Profile("!prod")`，正式站（deploy.yml `SPRING_PROFILES_ACTIVE=prod`）不註冊、回 404；正式站開通只走 `POST /api/admin/subscriptions/{sitterId}`（`hasRole('ADMIN')`）；前端移除所有模擬按鈕，鎖定畫面改顯示「請聯繫平台管理員開通」。本 spec 原本靠點「模擬升級」解鎖，改成修改 `/subscription` 的 mock 回應後重新進頁（等同管理員開通），且任何對 `/subscription/mock` 的呼叫都會落到 `mockDemoSession` 的 catch-all 而紅。
+
+| 驗證 | 預期 | 自動化 |
+| :--- | :--- | :--- |
+| prod profile 起 context | `GatekeeperDevSubscriptionController` 不存在；SITTER 帶真 JWT 打 `/subscription/mock` → 404、`subscriptions` 無資料列 | `GatekeeperSubscriptionProdProfileTest` |
+| SITTER / OWNER 打 `POST /api/admin/subscriptions/{id}` | 403，訂閱不變；匿名 401；ADMIN 200 寫入 PRO | 同上 |
+| local profile | `/subscription/mock` 200（本機開發 / demo 仍可用） | `GatekeeperDevSubscriptionLocalProfileTest` |
+| FREE 進門禁頁 | 「目前方案：FREE。如需開通專業版 / 頂級版，請聯繫平台管理員開通。」；無任何名稱含「模擬 / 升級」的按鈕；PRO 畫面也無「模擬 / 升級 / 降級」按鈕 | `e2e/gatekeeper-flow.spec.ts` TS-001-02 |
