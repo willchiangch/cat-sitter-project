@@ -852,4 +852,132 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("GOOGLE_EMAIL_NOT_VERIFIED"));
     }
+
+    // --- SD-000 單一 session：同帳號併發登入（backlog F1）---
+
+    /**
+     * 讓 n 個執行緒在同一瞬間打同一支 API，回傳 [HTTP status, response body]。
+     * 用 CyclicBarrier 對齊起跑點，盡量讓多筆交易同時落在「刪舊 token → 建新 token」之間。
+     */
+    private List<String[]> fireConcurrently(int n, java.util.concurrent.Callable<org.springframework.test.web.servlet.MvcResult> call)
+            throws Exception {
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(n);
+        java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(n);
+        try {
+            List<java.util.concurrent.Future<String[]>> futures = new ArrayList<>();
+            for (int i = 0; i < n; i++) {
+                futures.add(pool.submit(() -> {
+                    barrier.await();
+                    org.springframework.test.web.servlet.MvcResult r = call.call();
+                    return new String[] {
+                            String.valueOf(r.getResponse().getStatus()),
+                            r.getResponse().getContentAsString()
+                    };
+                }));
+            }
+            List<String[]> results = new ArrayList<>();
+            for (java.util.concurrent.Future<String[]> f : futures) {
+                results.add(f.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            return results;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    private List<com.petsitter.domain.model.RefreshToken> refreshTokensOf(UUID userId) {
+        return refreshTokenRepository.findAll().stream()
+                .filter(t -> t.getUser().getId().equals(userId))
+                .toList();
+    }
+
+    /** 每輪併發結束後：全部 200、DB 只剩一筆 refresh token，且它是本輪某一個回應拿到的那顆（後登入者覆蓋）。 */
+    private void assertSingleSessionAfterRound(UUID userId, List<String[]> results, String label) {
+        List<String> returnedTokens = new ArrayList<>();
+        for (String[] r : results) {
+            assertEquals("200", r[0], label + " 併發請求不應失敗，實際回應：" + r[1]);
+            returnedTokens.add(com.jayway.jsonpath.JsonPath.read(r[1], "$.refreshToken"));
+        }
+        List<com.petsitter.domain.model.RefreshToken> remaining = refreshTokensOf(userId);
+        assertEquals(1, remaining.size(), label + " 單一 session：DB 應只剩一筆 refresh token");
+        assertTrue(returnedTokens.contains(remaining.get(0).getToken()),
+                label + " 留下的 refresh token 應是本輪其中一個回應拿到的那顆");
+    }
+
+    @Test
+    @DisplayName("迴歸測試 F1：同帳號併發登入不應 409，最後只留一組 refresh token（後登入者覆蓋）")
+    void should_NotConflict_When_ConcurrentLoginSameAccount() throws Exception {
+        String json = registerAndVerify("concurrentlogin@test.com", "password123", "Concurrent User", "SITTER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(json, "$.userId"));
+
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail("concurrentlogin@test.com");
+        loginRequest.setPassword("password123");
+        String body = objectMapper.writeValueAsString(loginRequest);
+
+        for (int round = 0; round < 8; round++) {
+            List<String[]> results = fireConcurrently(4, () -> mockMvc.perform(post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)).andReturn());
+            assertSingleSessionAfterRound(userId, results, "第 " + (round + 1) + " 輪登入");
+        }
+    }
+
+    @Test
+    @DisplayName("迴歸測試 F1：帳號有登入失敗紀錄時併發登入，重設失敗次數不應造成 users 樂觀鎖 409")
+    void should_NotConflict_When_ConcurrentLogin_WithPreviousFailedAttempt() throws Exception {
+        String json = registerAndVerify("concurrentfail@test.com", "password123", "Concurrent Fail", "OWNER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(json, "$.userId"));
+
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail("concurrentfail@test.com");
+        loginRequest.setPassword("password123");
+        String body = objectMapper.writeValueAsString(loginRequest);
+
+        for (int round = 0; round < 5; round++) {
+            User user = userRepository.findById(userId).orElseThrow();
+            user.setFailedLoginAttempts(2);
+            userRepository.save(user);
+
+            List<String[]> results = fireConcurrently(4, () -> mockMvc.perform(post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)).andReturn());
+            assertSingleSessionAfterRound(userId, results, "第 " + (round + 1) + " 輪登入");
+            assertEquals(0, userRepository.findById(userId).orElseThrow().getFailedLoginAttempts());
+        }
+    }
+
+    @Test
+    @DisplayName("迴歸測試 F1：同帳號併發 switch-role 與 Google 登入不應 409，最後只留一組 refresh token")
+    void should_NotConflict_When_ConcurrentSwitchRoleAndGoogleLogin() throws Exception {
+        String json = registerAndVerify("concurrentswitch@test.com", "password123", "Concurrent Switch", "OWNER");
+        UUID userId = UUID.fromString(com.jayway.jsonpath.JsonPath.read(json, "$.userId"));
+        String accessToken = com.jayway.jsonpath.JsonPath.read(json, "$.accessToken");
+
+        // 先切一次讓 SITTER Profile 存在，避免併發時 lazy 建 Profile 的唯一約束干擾本測試要驗的 refresh token 行為
+        mockMvc.perform(post("/api/auth/switch-role")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"targetRole\":\"SITTER\"}"))
+                .andExpect(status().isOk());
+
+        when(googleTokenVerifierService.verify("concurrent-google-token"))
+                .thenReturn(new GoogleUserInfo("concurrentswitch@test.com", "Concurrent Switch", true));
+        GoogleLoginRequest googleRequest = new GoogleLoginRequest();
+        googleRequest.setIdToken("concurrent-google-token");
+        String googleBody = objectMapper.writeValueAsString(googleRequest);
+
+        java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger();
+        for (int round = 0; round < 8; round++) {
+            List<String[]> results = fireConcurrently(4, () -> seq.getAndIncrement() % 2 == 0
+                    ? mockMvc.perform(post("/api/auth/switch-role")
+                            .header("Authorization", "Bearer " + accessToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"targetRole\":\"SITTER\"}")).andReturn()
+                    : mockMvc.perform(post("/api/auth/google")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(googleBody)).andReturn());
+            assertSingleSessionAfterRound(userId, results, "第 " + (round + 1) + " 輪 switch-role/Google");
+        }
+    }
 }

@@ -78,73 +78,86 @@ const LoginPage: React.FC = () => {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const pendingIdTokenRef = useRef<string>('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  // 任一種登入（帳密 / 生物辨識 / Google）送出中就擋掉其他登入請求。後端一個帳號只留一組 refresh token
+  // （SD-000 單一 session，後登入者覆蓋），雙擊會送兩次 login：先回來的那組 token 寫進 localStorage
+  // 後，又被第二次登入在後端覆蓋掉，之後 refresh 必定失敗。用 ref 而非 state 判斷，同一個 tick 內的
+  // 第二次點擊（state 還沒 re-render 成 disabled）也擋得住
+  const loginInFlightRef = useRef(false);
+  const busy = loading || biometricLoading || googleLoading;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  /**
+   * 包住一次登入請求。成功並導頁時刻意不解除 busy：window.location.href 換頁前按鈕若恢復可點，
+   * 使用者再按一次就會送出第二次登入、蓋掉剛寫入的 refresh token。
+   * attempt() 回傳 true 代表已導頁；false（例如 Google 要先選角色）才解除。
+   */
+  const runLogin = async (
+    setBusy: (v: boolean) => void,
+    setErr: (v: string | null) => void,
+    fallbackMessage: string,
+    attempt: () => Promise<boolean>
+  ) => {
+    if (loginInFlightRef.current) return;
+    loginInFlightRef.current = true;
+    setErr(null);
+    setBusy(true);
+    let redirected = false;
     try {
-      const { data } = await axiosClient.post('/auth/login', { email, password });
-      applyAuthResponseAndRedirect(data);
+      redirected = await attempt();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '登入失敗，請稍後再試');
+      setErr(err.response?.data?.message || err.message || fallbackMessage);
     } finally {
-      setLoading(false);
+      if (!redirected) {
+        loginInFlightRef.current = false;
+        setBusy(false);
+      }
     }
   };
 
-  const handleBiometricLogin = async () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    return runLogin(setLoading, setError, '登入失敗，請稍後再試', async () => {
+      const { data } = await axiosClient.post('/auth/login', { email, password });
+      applyAuthResponseAndRedirect(data);
+      return true;
+    });
+  };
+
+  const handleBiometricLogin = () => {
     if (!email) {
       setError('請先輸入 Email 再使用生物辨識登入');
       return;
     }
-    setError(null);
-    setBiometricLoading(true);
-    try {
+    return runLogin(setBiometricLoading, setError, '生物辨識登入失敗，請稍後再試', async () => {
       const data = await loginWithBiometricCredential(email);
       applyAuthResponseAndRedirect(data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '生物辨識登入失敗，請稍後再試');
-    } finally {
-      setBiometricLoading(false);
-    }
+      return true;
+    });
   };
 
-  const handleGoogleCredential = async (response: { credential: string }) => {
-    setGoogleError(null);
-    setGoogleLoading(true);
-    try {
+  const handleGoogleCredential = (response: { credential: string }) =>
+    runLogin(setGoogleLoading, setGoogleError, 'Google 登入失敗，請稍後再試', async () => {
       const { data } = await axiosClient.post('/auth/google', { idToken: response.credential });
       if (data.status === 'NEEDS_ROLE_SELECTION') {
         pendingIdTokenRef.current = response.credential;
         setGoogleEmail(data.email);
         setGoogleFullName(data.fullName);
         setGoogleRoleSelectVisible(true);
-      } else {
-        applyAuthResponseAndRedirect(data);
+        return false;
       }
-    } catch (err: any) {
-      setGoogleError(err.response?.data?.message || err.message || 'Google 登入失敗，請稍後再試');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
+      applyAuthResponseAndRedirect(data);
+      return true;
+    });
 
-  const handleGoogleRoleConfirm = async (e: React.FormEvent) => {
+  const handleGoogleRoleConfirm = (e: React.FormEvent) => {
     e.preventDefault();
-    setGoogleError(null);
-    setGoogleLoading(true);
-    try {
+    return runLogin(setGoogleLoading, setGoogleError, 'Google 登入失敗，請稍後再試', async () => {
       const { data } = await axiosClient.post('/auth/google', {
         idToken: pendingIdTokenRef.current,
         role: googleRole
       });
       applyAuthResponseAndRedirect(data);
-    } catch (err: any) {
-      setGoogleError(err.response?.data?.message || err.message || 'Google 登入失敗，請稍後再試');
-    } finally {
-      setGoogleLoading(false);
-    }
+      return true;
+    });
   };
 
   useEffect(() => {
@@ -293,7 +306,7 @@ const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 className="btn-primary"
-                disabled={loading}
+                disabled={busy}
                 data-testid="login-submit-btn"
                 style={{ padding: '0.75rem' }}
               >
@@ -304,7 +317,7 @@ const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleBiometricLogin}
-                  disabled={biometricLoading}
+                  disabled={busy}
                   data-testid="login-biometric-btn"
                   style={{
                     padding: '0.625rem',
@@ -342,7 +355,27 @@ const LoginPage: React.FC = () => {
             </div>
 
             {googleError && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{googleError}</div>}
-            <div ref={googleButtonRef} data-testid="google-signin-button" style={{ display: 'flex', justifyContent: 'center' }} />
+            {/* Google 按鈕是 GSI 注入的 iframe，無法 disabled；送出中改用 pointer-events 擋點擊，
+                handleGoogleCredential 本身也有 loginInFlightRef 擋重入 */}
+            <div
+              ref={googleButtonRef}
+              data-testid="google-signin-button"
+              aria-disabled={busy}
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                pointerEvents: busy ? 'none' : 'auto',
+                opacity: busy ? 0.5 : 1
+              }}
+            />
+            {googleLoading && (
+              <div
+                data-testid="google-signin-loading"
+                style={{ fontSize: '0.875rem', textAlign: 'center' }}
+              >
+                Google 登入中...
+              </div>
+            )}
           </>
         )}
       </div>

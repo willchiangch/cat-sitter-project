@@ -32,8 +32,9 @@ const doSeedLogin = async (role: Role) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: 'password' })
       });
-      // 種子帳號是所有 Demo 訪客共用的：別的分頁/裝置同時登入同一個種子帳號時，後端改寫該帳號唯一一組
-      // refresh token 會撞樂觀鎖回 409 MSG_DATA_CONCURRENCY_CONFLICT。這不是帳密錯誤，稍後重送即可
+      // 種子帳號是所有 Demo 訪客共用的。舊版後端同帳號併發登入會撞樂觀鎖回 409 MSG_DATA_CONCURRENCY_CONFLICT；
+      // backlog F1 起後端改 bulk delete + per-user advisory lock，併發登入一律 200（後登入者覆蓋），
+      // 正常不會再 409。保留重送當防禦：前後端分開部署時舊後端仍可能 409，且這不是帳密錯誤，稍後重送即可
       if (response.status === 409 && attempt < SEED_LOGIN_MAX_ATTEMPTS) {
         await new Promise((resolve) => setTimeout(resolve, 150 * attempt + Math.random() * 150));
         continue;
@@ -57,6 +58,8 @@ const doSeedLogin = async (role: Role) => {
  * refresh token 的樂觀鎖讓其中一個 409；若 409 那個先回來，finishInitialCheck() 先結束 loading、
  * token 還沒寫入，RequireAuth 就把人導去 /login。跨分頁/跨裝置（mock E2E 平行 worker）同時登入同一個
  * 種子帳號也會 409，模組層級去重擋不到，由 doSeedLogin() 對 409 重送補上（Backlog 第 3 批 D4）。
+ * Backlog 第 5 批 F1 起後端併發登入不再 409（SD-000 §2.1），去重仍有意義：兩次登入的第二次會在後端
+ * 覆蓋第一次的 refresh token，若第一次的 token 先寫進 localStorage，之後 refresh 必定失敗。
  * 去重放在模組層級，與元件生命週期無關；自動登入與 /demo 切換角色同時觸發同一角色時也共用同一個請求。
  */
 const loginAsRole = (role: Role): Promise<void> => {

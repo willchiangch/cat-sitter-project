@@ -49,6 +49,20 @@ sequenceDiagram
 > [!IMPORTANT]
 > **2026-08 修復的迴歸缺陷**：`axiosClient.ts` 的全域 response 攔截器過去對「任何」401 一律觸發上圖的刷新流程，沒有排除 `/auth/login`/`/auth/register`/`/auth/refresh`/`/auth/forgot-password`/`/auth/reset-password`/`/auth/google`/`/auth/webauthn/login` 這些**登入前、本身就會合法回 401 的公開端點**（例如帳密打錯）。實際影響：使用者打錯密碼時，攔截器誤判成「access token 過期」，改去用 localStorage 裡殘留、跟這次登入完全無關的 refreshToken 打 `/api/auth/refresh`，真正的登入失敗原因（帳號或密碼錯誤）被這次多餘的 refresh 呼叫蓋掉；當時 `AuthService.refreshToken()`/`verifyExpiration()` 對無效/過期 token 又是丟未接住的裸 `RuntimeException`（無對應 `@ExceptionHandler`），最終顯示成沒有 `message` 欄位的裸 500，使用者只會看到 axios 自己兜的「Request failed with status code 500」，完全看不出真正原因；第二次重試時 localStorage 已被攔截器清空，改撞上 `TokenRefreshRequest.refreshToken` 唯一沒寫自訂訊息的 `@NotBlank`，落回 Hibernate Validator 套件內建、跟語系解析有關、不保證是繁體中文的預設驗證訊息。三處一併修復：攔截器新增 `isPublicAuthEndpoint()` 白名單直接放行、`RuntimeException` 改為有 `HttpStatus`/錯誤碼/繁中訊息的 `AuthException`（`GlobalExceptionHandler` 新增對應 handler）、`TokenRefreshRequest` 補上 `message = "refreshToken 不得為空"`。迴歸測試見 `AuthControllerTest.should_Return401_WithMessage_When_RefreshTokenInvalid`、`should_Return400_WithTraditionalChineseMessage_When_RefreshTokenBlank`。
 
+### 2.1 單一 session 語意（後登入者覆蓋）
+一個帳號同時只保留**一組** refresh token（2026-10 產品決策：維持單裝置情境，不做多裝置 token）。
+- **會換發 refresh token 的入口**：帳密登入、OTP 註冊完成、Google 登入、WebAuthn 登入（以上共用 `AuthService.createAuthResponse()` → `createRefreshToken()`）、`switch-role`。全部收斂到 `AuthService.replaceRefreshToken(user, activeRole)`：
+  1. `AdvisoryLockService.acquireUserSessionLock(userId)`：`pg_advisory_xact_lock(7001, userId.hashCode())`，同一帳號的換發排隊執行（雙參數鍵空間與保母 + 日期的單一 bigint 鎖不重疊）
+  2. `RefreshTokenRepository.deleteByUser(user)`：JPQL bulk `DELETE FROM RefreshToken t WHERE t.user = :user`
+  3. INSERT 新 token
+- **併發語意**：同帳號同時登入 N 次，N 個請求**全部 200**，DB 最後只剩最後提交那一筆；先拿到 token 的裝置下次 refresh 會 401 `REFRESH_TOKEN_INVALID`（被後登入者踢掉）。
+- **refresh 不輪替**：`POST /api/auth/refresh` 只簽新 access token，回傳**同一顆** refresh token、不寫 DB，所以同一裝置多分頁同時 refresh 不會互相作廢。
+- `refresh_tokens.user_id` 沒有唯一約束（只有一般索引），「只有一筆」靠上面的鎖保證，不是靠 DB 約束。
+- 登入成功清除失敗次數改用條件式 bulk `UPDATE users ... version = version + 1`（`UserRepository.resetFailedLoginAttempts`），不再 `save(user)`。
+
+> [!IMPORTANT]
+> **2026-10 修復（backlog F1）同帳號併發登入回 409**：舊版 `deleteByUser` 是 Spring Data 衍生刪除，會先 SELECT 出實體再逐筆 `em.remove()`；兩筆交易同時登入同帳號時，晚到者要刪的那一列已被先到者刪掉，Hibernate 拿到 0 rows affected → `ObjectOptimisticLockingFailureException` → `GlobalExceptionHandler` 轉成 409 `MSG_DATA_CONCURRENCY_CONFLICT`「內容已被更新，請重新整理後再試」。帳號有登入失敗紀錄時，`save(user)` 清失敗次數也會因兩筆交易持有同一個 `users.version` 再撞一次樂觀鎖。改成 bulk DELETE 後不再 409，但兩筆交易各自刪完（看不到對方未提交的新列）再各自 INSERT 會留下兩筆，所以再加 per-user advisory lock。前端登入頁送出中（含成功後換頁前）所有登入按鈕停用，避免雙擊送兩次 login 自己踢掉自己。迴歸：`AuthControllerTest.should_NotConflict_When_ConcurrentLoginSameAccount`、`should_NotConflict_When_ConcurrentLogin_WithPreviousFailedAttempt`、`should_NotConflict_When_ConcurrentSwitchRoleAndGoogleLogin`；mock E2E `login-double-submit.spec.ts`。
+
 ### 3. 授權請求流程 (Authorization Filter)
 ```mermaid
 sequenceDiagram
@@ -284,7 +298,7 @@ sequenceDiagram
     Note over FE: 前端同時清除本機 localStorage 並導回 /login
 ```
 > [!NOTE]
-> **已知限制**：`AuthService.createRefreshToken()` 與 `switchRole()` 在建立新 refresh token 前都會先 `deleteByUser`，代表現況架構下**同一帳號同時只保留一組 refresh token**，並非真正支援 PRD-000 業務規則提到的「多裝置同時在線」。因此本功能實質上等同「登出目前這組 session」，而非「找出並逐一撤銷多台裝置的 session」。若日後要精確符合 PRD 文字，需將 `refresh_tokens` 改為一人多筆並移除 login/register/google-login/switch-role 共用的 `deleteByUser` 清空行為，屬於更大範圍的架構改動，非本輪範圍。
+> **單一 session**：同一帳號同時只保留一組 refresh token（見 §2.1，後登入者覆蓋；2026-10 產品決策維持單裝置情境）。因此本功能實質上等同「撤銷目前這組 session」。若日後要支援多裝置並存，需將 `refresh_tokens` 改為一人多筆並移除 `replaceRefreshToken()` 的清空行為，屬架構改動。
 
 ### 10. 生物辨識登入流程 (WebAuthn, PRD-000 AC-6)
 
@@ -500,7 +514,7 @@ CREATE TABLE registration_otps (
   - `Header`: `{"alg": "HS512", "typ": "JWT"}`
   - `Payload`: `sub` (userId), `email`, `role`, `iat`, `exp`
   - `AccessToken`: 效期 15 分鐘。
-  - `RefreshToken`: 效期 7 天，儲存於資料庫（表：`refresh_tokens`）以支援多設備登入管理與緊急撤銷。
+  - `RefreshToken`: 效期 7 天，儲存於資料庫（表：`refresh_tokens`）以支援緊急撤銷；一個帳號同時只有一筆（單一 session，見 §2.1）。
 - **Security 核心配置 (Spring Security 7+ 規範)**：
   - **Stateless**: 必須設定 `SessionCreationPolicy.STATELESS`。
   - **CSRF**: 必須關閉 `.csrf(AbstractHttpConfigurer::disable)`。

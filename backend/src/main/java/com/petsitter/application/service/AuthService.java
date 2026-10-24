@@ -26,6 +26,7 @@ import com.petsitter.domain.repository.RefreshTokenRepository;
 import com.petsitter.domain.repository.RegistrationOtpRepository;
 import com.petsitter.domain.repository.TrustRelationshipRepository;
 import com.petsitter.domain.repository.UserRepository;
+import com.petsitter.infrastructure.lock.AdvisoryLockService;
 import com.petsitter.infrastructure.security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,6 +72,7 @@ public class AuthService {
     private final GoogleTokenVerifierService googleTokenVerifierService;
     private final EmailService emailService;
     private final AuditLogService auditLogService;
+    private final AdvisoryLockService advisoryLockService;
 
     @Value("${app.frontend-base-url}")
     private String frontendBaseUrl;
@@ -229,9 +231,9 @@ public class AuthService {
         }
 
         if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
-            user.setFailedLoginAttempts(0);
-            user.setLockedUntil(null);
-            userRepository.save(user);
+            // 條件式 bulk UPDATE 而非 save(user)：同帳號併發登入時兩筆交易都讀到同一個 version，
+            // save 會讓晚到者樂觀鎖失敗 → 409（backlog F1）。bulk UPDATE 冪等，且照樣把 version + 1
+            userRepository.resetFailedLoginAttempts(user.getId());
         }
 
         return createAuthResponse(user);
@@ -288,18 +290,10 @@ public class AuthService {
 
         ensureProfileExists(user.getId(), targetRole);
 
-        // 1. 註銷舊的 refresh token
-        refreshTokenRepository.deleteByUser(user);
-        
-        // 2. 建立新的 refresh token，並將 activeRole 寫入為 targetRole
-        RefreshToken newRefreshToken = RefreshToken.builder()
-                .user(user)
-                .token(UUID.randomUUID().toString())
-                .expiryDate(Instant.now().plusMillis(REFRESH_TOKEN_EXPIRY))
-                .activeRole(targetRole)
-                .build();
-        refreshTokenRepository.save(newRefreshToken);
-        
+        // 1+2. 註銷舊的 refresh token，建立新的並將 activeRole 寫入為 targetRole（單一 session）
+        RefreshToken newRefreshToken = replaceRefreshToken(user, targetRole);
+
+
         // 3. 簽發新的 access token (claims 塞入 userId 與 targetRole)
         java.util.Map<String, Object> extraClaims = new java.util.HashMap<>();
         extraClaims.put("userId", user.getId().toString());
@@ -479,14 +473,23 @@ public class AuthService {
     }
 
     private RefreshToken createRefreshToken(User user) {
-        // 移除舊的 refresh token (簡單起見，一個使用者一個)
+        return replaceRefreshToken(user, user.getRole()); // 預設為 user 初始角色
+    }
+
+    /**
+     * SD-000 單一 session：一個帳號同時只保留一組 refresh token，後登入（或切換角色）者覆蓋先到者。
+     * 先取該使用者的 advisory lock 再 bulk DELETE + INSERT，同帳號併發登入時：
+     * 不會 409（bulk DELETE 刪不到不拋例外），也不會留下兩筆（後到者等鎖後看得到先到者已提交的列）。
+     */
+    private RefreshToken replaceRefreshToken(User user, String activeRole) {
+        advisoryLockService.acquireUserSessionLock(user.getId());
         refreshTokenRepository.deleteByUser(user);
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)
                 .token(UUID.randomUUID().toString())
                 .expiryDate(Instant.now().plusMillis(REFRESH_TOKEN_EXPIRY))
-                .activeRole(user.getRole()) // 預設為 user 初始角色
+                .activeRole(activeRole)
                 .build();
 
         return refreshTokenRepository.save(refreshToken);
