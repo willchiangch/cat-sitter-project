@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
 
 const sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda';
 
 test.describe('PRD-019 我的最愛保母', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test.setTimeout(60000);
 
   test('可搜尋保母並加入收藏，切換休息中狀態後清單同步顯示，移除後消失', async ({ page }) => {

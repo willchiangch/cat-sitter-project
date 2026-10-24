@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
 
 test.describe('Offline Payment & Sitter Payment Info Flow E2E', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   let orderStatus = 'PENDING_PAYMENT';
   let sitterPaymentInfo: any = {
     bankCode: '822',

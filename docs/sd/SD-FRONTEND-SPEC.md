@@ -96,6 +96,16 @@ frontend/
 
 **開發紀律**：在開發或修改 Component UI 的同時，必須同步檢視並維護對應的 `e2e/` 腳本，避免因 UI 重構導致測試大面積損壞。
 
+### 4.1 mock E2E 的隔離規範（2026-10，驗收 N9 / backlog 第 6 批）
+
+CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/api/**` 轉 Cloud Run）。漏 mock 的 API 過去會帶假 token 打到正式後端：401 → `/api/auth/refresh` 401/400 → token 被清 → 截圖停在錯誤畫面，斷言卻只看 URL 所以照樣綠（驗收 R1/R3），每次 CI 還在正式站製造假 401/400 噪音。規範：
+
+- 以假 token 進站的 mock spec 一律用 `e2e/support/mockSession.ts` 的 `mockDemoSession(page, role)`；要自己控制登入流程（例如從匿名開始數 login 次數）的用 `mockSessionApis(page)`。
+- 兩者都會在 **context 層**註冊 `/api/` catch-all：沒被任何 `page.route` 接手的請求一律回 **501 `E2E_UNMOCKED_API`** 並記錄，不會送到任何後端（`page.route` 永遠優先於 `context.route`，與註冊順序無關）。`/api/auth/refresh` 也攔下回 401 `E2E_MOCK_REFRESH` 並記錄；要測 refresh 行為的 spec 自行 `page.route` 覆蓋。
+- spec 必須 `test.afterEach(({ page }) => assertNoUnmockedApi(page))`，有任何漏 mock 或走到 refresh 就紅。`npm run e2e:lint` 會擋「用了 mockDemoSession / mockSessionApis 卻沒呼叫 assertNoUnmockedApi」的 spec。
+- 導頁後的落地頁也要 mock（例如 `mockOwnerOrderDetail()`、`mockOwnerOrderList()`），並在截圖前斷言業務內容（如 `order-status-badge`）已渲染，不能只斷言 URL。
+- 尚未改用 mockSession 的舊 spec（不在上述機制內）見 `.e2e-runs/20261024-backlog/fix-batch6.md`「另外發現」。
+
 ---
 
 ## 5. 開發分階路線 (Implementation Roadmap)

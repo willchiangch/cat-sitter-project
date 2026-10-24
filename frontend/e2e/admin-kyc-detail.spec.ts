@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
-import { mockDemoSession, serveFixtureImage } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
 
 /**
  * Backlog 第 3 批 U1：AdminKycDetail 在 390px 的 AppShell 裡溢出，證件照/自拍被裁掉，管理員看不到要審的照片。
@@ -43,6 +43,9 @@ async function mockKycDetail(page: Page) {
 }
 
 test.describe('管理端 KYC 審核詳情 (U1/U2)', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test('U1：證件照與自拍完整顯示在 AppShell 可視範圍內，不被裁切', async ({ page }) => {
     await mockKycDetail(page);
 

@@ -2,7 +2,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
 import { step } from './support/evidence';
-import { mockDemoSession, serveFixtureImage } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'journeys/fixtures');
 
@@ -11,6 +11,9 @@ const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'journe
  * 「尚未完成保母實名認證」。橫幅與頁面改讀同一份 React Query 快取 (src/hooks/useKyc.ts)。
  */
 test.describe('保母 KYC 頁橫幅依 kycStatus 顯示 (U3)', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test('送出 KYC 後，頁面徽章與頂部橫幅同時變成審核中', async ({ page }) => {
     await mockDemoSession(page, 'sitter');
     let kycStatus = 'UNVERIFIED';

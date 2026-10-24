@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { step } from './support/evidence';
-import { mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
+
+// N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+test.afterEach(({ page }) => assertNoUnmockedApi(page));
 
 /**
  * Backlog 第 3 批 U7（驗收 N2）：方案名稱含長串英數（Journey 的時間戳）時，卡片左欄不肯縮，

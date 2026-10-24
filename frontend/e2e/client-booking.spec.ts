@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession, mockOwnerOrderDetail } from './support/mockSession';
 import { step } from './support/evidence';
 
 const BOOKED_ORDER_ID = 'a1023000-0000-0000-0000-000000000000';
+const SITTER_ID = '3d498178-14c0-4376-b81e-7fb02e615dda';
 
 class CalendarHelper {
   private page: any;
@@ -47,6 +48,8 @@ class CalendarHelper {
 }
 
 test.describe('TS-005 飼主預約精靈流程', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
 
   let mockPets = [
     {
@@ -104,6 +107,37 @@ test.describe('TS-005 飼主預約精靈流程', () => {
     await page.route('**/api/owner/favorites', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     });
+    // N9：以下三組過去沒 mock、直接打到後端（公開頁 / 問卷靠真實種子保母資料、送出後的詳情頁 401），
+    // mockDemoSession 的 catch-all 改回 501 後才現形
+    await page.route(
+      (url) => url.pathname === `/api/sitter/profile/${SITTER_ID}`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            gated: false,
+            sitterId: SITTER_ID,
+            displayName: '測試保母',
+            avatarUrl: '',
+            bio: '',
+            tags: [],
+            serviceAreas: [],
+            isOpen: true,
+            kycStatus: 'VERIFIED',
+            version: 1,
+            isVisible: true
+          })
+        });
+      }
+    );
+    await page.route(
+      (url) => url.pathname === `/api/sitters/${SITTER_ID}/questions`,
+      async (route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      }
+    );
+    await mockOwnerOrderDetail(page, BOOKED_ORDER_ID);
     // 1. Mock Auto Login
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
       await route.fulfill({
@@ -207,6 +241,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
 
     await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
+      // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
+      await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
     });
   });
 
@@ -290,6 +326,8 @@ test.describe('TS-005 飼主預約精靈流程', () => {
 
     await step('複合預約送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
+      // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
+      await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
     });
   });
 

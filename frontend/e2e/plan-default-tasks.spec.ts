@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
-import { mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
 
 /**
  * Backlog 第 3 批 U6（驗收 N1）：新增方案的預設 SOP 不分寵物一律是「基本餵食 / 清理砂盆 / 更換新鮮水」，
@@ -12,6 +12,9 @@ const taskValues = (page: Page) =>
     .evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
 
 test.describe('方案預設任務依適用寵物給 (U6)', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test('新增方案：CAT→DOG 換成狗狗模板；手動改過任務後不再被覆蓋；送出的 defaultTasks 不含清理砂盆', async ({
     page
   }) => {

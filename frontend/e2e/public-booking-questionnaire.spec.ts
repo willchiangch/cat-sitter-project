@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { mockDemoSession } from './support/mockSession';
+import {
+  assertNoUnmockedApi,
+  mockDemoSession,
+  mockOwnerOrderDetail,
+  mockOwnerOrderList
+} from './support/mockSession';
 import { step, trackDialogs, expectDialog } from './support/evidence';
 
 const sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda';
@@ -7,6 +12,9 @@ const questionId = 'q1023000-0000-0000-0000-000000000001';
 const BOOKED_ORDER_ID = 'a1023000-0000-0000-0000-000000000000';
 
 test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test.setTimeout(60000);
 
   let lastBookingBody: any = null;
@@ -23,6 +31,9 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
     });
     lastBookingBody = null;
     bookingResponseBody = { orderId: BOOKED_ORDER_ID };
+    // N9：送出後導去的詳情頁 / F3 的訂單列表也要 mock，否則截圖停在錯誤畫面
+    await mockOwnerOrderDetail(page, BOOKED_ORDER_ID);
+    await mockOwnerOrderList(page);
 
     await page.route(url => url.pathname.includes('/api/auth/login'), async (route) => {
       await route.fulfill({
@@ -187,6 +198,8 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
 
     await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}', page, async () => {
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));
+      // 詳情頁已 mock：截圖要看到剛建立的訂單（待評估），不是錯誤畫面
+      await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
     });
   });
 

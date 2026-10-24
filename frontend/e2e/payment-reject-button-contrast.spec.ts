@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { step } from './support/evidence';
-import { mockDemoSession, serveFixtureImage } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
+
+// N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+test.afterEach(({ page }) => assertNoUnmockedApi(page));
 
 /**
  * Backlog 第 3 批 U8（驗收 N3）：保母核對面板的「駁回憑證」是棕字配金底（.btn-primary 漸層沒被蓋掉），

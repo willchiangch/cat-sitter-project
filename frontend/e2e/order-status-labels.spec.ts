@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
-import { mockDemoSession } from './support/mockSession';
+import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
 
 /**
  * Backlog 第 3 批 U5（驗收 P6）：飼主訂單詳情徽章直接顯示英文 IN_PROGRESS。
@@ -56,6 +56,9 @@ async function mockOrder(page: Page, status: () => string) {
 }
 
 test.describe('狀態徽章一律顯示中文 (U5 / 驗收 P6)', () => {
+  // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
+  test.afterEach(({ page }) => assertNoUnmockedApi(page));
+
   test('飼主訂單詳情：IN_PROGRESS 徽章顯示「服務進行中」，行程清單狀態也是中文', async ({
     page
   }) => {

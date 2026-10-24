@@ -34,6 +34,18 @@ for (const file of fs.readdirSync(ROOT).filter((f) => f.endsWith('.spec.ts'))) {
     }
   });
 }
+// N9：用 mockDemoSession / mockSessionApis 的 mock spec 必須斷言沒有漏 mock 的 /api 請求（catch-all 只會回 501，不斷言就是靜默失敗）
+const MOCK_ROOT = path.resolve(import.meta.dirname, '../e2e');
+for (const file of fs.readdirSync(MOCK_ROOT).filter((f) => f.endsWith('.spec.ts'))) {
+  const src = fs.readFileSync(path.join(MOCK_ROOT, file), 'utf8');
+  if (/\b(mockDemoSession|mockSessionApis)\(/.test(src) && !/\bassertNoUnmockedApi\(/.test(src)) {
+    console.error(
+      `e2e/${file}  用了 mockDemoSession / mockSessionApis 卻沒有呼叫 assertNoUnmockedApi（建議 test.afterEach(({ page }) => assertNoUnmockedApi(page))）`
+    );
+    failed++;
+  }
+}
+
 if (failed) {
   console.error(`\n${failed} 個 E2E 證據規範違規`);
   process.exit(1);
