@@ -144,7 +144,6 @@ test.describe('PRD-019 我的最愛保母', () => {
               sitterId,
               name: '基礎照顧',
               price: 500,
-              dailyCapacity: 5,
               defaultTasks: [],
               applicablePetTypes: ['CAT', 'DOG'],
               description: '基礎陪伴照顧',

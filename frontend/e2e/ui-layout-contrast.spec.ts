@@ -110,7 +110,6 @@ test.describe('G5 版面溢出與對比度', () => {
                 name: '基礎照顧',
                 price: 600,
                 durationMinutes: 60,
-                dailyCapacity: 2,
                 applicablePetTypes: ['CAT'],
                 defaultTasks: [],
                 isActive: true

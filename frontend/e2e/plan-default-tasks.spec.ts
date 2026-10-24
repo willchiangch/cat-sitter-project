@@ -102,7 +102,7 @@ test.describe('方案預設任務依適用寵物給 (U6)', () => {
     await step('送出：modal 關閉，列表出現新方案卡片', page, async () => {
       await page.getByTestId('sitter-plan-input-name').fill('狗狗到府');
       await page.getByTestId('sitter-plan-input-price').fill('900');
-      await page.getByTestId('sitter-plan-input-capacity').fill('2');
+      await expect(page.getByTestId('sitter-plan-input-capacity')).toHaveCount(0);
       await page.getByTestId('sitter-plan-input-duration').fill('60');
       await page.getByTestId('sitter-plan-btn-save').click();
       await expect.poll(() => created.length).toBe(1);
@@ -112,7 +112,7 @@ test.describe('方案預設任務依適用寵物給 (U6)', () => {
     });
 
     await apiStep(
-      '送出的 POST /api/sitter/plans body：DOG 方案、defaultTasks 為狗狗任務',
+      '送出的 POST /api/sitter/plans body：DOG 方案、defaultTasks 為狗狗任務、不帶 dailyCapacity',
       async () => {
         expect(created).toHaveLength(1);
         expect(created[0].applicablePetTypes).toEqual(['DOG']);
@@ -123,6 +123,7 @@ test.describe('方案預設任務依適用寵物給 (U6)', () => {
           '更換新鮮水'
         ]);
         expect(created[0].defaultTasks).not.toContain('清理砂盆');
+        expect(created[0]).not.toHaveProperty('dailyCapacity');
         return created[0];
       }
     );

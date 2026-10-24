@@ -3,7 +3,6 @@ export interface ServicePlan {
   sitterId?: string;
   name: string;
   price: number;
-  dailyCapacity: number;
   durationMinutes: number;
   defaultTasks: string[];
   applicablePetTypes: string[];

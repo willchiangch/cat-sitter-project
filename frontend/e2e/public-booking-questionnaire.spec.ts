@@ -108,7 +108,6 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
               sitterId,
               name: '基礎照顧',
               price: 500,
-              dailyCapacity: 5,
               defaultTasks: [],
               applicablePetTypes: ['CAT', 'DOG'],
               description: '基礎陪伴照顧',

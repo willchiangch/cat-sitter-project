@@ -37,7 +37,6 @@ const SitterPlans: React.FC = () => {
   // 表單獨立 State
   const [name, setName] = useState('');
   const [price, setPrice] = useState<number | ''>('');
-  const [dailyCapacity, setDailyCapacity] = useState<number | ''>('');
   const [durationMinutes, setDurationMinutes] = useState<number | ''>(60);
   const [applicablePetTypes, setApplicablePetTypes] = useState<string[]>([]);
   const [defaultTasks, setDefaultTasks] = useState<string[]>([]);
@@ -56,7 +55,6 @@ const SitterPlans: React.FC = () => {
     if (plan) {
       setName(plan.name);
       setPrice(plan.price);
-      setDailyCapacity(plan.dailyCapacity);
       setDurationMinutes(plan.durationMinutes ?? 60);
       setApplicablePetTypes(plan.applicablePetTypes);
       setDefaultTasks(plan.defaultTasks);
@@ -69,7 +67,6 @@ const SitterPlans: React.FC = () => {
     } else {
       setName('');
       setPrice('');
-      setDailyCapacity('');
       setDurationMinutes(60);
       setApplicablePetTypes(['CAT']);
       setDefaultTasks(defaultTasksFor(['CAT']));
@@ -145,10 +142,6 @@ const SitterPlans: React.FC = () => {
       setFormError('價格必須大於 0');
       return;
     }
-    if (dailyCapacity === '' || dailyCapacity < 1) {
-      setFormError('每日最大接單量不可小於 1');
-      return;
-    }
     if (durationMinutes === '' || durationMinutes < 1) {
       setFormError('服務時長必須大於 0 分鐘');
       return;
@@ -161,7 +154,6 @@ const SitterPlans: React.FC = () => {
     const payload: ServicePlan = {
       name,
       price: Number(price),
-      dailyCapacity: Number(dailyCapacity),
       durationMinutes: Number(durationMinutes),
       applicablePetTypes,
       defaultTasks: defaultTasks.filter((t) => t.trim() !== ''),
@@ -385,18 +377,6 @@ const SitterPlans: React.FC = () => {
                           {PET_TYPE_LABELS[type] ?? type}
                         </span>
                       ))}
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          backgroundColor: 'rgba(0, 107, 27, 0.08)',
-                          color: 'var(--color-tertiary)',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          fontWeight: '700'
-                        }}
-                      >
-                        限額 {plan.dailyCapacity} 次/日
-                      </span>
                     </div>
                   </div>
                   <div
@@ -740,66 +720,34 @@ const SitterPlans: React.FC = () => {
                 />
               </div>
 
-              {/* Price & Capacity Horizontal Layout */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: '800',
-                      color: 'var(--color-on-surface-variant)'
-                    }}
-                  >
-                    單次價格 ($) *
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="500"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                    style={{
-                      padding: '12px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--color-surface-high)',
-                      backgroundColor: 'var(--color-surface-low)',
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.95rem'
-                    }}
-                    data-testid="sitter-plan-input-price"
-                    min="1"
-                    required
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: '800',
-                      color: 'var(--color-on-surface-variant)'
-                    }}
-                  >
-                    每日接單容量限制 *
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="3"
-                    value={dailyCapacity}
-                    onChange={(e) =>
-                      setDailyCapacity(e.target.value === '' ? '' : Number(e.target.value))
-                    }
-                    style={{
-                      padding: '12px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--color-surface-high)',
-                      backgroundColor: 'var(--color-surface-low)',
-                      fontFamily: 'var(--font-body)',
-                      fontSize: '0.95rem'
-                    }}
-                    data-testid="sitter-plan-input-capacity"
-                    min="1"
-                    required
-                  />
-                </div>
+              {/* Price（系統不做每日容量控管，方案沒有容量欄位：PRD-005 / PRD-006） */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: '800',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
+                  單次價格 ($) *
+                </label>
+                <input
+                  type="number"
+                  placeholder="500"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  style={{
+                    padding: '12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--color-surface-high)',
+                    backgroundColor: 'var(--color-surface-low)',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: '0.95rem'
+                  }}
+                  data-testid="sitter-plan-input-price"
+                  min="1"
+                  required
+                />
               </div>
 
               {/* Duration */}

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { step, apiStep } from './support/evidence';
 
 test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
 
@@ -18,7 +19,6 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
         sitterId: 'sitter-123',
         name: '基礎照護',
         price: 500,
-        dailyCapacity: 3,
         defaultTasks: ['基本餵食', '清理砂盆'],
         applicablePetTypes: ['CAT'],
         description: '標準貓咪照顧',
@@ -30,6 +30,7 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
       }
     ];
 
+    const createdBodies: Record<string, unknown>[] = [];
     await page.route('**/api/sitter/plans', async (route, request) => {
       if (request.method() === 'GET') {
         await route.fulfill({
@@ -39,6 +40,7 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
         });
       } else if (request.method() === 'POST') {
         const body = request.postDataJSON();
+        createdBodies.push(body);
         const newPlan = { ...body, id: 'plan-2', version: 0, sortOrder: mockPlans.length };
         mockPlans.push(newPlan);
         await route.fulfill({
@@ -64,7 +66,11 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
     // 填寫表單
     await page.fill('[data-testid="sitter-plan-input-name"]', '暑假豪華陪玩');
     await page.fill('[data-testid="sitter-plan-input-price"]', '1200');
-    await page.fill('[data-testid="sitter-plan-input-capacity"]', '2');
+    await step('新增方案表單沒有每日容量欄位（系統不做容量控管）', page, async () => {
+      await expect(page.getByTestId('sitter-plan-input-price')).toHaveValue('1200');
+      await expect(page.getByTestId('sitter-plan-input-capacity')).toHaveCount(0);
+      await expect(page.getByText('每日接單容量限制')).toHaveCount(0);
+    });
     
     // 適用寵物：點擊狗狗 (貓咪是預選)
     await page.click('[data-testid="sitter-plan-checkbox-pet-DOG"]');
@@ -81,6 +87,12 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
     await expect(page.getByTestId('sitter-plan-card-plan-2')).toBeVisible();
     await expect(page.locator('text=暑假豪華陪玩')).toBeVisible();
     await expect(page.locator('text=$ 1200')).toBeVisible();
+    await apiStep('送出的 POST /api/sitter/plans body 不帶 dailyCapacity', async () => {
+      expect(createdBodies).toHaveLength(1);
+      expect(createdBodies[0]).toMatchObject({ name: '暑假豪華陪玩', price: 1200 });
+      expect(createdBodies[0]).not.toHaveProperty('dailyCapacity');
+      return createdBodies[0];
+    });
   });
 
   test('保母編輯方案與預設任務動態刪減', async ({ page }) => {
@@ -90,7 +102,6 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
         sitterId: 'sitter-123',
         name: '基礎照護',
         price: 500,
-        dailyCapacity: 3,
         defaultTasks: ['基本餵食', '清理砂盆'],
         applicablePetTypes: ['CAT'],
         description: '標準貓咪照顧',
@@ -157,7 +168,6 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
         sitterId: 'sitter-123',
         name: '基礎照護',
         price: 500,
-        dailyCapacity: 3,
         defaultTasks: ['基本餵食'],
         applicablePetTypes: ['CAT'],
         description: '標準貓咪照顧',
@@ -228,7 +238,7 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
     await page.click('[data-testid="sitter-plan-btn-add"]');
     await page.fill('[data-testid="sitter-plan-input-name"]', '進階暑期照顧');
     await page.fill('[data-testid="sitter-plan-input-price"]', '800');
-    await page.fill('[data-testid="sitter-plan-input-capacity"]', '3');
+    await expect(page.getByTestId('sitter-plan-input-capacity')).toHaveCount(0);
 
     // 勾選限制日期區間
     await page.click('[data-testid="sitter-plan-switch-date-range"]');
@@ -249,7 +259,6 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
         sitterId: 'sitter-123',
         name: '方案一',
         price: 500,
-        dailyCapacity: 3,
         defaultTasks: [],
         applicablePetTypes: ['CAT'],
         isRestricted: false,
@@ -261,7 +270,6 @@ test.describe('SD-003 保母服務方案設定 E2E 測試', () => {
         sitterId: 'sitter-123',
         name: '方案二',
         price: 800,
-        dailyCapacity: 3,
         defaultTasks: [],
         applicablePetTypes: ['CAT'],
         isRestricted: false,

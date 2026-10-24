@@ -108,7 +108,7 @@ class OrderEvaluationTest {
         this.ownerId = owner.getId();
 
         ServicePlan plan = ServicePlan.builder()
-                .sitter(sitter).name("專業餵食").price(500L).dailyCapacity(5).build();
+                .sitter(sitter).name("專業餵食").price(500L).build();
         servicePlanRepository.saveAndFlush(plan);
         this.planId = plan.getId();
     }

@@ -308,7 +308,6 @@ export async function bootstrapVerifiedSitter(
     data: {
       name: planName,
       price: 600,
-      dailyCapacity: 5,
       durationMinutes: 60,
       defaultTasks: ['基本餵食'],
       applicablePetTypes: ['CAT'],

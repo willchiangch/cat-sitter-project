@@ -17,7 +17,6 @@ const plans = [
   sitterId: 's-1',
   name: p.name,
   price: p.price,
-  dailyCapacity: 2,
   durationMinutes: 60,
   defaultTasks: ['基本餵食'],
   applicablePetTypes: [p.pet],
@@ -46,6 +45,8 @@ test('U7：方案卡價格完整落在卡片內，長方案名稱自行換行', 
       const card = page.getByTestId(`sitter-plan-card-${plan.id}`);
       const price = page.getByTestId(`sitter-plan-price-${plan.id}`);
       await expect(card).toContainText(plan.name);
+      // 系統不做每日容量控管（2026-10 移除 dailyCapacity）：卡片不再顯示「限額 N 次/日」
+      await expect(card).not.toContainText('次/日');
       await expect(price).toHaveText(new RegExp(`^\\$ ${plan.price}\\s*/ 60 分鐘$`));
       const cardBox = (await card.boundingBox())!;
       const priceBox = (await price.boundingBox())!;

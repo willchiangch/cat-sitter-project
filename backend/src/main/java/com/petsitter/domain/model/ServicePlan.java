@@ -26,9 +26,6 @@ public class ServicePlan extends BaseEntity {
     private String name;
 
     @Column(nullable = false)
-    private Integer dailyCapacity; // 每日最大接單量
-
-    @Column(nullable = false)
     private Long price;
 
     @Builder.Default

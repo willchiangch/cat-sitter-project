@@ -114,7 +114,6 @@ class BookingServiceTest {
         ServicePlan plan = servicePlanRepository.save(ServicePlan.builder()
                 .sitter(sitter)
                 .name("專業餵食")
-                .dailyCapacity(1)
                 .price(500L)
                 .build());
 
@@ -264,7 +263,6 @@ class BookingServiceTest {
         ServicePlan planB = servicePlanRepository.save(ServicePlan.builder()
                 .sitter(userRepository.findById(sitterId).orElseThrow())
                 .name("基礎餵食")
-                .dailyCapacity(5)
                 .price(800L)
                 .build());
 

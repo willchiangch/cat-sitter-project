@@ -77,6 +77,9 @@ class ServicePlanControllerTest {
     @Autowired
     private ProfileRepository profileRepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     private ObjectMapper objectMapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     private User sitterA;
@@ -117,6 +120,41 @@ class ServicePlanControllerTest {
     }
 
     @Test
+    @DisplayName("Scenario 1b: 方案沒有每日容量欄位 - 回應不含 dailyCapacity，舊前端多送的 dailyCapacity 被忽略，DB 舊欄位落預設值且已可為 NULL")
+    void ts003_01b_should_NotExposeDailyCapacity_When_PlanCreated() throws Exception {
+        // 系統不做接單容量控管（PRD-005 / PRD-006，2026-10 移除 dailyCapacity）。
+        // 部署過渡期舊前端仍會送 dailyCapacity，後端必須照常建立，不得 400
+        TokenContext.setUserId(sitterA.getId());
+        String legacyBody = """
+                {"name":"舊前端方案","price":600,"dailyCapacity":2,"durationMinutes":30,
+                 "defaultTasks":[],"applicablePetTypes":["CAT"],"sortOrder":0}
+                """;
+
+        mockMvc.perform(post("/api/sitter/plans")
+                        .with(user(sitterA.getId().toString()).roles("SITTER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(legacyBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("舊前端方案"))
+                .andExpect(jsonPath("$.data.dailyCapacity").doesNotExist());
+
+        mockMvc.perform(get("/api/sitter/plans").with(user(sitterA.getId().toString()).roles("SITTER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].dailyCapacity").doesNotExist());
+
+        // entity 不再映射：新 revision INSERT 不帶此欄，DB 落 DEFAULT 1，舊 revision 讀到的不會是 NULL
+        UUID planId = servicePlanRepository.findAll().get(0).getId();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT daily_capacity FROM service_plans WHERE id = ?", Integer.class, planId)).isEqualTo(1);
+        // V20261024_02 已放寬 NOT NULL，下一次部署才 DROP COLUMN
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_nullable FROM information_schema.columns "
+                        + "WHERE table_name = 'service_plans' AND column_name = 'daily_capacity'",
+                String.class)).isEqualTo("YES");
+    }
+
+    @Test
     @DisplayName("Scenario 1: 保母成功建立常態服務方案 (Happy Path)")
     void ts003_01_should_CreateNormalServicePlanSuccessfully() throws Exception {
         TokenContext.setUserId(sitterA.getId());
@@ -124,7 +162,6 @@ class ServicePlanControllerTest {
         ServicePlanDto dto = ServicePlanDto.builder()
                 .name("常態到府照護")
                 .price(BigDecimal.valueOf(500.50)) // 測試價格四捨五入轉換
-                .dailyCapacity(3)
                 .defaultTasks(List.of("基本餵食", "清理砂盆"))
                 .applicablePetTypes(List.of("CAT"))
                 .description("常態方案")
@@ -167,14 +204,12 @@ class ServicePlanControllerTest {
                 .sitter(sitterA)
                 .name("常態到府照護")
                 .price(500L)
-                .dailyCapacity(3)
                 .isDeleted(false)
                 .build());
 
         ServicePlanDto updateDto = ServicePlanDto.builder()
                 .name("常態到府照護 (更新版)")
                 .price(BigDecimal.valueOf(600))
-                .dailyCapacity(4)
                 .version(plan.getVersion()) // 帶上目前版本
                 .build();
 
@@ -209,7 +244,6 @@ class ServicePlanControllerTest {
                 .sitter(sitterA)
                 .name("常態到府照護")
                 .price(500L)
-                .dailyCapacity(3)
                 .isDeleted(false)
                 .build();
         plan = servicePlanRepository.save(plan);
@@ -222,7 +256,6 @@ class ServicePlanControllerTest {
         ServicePlanDto updateDto = ServicePlanDto.builder()
                 .name("嘗試衝突更新")
                 .price(BigDecimal.valueOf(600))
-                .dailyCapacity(4)
                 .version(0)
                 .build();
 
@@ -249,7 +282,6 @@ class ServicePlanControllerTest {
                 .sitter(sitterA)
                 .name("常態到府照護")
                 .price(500L)
-                .dailyCapacity(3)
                 .isDeleted(false)
                 .build());
 
@@ -276,9 +308,9 @@ class ServicePlanControllerTest {
         TokenContext.setUserId(sitterA.getId());
 
         ServicePlan p1 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterA).name("方案一").price(500L).dailyCapacity(3).sortOrder(0).isDeleted(false).build());
+                .sitter(sitterA).name("方案一").price(500L).sortOrder(0).isDeleted(false).build());
         ServicePlan p2 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterA).name("方案二").price(500L).dailyCapacity(3).sortOrder(1).isDeleted(false).build());
+                .sitter(sitterA).name("方案二").price(500L).sortOrder(1).isDeleted(false).build());
 
         ServicePlanSortRequest sortReq = ServicePlanSortRequest.builder()
                 .planIds(List.of(p2.getId(), p1.getId()))
@@ -308,7 +340,6 @@ class ServicePlanControllerTest {
         ServicePlanDto dto1 = ServicePlanDto.builder()
                 .name("負價格")
                 .price(BigDecimal.valueOf(-100))
-                .dailyCapacity(3)
                 .build();
 
         mockMvc.perform(post("/api/sitter/plans")
@@ -322,7 +353,6 @@ class ServicePlanControllerTest {
         ServicePlanDto dto2 = ServicePlanDto.builder()
                 .name("零元價格")
                 .price(BigDecimal.valueOf(0))
-                .dailyCapacity(3)
                 .build();
 
         mockMvc.perform(post("/api/sitter/plans")
@@ -341,7 +371,6 @@ class ServicePlanControllerTest {
         ServicePlanDto dto = ServicePlanDto.builder()
                 .name("常態到府照護")
                 .price(BigDecimal.valueOf(500))
-                .dailyCapacity(3)
                 .startDate(LocalDate.now().plusDays(1))
                 .endDate(LocalDate.now().plusDays(10))
                 .build();
@@ -370,7 +399,6 @@ class ServicePlanControllerTest {
         ServicePlanDto dto = ServicePlanDto.builder()
                 .name("暑期限定照護")
                 .price(BigDecimal.valueOf(800))
-                .dailyCapacity(3)
                 .startDate(start)
                 .endDate(end)
                 .build();
@@ -400,10 +428,10 @@ class ServicePlanControllerTest {
     void ts003_09a_should_HideFuturePlanForOwner() throws Exception {
         // P1 常態無限制
         ServicePlan p1 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P1").price(500L).dailyCapacity(3).sortOrder(0).isDeleted(false).build());
+                .sitter(sitterC).name("P1").price(500L).sortOrder(0).isDeleted(false).build());
         // P2 未來開放的方案 (現已改為相對日期：now + 10 ~ now + 20)
         ServicePlan p2 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P2").price(500L).dailyCapacity(3).sortOrder(1)
+                .sitter(sitterC).name("P2").price(500L).sortOrder(1)
                 .startDate(LocalDate.now().plusDays(10))
                 .endDate(LocalDate.now().plusDays(20))
                 .isDeleted(false).build());
@@ -419,10 +447,10 @@ class ServicePlanControllerTest {
     void ts003_09b_should_HideExpiredPlanForOwner() throws Exception {
         // P1 常態無限制
         ServicePlan p1 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P1").price(500L).dailyCapacity(3).sortOrder(0).isDeleted(false).build());
+                .sitter(sitterC).name("P1").price(500L).sortOrder(0).isDeleted(false).build());
         // P3 逾期的方案 (相對日期：now - 20 ~ now - 10)
         ServicePlan p3 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P3").price(500L).dailyCapacity(3).sortOrder(1)
+                .sitter(sitterC).name("P3").price(500L).sortOrder(1)
                 .startDate(LocalDate.now().minusDays(20))
                 .endDate(LocalDate.now().minusDays(10))
                 .isDeleted(false).build());
@@ -438,10 +466,10 @@ class ServicePlanControllerTest {
     void ts003_09c_should_ShowActivePlanForOwner() throws Exception {
         // P1 常態無限制
         ServicePlan p1 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P1").price(500L).dailyCapacity(3).sortOrder(0).isDeleted(false).build());
+                .sitter(sitterC).name("P1").price(500L).sortOrder(0).isDeleted(false).build());
         // P4 在有效區間內的方案 (相對日期：now - 5 ~ now + 5)
         ServicePlan p4 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P4").price(500L).dailyCapacity(3).sortOrder(1)
+                .sitter(sitterC).name("P4").price(500L).sortOrder(1)
                 .startDate(LocalDate.now().minusDays(5))
                 .endDate(LocalDate.now().plusDays(5))
                 .isDeleted(false).build());
@@ -458,7 +486,7 @@ class ServicePlanControllerTest {
     void ts003_10_should_RejectBooking_When_DateOutOfRange() throws Exception {
         // P4 在有效區間內的方案 (相對日期：now - 5 ~ now + 5)
         ServicePlan p4 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P4").price(500L).dailyCapacity(3)
+                .sitter(sitterC).name("P4").price(500L)
                 .startDate(LocalDate.now().minusDays(5))
                 .endDate(LocalDate.now().plusDays(5))
                 .isDeleted(false).build());
@@ -508,13 +536,12 @@ class ServicePlanControllerTest {
     void ts003_11_should_RejectEditAndDelete_When_NotOwner() throws Exception {
         // P1 屬於 Sitter A
         ServicePlan p1 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterA).name("P1").price(500L).dailyCapacity(3).isDeleted(false).build());
+                .sitter(sitterA).name("P1").price(500L).isDeleted(false).build());
 
         // 1. Sitter B 嘗試修改 P1
         ServicePlanDto updateDto = ServicePlanDto.builder()
                 .name("越權修改")
                 .price(BigDecimal.valueOf(600))
-                .dailyCapacity(4)
                 .version(p1.getVersion())
                 .build();
 
@@ -540,7 +567,6 @@ class ServicePlanControllerTest {
         ServicePlanDto updateDto = ServicePlanDto.builder()
                 .name("不存在的方案更新")
                 .price(BigDecimal.valueOf(600))
-                .dailyCapacity(4)
                 .version(0)
                 .build();
 
@@ -566,15 +592,15 @@ class ServicePlanControllerTest {
 
         // P1 常態
         servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P1").price(500L).dailyCapacity(3).sortOrder(0).isDeleted(false).build());
+                .sitter(sitterC).name("P1").price(500L).sortOrder(0).isDeleted(false).build());
         // P2 未來
         servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P2").price(500L).dailyCapacity(3).sortOrder(1)
+                .sitter(sitterC).name("P2").price(500L).sortOrder(1)
                 .startDate(LocalDate.now().plusDays(10))
                 .isDeleted(false).build());
         // P3 已過期
         servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P3").price(500L).dailyCapacity(3).sortOrder(2)
+                .sitter(sitterC).name("P3").price(500L).sortOrder(2)
                 .endDate(LocalDate.now().minusDays(10))
                 .isDeleted(false).build());
 
@@ -590,7 +616,6 @@ class ServicePlanControllerTest {
         ServicePlanDto dto = ServicePlanDto.builder()
                 .name("常態到府照護")
                 .price(BigDecimal.valueOf(500))
-                .dailyCapacity(3)
                 .build();
 
         // 1. OWNER 呼叫 POST /api/sitter/plans -> 403 Forbidden

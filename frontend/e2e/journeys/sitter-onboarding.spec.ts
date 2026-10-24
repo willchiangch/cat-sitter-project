@@ -197,7 +197,8 @@ test.describe('Journey A: 保母上架全流程 (TS-JOURNEY-01)', () => {
         await page.getByTestId('sitter-plan-btn-add').click();
         await page.getByTestId('sitter-plan-input-name').fill(plan.name);
         await page.getByTestId('sitter-plan-input-price').fill(String(plan.price));
-        await page.getByTestId('sitter-plan-input-capacity').fill('2');
+        // 系統不做每日容量控管（PRD-005 / PRD-006）：表單不得出現容量欄位
+        await expect(page.getByTestId('sitter-plan-input-capacity')).toHaveCount(0);
         await page.getByTestId('sitter-plan-input-duration').fill('60');
         // openModal(null) 新增方案時預設已勾選 CAT（見 SitterPlans.tsx openModal）：
         // CAT 方案不用點（點了反而取消勾選）；非 CAT 方案先點 CAT 取消、再點目標類型

@@ -94,7 +94,6 @@ async function mockReferralBookingPage(page: Page) {
               description: '餵食與陪玩',
               price: 600,
               durationMinutes: 60,
-              dailyCapacity: 2,
               applicablePetTypes: ['CAT'],
               defaultTasks: [],
               isActive: true
