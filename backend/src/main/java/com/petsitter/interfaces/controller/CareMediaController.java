@@ -2,6 +2,7 @@ package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.dto.CareMediaDto;
 import com.petsitter.application.service.CareMediaService;
+import com.petsitter.application.service.CareRelationshipGuard;
 import com.petsitter.application.service.IdempotencyService;
 import com.petsitter.infrastructure.security.TokenContext;
 import com.petsitter.infrastructure.security.gating.PlanTier;
@@ -9,7 +10,6 @@ import com.petsitter.infrastructure.security.gating.RequirePlan;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +26,7 @@ public class CareMediaController {
 
     private final CareMediaService careMediaService;
     private final IdempotencyService idempotencyService;
+    private final CareRelationshipGuard careRelationshipGuard;
 
     // GET /api/care-media/{sitterId}/{ownerId}
     @GetMapping("/{sitterId}/{ownerId}")
@@ -33,11 +34,8 @@ public class CareMediaController {
             @PathVariable UUID sitterId,
             @PathVariable UUID ownerId) {
         
-        UUID userId = TokenContext.getUserId();
-        if (!sitterId.equals(userId) && !ownerId.equals(userId)) {
-            throw new AccessDeniedException("權限不足");
-        }
-        
+        careRelationshipGuard.requireReadable(sitterId, ownerId);
+
         List<CareMediaDto> data = careMediaService.getMediaList(sitterId, ownerId);
         return ResponseEntity.ok(Map.of(
                 "code", 200,
@@ -55,9 +53,7 @@ public class CareMediaController {
             @RequestParam("mediaType") String mediaType,
             @RequestParam("file") MultipartFile file) {
         
-        if (!sitterId.equals(TokenContext.getUserId())) {
-            throw new AccessDeniedException("權限不足");
-        }
+        careRelationshipGuard.requireWritable(sitterId, ownerId);
         
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
         

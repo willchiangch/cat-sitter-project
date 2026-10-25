@@ -2,6 +2,7 @@ package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.dto.*;
 import com.petsitter.application.service.CareNoteService;
+import com.petsitter.application.service.CareRelationshipGuard;
 import com.petsitter.application.service.IdempotencyService;
 import com.petsitter.infrastructure.security.TokenContext;
 import com.petsitter.infrastructure.security.gating.PlanTier;
@@ -9,7 +10,6 @@ import com.petsitter.infrastructure.security.gating.RequirePlan;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -25,6 +25,7 @@ public class CareNoteController {
 
     private final CareNoteService careNoteService;
     private final IdempotencyService idempotencyService;
+    private final CareRelationshipGuard careRelationshipGuard;
 
     // GET /api/care-notes/{sitterId}/{ownerId}
     @GetMapping("/{sitterId}/{ownerId}")
@@ -32,11 +33,8 @@ public class CareNoteController {
             @PathVariable UUID sitterId,
             @PathVariable UUID ownerId) {
         
-        UUID userId = TokenContext.getUserId();
-        if (!sitterId.equals(userId) && !ownerId.equals(userId)) {
-            throw new AccessDeniedException("權限不足");
-        }
-        
+        careRelationshipGuard.requireReadable(sitterId, ownerId);
+
         CareNoteDto dto = careNoteService.getCareNote(sitterId, ownerId);
         return ResponseEntity.ok(Map.of(
                 "code", 200,
@@ -53,9 +51,7 @@ public class CareNoteController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody CareNoteRequest request) {
         
-        if (!sitterId.equals(TokenContext.getUserId())) {
-            throw new AccessDeniedException("權限不足");
-        }
+        careRelationshipGuard.requireWritable(sitterId, ownerId);
         
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
         
@@ -149,9 +145,7 @@ public class CareNoteController {
             @PathVariable UUID templateId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         
-        if (!sitterId.equals(TokenContext.getUserId())) {
-            throw new AccessDeniedException("權限不足");
-        }
+        careRelationshipGuard.requireWritable(sitterId, ownerId);
         
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
         

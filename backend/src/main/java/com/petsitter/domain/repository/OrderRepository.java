@@ -54,6 +54,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
            "AND o.isDeleted = false AND o.status NOT IN ('COMPLETED', 'CANCELLED')")
     boolean existsActiveOrderForParty(@Param("userId") UUID userId);
 
+    /** SD-021 §1.3：照護記事本 / 媒體存取前提，保母與飼主之間有過任何狀態的訂單（軟刪除不算） */
+    @Query("SELECT COUNT(o) > 0 FROM Order o WHERE o.sitter.id = :sitterId AND o.owner.id = :ownerId " +
+           "AND o.isDeleted = false")
+    boolean existsOrderBetween(@Param("sitterId") UUID sitterId, @Param("ownerId") UUID ownerId);
+
     @Query("SELECT o FROM Order o JOIN FETCH o.owner WHERE o.sitter.id = :sitterId AND o.status = 'COMPLETED' " +
            "AND o.completedAt >= :from AND o.completedAt < :to ORDER BY o.completedAt DESC")
     List<Order> findCompletedBySitterIdAndCompletedAtBetween(

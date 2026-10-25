@@ -3,8 +3,10 @@ package com.petsitter.interfaces.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.service.CareMediaService;
 import com.petsitter.application.service.MediaStorageService;
+import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
+import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.infrastructure.security.TokenContext;
@@ -25,6 +27,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -62,6 +65,9 @@ class CareMediaControllerTest {
     @Autowired
     private SubscriptionRepository subscriptionRepository;
 
+    @Autowired
+    private OrderRepository orderRepository;
+
     @MockitoBean
     private MediaStorageService mediaStorageService;
 
@@ -71,6 +77,7 @@ class CareMediaControllerTest {
 
     @BeforeEach
     void setUp() {
+        orderRepository.deleteAll();
         subscriptionRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -81,6 +88,9 @@ class CareMediaControllerTest {
         subscriptionRepository.save(Subscription.builder().sitter(sitterB).planTier("FREE").build());
 
         ownerA = userRepository.save(User.builder().email("ownerA@test.com").passwordHash("hash").role("OWNER").build());
+        // J1：記事本 / 媒體存取前提是雙方有過訂單（SD-021 §1.3）
+        orderRepository.save(Order.builder().owner(ownerA).sitter(sitterA).status("PENDING")
+                .items(List.of()).planId(UUID.randomUUID()).build());
     }
 
     @AfterEach

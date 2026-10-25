@@ -28,7 +28,8 @@
 - **SaaS Gating**: 依據 GLOBAL-SPEC 3.1 規範，所有 Controller API 必須宣告 `@RequirePlan(PlanTier.FREE)`。
 - **JWT 驗證與路由消除歧義**:
   由於系統允許一個飼主擁有多位保母，為了讓飼主端與保母端都能精確存取對應的紀錄，存取記事本與媒體庫的 API 路徑皆設計為精確指定雙方的形式：`/api/.../{sitterId}/{ownerId}`。
-  - **攔截器防禦 (`JWTAuthFilter`)**：驗證路徑中的 `{sitterId}` 或 `{ownerId}`，其中之一 **必須等於 `Token.userId`**。若兩者皆不符合，則拋出 `403 Forbidden`，防止越權存取他人資料。
+  - **身分比對（Controller 層，`CareRelationshipGuard`）**：讀取端點（`GET /api/care-notes/{sitterId}/{ownerId}`、`GET /api/care-media/{sitterId}/{ownerId}`）要求路徑中的 `{sitterId}` 或 `{ownerId}` 其中之一 **等於 `Token.userId`**；寫入端點（`PUT /api/care-notes/{sitterId}/{ownerId}`、`POST /api/care-notes/{sitterId}/{ownerId}/apply-template/{templateId}`、`POST /api/care-media/{sitterId}/{ownerId}`）要求 `{sitterId}` **等於 `Token.userId`**（飼主唯讀，AC-5）。不符合拋 `403 Forbidden`。
+  - **關係檢查（2026-10 產品決策）**：上述讀寫端點在身分比對通過後，還要求 **該保母與該飼主之間有過任何狀態的訂單**（`OrderRepository.existsOrderBetween`：PENDING / CANCELLED / COMPLETED 等皆算；只排除 e2e 清理用的軟刪除 `is_deleted = true`）。沒有訂單關係一律 `403 Forbidden`，且在消費 `Idempotency-Key`、呼叫 GCS 之前就擋下。過去只比對 `sitterId == Token.userId`，保母可以對任意 `ownerId` 建記事本、上傳媒體，該飼主讀取時就會看到。
   - **例外處理 (Service 層驗證)**：
     對於路徑中沒有 `{sitterId}` 的 API，Filter 無法套用路徑驗證。這些 API 包括：
     - `PUT /api/care-notes/templates/{templateId}`

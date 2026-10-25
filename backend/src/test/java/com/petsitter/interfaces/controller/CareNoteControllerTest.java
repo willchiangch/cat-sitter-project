@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.dto.CareNoteItemDto;
 import com.petsitter.application.dto.CareNoteRequest;
 import com.petsitter.application.service.CareNoteService;
+import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
+import com.petsitter.domain.repository.OrderRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.infrastructure.security.TokenContext;
@@ -59,6 +61,9 @@ class CareNoteControllerTest {
     private SubscriptionRepository subscriptionRepository;
 
     @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
     private CareNoteService careNoteService;
 
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -71,6 +76,7 @@ class CareNoteControllerTest {
 
     @BeforeEach
     void setUp() {
+        orderRepository.deleteAll();
         subscriptionRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -81,6 +87,9 @@ class CareNoteControllerTest {
         subscriptionRepository.save(Subscription.builder().sitter(sitterB).planTier("FREE").build());
 
         ownerA = userRepository.save(User.builder().email("ownerA@test.com").passwordHash("hash").role("OWNER").build());
+        // J1：記事本 / 媒體存取前提是雙方有過訂單（SD-021 §1.3）
+        orderRepository.save(Order.builder().owner(ownerA).sitter(sitterA).status("PENDING")
+                .items(List.of()).planId(UUID.randomUUID()).build());
 
         // 刻意不建 subscriptions 資料列，模擬絕大多數新保母的正常狀態
         // （正式流程沒有任何地方會自動幫保母開通訂閱，只有 admin 手動開通才會寫這張表）
@@ -88,6 +97,9 @@ class CareNoteControllerTest {
                 User.builder().email("sitterNoSub@test.com").passwordHash("hash").role("SITTER").build());
         ownerForNoSubscription = userRepository.save(
                 User.builder().email("ownerForNoSub@test.com").passwordHash("hash").role("OWNER").build());
+        orderRepository.save(Order.builder()
+                .owner(ownerForNoSubscription).sitter(sitterNoSubscription).status("CANCELLED")
+                .items(List.of()).planId(UUID.randomUUID()).build());
     }
 
     @AfterEach

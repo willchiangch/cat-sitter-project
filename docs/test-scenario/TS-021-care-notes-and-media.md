@@ -5,7 +5,7 @@
 | **對應需求** | SD-021 / PRD-021 |
 | **測試類型** | ✅ 功能測試 / ✅ 安全測試 / ✅ 彈性與補償測試 / ✅ 並發測試 |
 | **優先級** | P0 (Critical) |
-| **自動化狀態** | 🟢 已規劃 (12/12 Scenarios) |
+| **自動化狀態** | 🟢 已規劃 (13/13 Scenarios) |
 
 ---
 
@@ -204,6 +204,25 @@
 
 ---
 
+## Scenario 8d: 配對關係前提 (AC-8, SD-021 §1.3) — 沒有訂單一律 403
+* **Given**: Sitter S 與 Owner X 之間沒有任何訂單；Sitter S 與 Owner Y 之間只有一張 CANCELLED 訂單。
+* **When**: 請求帶真 JWT（JwtUtils 簽發）走完整 SecurityConfig filter chain。
+* **Then**: S↔X 的讀寫全部 403；S↔Y 可正常讀寫。
+
+| Step | Action | Functional Result | Technical Metric (NFR) |
+| :--- | :--- | :--- | :--- |
+| 1 | S `PUT /api/care-notes/{S}/{X}` | 403 | `care_notes` 無 S↔X 資料 |
+| 2 | S `POST /api/care-media/{S}/{X}` | 403 | 未呼叫 `MediaStorageService.uploadMedia`；`care_media` count 0 |
+| 3 | S `POST /api/care-notes/{S}/{X}/apply-template/{任意}` | 403 | 關係檢查先於模板查找 |
+| 4 | S、X 各自 `GET` 記事本與媒體庫 | 4 次皆 403 | 讀取同規則 |
+| 5 | S↔X 只有軟刪除（`is_deleted=true`）訂單時寫記事本 | 403 | e2e 清理資料不算關係 |
+| 6 | S 寫 S↔Y 記事本、上傳媒體；Y 讀取 | 200 / 201 / 200，Y 讀到內容與 1 筆媒體 | 「任何狀態」含 CANCELLED |
+| 7 | Y 寫自己的記事本 | 403 | 有訂單時飼主仍唯讀（AC-5） |
+
+**自動化對應**: `CareRelationshipSecurityTest`（7 cases）
+
+---
+
 ## Scenario 9: Idempotency 重複請求 → 409 (SD-021 §1.4)
 * **Given**: 已成功呼叫 `PUT /api/care-notes/{sitterId}/{ownerId}`，`Idempotency-Key: key-abc` 已消費入庫。
 * **When**: 相同 `Idempotency-Key: key-abc` 再送一次相同請求。
@@ -249,6 +268,7 @@
 | AC-5 | 飼主唯讀，寫入端點返回 403 | S8a |
 | AC-6 | 媒體 20 筆上限阻擋 | S5 |
 | AC-7 | 媒體庫更新（上傳 / 刪除）後通知飼主 | S7 |
+| AC-8 | 沒有任何訂單的保母 / 飼主不能讀寫該配對的記事本與媒體 | S8d |
 
 ---
 
@@ -259,7 +279,8 @@
   - [CareMediaServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/CareMediaServiceTest.java)
   - [CareNoteControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/CareNoteControllerTest.java)
   - [CareMediaControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/CareMediaControllerTest.java)
-- **執行指令**: `mvn test -Dtest=CareNoteServiceTest,CareMediaServiceTest,CareNoteControllerTest,CareMediaControllerTest`
+  - [CareRelationshipSecurityTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/CareRelationshipSecurityTest.java)
+- **執行指令**: `mvn test -Dtest=CareNoteServiceTest,CareMediaServiceTest,CareNoteControllerTest,CareMediaControllerTest,CareRelationshipSecurityTest`
 - **最後驗證日期**: 2026-05-23
 
 ---
@@ -271,3 +292,5 @@
 **照護記事本條目的「移除」疊在標題輸入框右上角（2026-10-24，驗收截圖附帶觀察，`.e2e-runs/20261024-1939`）**：「移除」是 `position:absolute` 疊在條目卡片右上角，旁邊欄位以 `paddingRight: 2.5rem` 讓位，但欄位所在 flex 子項沒有 `minWidth: 0`、標題 `<input>` 沒有 `width: 100%`，input 預設固有寬度把欄位撐寬 1.5px，右緣壓進「移除」的範圍。`expectNoHorizontalOverflow` 只看是否超出 `<main>`，抓不到卡片內的重疊。改欄位 `minWidth: 0`、input `width: '100%'` + `minWidth: 0`（SD-FRONTEND-SPEC §2.4）；「移除」補 `data-testid="sitter-carenote-item-remove"`。迴歸：`ui-layout-contrast.spec.ts` N4 新增 `expectNoOverlap(移除, 標題輸入框)`，舊版紅（重疊 1.5×17px）。
 
 **照護記事本管理頁左右留白比其他頁窄（2026-10-24，驗收 N17）**：`CareNoteManager` 頁面容器是 `padding: '1rem 0'`，只靠 `<main>` 的 1.5rem，內容左右各比其他頁寬 24px（469–810 vs 493–787），換頁時邊界跳動。改用共用 `PAGE_PADDING`（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` N4 加 `expectStandardPageInset`（舊版紅）。
+
+**保母可以對任意飼主建立記事本、上傳媒體（2026-10-25，第 11 批另外發現 #2 / fix-batch12 J1，安全）**：`PUT /api/care-notes/{sitterId}/{ownerId}`、`POST /api/care-media/{sitterId}/{ownerId}`、套用模板只檢查 `sitterId == Token.userId`，`ownerId` 任填都能寫入，被填的飼主讀取時就會看到陌生保母的內容（騷擾 / 釣魚載體）。產品決定以「雙方有過任何狀態的訂單」作為配對關係前提，讀取同規則。新增 `CareRelationshipGuard`（Controller 層，先於 Idempotency 與 GCS），`OrderRepository.existsOrderBetween` 排除軟刪除。迴歸：`CareRelationshipSecurityTest`（真 JWT + 真 SecurityConfig，7 cases，Scenario 8d）；既有 `CareNoteControllerTest` / `CareMediaControllerTest` 的合法讀寫案例補上雙方訂單前置資料。
