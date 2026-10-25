@@ -1,6 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
-import { assertNoUnmockedApi, mockSessionApis } from './support/mockSession';
+import { assertNoUnmockedApi, mockSessionApis, unsignedJwt } from './support/mockSession';
+
+// 驗收 A1：mock token 必須是可解碼的 JWT（role claim），且斷言畫面角色與 localStorage.userRole，
+// 過去 accessToken:'fake' 解不出角色，畫面落到 RoleContext 預設（保母）測試照樣綠
+const OWNER_TOKEN = unsignedJwt({ role: 'OWNER', sub: 'newgoogleuser@test.com' });
+const readUserRole = (page: Page) => page.evaluate(() => localStorage.getItem('userRole'));
 
 test.describe('PRD-000 AC-5 Google 第三方登入流程', () => {
   test.setTimeout(60000);
@@ -14,8 +19,10 @@ test.describe('PRD-000 AC-5 Google 第三方登入流程', () => {
 
   test('新 Email 首次使用 Google 登入時應顯示角色選擇，選擇後完成登入', async ({ page }) => {
     let callCount = 0;
+    const googleBodies: Array<Record<string, unknown>> = [];
     await page.route('**/api/auth/google', async (route) => {
       callCount += 1;
+      googleBodies.push(route.request().postDataJSON());
       if (callCount === 1) {
         await route.fulfill({
           status: 200,
@@ -32,7 +39,7 @@ test.describe('PRD-000 AC-5 Google 第三方登入流程', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             status: 'SUCCESS',
-            accessToken: 'fake',
+            accessToken: OWNER_TOKEN,
             refreshToken: 'fake',
             userId: '1',
             role: 'OWNER'
@@ -54,8 +61,11 @@ test.describe('PRD-000 AC-5 Google 第三方登入流程', () => {
     await step('選擇飼主角色後完成登入，停在 Demo 首頁', page, async () => {
       await page.getByTestId('google-role-select-confirm-btn').click();
       await expect(page).toHaveURL(/\/demo$/);
-      await expect(page.getByText('當前角色:')).toBeVisible();
+      await expect(page.locator('p', { hasText: '當前角色:' })).toHaveText('當前角色: 愛貓飼主');
+      expect(await readUserRole(page)).toBe('client');
       expect(callCount).toBe(2);
+      // 第二次請求帶的是使用者在角色選單選的 OWNER
+      expect(googleBodies[1]).toEqual({ idToken: 'fake-google-id-token', role: 'OWNER' });
     });
   });
 
@@ -66,7 +76,7 @@ test.describe('PRD-000 AC-5 Google 第三方登入流程', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           status: 'SUCCESS',
-          accessToken: 'fake',
+          accessToken: OWNER_TOKEN,
           refreshToken: 'fake',
           userId: '1',
           role: 'OWNER'
@@ -83,7 +93,8 @@ test.describe('PRD-000 AC-5 Google 第三方登入流程', () => {
         (window as any).__handleGoogleCredential({ credential: 'fake-google-id-token' })
       );
       await expect(page).toHaveURL(/\/demo$/);
-      await expect(page.getByText('當前角色:')).toBeVisible();
+      await expect(page.locator('p', { hasText: '當前角色:' })).toHaveText('當前角色: 愛貓飼主');
+      expect(await readUserRole(page)).toBe('client');
     });
   });
 });

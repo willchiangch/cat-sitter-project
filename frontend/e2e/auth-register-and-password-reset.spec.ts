@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { step } from './support/evidence';
-import { assertNoUnmockedApi, mockSessionApis } from './support/mockSession';
+import { assertNoUnmockedApi, mockSessionApis, unsignedJwt } from './support/mockSession';
 
 test.describe('PRD-000 註冊與忘記密碼流程', () => {
   test.setTimeout(60000);
@@ -13,7 +13,9 @@ test.describe('PRD-000 註冊與忘記密碼流程', () => {
   test.afterEach(({ page }) => assertNoUnmockedApi(page));
 
   test('可從登入頁前往註冊頁，送出表單後輸入 OTP 完成驗證並登入', async ({ page }) => {
+    const registerBodies: Array<Record<string, unknown>> = [];
     await page.route('**/api/auth/register', async (route) => {
+      registerBodies.push(route.request().postDataJSON());
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -25,7 +27,8 @@ test.describe('PRD-000 註冊與忘記密碼流程', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          accessToken: 'fake',
+          // 驗收 A1：可解碼的 JWT（role claim），過去 'fake' 解不出角色，畫面落到預設保母
+          accessToken: unsignedJwt({ role: 'OWNER', sub: 'new@test.com' }),
           refreshToken: 'fake',
           userId: '1',
           email: 'new@test.com',
@@ -51,7 +54,10 @@ test.describe('PRD-000 註冊與忘記密碼流程', () => {
       await page.getByTestId('register-otp-input').fill('123456');
       await page.getByTestId('register-otp-submit-btn').click();
       await expect(page).toHaveURL(/\/demo$/);
-      await expect(page.getByText('當前角色:')).toBeVisible();
+      await expect(page.locator('p', { hasText: '當前角色:' })).toHaveText('當前角色: 愛貓飼主');
+      expect(await page.evaluate(() => localStorage.getItem('userRole'))).toBe('client');
+      expect(registerBodies).toHaveLength(1);
+      expect(registerBodies[0].role).toBe('OWNER');
     });
   });
 
