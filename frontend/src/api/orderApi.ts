@@ -142,14 +142,11 @@ export const rejectModification = async (
   return response.data;
 };
 
-// 4. 保母確認接單
+// 4. 保母確認接單。身分由後端從 JWT 取得，不帶 sitterId（fix-batch11 I1，BOLA）
 export const confirmOrder = async (
-  orderId: string,
-  sitterId: string
+  orderId: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/confirm`, null, {
-    params: { sitterId }
-  });
+  const response = await axiosClient.post(`/orders/${orderId}/confirm`, null);
   return response.data;
 };
 
@@ -161,14 +158,13 @@ export interface SendQuoteRequest {
   version: number;
 }
 
+// 身分由後端從 JWT 取得，不帶 sitterId（fix-batch11 I1）
 export const sendOrderQuote = async (
   orderId: string,
-  sitterId: string,
   request: SendQuoteRequest,
   idempotencyKey: string
 ): Promise<{ status: string; message: string }> => {
   const response = await axiosClient.post(`/orders/${orderId}/quote`, request, {
-    params: { sitterId },
     headers: { 'Idempotency-Key': idempotencyKey }
   });
   return response.data;
@@ -180,27 +176,23 @@ export interface RejectOrderRequest {
   version: number;
 }
 
+// 身分由後端從 JWT 取得，不帶 sitterId（fix-batch11 I1）
 export const rejectOrder = async (
   orderId: string,
-  sitterId: string,
   request: RejectOrderRequest,
   idempotencyKey: string
 ): Promise<{ status: string; message: string }> => {
   const response = await axiosClient.post(`/orders/${orderId}/reject`, request, {
-    params: { sitterId },
     headers: { 'Idempotency-Key': idempotencyKey }
   });
   return response.data;
 };
 
-// 6. 飼主手動結案 (SD-009)
+// 6. 飼主手動結案 (SD-009)。身分由後端從 JWT 取得，不帶 ownerId（fix-batch11 I1）
 export const completeOrder = async (
-  orderId: string,
-  ownerId: string
+  orderId: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/complete`, null, {
-    params: { ownerId }
-  });
+  const response = await axiosClient.post(`/orders/${orderId}/complete`, null);
   return response.data;
 };
 
@@ -213,20 +205,13 @@ export const cancelOrderByOwner = async (
   return response.data;
 };
 
-// 7. 飼主回報爭議 (SD-009)
+// 7. 飼主回報爭議 (SD-009)。身分由後端從 JWT 取得，不帶 ownerId（fix-batch11 I1）
 export const disputeOrder = async (
   orderId: string,
-  ownerId: string,
   category: string,
   description: string
 ): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/dispute`,
-    { category, description },
-    {
-      params: { ownerId }
-    }
-  );
+  const response = await axiosClient.post(`/orders/${orderId}/dispute`, { category, description });
   return response.data;
 };
 

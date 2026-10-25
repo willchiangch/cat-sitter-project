@@ -16,7 +16,7 @@
 
 ### 1.2 併發與冪等性
 1. **送單階段**：主要透過 `idempotency_key` 的資料庫 `UNIQUE` 約束防止重複送單。
-2. **接單 / 報價階段**（SD-006）：不做容量檢查、沒有保母 + 日期的 advisory lock。唯一的併發保護是**同一張訂單**只能從 `PENDING` 轉出一次：原價快速接單 `ConfirmOrderService.confirmOrder()`（`POST /api/orders/{id}/confirm`）與議價報價 `EvaluationService.sendQuote()`（`POST /api/orders/{id}/quote`）都以 `OrderRepository.findByIdAndSitterIdForUpdate`（`SELECT ... FOR UPDATE`）讀訂單，同一張單的併發請求在此排隊，後到者讀到 `PENDING_PAYMENT` → 409 `STATE_CONFLICT`。**接單不改 visit 狀態**（維持 `PENDING`，SD-008）。2026-10 backlog 第 7 批移除 `dailyCapacity`、`CapacityGuard`、`CapacityFullException`（409 `CAPACITY_FULL`）與 `countBookedVisitsBySitterIdAndDate`；第 5 批（F2）已刪除從未被 controller 呼叫的舊版 `BookingService.confirmBooking()`。
+2. **接單 / 報價階段**（SD-006）：不做容量檢查、沒有保母 + 日期的 advisory lock。唯一的併發保護是**同一張訂單**只能從 `PENDING` 轉出一次：原價快速接單 `ConfirmOrderService.confirmOrder()`（`POST /api/orders/{id}/confirm`）與議價報價 `EvaluationService.sendQuote()`（`POST /api/orders/{id}/quote`）都以 `OrderRepository.findByIdForUpdate`（`SELECT ... FOR UPDATE`）讀訂單、取得鎖後比對保母是否為 token 身分（不符 → 403，fix-batch11 I1），同一張單的併發請求在此排隊，後到者讀到 `PENDING_PAYMENT` → 409 `STATE_CONFLICT`。**接單不改 visit 狀態**（維持 `PENDING`，SD-008）。2026-10 backlog 第 7 批移除 `dailyCapacity`、`CapacityGuard`、`CapacityFullException`（409 `CAPACITY_FULL`）與 `countBookedVisitsBySitterIdAndDate`；第 5 批（F2）已刪除從未被 controller 呼叫的舊版 `BookingService.confirmBooking()`。
 
 ### 1.3 動態問卷渲染與快照 (PRD-004 聯動)
 飼主進入預約 Step 2 時，前端呼叫 `GET /api/sitters/{sitterId}/questions`（見 SD-004）動態渲染保母自訂的問卷表單。送單時：

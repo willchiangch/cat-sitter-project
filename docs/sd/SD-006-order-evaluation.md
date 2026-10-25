@@ -24,7 +24,7 @@
 
 ### 2.1 送出報價 (Accept & Quote)
 - **Endpoint**: `POST /api/orders/{orderId}/quote`
-- **Auth**: `ROLE_SITTER`
+- **Auth**: `@PreAuthorize("hasRole('SITTER')")`，保母身分取自 token（`TokenContext`），不收 `sitterId` 參數（舊前端帶的 `?sitterId=` 會被忽略）；訂單不屬於該保母 → 403（fix-batch11 I1，SD-GLOBAL-SPEC §3.4）
 - **Headers**: `Idempotency-Key: UUID` (必填)
 - **Request Body**: 
 ```json
@@ -40,7 +40,7 @@
   - **Zero-Trust**: 校驗 `serverTotal == expectedTotalAmount`。
   - **Cleanup**: 強制將 `waiting_for_owner_action` 設為 `false`。
   - **不做容量控管（產品決策，2026-10）**：報價不檢查同日已有幾張單，系統沒有 `dailyCapacity`（PRD-005 / PRD-006：接不接由保母判斷）。2026-10 backlog 第 7 批移除了 `CapacityGuard`（保母 + 日期 advisory lock + 鎖內 count）與 409 `CAPACITY_FULL`。
-  - **同一張單只轉出一次**：報價成功後訂單**直接**轉 `PENDING_PAYMENT`（沒有「飼主接受報價」的中間狀態）。`sendQuote` 與原價快速接單 `ConfirmOrderService.confirmOrder()` 都以 `OrderRepository.findByIdAndSitterIdForUpdate`（`@Lock(PESSIMISTIC_WRITE)` → `SELECT ... FOR UPDATE`）讀訂單；同一張單同時「原價接單 + 報價」、兩次報價（不同冪等鍵）或兩次接單時，後到者在列鎖上排隊，先到者 commit 後讀到 `PENDING_PAYMENT`，由狀態檢查拋 `IllegalStateException` → 409 `STATE_CONFLICT`。沒有這把列鎖時兩邊都讀到 `PENDING`，後到者會在 flush 時撞 `uk_order_snapshot_order_id`，回 400 `DATA_ERROR`（資料仍一致，但回應錯誤）。
+  - **同一張單只轉出一次**：報價成功後訂單**直接**轉 `PENDING_PAYMENT`（沒有「飼主接受報價」的中間狀態）。`sendQuote` 與原價快速接單 `ConfirmOrderService.confirmOrder()` 都以 `OrderRepository.findByIdForUpdate`（`@Lock(PESSIMISTIC_WRITE)` → `SELECT ... FOR UPDATE`）讀訂單，取得鎖後比對 `order.sitter.id == token.userId`（不符 → 403；fix-batch11 I1 前用 `findByIdAndSitterIdForUpdate`，查不到一律 400、分不出越權）；同一張單同時「原價接單 + 報價」、兩次報價（不同冪等鍵）或兩次接單時，後到者在列鎖上排隊，先到者 commit 後讀到 `PENDING_PAYMENT`，由狀態檢查拋 `IllegalStateException` → 409 `STATE_CONFLICT`。沒有這把列鎖時兩邊都讀到 `PENDING`，後到者會在 flush 時撞 `uk_order_snapshot_order_id`，回 400 `DATA_ERROR`（資料仍一致，但回應錯誤）。
 
 ### 2.2 要求回填問卷 (Request Info)
 - **Endpoint**: `POST /api/orders/{orderId}/request-info`
@@ -49,9 +49,15 @@
 
 ### 2.3 婉拒預約 (Reject)
 - **Endpoint**: `POST /api/orders/{orderId}/reject`
+- **Auth**: `@PreAuthorize("hasRole('SITTER')")`，保母身分取自 token，不收 `sitterId` 參數；訂單不屬於該保母 → 403（fix-batch11 I1）
 - **Headers**: `Idempotency-Key: UUID` (必填)
 - **Request Body**: `{ "rejectReason": "...", "version": 1 }`
 - **邏輯檢核**: 狀態轉為 `CANCELLED`，重設 `waiting_for_owner_action = false`。
+
+### 2.4 原價快速接單 (Confirm)
+- **Endpoint**: `POST /api/orders/{orderId}/confirm`（無 body）
+- **Auth**: `@PreAuthorize("hasRole('SITTER')")`，保母身分取自 token，不收 `sitterId` 參數（舊前端帶的 `?sitterId=` 會被忽略）；訂單不屬於該保母 → 403、未登入 → 401（fix-batch11 I1）。過去吃 `@RequestParam sitterId` 且沒有角色限制，任何已登入者帶上訂單保母的 UUID 就能代替保母接單
+- **邏輯**: `ConfirmOrderService.confirmOrder` 以 `findByIdForUpdate` 鎖訂單、比對保母，`PENDING` → `PENDING_PAYMENT`（併發規則見 §2.1）
 
 ### 2.5 飼主付款前撤單 (Owner Cancel，2026-10-25 fix-batch10 H5)
 - **Endpoint**: `POST /api/orders/{orderId}/cancel`
@@ -61,7 +67,7 @@
   - `PENDING` → 可撤
   - `PENDING_PAYMENT` → `SupplementPaymentResolver.findOpenSupplement` 有值（訂單變更補款階段，首次已付款）→ 409「訂單變更補款階段無法取消預約…」；`paidAt` 或 `paymentProofUrl` 有值 → 409「已上傳付款憑證…」；否則可撤
   - `CANCELLED` → 409「此訂單已取消」；`COMPLETED` → 409「此訂單已結案」；其他（`PAID` / `CONFIRMED` / `IN_PROGRESS` / `MODIFYING` / `REFUND_VERIFY` / `DISPUTED`）→ 409，訊息皆附「如需取消請透過『申請訂單變更』與保母協商（PRD-016）」
-- **併發**：以 `OrderRepository.findByIdForUpdate`（`PESSIMISTIC_WRITE`）讀訂單，與保母接單 / 報價的 `findByIdAndSitterIdForUpdate` 是同一列的同一把 `FOR UPDATE` 鎖。飼主先 → 保母後到讀到 `CANCELLED` → 409 `STATE_CONFLICT`；保母先 → 飼主後到讀到 `PENDING_PAYMENT`，version 已變 → 409 `MSG_DATA_CONCURRENCY_CONFLICT`（不會把保母剛報價的單撤掉）。飼主同時上傳憑證：`submitPaymentProof` 沒有列鎖但有 `@Version`，撤單先提交則上傳 flush 時樂觀鎖 409；上傳先提交則撤單讀到 `PAID` → 409。
+- **併發**：以 `OrderRepository.findByIdForUpdate`（`PESSIMISTIC_WRITE`）讀訂單，與保母接單 / 報價共用同一支查詢、同一列的同一把 `FOR UPDATE` 鎖。飼主先 → 保母後到讀到 `CANCELLED` → 409 `STATE_CONFLICT`；保母先 → 飼主後到讀到 `PENDING_PAYMENT`，version 已變 → 409 `MSG_DATA_CONCURRENCY_CONFLICT`（不會把保母剛報價的單撤掉）。飼主同時上傳憑證：`submitPaymentProof` 沒有列鎖但有 `@Version`，撤單先提交則上傳 flush 時樂觀鎖 409；上傳先提交則撤單讀到 `PAID` → 409。
 - **動作**：訂單 `status=CANCELLED`、`cancelled_by='OWNER'`（V20261025_01 新增欄位）、`waiting_for_owner_action=false`；所有行程 `CANCELLED`；同一交易寫 `order_logs`（`ORDER_CANCELLED_BY_OWNER`，payload `previousStatus`。不用 `AuditLogService.writeOrderLog`：它是 `REQUIRES_NEW`，新交易插 `order_logs` 的 FK 檢查要等本交易的 `FOR UPDATE` 列鎖，會互等）；發布 `OrderCancelledByOwnerEvent`，`NotificationListener` AFTER_COMMIT 非同步通知保母（標題「飼主已取消預約」、`ORDER_AFFAIR`、`/sitter/orders`、`SITTER`）。
 - **回應欄位**：`OrderDetailResponseDto` 新增 `cancelledBy`、`cancellableByOwner`；`OrderSummaryDto` 新增 `cancelledBy`。
 - **前端**：`OwnerOrderDetail` 在 `cancellableByOwner` 時顯示「取消預約」（`owner-cancel-booking-btn`，`window.confirm` 後送出，409 時 alert 後端訊息並重抓），`CANCELLED` 顯示 `cancelled-status-banner`（飼主撤「您已取消此預約」/ 其他「此預約已取消」）；`SitterOrders` 對 `cancelledBy=OWNER` 顯示「飼主已取消預約」（`sitter-order-owner-cancelled-{id}`）；`OrderEvalView` 非 PENDING 時若為飼主撤單顯示「飼主已取消預約，無法在此頁面操作。」（`sitter-order-eval-not-pending`）。
@@ -77,15 +83,18 @@ sequenceDiagram
     participant SVC as EvaluationService
     participant DB as PostgreSQL
 
-    S->>API: POST /api/orders/{id}/quote (Idempotency-Key)
-    API->>SVC: sendQuote(sitterId, orderId, req)
+    S->>API: POST /api/orders/{id}/quote (Idempotency-Key, Bearer JWT)
+    API->>SVC: sendQuote(sitterId = TokenContext.getUserId(), orderId, req)
     
     activate SVC
     Note over SVC: [Idempotency] 1. UNIQUE(idempotency_key) 檢查
     
     SVC->>DB: BEGIN Transaction
     
-    SVC->>DB: SELECT o FROM Order o WHERE o.id = :id AND o.sitter_id = :sitterId FOR UPDATE
+    SVC->>DB: SELECT o FROM Order o WHERE o.id = :id FOR UPDATE
+    alt o.sitter_id != token.userId
+        SVC-->>S: 403 Forbidden（fix-batch11 I1）
+    end
     alt status != PENDING (同一張單已被併發的接單 / 報價轉出)
         SVC-->>S: 409 Conflict (STATE_CONFLICT)
     end

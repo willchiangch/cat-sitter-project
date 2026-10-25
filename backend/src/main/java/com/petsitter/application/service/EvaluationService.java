@@ -37,8 +37,12 @@ public class EvaluationService {
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
 
         // 鎖住訂單列：與原價接單 ConfirmOrderService 同一張單併發時，後到者讀到 PENDING_PAYMENT → 409
-        Order order = orderRepository.findByIdAndSitterIdForUpdate(orderId, sitterId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到該保母的指定訂單: " + orderId));
+        // fix-batch11 I1：找得到訂單但不是自己的 → 403（過去 findByIdAndSitterId 查不到一律 400，分不出越權）
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到指定訂單: " + orderId));
+        if (!order.getSitter().getId().equals(sitterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("權限不足：您非此訂單的保母");
+        }
 
         if (!"PENDING".equals(order.getStatus())) {
             throw new IllegalStateException("只有 PENDING 狀態的訂單可以報價");
@@ -119,8 +123,12 @@ public class EvaluationService {
 
         idempotencyService.checkAndConsume(idempotencyKey, sitterId);
 
-        Order order = orderRepository.findByIdAndSitterId(orderId, sitterId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到該保母的指定訂單: " + orderId));
+        // fix-batch11 I1：找得到訂單但不是自己的 → 403
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到指定訂單: " + orderId));
+        if (!order.getSitter().getId().equals(sitterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("權限不足：您非此訂單的保母");
+        }
 
         if (!"PENDING".equals(order.getStatus())) {
             throw new IllegalStateException("只有 PENDING 狀態的訂單可以拒絕");

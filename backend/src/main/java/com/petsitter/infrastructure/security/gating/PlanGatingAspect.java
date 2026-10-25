@@ -87,6 +87,8 @@ public class PlanGatingAspect {
                 return (UUID) args[i];
             }
         }
-        return null;
+        // fix-batch11 I1：controller 端點不再收身分參數（POST /orders/{id}/quote 改從 token 取 sitterId），
+        // 參數裡找不到時改用 token 身分；否則 controller 層的 @RequirePlan 會整個跳過，調價的 PRO 門檻失效
+        return com.petsitter.infrastructure.security.TokenContext.tryGetUserId().orElse(null);
     }
 }

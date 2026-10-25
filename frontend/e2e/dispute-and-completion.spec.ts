@@ -3,9 +3,15 @@ import { step, trackDialogs, expectDialog } from './support/evidence';
 
 test.describe('Dispute and Completion Flow', () => {
   let orderStatus = 'CONFIRMED';
+  // fix-batch11 I1（BOLA）：記下結案 / 爭議請求，斷言前端不再帶 ownerId 等身分 query param
+  let completeUrls: string[] = [];
+  let disputeRequests: { url: string; body: unknown }[] = [];
+  const queryKeys = (url: string) => [...new URL(url).searchParams.keys()];
 
   test.beforeEach(async ({ page }) => {
     orderStatus = 'CONFIRMED';
+    completeUrls = [];
+    disputeRequests = [];
 
     // Mock Order Detail GET — 缺少此 mock 時 Cloud Run 回 401，axios interceptor 會重導至 /login
     await page.route('**/api/orders/a1023000-0000-0000-0000-000000000000', async (route) => {
@@ -52,6 +58,7 @@ test.describe('Dispute and Completion Flow', () => {
 
     // 攔截結案 API
     await page.route('**/api/orders/*/complete**', async (route) => {
+      completeUrls.push(route.request().url());
       orderStatus = 'COMPLETED';
       await route.fulfill({
         status: 200,
@@ -62,6 +69,7 @@ test.describe('Dispute and Completion Flow', () => {
 
     // 攔截提出爭議 API
     await page.route('**/api/orders/*/dispute**', async (route) => {
+      disputeRequests.push({ url: route.request().url(), body: route.request().postDataJSON() });
       orderStatus = 'DISPUTED';
       await route.fulfill({
         status: 200,
@@ -123,69 +131,75 @@ test.describe('Dispute and Completion Flow', () => {
       await expect(page.getByTestId('complete-order-btn')).toBeVisible();
     });
 
-    await step('確認結案後顯示「訂單已順利結案」', page, async () => {
+    await step('確認結案後顯示「訂單已順利結案」，請求不帶 ownerId', page, async () => {
       await page.getByTestId('complete-order-btn').click();
       await expectDialog(dialogs, /確定要將此訂單結案嗎/);
       await expect(page.getByTestId('completed-status-banner')).toBeVisible();
       await expect(page.getByTestId('completed-status-banner')).toContainText('訂單已順利結案');
+      expect(completeUrls).toHaveLength(1);
+      expect(queryKeys(completeUrls[0])).toEqual([]);
     });
   });
 
   test('should report dispute and resolve by admin', async ({ page }) => {
-    // 進入訂單詳情
-    await page.getByRole('button', { name: '直接進入訂單詳情 (飼主端)' }).click();
-    
-    // 點擊提出爭議
-    await page.getByTestId('dispute-order-btn').click();
-    await expect(page.getByTestId('dispute-modal')).toBeVisible();
+    const dialogs = trackDialogs(page);
 
-    // 選擇類別並輸入描述
-    await page.getByTestId('dispute-cat-未照約定打卡').click();
-    await page.getByTestId('dispute-desc-textarea').fill('保母今天沒有在約定時間打卡。');
+    await step('飼主訂單詳情：開啟爭議表單並填寫', page, async () => {
+      await page.getByRole('button', { name: '直接進入訂單詳情 (飼主端)' }).click();
+      await page.getByTestId('dispute-order-btn').click();
+      await expect(page.getByTestId('dispute-modal')).toBeVisible();
+      await page.getByTestId('dispute-cat-未照約定打卡').click();
+      await page.getByTestId('dispute-desc-textarea').fill('保母今天沒有在約定時間打卡。');
+      await expect(page.getByTestId('dispute-desc-textarea')).toHaveValue(
+        '保母今天沒有在約定時間打卡。'
+      );
+    });
 
-    // 提交爭議
-    await page.getByTestId('dispute-submit-btn').click();
+    await step(
+      '提交爭議後顯示調解中 banner，請求不帶 ownerId（只送類別與描述）',
+      page,
+      async () => {
+        await page.getByTestId('dispute-submit-btn').click();
+        await expectDialog(dialogs, /爭議申報成功/);
+        await expect(page.getByTestId('disputed-status-banner')).toBeVisible();
+        await expect(page.getByTestId('disputed-status-banner')).toContainText(
+          '訂單正處於爭議調解中'
+        );
+        expect(disputeRequests).toHaveLength(1);
+        expect(queryKeys(disputeRequests[0].url)).toEqual([]);
+        expect(disputeRequests[0].body).toEqual({
+          category: '未照約定打卡',
+          description: '保母今天沒有在約定時間打卡。'
+        });
+      }
+    );
 
-    // 檢查爭議後的 banner
-    await expect(page.getByTestId('disputed-status-banner')).toBeVisible();
-    await expect(page.getByTestId('disputed-status-banner')).toContainText('訂單正處於爭議調解中');
+    await step('管理員進入爭議調解頁並填寫調解資訊', page, async () => {
+      await page.getByText('返回 Demo 首頁').click();
+      await page.getByRole('button', { name: '切換為管理員' }).click();
+      await page.getByRole('button', { name: '直接進入爭議調解 (管理端)' }).click();
+      await page.getByTestId('admin-resolve-amount').fill('1500');
+      await page.getByTestId('admin-resolve-receipt').fill('https://receipt.jpg');
+      await page.getByTestId('admin-resolve-reason').fill('已扣除未打卡時段之費用。');
+      await expect(page.getByTestId('admin-resolve-reason')).toHaveValue(
+        '已扣除未打卡時段之費用。'
+      );
+    });
 
-    // 返回 Demo 首頁
-    await page.getByText('返回 Demo 首頁').click();
+    // handleResolve 先 await API 再跳 alert（非同步對話框）；trackDialogs 記錄所有對話框，
+    // expectDialog 只比對上一次斷言之後的新訊息，不會接到前一步的對話框
+    await step('二次驗證密碼錯誤：提示錯誤，未結案', page, async () => {
+      await page.getByTestId('admin-resolve-password').fill('wrongpassword');
+      await page.getByTestId('admin-resolve-submit-btn').click();
+      await expectDialog(dialogs, /二次驗證密碼錯誤/);
+      await expect(page.getByTestId('admin-resolved-banner')).toHaveCount(0);
+    });
 
-    // 切換至管理員
-    await page.getByRole('button', { name: '切換為管理員' }).click();
-
-    // 直接進入爭議調解
-    await page.getByRole('button', { name: '直接進入爭議調解 (管理端)' }).click();
-
-    // 填寫調解資訊
-    await page.getByTestId('admin-resolve-amount').fill('1500');
-    await page.getByTestId('admin-resolve-receipt').fill('https://receipt.jpg');
-    await page.getByTestId('admin-resolve-reason').fill('已扣除未打卡時段之費用。');
-    
-    // 二次驗證密碼輸入錯誤
-    // 注意：handleResolve 是先 await API 再跳 alert，屬於非同步對話框——
-    // click() 只等點擊動作本身完成，不會等到 alert 真的跳出來。若沿用
-    // page.once('dialog', ...) 掛好就 click 的寫法，下一步立刻覆蓋掉監聽器，
-    // 會接到「這次」的對話框而非「上一次」的，斷言必定跑掉。改成明確等對話框
-    // 事件本身出現後才繼續，徹底消除這個時序競爭。
-    await page.getByTestId('admin-resolve-password').fill('wrongpassword');
-    const wrongPasswordDialogPromise = page.waitForEvent('dialog');
-    await page.getByTestId('admin-resolve-submit-btn').click();
-    const wrongPasswordDialog = await wrongPasswordDialogPromise;
-    expect(wrongPasswordDialog.message()).toContain('二次驗證密碼錯誤');
-    await wrongPasswordDialog.accept();
-
-    // 二次驗證密碼輸入正確
-    await page.getByTestId('admin-resolve-password').fill('password');
-    const resolvedDialogPromise = page.waitForEvent('dialog');
-    await page.getByTestId('admin-resolve-submit-btn').click();
-    const resolvedDialog = await resolvedDialogPromise;
-    expect(resolvedDialog.message()).toContain('爭議已順利調解結案');
-    await resolvedDialog.accept();
-
-    // 驗證成功 banner
-    await expect(page.getByTestId('admin-resolved-banner')).toBeVisible();
+    await step('二次驗證密碼正確：調解結案', page, async () => {
+      await page.getByTestId('admin-resolve-password').fill('password');
+      await page.getByTestId('admin-resolve-submit-btn').click();
+      await expectDialog(dialogs, /爭議已順利調解結案/);
+      await expect(page.getByTestId('admin-resolved-banner')).toBeVisible();
+    });
   });
 });

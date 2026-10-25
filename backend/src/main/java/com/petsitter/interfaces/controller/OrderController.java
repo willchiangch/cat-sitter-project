@@ -127,42 +127,47 @@ public class OrderController {
     }
 
     /**
-     * 保母確認接單 (僅狀態轉換)
+     * 保母確認接單 (僅狀態轉換)。
+     * fix-batch11 I1（BOLA）：身分一律取自 token。過去吃 @RequestParam sitterId 且沒有角色限制，
+     * 任何已登入者帶上訂單保母的 UUID（訂單詳情 / 公開頁都看得到）就能代替保母接單。
+     * 舊前端仍會帶 ?sitterId=，Spring 對未宣告的 query param 直接忽略（不報錯、不使用），部署空窗期相容。
      */
+    @PreAuthorize("hasRole('SITTER')")
     @PostMapping("/{orderId}/confirm")
-    public ResponseEntity<Map<String, String>> confirmOrder(
-            @RequestParam UUID sitterId,
-            @PathVariable UUID orderId) {
-        
+    public ResponseEntity<Map<String, String>> confirmOrder(@PathVariable UUID orderId) {
+        UUID sitterId = TokenContext.getUserId();
         confirmOrderService.confirmOrder(sitterId, orderId);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "訂單已確認"));
     }
 
     /**
-     * 保母送出報價與調價 (SD-006)
+     * 保母送出報價與調價 (SD-006)。fix-batch11 I1：身分取自 token（同 confirm）。
+     * PlanGatingAspect 在方法參數找不到 sitterId 時改用 TokenContext 判斷方案，調價仍需 PRO。
      */
+    @PreAuthorize("hasRole('SITTER')")
     @RequirePlan(PlanTier.FREE)
     @PostMapping("/{orderId}/quote")
     public ResponseEntity<Map<String, String>> sendQuote(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestParam UUID sitterId,
             @PathVariable UUID orderId,
             @Valid @RequestBody QuoteRequest request) {
 
+        UUID sitterId = TokenContext.getUserId();
         evaluationService.sendQuote(sitterId, orderId, request, idempotencyKey);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "報價已送出"));
     }
 
     /**
-     * 保母拒絕接單 (PRD-006 AC-4 / SD-006 §2.3)
+     * 保母拒絕接單 (PRD-006 AC-4 / SD-006 §2.3)。fix-batch11 I1：身分取自 token（同 confirm）。
      */
+    @PreAuthorize("hasRole('SITTER')")
     @PostMapping("/{orderId}/reject")
     public ResponseEntity<Map<String, String>> rejectOrder(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestParam UUID sitterId,
             @PathVariable UUID orderId,
             @RequestBody RejectOrderRequest request) {
 
+        UUID sitterId = TokenContext.getUserId();
         evaluationService.rejectOrder(sitterId, orderId, request, idempotencyKey);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "已拒絕此訂單"));
     }
@@ -182,25 +187,26 @@ public class OrderController {
     }
 
     /**
-     * 飼主手動結案 (SD-009)
+     * 飼主手動結案 (SD-009)。fix-batch11 I1（BOLA）：身分取自 token。過去吃 @RequestParam ownerId，
+     * 保母本來就看得到 ownerId，等於能冒充飼主結案、提前觸發撥款排程
      */
+    @PreAuthorize("hasRole('OWNER')")
     @PostMapping("/{orderId}/complete")
-    public ResponseEntity<Map<String, String>> completeOrder(
-            @RequestParam UUID ownerId,
-            @PathVariable UUID orderId) {
-        
+    public ResponseEntity<Map<String, String>> completeOrder(@PathVariable UUID orderId) {
+        UUID ownerId = TokenContext.getUserId();
         completionService.manualComplete(orderId, ownerId);
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "訂單已成功結案"));
     }
 
     /**
-     * 飼主回報爭議 (SD-009)
+     * 飼主回報爭議 (SD-009)。fix-batch11 I1：身分取自 token（同 complete）
      */
+    @PreAuthorize("hasRole('OWNER')")
     @PostMapping("/{orderId}/dispute")
     public ResponseEntity<Map<String, String>> disputeOrder(
             @PathVariable UUID orderId,
-            @RequestParam UUID ownerId,
             @RequestBody Map<String, String> payload) {
+        UUID ownerId = TokenContext.getUserId();
         String category = payload.get("category");
         String description = payload.get("description");
         completionService.disputeOrder(orderId, ownerId, category, description);

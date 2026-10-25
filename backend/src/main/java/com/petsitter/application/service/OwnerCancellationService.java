@@ -74,7 +74,7 @@ public class OwnerCancellationService {
     public void cancelByOwner(UUID ownerId, UUID orderId, int expectedVersion) {
         log.info("[OwnerCancellation] Owner {} cancelling order {}", ownerId, orderId);
 
-        // 與保母接單 / 報價（findByIdAndSitterIdForUpdate）搶同一把列鎖，跨角色併發只會有一方成功
+        // 與保母接單 / 報價（同樣走 findByIdForUpdate）搶同一把列鎖，跨角色併發只會有一方成功
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到對應的訂單: " + orderId));
 

@@ -436,8 +436,7 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
 
     await apiStep('保母直接打原價接單 API：409，訂單仍是 CANCELLED', async () => {
       const res = await request.post(`/api/orders/${orderId}/confirm`, {
-        headers: apiAuthed(sitter),
-        params: { sitterId: sitter.userId }
+        headers: apiAuthed(sitter)
       });
       expect(res.status()).toBe(409);
       const order = await awaitOrderStatus(request, owner, orderId, ['CANCELLED']);

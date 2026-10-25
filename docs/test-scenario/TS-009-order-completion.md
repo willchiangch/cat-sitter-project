@@ -16,7 +16,7 @@
 | TS-009-02 | 無異議自動結案 | 1. 訂單所有行程已結束且最後行程過 48 小時<br>2. 執行自動結案排程 | 訂單轉為 `COMPLETED`，計算 `payout_at` |
 | TS-009-03 | 飼主手動結案 | 1. 飼主對已結束行程的訂單呼叫 `/complete` | 訂單轉為 `COMPLETED`，進入財務撥款隊列 |
 | TS-009-04 | 管理員爭議裁決 | 1. 訂單狀態為 `DISPUTED`<br>2. 管理員呼叫 `/resolve` 並調整金額 | 狀態轉為 `COMPLETED`，金額變更，寫入審計日誌 |
-| TS-009-05 | 結案權限檢查 | 1. 使用 A 飼主帳號嘗試結案 B 飼主的訂單 | 回傳 403 Forbidden 或 400 Bad Request |
+| TS-009-05 | 結案 / 爭議權限檢查（fix-batch11 I1，BOLA） | 1. 飼主 B 的 token 帶舊攻擊手法 `?ownerId=<飼主 A>` 對 A 的訂單呼叫 `/complete`、`/dispute`<br>2. 該訂單保母的 token 呼叫同兩支（錯角色）<br>3. 未登入<br>4. 飼主 A 本人帶亂填的 `?ownerId=` | 1、2 回 **403**，訂單狀態不變、`payout_at` 為空、`is_disputed=false`；3 回 401；4 回 200（`COMPLETED` 排撥款 / `DISPUTED`），舊身分參數被忽略。身分一律取自 JWT，前端請求不帶任何 query param |
 | TS-009-06 | 管理員二次驗證密碼錯誤 | 1. 訂單狀態為 `DISPUTED`<br>2. 管理員呼叫 `/admin-resolve` 但 `adminPassword` 錯誤 | 回傳 **403**（非 401，避免前端 axios 攔截器誤判為 session 過期並觸發靜默重試），訂單狀態不變 |
 | TS-009-07 | 爭議申報狀態機防呆 | 1. 訂單狀態為 `PENDING`（尚未進行中）或已是 `DISPUTED`<br>2. 飼主呼叫 `/dispute` | 回傳錯誤，不允許重複或非法狀態下申報爭議；`OwnerOrderDetail.tsx` 的「申報爭議」按鈕在此狀態下亦不應顯示 |
 | TS-009-09 | 手動結案前置條件（行程未完成 / 零行程） | 1. 訂單 `CONFIRMED` 且行程 `PENDING`，或訂單沒有任何行程<br>2. 飼主呼叫 `/complete`；飼主開訂單詳情 | 後端拋 `IllegalStateException`，訂單維持原狀態、`completed_at`/`payout_at` 為空；前端不顯示 `complete-order-btn`，顯示 `complete-order-hint`。行程全部 `DONE`/`CLOSED_BY_SYSTEM` 才顯示按鈕 |
@@ -27,8 +27,9 @@
 ## 4. 自動化追溯 (Automation Trace)
 - **單元測試**: `CompletionService.java`
 - **整合測試**: `CompletionServiceTest.java`（涵蓋 TS-009-01~06、TS-009-09 後端：`should_RejectManualComplete_When_OrderHasNoVisits` / `_When_VisitStillPending`、`should_ManualComplete_When_AllVisitsDone`；TS-009-10：`should_RejectManualComplete_When_StatusNotCompletable`（8 個狀態參數化）、`_When_Negotiating`、`should_RejectManualComplete_And_KeepPayoutDate_When_AlreadyCompleted`、`should_ManualComplete_When_ConfirmedAndAllVisitsFinished`，HTTP 層 `OrderControllerTest.should_Return409_And_KeepPayoutAt_When_CompletingCompletedOrder`；TS-009-11：`should_SkipAutoCompletion_When_OrderHasNoVisits`；**TS-009-07/08 目前僅有 E2E 覆蓋，無對應後端單元測試，為已知待補項目**）
-- **E2E 對應**: `dispute-and-completion.spec.ts`（TS-009-03 前端：行程全部 DONE 才結案、TS-009-04/06/07）、`order-visit-gating.spec.ts` N10（TS-009-09 前端：待執行 / 部分執行中 / 零行程不顯示按鈕，全部 DONE+CLOSED_BY_SYSTEM 顯示）、`sitter-ledger.spec.ts`（TS-009-08）
-- **測試指令**: `mvn test -Dtest=CompletionServiceTest`
+- **安全迴歸（真 JWT + 真 SecurityConfig）**: `OrderIdentityFromTokenSecurityTest.complete_*` / `dispute_*`（TS-009-05）
+- **E2E 對應**: `dispute-and-completion.spec.ts`（TS-009-03 前端：行程全部 DONE 才結案、TS-009-04/06/07；TS-009-05 前端：`/complete`、`/dispute` 請求的 `searchParams` 為空、爭議 body 只有 `category` / `description`）、`order-visit-gating.spec.ts` N10（TS-009-09 前端：待執行 / 部分執行中 / 零行程不顯示按鈕，全部 DONE+CLOSED_BY_SYSTEM 顯示）、`sitter-ledger.spec.ts`（TS-009-08）
+- **測試指令**: `mvn test -Dtest=CompletionServiceTest,OrderIdentityFromTokenSecurityTest`
 
 ## 5. 技術校驗 (DB/NFR)
 - **Cron Transaction**: 確保每筆訂單在結案時獨立 Commit，避免批次失敗。
@@ -46,3 +47,5 @@
 **手動結案沒有訂單狀態白名單（2026-10-25，fix-batch10 H2 / 第 9 批另外發現 #2）**：`manualComplete` 只擋 `DISPUTED`，只要行程全部 `DONE` 就能結案。已 `COMPLETED` 的訂單重複呼叫會把 `completed_at` / `payout_at` 重設為「現在」與「現在 + 3 天」，撥款日期被往後推；`MODIFYING` / `REFUND_VERIFY`（PRD-016 協商中）結案會繞過協商直接放款。改為只允許 `CONFIRMED` / `IN_PROGRESS`（與 `disputeOrder` 一致），其餘 409 並依狀態給訊息（SD-009 §1.1）。迴歸：TS-009-10 的 JUnit（舊版在 MODIFYING / REFUND_VERIFY / PENDING_PAYMENT / PAID / CANCELLED / REJECTED / PENDING 會被結案、COMPLETED 的 payoutAt 會變）。
 
 **自動結案排程把零行程訂單結案（2026-10-25，fix-batch10 H3 / 第 9 批另外發現 #3）**：N10 只在 `manualComplete` 補了零行程檢查，`triggerAutoCompletion` 對 `IN_PROGRESS` 訂單同樣用 `allMatch`（空集合 true），最後行程時間退回 `OffsetDateTime.MIN`，必定早於 48 小時門檻，於是沒有任何服務的訂單被自動結案並排 D+3 撥款。改為零行程 `continue` + WARN log 供人工處理。迴歸：TS-009-11 `should_SkipAutoCompletion_When_OrderHasNoVisits`（同批正常訂單照常結案，確認不會中斷排程）。
+
+**保母可冒充飼主結案 / 申報爭議（2026-10-25，fix-batch11 I1，安全 / BOLA）**：`POST /api/orders/{id}/complete`、`/dispute` 以 `@RequestParam ownerId` 當呼叫者身分且沒有 `@PreAuthorize`。訂單的保母本來就看得到 `ownerId`（訂單詳情回應），等於保母自己就能「代替飼主確認結案」，提前觸發 D+3 撥款排程；任何知道 UUID 的人也能替飼主申報爭議、把訂單卡進 `DISPUTED`。過去 TS-009-05 只驗 service 層「參數 ownerId ≠ 訂單飼主」，沒驗「參數是誰傳的」，所以一直綠。修法：兩支改 `@PreAuthorize("hasRole('OWNER')")` + `TokenContext.getUserId()`，service 越權改拋 `AccessDeniedException` → 403（SD-009 §2.1 / §2.2、SD-GLOBAL-SPEC §3.4）。迴歸：TS-009-05 改寫為真 JWT 測試（舊版 controller 下全紅）。

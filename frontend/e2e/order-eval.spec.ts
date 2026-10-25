@@ -27,6 +27,9 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
   const orderId = 'a1023000-0000-0000-0000-000000000000';
   let orderStatus = 'PENDING';
   let orderVersion = 0;
+  // fix-batch11 I1（BOLA）：記下接單 / 報價 / 婉拒請求的 URL，斷言前端不再帶 sitterId 等身分 query param
+  let actionUrls: string[] = [];
+  const queryKeys = (url: string) => [...new URL(url).searchParams.keys()];
 
   test.beforeEach(async ({ page }) => {
     // 種子帳號自動登入只在 Demo 模式 (authMode=seed) 或 Demo 入口才會發生 (src/contexts/seedAutoLogin.ts)。
@@ -36,6 +39,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     });
     orderStatus = 'PENDING';
     orderVersion = 0;
+    actionUrls = [];
 
     await page.route(`**/api/orders/${orderId}`, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
@@ -74,6 +78,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     });
 
     await page.route(`**/api/orders/${orderId}/confirm**`, async (route) => {
+      actionUrls.push(route.request().url());
       orderStatus = 'PENDING_PAYMENT';
       await route.fulfill({
         status: 200,
@@ -83,6 +88,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     });
 
     await page.route(`**/api/orders/${orderId}/quote**`, async (route) => {
+      actionUrls.push(route.request().url());
       orderStatus = 'PENDING_PAYMENT';
       await route.fulfill({
         status: 200,
@@ -92,6 +98,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     });
 
     await page.route(`**/api/orders/${orderId}/reject**`, async (route) => {
+      actionUrls.push(route.request().url());
       orderStatus = 'CANCELLED';
       await route.fulfill({
         status: 200,
@@ -144,16 +151,25 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     await expect(totalText).toHaveText('$ 2,300');
   });
 
-  test('無調整金額時可原價直接接受', async ({ page }) => {
-    await page.goto(`/sitter/eval/${orderId}`);
+  test('無調整金額時可原價直接接受（請求不帶 sitterId，身分由後端取自 token）', async ({
+    page
+  }) => {
+    const dialogs = trackDialogs(page);
 
-    await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toBeVisible();
+    await step('評估頁顯示「原價接單」', page, async () => {
+      await page.goto(`/sitter/eval/${orderId}`);
+      await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toBeVisible();
+    });
 
-    page.once('dialog', (dialog) => dialog.accept());
-    await page.getByTestId('sitter-order-eval-btn-accept-original').click();
-
-    await expect(page).toHaveURL(/\/sitter\/orders$/);
-    expect(orderStatus).toBe('PENDING_PAYMENT');
+    await step('原價接單後導回列表，請求沒有任何 query param', page, async () => {
+      await page.getByTestId('sitter-order-eval-btn-accept-original').click();
+      await expectDialog(dialogs, /確定要以原價直接接下此訂單嗎/);
+      await expectDialog(dialogs, /已成功接單/);
+      await expect(page).toHaveURL(/\/sitter\/orders$/);
+      expect(orderStatus).toBe('PENDING_PAYMENT');
+      expect(actionUrls).toHaveLength(1);
+      expect(queryKeys(actionUrls[0])).toEqual([]);
+    });
   });
 
   test('從列表進入原價接單後回到列表，訂單不再停留在「評估中」（迴歸：接單後未 invalidate 訂單快取）', async ({
@@ -185,38 +201,51 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
   });
 
   test('有加價/折扣時需填寫理由才能送出報價', async ({ page }) => {
-    await page.goto(`/sitter/eval/${orderId}`);
+    const dialogs = trackDialogs(page);
 
-    await page.getByTestId('sitter-order-eval-input-add-fee').fill('300');
-    await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toBeVisible();
-
-    // 未填理由：擋下並顯示 alert
-    page.once('dialog', (dialog) => {
-      expect(dialog.message()).toContain('請填寫調整原因');
-      dialog.accept();
+    await step('輸入加價後出現「送出報價」', page, async () => {
+      await page.goto(`/sitter/eval/${orderId}`);
+      await page.getByTestId('sitter-order-eval-input-add-fee').fill('300');
+      await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toBeVisible();
     });
-    await page.getByTestId('sitter-order-eval-btn-confirm').click();
-    expect(orderStatus).toBe('PENDING');
 
-    // 補上理由後成功送出
-    await page.getByTestId('sitter-order-eval-input-reason').fill('距離較遠加收車馬費');
-    await page.getByTestId('sitter-order-eval-btn-confirm').click();
+    await step('未填理由：擋下並提示，沒有送出請求', page, async () => {
+      await page.getByTestId('sitter-order-eval-btn-confirm').click();
+      await expectDialog(dialogs, /請填寫調整原因/);
+      expect(orderStatus).toBe('PENDING');
+      expect(actionUrls).toHaveLength(0);
+    });
 
-    await expect(page).toHaveURL(/\/sitter\/orders$/);
-    expect(orderStatus).toBe('PENDING_PAYMENT');
+    await step('補上理由後成功送出，請求不帶 sitterId', page, async () => {
+      await page.getByTestId('sitter-order-eval-input-reason').fill('距離較遠加收車馬費');
+      await page.getByTestId('sitter-order-eval-btn-confirm').click();
+      await expectDialog(dialogs, /報價已成功送出/);
+      await expect(page).toHaveURL(/\/sitter\/orders$/);
+      expect(orderStatus).toBe('PENDING_PAYMENT');
+      expect(actionUrls).toHaveLength(1);
+      expect(queryKeys(actionUrls[0])).toEqual([]);
+    });
   });
 
   test('可拒絕接單並導回訂單列表', async ({ page }) => {
-    await page.goto(`/sitter/eval/${orderId}`);
+    const dialogs = trackDialogs(page);
 
-    await page.getByTestId('sitter-order-eval-btn-reject').click();
-    await page.getByTestId('sitter-order-eval-input-reject-reason').fill('臨時有事無法接單');
+    await step('展開婉拒表單並填寫原因', page, async () => {
+      await page.goto(`/sitter/eval/${orderId}`);
+      await page.getByTestId('sitter-order-eval-btn-reject').click();
+      await expect(page.getByTestId('sitter-order-eval-input-reject-reason')).toBeVisible();
+      await page.getByTestId('sitter-order-eval-input-reject-reason').fill('臨時有事無法接單');
+    });
 
-    page.once('dialog', (dialog) => dialog.accept());
-    await page.getByTestId('sitter-order-eval-btn-submit-reject').click();
-
-    await expect(page).toHaveURL(/\/sitter\/orders$/);
-    expect(orderStatus).toBe('CANCELLED');
+    await step('確認婉拒後導回列表，請求不帶 sitterId', page, async () => {
+      await page.getByTestId('sitter-order-eval-btn-submit-reject').click();
+      await expectDialog(dialogs, /確定要拒絕此訂單嗎/);
+      await expectDialog(dialogs, /已拒絕此訂單/);
+      await expect(page).toHaveURL(/\/sitter\/orders$/);
+      expect(orderStatus).toBe('CANCELLED');
+      expect(actionUrls).toHaveLength(1);
+      expect(queryKeys(actionUrls[0])).toEqual([]);
+    });
   });
 
   test('品項明細：說明很長時價格欄不被擠壓、與說明保持間距（U4 / 驗收 P5）', async ({ page }) => {

@@ -41,6 +41,7 @@
 ### 3.1 SaaS Gating via AOP
 - **實作方式**：自定義註解 `@RequirePlan(PlanType)` 搭配 Spring AOP 攔截器。
 - **規範**：禁止在 Service 層寫死方案判斷，統一由 Controller 層標註權限。
+- **方案歸屬的身分**：`PlanGatingAspect` 先找方法參數中名為 `sitterId` 的 `UUID`，找不到時改用 `TokenContext`（token 身分）。端點依 §3.4 不再收身分參數後，controller 層的 `@RequirePlan` 仍會生效（例：`POST /api/orders/{id}/quote` 調價需 PRO，fix-batch11 I1）。
 
 ### 3.2 JWT 最小化 Payload
 - **規範**：Token 僅存放 `accountId` 與 `currentRole`。
@@ -49,6 +50,13 @@
 ### 3.3 外部服務隔離 (Mocking Layer)
 - **規範**：所有外部服務（Google Calendar、金流、簡訊）必須實作 `MockService` 開關。
 - **目的**：開發測試時禁止真實呼叫第三方 API，節省額外頻寬與呼叫費用。
+
+### 3.4 身分一律取自 token（防 BOLA，2026-10-25 fix-batch11）
+- **規範**：「呼叫者是誰」一律以 `TokenContext.getUserId()`（`JwtAuthenticationFilter` 從 JWT `userId` claim 寫入）取得，並在 controller 掛 `@PreAuthorize("hasRole(...)")` 限定角色。**禁止**以 `@RequestParam` / `@PathVariable` / `@RequestBody` 接收「代表呼叫者自己」的身分欄位（`sitterId`、`ownerId`、`userId`、`requesterId`…）再拿它去比對資源歸屬——這些 UUID 會出現在 API 回應（訂單詳情、公開頁），任何已登入者都拿得到。
+- **資源歸屬檢查**：Service 層以 token 身分比對資源擁有者（例：`order.sitter.id == token.userId`），找得到資源但不屬於呼叫者 → `AccessDeniedException` → **403**；資源不存在 → 400 / 404。不可用 `findByIdAndXxxId` 查不到就一律 400，否則分不出越權。
+- **允許的例外**（參數是「操作對象」而非「呼叫者」）：公開查詢（`GET /api/sitters/{sitterId}/plans|questions`、`GET /api/sitter/profile/{sitterId}`）、對象型參數（收藏 / 黑名單 / 轉介的目標 `sitterId` / `ownerId`）、ADMIN 專用端點、配對型路徑（`/api/care-notes/{sitterId}/{ownerId}`：其中之一必須等於 token 身分，寫入端點限 `sitterId == token`，SD-021 §1.3）。
+- **部署相容**：移除身分參數時，後端不宣告該參數即可——Spring 對未宣告的 query param / Jackson 對未知 JSON 欄位（`FAIL_ON_UNKNOWN_PROPERTIES=false`）都直接忽略，舊前端在「後端已部署、前端未部署」的空窗期仍可運作。部署順序：先後端再前端。
+- **迴歸測試**：`OrderIdentityFromTokenSecurityTest`（真 JWT + 真 `SecurityConfig` filter chain，不用 `@WithMockUser`）——每支端點「別人的 token 操作他人訂單 → 403」「錯角色 → 403」「本人 → 200（多帶亂填的舊身分參數也被忽略）」。
 
 ## 4. 檔案與資料共用機制
 ### 4.1 檔案儲存命名與清理 (GCS)

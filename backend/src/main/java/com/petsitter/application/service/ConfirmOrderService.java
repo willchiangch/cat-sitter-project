@@ -27,8 +27,12 @@ public class ConfirmOrderService {
         log.info("[ConfirmOrderService] Sitter {} is confirming order {}", sitterId, orderId);
 
         // 1. 獲取訂單與 BOLA 檢查；鎖住訂單列，同一張單併發接單 / 報價時後到者讀到最新狀態 → 409
-        Order order = orderRepository.findByIdAndSitterIdForUpdate(orderId, sitterId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到該保母的指定訂單: " + orderId));
+        // fix-batch11 I1：找得到訂單但不是自己的 → 403（過去 findByIdAndSitterId 查不到一律 400，分不出越權）
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到指定訂單: " + orderId));
+        if (!order.getSitter().getId().equals(sitterId)) {
+            throw new org.springframework.security.access.AccessDeniedException("權限不足：您非此訂單的保母");
+        }
 
         if (!"PENDING".equals(order.getStatus())) {
             throw new IllegalStateException("只有 PENDING 狀態的訂單可以被接單，目前狀態: " + order.getStatus());

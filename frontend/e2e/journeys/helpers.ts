@@ -541,7 +541,8 @@ export async function bootstrapConfirmedOrder(
 
   const { res: confirmRes, ok: confirmResOk } = await withGatewayRetry(
     () =>
-      request.post(`/api/orders/${orderId}/confirm?sitterId=${sitter.userId}`, {
+      // 身分由後端從 token 取得，不帶 sitterId（fix-batch11 I1）
+      request.post(`/api/orders/${orderId}/confirm`, {
         headers: apiAuthed(sitter)
       }),
     () => orderAlreadyIn(request, owner, orderId, 'PENDING_PAYMENT')

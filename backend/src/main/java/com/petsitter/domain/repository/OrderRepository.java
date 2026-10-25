@@ -17,20 +17,13 @@ import java.util.UUID;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
-    Optional<Order> findByIdAndSitterId(UUID id, UUID sitterId);
-
     /**
-     * 保母把訂單從 PENDING 轉出（原價接單 / 報價）前先鎖住訂單列（SELECT ... FOR UPDATE）。
-     * 同一張單的併發請求在這裡排隊，後到者讀到先到者已提交的狀態（PENDING_PAYMENT），由呼叫方的狀態檢查回 409；
+     * 訂單狀態轉移前鎖住訂單列（SELECT ... FOR UPDATE）：保母原價接單 / 報價（ConfirmOrderService、
+     * EvaluationService.sendQuote）與飼主撤單（OwnerCancellationService）共用同一把鎖。
+     * 同一張單的併發請求在這裡排隊，後到者讀到先到者已提交的狀態 / version，由呼叫方的狀態檢查回 409；
      * 沒有這把鎖時兩邊都讀到 PENDING，後到者會撞 uk_order_snapshot_order_id 變成 400 DATA_ERROR。
-     */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT o FROM Order o WHERE o.id = :id AND o.sitter.id = :sitterId")
-    Optional<Order> findByIdAndSitterIdForUpdate(@Param("id") UUID id, @Param("sitterId") UUID sitterId);
-
-    /**
-     * 飼主撤單（OwnerCancellationService）前鎖住訂單列。與保母接單 / 報價的 findByIdAndSitterIdForUpdate
-     * 是同一列的同一把 FOR UPDATE 鎖，跨角色的併發請求在這裡排隊，後到者讀到先到者提交的狀態 / version → 409。
+     * 身分比對（訂單是否屬於呼叫者）由呼叫方在取得鎖後自行檢查並回 403（fix-batch11 I1，
+     * 取代原本的 findByIdAndSitterIdForUpdate：查不到時分不出「不存在」與「越權」）。
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.id = :id")

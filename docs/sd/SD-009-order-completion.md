@@ -29,7 +29,7 @@
   - 線下支付：同 `paid_at` (僅作帳務紀錄)。
 
 ### 1.3 爭議申報狀態機防呆
-`disputeOrder()` 僅允許 `order.status ∈ {CONFIRMED, IN_PROGRESS}` 的訂單被申報爭議（其餘狀態如 `PENDING`/`COMPLETED`/已在 `DISPUTED` 中，一律拒絕並拋 `IllegalStateException`），同時比對 `order.owner.id == 呼叫者`，防止非本人飼主誤操作或重複申報。前端「申報爭議」按鈕的顯示條件（`OwnerOrderDetail.tsx`）須與此狀態集合保持一致，避免飼主在非法狀態下看到可點擊的按鈕才在送出後被後端拒絕。
+`disputeOrder()` 僅允許 `order.status ∈ {CONFIRMED, IN_PROGRESS}` 的訂單被申報爭議（其餘狀態如 `PENDING`/`COMPLETED`/已在 `DISPUTED` 中，一律拒絕並拋 `IllegalStateException`），同時比對 `order.owner.id == 呼叫者（token 身分）`，不符拋 `AccessDeniedException` → 403，防止非本人飼主誤操作或重複申報。前端「申報爭議」按鈕的顯示條件（`OwnerOrderDetail.tsx`）須與此狀態集合保持一致，避免飼主在非法狀態下看到可點擊的按鈕才在送出後被後端拒絕。
 
 ### 1.4 保母帳務總覽 (Sitter Ledger)
 保母可依月份查詢自己名下已結案訂單的營收總覽（PRD-009 主流程 C）。查詢範圍為 `orders.completed_at` 落在指定月份區間（`[月初, 次月月初)`），僅撈取 `COMPLETED` 狀態的訂單，回傳每筆訂單的金額與三個財務時間戳記（`paidAt`/`completedAt`/`payoutAt`）以及該月總營收。
@@ -40,13 +40,13 @@
 
 ### 2.1 飼主手動結案
 - **Endpoint**: `POST /api/orders/{orderId}/complete`
-- **Auth**: `ROLE_OWNER`
+- **Auth**: `@PreAuthorize("hasRole('OWNER')")`，飼主身分取自 token（`TokenContext`），不收 `ownerId` 參數（舊前端帶的 `?ownerId=` 會被忽略）；訂單不屬於該飼主 → 403（`AccessDeniedException`，過去是 400）、保母角色 → 403、未登入 → 401（fix-batch11 I1，SD-GLOBAL-SPEC §3.4）。過去吃 `@RequestParam ownerId` 且沒有角色限制，該訂單的保母本來就看得到 `ownerId`，等於能冒充飼主結案、提前排撥款
 - **Headers**: `Idempotency-Key: UUID` (必填)
 - **邏輯**: 檢核成功後寫入 `completed_at` 與 `payout_at`。
 
 ### 2.2 飼主回報爭議 (Dispute)
 - **Endpoint**: `POST /api/orders/{orderId}/dispute`
-- **Auth**: `ROLE_OWNER`
+- **Auth**: `@PreAuthorize("hasRole('OWNER')")`，飼主身分取自 token，不收 `ownerId` 參數；非該訂單飼主 → 403（fix-batch11 I1，同 §2.1）
 - **Headers**: `Idempotency-Key: UUID` (必填)
 - **Request Body**: `{ "category": "ENUM", "description": "...", "version": 1 }`
 

@@ -140,7 +140,8 @@ public class CompletionService {
                 .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
         
         if (!order.getOwner().getId().equals(ownerId)) {
-            throw new IllegalArgumentException("無權操作此訂單");
+            // fix-batch11 I1：越權回 403（過去 IllegalArgumentException → 400）
+            throw new org.springframework.security.access.AccessDeniedException("權限不足：您非此訂單的飼主");
         }
 
         // 狀態白名單（PRD-009 狀態機：服務中的訂單才可結案；fix-batch10 H2）。過去只擋 DISPUTED：
@@ -209,7 +210,8 @@ public class CompletionService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到訂單: " + orderId));
         if (!order.getOwner().getId().equals(ownerId)) {
-            throw new IllegalArgumentException("無權操作此訂單");
+            // fix-batch11 I1：越權回 403（過去 IllegalArgumentException → 400）
+            throw new org.springframework.security.access.AccessDeniedException("權限不足：您非此訂單的飼主");
         }
         if (!List.of("CONFIRMED", "IN_PROGRESS").contains(order.getStatus())) {
             throw new IllegalStateException("此訂單狀態不可申報爭議");

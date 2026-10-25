@@ -231,8 +231,7 @@ class OrderControllerTest {
         TokenContext.setUserId(ownerId);
 
         mockMvc.perform(post("/api/orders/{orderId}/complete", realOrderId)
-                .with(user(ownerId.toString()).roles("OWNER"))
-                .param("ownerId", ownerId.toString()))
+                .with(user(ownerId.toString()).roles("OWNER")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("STATE_CONFLICT"))
                 .andExpect(jsonPath("$.message").value("此訂單已結案，不可重複結案"));
@@ -254,11 +253,11 @@ class OrderControllerTest {
                 .version(1)
                 .build();
 
-        // When & Then
+        // When & Then（fix-batch11 I1：身分取自 token，PlanGatingAspect 以 TokenContext 判斷方案）
+        TokenContext.setUserId(sitterId);
         mockMvc.perform(post("/api/orders/{orderId}/quote", orderId)
                 .with(user("test").roles("SITTER"))
                 .header("Idempotency-Key", UUID.randomUUID().toString())
-                .param("sitterId", sitterId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden()) 
@@ -277,11 +276,11 @@ class OrderControllerTest {
                 .version(1)
                 .build();
 
-        // When & Then
+        // When & Then（fix-batch11 I1：身分取自 token，PlanGatingAspect 以 TokenContext 判斷方案）
+        TokenContext.setUserId(sitterId);
         mockMvc.perform(post("/api/orders/{orderId}/quote", orderId)
                 .with(user("test").roles("SITTER"))
                 .header("Idempotency-Key", UUID.randomUUID().toString())
-                .param("sitterId", sitterId.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());

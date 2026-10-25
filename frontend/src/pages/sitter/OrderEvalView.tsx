@@ -6,7 +6,6 @@ import Card from '../../components/ui/Card';
 import { ChevronLeft, PlusCircle, MinusCircle } from 'lucide-react';
 import { getOrderDetail, confirmOrder, sendOrderQuote, rejectOrder } from '../../api/orderApi';
 import type { OrderDetailResponseDto } from '../../api/orderApi';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { orderStatusLabel } from '../../components/ui/statusLabels';
 import { formatMoney } from '../../utils/money';
 
@@ -25,7 +24,6 @@ interface OrderEvalViewProps {
 const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { userId: sitterId } = useCurrentUser();
 
   const [order, setOrder] = useState<OrderDetailResponseDto | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -72,7 +70,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
     if (!window.confirm('確定要以原價直接接下此訂單嗎？')) return;
     setActionLoading(true);
     try {
-      await confirmOrder(orderId, sitterId);
+      await confirmOrder(orderId);
       alert('已成功接單，訂單進入待付款狀態！');
       await backToOrderList();
     } catch (err: any) {
@@ -97,7 +95,6 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
     try {
       await sendOrderQuote(
         orderId,
-        sitterId,
         {
           adjustmentAmount: adjustment,
           expectedTotalAmount: finalTotal,
@@ -123,7 +120,6 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
     try {
       await rejectOrder(
         orderId,
-        sitterId,
         {
           rejectReason: rejectReason.trim() || undefined,
           version: order.version

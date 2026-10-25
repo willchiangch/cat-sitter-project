@@ -13,7 +13,6 @@ import {
   submitPaymentProof
 } from '../../api/orderApi';
 import type { OrderDetailResponseDto } from '../../api/orderApi';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useOrderVisitsQuery } from '../../hooks/useOrders';
 import { formatMoney } from '../../utils/money';
 
@@ -97,8 +96,6 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const paymentProofKeyRef = useRef<string | null>(null);
 
-  const { userId: ownerId } = useCurrentUser();
-
   // 確認結案按鈕只在「所有行程都已結束」時顯示（PRD-009 A.1 / 例外表「仍有行程尚未完成」）。
   // 過去 CONFIRMED（服務還沒開始）就顯示，按了只會被後端 manualComplete 擋下（驗收 N10）
   const isServiceStage = order?.status === 'CONFIRMED' || order?.status === 'IN_PROGRESS';
@@ -130,7 +127,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
     if (!window.confirm('確定要將此訂單結案嗎？這將會放行款項給保母。')) return;
     setLoading(true);
     try {
-      await completeOrder(orderId, ownerId);
+      await completeOrder(orderId);
       await fetchOrderDetail();
       alert('訂單已順利結案！');
     } catch (err) {
@@ -162,7 +159,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
 
   const handleDisputeSubmit = async (category: string, description: string) => {
     try {
-      await disputeOrder(orderId, ownerId, category, description);
+      await disputeOrder(orderId, category, description);
       await fetchOrderDetail();
       alert('爭議申報成功，請靜候管理員處理。');
     } catch (err) {
