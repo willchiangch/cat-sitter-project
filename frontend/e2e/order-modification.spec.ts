@@ -233,7 +233,8 @@ test.describe('Order Modification Flow', () => {
       await page.getByTestId('quote-submit-btn').click();
       await expectDialog(dialogs, /報價已成功送出/);
       await expect(page.getByTestId('quote-success-banner')).toHaveText(
-        /報價已送出 \(總額: \$ 1,800\)/
+        // fix-batch12 U2：「$」後面是不斷行空白 U+00A0（regex 不做空白正規化）
+        /報價已送出 \(總額: \$\u00a01,800\)/
       );
       await expect(page.getByTestId('quote-submit-btn')).toHaveCount(0);
       await expect(page.getByTestId('quote-amount-input')).toHaveCount(0);

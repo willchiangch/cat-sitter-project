@@ -196,7 +196,8 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       // S2：差額獨立 testid 完全比對（toContainText('$ 600') 遇到 $ 6000 也會過），整段再錨定一次
       await expect(sitterPage.getByTestId('verify-amount-due-value')).toHaveText('$ 600');
       await expect(sitterPage.getByTestId('verify-amount-due')).toHaveText(
-        /^本次應收補款差額：\s*\$ 600\s*（變更後總額 \$ 1,200）$/
+        // fix-batch12 U2：「$」後面是不斷行空白 U+00A0（regex 不做空白正規化）
+        /^本次應收補款差額：\s*\$\u00a0600\s*（變更後總額 \$\u00a01,200）$/
       );
       // B2 迴歸：核對面板顯示的是補款憑證（54321），不是首次付款的 12345
       await expect(sitterPage.getByTestId('verify-last-five')).toHaveText('54321');

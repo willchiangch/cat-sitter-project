@@ -47,7 +47,8 @@ test('U7：方案卡價格完整落在卡片內，長方案名稱自行換行', 
       await expect(card).toContainText(plan.name);
       // 系統不做每日容量控管（2026-10 移除 dailyCapacity）：卡片不再顯示「限額 N 次/日」
       await expect(card).not.toContainText('次/日');
-      await expect(price).toHaveText(new RegExp(`^\\$ ${plan.price}\\s*/ 60 分鐘$`));
+      // fix-batch12 U2：formatMoney 的「$」後面是不斷行空白 U+00A0（regex 不做空白正規化）
+      await expect(price).toHaveText(new RegExp(`^\\$\\u00a0${plan.price}\\s*/ 60 分鐘$`));
       const cardBox = (await card.boundingBox())!;
       const priceBox = (await price.boundingBox())!;
       expect(priceBox.x + priceBox.width, `${plan.id} 價格右緣`).toBeLessThanOrEqual(
