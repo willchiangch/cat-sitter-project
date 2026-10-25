@@ -35,6 +35,7 @@
   "version": 1
 }
 ```
+* **飼主端顯示（2026-10-25 fix-batch12 U6）**：`GET /api/orders/{id}` 的 `adjustmentAmount` ≠ 0 時，`OwnerOrderDetail` 在訂單金額下方顯示「保母報價調整：加價 / 折扣 $X」（`order-adjustment-amount`）與「調整原因：…」（`order-adjustment-reason`）。
 - **邏輯檢核**:
   - 若 `adjustmentAmount != 0` 且保母方案 < `PRO`，拋出 `AUTH_PLAN_LIMIT`。
   - **Zero-Trust**: 校驗 `serverTotal == expectedTotalAmount`。

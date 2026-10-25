@@ -328,13 +328,22 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
     const ownerDialogs = trackDialogs(ownerPage);
     await setBrowserAuth(ownerPage, owner, 'client');
 
-    await step('B2-04 飼主付款頁顯示調整後金額 $800（非補款差額）', ownerPage, async () => {
-      await ownerPage.goto(`/owner/orders/${orderId}`);
-      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('待付款');
-      await expect(ownerPage.getByTestId('order-total-amount')).toHaveText('$ 800');
-      await expect(ownerPage.getByTestId('payment-top-up-notice')).toHaveCount(0);
-      await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toBeVisible();
-    });
+    await step(
+      'B2-04 飼主付款頁顯示調整後金額 $800（非補款差額）與調整原因',
+      ownerPage,
+      async () => {
+        await ownerPage.goto(`/owner/orders/${orderId}`);
+        await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('待付款');
+        await expect(ownerPage.getByTestId('order-total-amount')).toHaveText('$ 800');
+        await expect(ownerPage.getByTestId('payment-top-up-notice')).toHaveCount(0);
+        // fix-batch12 U6（第 9 批另外發現 #4）：保母填的調整原因過去飼主端看不到
+        await expect(ownerPage.getByTestId('order-adjustment-amount')).toHaveText('加價 $ 200');
+        await expect(ownerPage.getByTestId('order-adjustment-reason')).toHaveText(
+          `調整原因：${reason}`
+        );
+        await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toBeVisible();
+      }
+    );
 
     await step('B2-05 飼主上傳付款憑證：已付款', ownerPage, async () => {
       await ownerPage.getByTestId('input-payment-last-five').fill('24680');

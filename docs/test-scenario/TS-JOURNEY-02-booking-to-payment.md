@@ -41,7 +41,7 @@
 | B2-01 | UI：保母 `/sitter/orders` →「查看並處理訂單」 | 導到 `/sitter/eval/{orderId}`，報價總計 `$ 600`，只有「原價直接接受」 | `sitter-order-eval-btn-confirm` 數量 0 |
 | B2-02 | UI：加價 300、折扣 100、填調整原因 | 報價總計 `$ 800`；原價按鈕消失，改顯示「發送調整後報價」 | 有調整時才出現原因欄（`sitter-order-eval-input-reason`）；截圖前把總計捲進畫面 |
 | B2-03 | UI：發送調整後報價 | alert「報價已成功送出」；導回 `/sitter/orders`，不 reload 在「進行中」看到「待付款」與 `$ 800` | `POST /api/orders/{id}/quote` 200，`Order=PENDING_PAYMENT`；`apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`adjustmentReason` 與輸入一致、`amountDue 800` |
-| B2-04 | UI：飼主 `/owner/orders/{id}` | 徽章「待付款」、訂單金額 `$ 800`，不顯示補款差額提示 | `order-total-amount`、`payment-top-up-notice` 數量 0 |
+| B2-04 | UI：飼主 `/owner/orders/{id}` | 徽章「待付款」、訂單金額 `$ 800`，不顯示補款差額提示；顯示「加價 $ 200」與保母填的調整原因（fix-batch12 U6） | `order-total-amount`、`payment-top-up-notice` 數量 0、`order-adjustment-amount`、`order-adjustment-reason` |
 | B2-05 | UI：飼主上傳憑證（後五碼 `24680`） | 「付款憑證提交成功」；reload 後徽章「已付款」、金額仍 `$ 800` | `Order=PAID` |
 | B2-06 | UI：保母「進行中」核對入帳 | 後五碼 `24680`、卡片 `$ 800`、首次付款不顯示「補款差額」列；確認後成立 | `POST /verify-payment` 200，`Order=CONFIRMED`；最後 `apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`paymentProofLastFive 24680` |
 

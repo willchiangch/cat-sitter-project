@@ -252,6 +252,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
   const amountDue = order.amountDue ?? totalAmount;
   // 訂單變更補款：totalAmount 已是變更後新總額，飼主只需匯差額 (PRD-016 主流程 C.3)
   const isTopUp = isPaymentStage && amountDue !== totalAmount;
+  const adjustment = order.adjustmentAmount ?? 0;
 
   return (
     <div
@@ -347,6 +348,37 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
             {formatMoney(totalAmount)}
           </span>
         </div>
+
+        {/* fix-batch12 U6：保母議價調整的金額與原因。保母端表單寫著「飼主會看到」，過去飼主端完全沒顯示 */}
+        {adjustment !== 0 && (
+          <div
+            data-testid="order-adjustment-summary"
+            style={{
+              marginTop: '-1.25rem',
+              marginBottom: '2rem',
+              padding: '0.75rem 1rem',
+              backgroundColor: 'var(--color-surface-low)',
+              borderRadius: '8px',
+              fontSize: '0.875rem',
+              color: 'var(--color-on-surface)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.25rem'
+            }}
+          >
+            <span>
+              保母報價調整：
+              <strong data-testid="order-adjustment-amount">
+                {adjustment > 0 ? '加價' : '折扣'} {formatMoney(Math.abs(adjustment))}
+              </strong>
+            </span>
+            {order.adjustmentReason && (
+              <span data-testid="order-adjustment-reason" style={{ overflowWrap: 'anywhere' }}>
+                調整原因：{order.adjustmentReason}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* 訂單變更補款：顯示本次應補差額，避免飼主照新總額整筆匯款 */}
         {isTopUp && (
