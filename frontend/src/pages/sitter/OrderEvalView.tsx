@@ -155,14 +155,31 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
   }
 
   if (order.status !== 'PENDING') {
+    // fix-batch12 U3：過去只有一行字，沒有任何出口（BC-04）。補「返回訂單列表」
     return (
       <div
-        style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
-        data-testid="sitter-order-eval-not-pending"
+        style={{
+          padding: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1.25rem'
+        }}
       >
-        {order.status === 'CANCELLED' && order.cancelledBy === 'OWNER'
-          ? '飼主已取消預約，無法在此頁面操作。'
-          : `此訂單目前狀態為「${orderStatusLabel(order.status)}」，非待評估狀態，無法在此頁面操作。`}
+        <p
+          style={{ margin: 0, textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+          data-testid="sitter-order-eval-not-pending"
+        >
+          {order.status === 'CANCELLED' && order.cancelledBy === 'OWNER'
+            ? '飼主已取消預約，無法在此頁面操作。'
+            : `此訂單目前狀態為「${orderStatusLabel(order.status)}」，非待評估狀態，無法在此頁面操作。`}
+        </p>
+        <Button
+          onClick={() => navigate('/sitter/orders')}
+          data-testid="sitter-order-eval-back-to-list"
+        >
+          返回訂單列表
+        </Button>
       </div>
     );
   }

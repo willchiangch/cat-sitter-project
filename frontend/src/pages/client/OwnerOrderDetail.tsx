@@ -585,15 +585,21 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
           )}
 
           {status === 'CANCELLED' && (
+            // fix-batch12 U3：資訊橫幅樣式（白底、左側色條、靠左、role=status），不能跟「取消預約」鈕一樣是
+            // 灰底置中粗體——過去撤單後看起來像一顆停用的按鈕（驗收截圖新問題 4）
             <div
+              role="status"
               style={{
-                textAlign: 'center',
-                padding: '1rem',
-                backgroundColor: 'var(--color-surface-high)',
-                color: 'var(--color-on-surface-variant)',
+                textAlign: 'left',
+                padding: '0.875rem 1rem',
+                backgroundColor: 'var(--color-surface-lowest)',
+                color: 'var(--color-on-surface)',
+                border: '1px solid var(--color-surface-highest)',
+                borderLeft: '4px solid var(--color-on-surface-variant)',
                 borderRadius: 'var(--radius-sm)',
                 fontSize: '0.875rem',
-                fontWeight: '600'
+                fontWeight: '500',
+                cursor: 'default'
               }}
               data-testid="cancelled-status-banner"
             >

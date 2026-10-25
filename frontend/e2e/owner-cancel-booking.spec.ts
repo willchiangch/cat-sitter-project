@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step, trackDialogs, expectDialog } from './support/evidence';
 import { assertNoUnmockedApi, mockDemoSession } from './support/mockSession';
+import { contrastOf } from './support/layout';
 
 /**
  * fix-batch10 H5：飼主付款前撤單（PRD-006 例外處理「飼主在保母審核中嘗試取消」）。
@@ -70,11 +71,15 @@ test.describe('PRD-006 飼主付款前撤單（fix-batch10 H5）', () => {
       });
     });
 
-    await step('PENDING 訂單詳情顯示「取消預約」', page, async () => {
+    const cancelBtnLook = await step('PENDING 訂單詳情顯示「取消預約」', page, async () => {
       await page.goto(`/owner/orders/${orderId}`);
       await expect(page.getByTestId('order-status-badge')).toHaveText('待評估');
       await expect(page.getByTestId('owner-cancel-booking-btn')).toHaveText('取消預約');
       await expect(page.getByTestId('cancelled-status-banner')).toHaveCount(0);
+      return page.getByTestId('owner-cancel-booking-btn').evaluate((el) => ({
+        background: getComputedStyle(el).backgroundColor,
+        textAlign: getComputedStyle(el).textAlign
+      }));
     });
 
     await step('確認後撤單：已取消、顯示「您已取消此預約」、按鈕消失', page, async () => {
@@ -85,6 +90,24 @@ test.describe('PRD-006 飼主付款前撤單（fix-batch10 H5）', () => {
       await expect(page.getByTestId('order-status-badge')).toHaveText('已取消');
       await expect(page.getByTestId('cancelled-status-banner')).toHaveText('您已取消此預約');
       await expect(page.getByTestId('owner-cancel-booking-btn')).toHaveCount(0);
+      // fix-batch12 U3：橫幅是資訊樣式，不能跟「取消預約」鈕同一種灰底置中（過去像一顆停用的按鈕）
+      const banner = page.getByTestId('cancelled-status-banner');
+      await expect(banner).toHaveAttribute('role', 'status');
+      const look = await banner.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          background: cs.backgroundColor,
+          textAlign: cs.textAlign,
+          borderLeftWidth: cs.borderLeftWidth,
+          cursor: cs.cursor
+        };
+      });
+      expect(look.background).not.toBe(cancelBtnLook.background);
+      expect(look.textAlign).toBe('left');
+      expect(cancelBtnLook.textAlign).toBe('center');
+      expect(look.borderLeftWidth).toBe('4px');
+      expect(look.cursor).toBe('default');
+      expect((await contrastOf(banner)).ratio).toBeGreaterThanOrEqual(4.5);
     });
   });
 
@@ -204,6 +227,14 @@ test.describe('PRD-006 飼主付款前撤單（fix-batch10 H5）', () => {
       );
       await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toHaveCount(0);
       await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toHaveCount(0);
+      await expect(page.getByTestId('sitter-order-eval-back-to-list')).toHaveText('返回訂單列表');
+    });
+
+    // fix-batch12 U3：撤單後的評估頁過去只有一行字、沒有出口
+    await step('評估頁點「返回訂單列表」回到保母訂單列表', page, async () => {
+      await page.getByTestId('sitter-order-eval-back-to-list').click();
+      await expect(page).toHaveURL(/\/sitter\/orders$/);
+      await expect(page.getByTestId('sitter-orders-tab-evaluating')).toBeVisible();
     });
   });
 });

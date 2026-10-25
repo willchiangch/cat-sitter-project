@@ -488,6 +488,8 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       );
       await expect(page.getByTestId('sitter-order-eval-btn-accept-original')).toHaveCount(0);
       await expect(page.getByTestId('sitter-order-eval-btn-confirm')).toHaveCount(0);
+      // fix-batch12 U3：撤單後評估頁有返回列表的出口
+      await expect(page.getByTestId('sitter-order-eval-back-to-list')).toHaveText('返回訂單列表');
     });
 
     await ownerContext.close();

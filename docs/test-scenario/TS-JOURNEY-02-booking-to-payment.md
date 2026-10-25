@@ -57,7 +57,7 @@ PRD-006 例外處理「飼主在保母審核中嘗試取消」。用 `bootstrapP
 | 通知 | API：保母 `GET /api/notifications?role=SITTER` | 「飼主已取消預約」 | `awaitNotification` 輪詢（AFTER_COMMIT + @Async）；`ORDER_AFFAIR`、`linkUrl /sitter/orders` |
 | 接單 | API：保母 `POST /api/orders/{id}/confirm` | 409，訂單仍 `CANCELLED` | 跨角色：撤單後保母無法再接 |
 | BC-03 | UI：保母 `/sitter/orders`，先切「歷史訂單」再切回「評估中」 | 「歷史訂單」顯示「飼主已取消預約」；「評估中」沒有這張單（空狀態，另拍一張評估中分頁） | `sitter-order-owner-cancelled-{id}`；切回評估中後 `sitter-orders-loading` 0、`sitter-orders-empty` 可見、`sitter-orders-count`「共 0 筆」、`btn-go-order-eval` 0。先在歷史訂單看到這張單是為了證明列表已載入——過去 `goto` 後立刻斷言 `btn-go-order-eval` 0，列表未載入也會通過（驗收 A4） |
-| BC-04 | UI：保母 `/sitter/eval/{id}` | 「飼主已取消預約，無法在此頁面操作。」，沒有原價接受 / 報價按鈕 | `sitter-order-eval-not-pending` |
+| BC-04 | UI：保母 `/sitter/eval/{id}` | 「飼主已取消預約，無法在此頁面操作。」，沒有原價接受 / 報價按鈕；有「返回訂單列表」（fix-batch12 U3） | `sitter-order-eval-not-pending`、`sitter-order-eval-back-to-list` |
 
 * **未涵蓋**：報價快照（`order_snapshots`）沒有對外 API，快照金額只由 JUnit `OrderEvaluationTest` 驗證；同一張單併發報價只成功一次（409）、飼主撤單 vs 保母接單 / 報價併發只成功一方，真後端無法用 E2E 穩定重現，仍只有 JUnit TS-006-05/06/08。
 
