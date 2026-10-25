@@ -702,3 +702,47 @@ export async function expectStillAnonymous(
   expect(tracker.authorizedProfileCalls).toBe(0);
   expect(await page.evaluate(() => localStorage.getItem('accessToken'))).toBeNull();
 }
+
+export interface OrderActionCall {
+  method: string;
+  path: string;
+  /** query string 全部參數（fix-batch11 I1 起不應再有 sitterId / ownerId） */
+  query: Record<string, string>;
+  status: number;
+}
+
+/**
+ * 記錄頁面打到 `POST /api/orders/{orderId}/{action}` 的請求與回應狀態（fix-batch12 J6）。
+ * 第 11 批把 reject / dispute 的身分改取自 token，這兩支在真後端 journey 過去完全沒被呼叫；
+ * 用這個從 UI 實際發出的請求斷言 URL 不再帶 sitterId / ownerId。
+ */
+export function trackOrderActionCalls(
+  page: Page,
+  orderId: string,
+  action: string
+): OrderActionCall[] {
+  const calls: OrderActionCall[] = [];
+  const target = `/api/orders/${orderId}/${action}`;
+  page.on('response', (res) => {
+    const url = new URL(res.url());
+    if (url.pathname !== target) return;
+    calls.push({
+      method: res.request().method(),
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams.entries()),
+      status: res.status()
+    });
+  });
+  return calls;
+}
+
+/** 恰好一次 POST、回 2xx、query 不帶任何身分參數 */
+export function expectSingleTokenOnlyCall(calls: OrderActionCall[], label: string) {
+  expect(calls, `${label} 應恰好呼叫一次`).toHaveLength(1);
+  const [call] = calls;
+  expect(call.method).toBe('POST');
+  expect(call.status, `${label} 回應狀態`).toBeGreaterThanOrEqual(200);
+  expect(call.status, `${label} 回應狀態`).toBeLessThan(300);
+  expect(call.query, `${label} 的 query 不應帶 sitterId`).not.toHaveProperty('sitterId');
+  expect(call.query, `${label} 的 query 不應帶 ownerId`).not.toHaveProperty('ownerId');
+}

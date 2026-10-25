@@ -33,6 +33,18 @@
 | 7 | UI：飼主 `/owner/orders/{orderId}` 點行程清單裡的「查看日誌」連結 | 導向 `/visit-reports/view/{visitId}`，看得到文字與照片 | 連結同樣來自 `GET /api/orders/{orderId}/visits` |
 | 8 | UI：飼主點擊「確認結案」 | 訂單正式結案；結案前徽章為「服務進行中」、結案後為「已結案」（中文，U5） | `POST /api/orders/{orderId}/complete` 200，`Order=COMPLETED`；**注意**：此按鈕同樣有 `window.confirm()` |
 
+### 二-B、服務完成後飼主申報爭議（2026-10-25 fix-batch12 J6 新增，需 CI 驗證）
+
+第 11 批把 `POST /api/orders/{id}/dispute` 的飼主身分改取自 token（BOLA），但真後端 journey 從未呼叫這支（CI run 40177738227 trace：dispute 0 次）。
+
+| 步驟 | 操作 | 預期 | 技術校驗 |
+| :--- | :--- | :--- | :--- |
+| 前置 | API：`bootstrapConfirmedOrder`；保母對每個行程 `POST /api/visits/{id}/start`、`/end` | 行程全部 `DONE`、訂單 `IN_PROGRESS` | UI 打卡已由上方主流程覆蓋，這裡只兜前置 |
+| CD-01 | UI：飼主 `/owner/orders/{id}` | 徽章「服務進行中」，「確認結案」與「申報爭議」都在 | `complete-order-btn`、`dispute-order-btn` |
+| CD-02 | UI：申報爭議 → 填描述 | 視窗開啟 | `dispute-modal`、`dispute-desc-textarea` |
+| CD-03 | UI：送出 | alert「爭議申報成功」；徽章「爭議處理中」、`disputed-status-banner` 出現，結案鈕與申報爭議鈕消失 | `expectDialog` |
+| CD-04 | API 證據 | 頁面實際發出的 `POST /api/orders/{id}/dispute` 恰好一次、2xx、**query 不帶 `ownerId` / `sitterId`**；`Order=DISPUTED` | `trackOrderActionCalls` + `expectSingleTokenOnlyCall` |
+
 ---
 
 ## 三、邊界條件 / 例外場景

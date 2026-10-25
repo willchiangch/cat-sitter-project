@@ -11,7 +11,9 @@ import {
   awaitNotification,
   pollUntil,
   apiAuthed,
-  expectSignedPaymentProof
+  expectSignedPaymentProof,
+  trackOrderActionCalls,
+  expectSingleTokenOnlyCall
 } from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
@@ -500,6 +502,87 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       // fix-batch12 U3：撤單後評估頁有返回列表的出口
       await expect(page.getByTestId('sitter-order-eval-back-to-list')).toHaveText('返回訂單列表');
     });
+
+    await ownerContext.close();
+  });
+
+  /**
+   * fix-batch12 J6：第 11 批把 POST /api/orders/{id}/reject 的保母身分改取自 token（BOLA），
+   * 但真後端 journey 過去從未呼叫這支（CI run 40177738227：reject 0 次）。保母從評估頁 UI 婉拒，
+   * 斷言實際發出的請求不帶 sitterId、飼主端看到已取消（非飼主撤單的文案）。
+   */
+  test('保母婉拒待評估訂單：飼主端顯示「此預約已取消」，請求不帶身分參數', async ({
+    page,
+    request,
+    browser
+  }) => {
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：API 兜出 VERIFIED 保母 + 飼主 + PENDING 訂單（$600）',
+      async () => {
+        const ctx = await bootstrapPendingOrder(request, 'br', 'Journey婉拒方案');
+        const order = await awaitOrderStatus(request, ctx.owner, ctx.orderId, ['PENDING']);
+        return { ...ctx, status: order.status };
+      }
+    );
+
+    await setBrowserAuth(page, sitter, 'sitter');
+    const sitterDialogs = trackDialogs(page);
+    const rejectCalls = trackOrderActionCalls(page, orderId, 'reject');
+    const rejectReason = `Journey B 婉拒：當週檔期已滿-${Date.now()}`;
+
+    await step('BR-01 保母從列表點入評估頁，展開婉拒並填寫原因', page, async () => {
+      await page.goto('/sitter/orders');
+      await page.getByTestId('btn-go-order-eval').click();
+      await expect(page).toHaveURL(new RegExp(`/sitter/eval/${orderId}$`));
+      await page.getByTestId('sitter-order-eval-btn-reject').click();
+      await page.getByTestId('sitter-order-eval-input-reject-reason').fill(rejectReason);
+      await expect(page.getByTestId('sitter-order-eval-btn-submit-reject')).toBeEnabled();
+    });
+
+    await step('BR-02 確認婉拒：alert「已拒絕此訂單」，導回訂單列表', page, async () => {
+      await page.getByTestId('sitter-order-eval-btn-submit-reject').click();
+      await expectDialog(sitterDialogs, /確定要拒絕此訂單嗎/);
+      await expectDialog(sitterDialogs, /已拒絕此訂單/);
+      await expect(page).toHaveURL(/\/sitter\/orders$/, { timeout: 15000 });
+      await awaitOrderStatus(request, sitter, orderId, ['CANCELLED']);
+    });
+
+    await apiStep(
+      'BR-03 婉拒請求：POST /api/orders/{id}/reject 恰好一次、不帶 sitterId / ownerId；訂單 CANCELLED、非飼主撤單',
+      async () => {
+        expectSingleTokenOnlyCall(rejectCalls, 'reject');
+        const detailRes = await request.get(`/api/orders/${orderId}`, {
+          headers: apiAuthed(owner)
+        });
+        expect(detailRes.ok()).toBeTruthy();
+        const detail = await detailRes.json();
+        expect(detail.status).toBe('CANCELLED');
+        expect(detail.cancelledBy ?? null).toBeNull();
+        expect(detail.cancellableByOwner).toBe(false);
+        return {
+          rejectCalls,
+          status: detail.status,
+          cancelledBy: detail.cancelledBy ?? null,
+          cancellableByOwner: detail.cancellableByOwner
+        };
+      }
+    );
+
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    await setBrowserAuth(ownerPage, owner, 'client');
+
+    await step(
+      'BR-04 飼主訂單詳情：徽章「已取消」、橫幅「此預約已取消」、沒有取消預約鈕',
+      ownerPage,
+      async () => {
+        await ownerPage.goto(`/owner/orders/${orderId}`);
+        await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已取消');
+        await expect(ownerPage.getByTestId('cancelled-status-banner')).toHaveText('此預約已取消');
+        await expect(ownerPage.getByTestId('owner-cancel-booking-btn')).toHaveCount(0);
+        await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toHaveCount(0);
+      }
+    );
 
     await ownerContext.close();
   });

@@ -59,6 +59,18 @@ PRD-006 例外處理「飼主在保母審核中嘗試取消」。用 `bootstrapP
 | BC-03 | UI：保母 `/sitter/orders`，先切「歷史訂單」再切回「評估中」 | 「歷史訂單」顯示「飼主已取消預約」；「評估中」沒有這張單（空狀態，另拍一張評估中分頁） | `sitter-order-owner-cancelled-{id}`；切回評估中後 `sitter-orders-loading` 0、`sitter-orders-empty` 可見、`sitter-orders-count`「共 0 筆」、`btn-go-order-eval` 0。先在歷史訂單看到這張單是為了證明列表已載入——過去 `goto` 後立刻斷言 `btn-go-order-eval` 0，列表未載入也會通過（驗收 A4） |
 | BC-04 | UI：保母 `/sitter/eval/{id}` | 「飼主已取消預約，無法在此頁面操作。」，沒有原價接受 / 報價按鈕；有「返回訂單列表」（fix-batch12 U3） | `sitter-order-eval-not-pending`、`sitter-order-eval-back-to-list` |
 
+### 二-D、保母婉拒分支（2026-10-25 fix-batch12 J6 新增，需 CI 驗證）
+
+第 11 批把 `POST /api/orders/{id}/reject` 的保母身分改取自 token（BOLA），但真後端 journey 從未呼叫這支（CI run 40177738227 trace：reject 0 次）。
+
+| 步驟 | 操作 | 預期 | 技術校驗 |
+| :--- | :--- | :--- | :--- |
+| 前置 | API：`bootstrapPendingOrder` | PENDING $600 | `awaitOrderStatus` |
+| BR-01 | UI：保母 `/sitter/orders` → 評估頁 → 「拒絕」→ 填原因 | 婉拒面板展開，送出鈕可按 | `sitter-order-eval-btn-reject`、`sitter-order-eval-input-reject-reason` |
+| BR-02 | UI：送出婉拒 → confirm | alert「已拒絕此訂單」，導回 `/sitter/orders` | `expectDialog` 兩次；`Order=CANCELLED` |
+| BR-03 | API 證據 | 頁面實際發出的 `POST /api/orders/{id}/reject` 恰好一次、2xx、**query 不帶 `sitterId` / `ownerId`**；訂單 `CANCELLED`、`cancelledBy` 為 null（非飼主撤單）、`cancellableByOwner=false` | `trackOrderActionCalls` + `expectSingleTokenOnlyCall`（`journeys/helpers.ts`） |
+| BR-04 | UI：飼主 `/owner/orders/{id}` | 徽章「已取消」、橫幅「此預約已取消」，沒有取消預約與付款鈕 | `order-status-badge`、`cancelled-status-banner` |
+
 * **未涵蓋**：報價快照（`order_snapshots`）沒有對外 API，快照金額只由 JUnit `OrderEvaluationTest` 驗證；同一張單併發報價只成功一次（409）、飼主撤單 vs 保母接單 / 報價併發只成功一方，真後端無法用 E2E 穩定重現，仍只有 JUnit TS-006-05/06/08。
 
 ---

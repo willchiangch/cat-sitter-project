@@ -1,11 +1,15 @@
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
 import {
   bootstrapConfirmedOrder,
   setBrowserAuth,
   awaitOrderStatus,
-  awaitNotification
+  awaitNotification,
+  apiAuthed,
+  trackOrderActionCalls,
+  expectSingleTokenOnlyCall
 } from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
@@ -48,7 +52,10 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
     });
 
     await apiStep('C-03 確認飼主收到 Check-in 通知', async () => {
-      const notification = await awaitNotification(request, owner, { category: 'SERVICE_RECORD', role: 'OWNER' });
+      const notification = await awaitNotification(request, owner, {
+        category: 'SERVICE_RECORD',
+        role: 'OWNER'
+      });
       expect(notification.category).toBe('SERVICE_RECORD');
       return notification;
     });
@@ -61,9 +68,9 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       await expect(page.getByText('暫存草稿儲存成功')).toBeVisible({ timeout: 10000 });
       await snap(page, 'C-04 日誌草稿已存');
 
-      await page.getByTestId('sitter-report-media-file-input').setInputFiles(
-        path.join(__dirname, 'fixtures/report-photo.jpg')
-      );
+      await page
+        .getByTestId('sitter-report-media-file-input')
+        .setInputFiles(path.join(__dirname, 'fixtures/report-photo.jpg'));
       await page.getByTestId('sitter-report-media-caption-input').fill('現場照片');
       await snap(page, 'C-04 照片與說明填寫完成');
       await page.getByTestId('sitter-report-media-upload-btn').click();
@@ -93,7 +100,9 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       await expect(ownerPage.getByTestId('owner-order-visit-link')).toBeVisible({ timeout: 10000 });
       await ownerPage.getByTestId('owner-order-visit-link').click();
 
-      await expect(ownerPage.getByTestId('client-report-text-card')).toContainText(reportContent, { timeout: 10000 });
+      await expect(ownerPage.getByTestId('client-report-text-card')).toContainText(reportContent, {
+        timeout: 10000
+      });
       await expect(ownerPage.getByTestId('client-report-media-card')).toBeVisible();
     });
 
@@ -108,9 +117,99 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       await awaitOrderStatus(request, owner, orderId, ['COMPLETED']);
       // 結案後頁面不一定重抓訂單，reload 後才是真正的 COMPLETED 畫面
       await ownerPage.reload();
-      await expect(ownerPage.getByTestId('completed-status-banner')).toBeVisible({ timeout: 10000 });
+      await expect(ownerPage.getByTestId('completed-status-banner')).toBeVisible({
+        timeout: 10000
+      });
       await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已結案');
     });
+
+    await ownerContext.close();
+  });
+
+  /**
+   * fix-batch12 J6：第 11 批把 POST /api/orders/{id}/dispute 的飼主身分改取自 token（BOLA），
+   * 但真後端 journey 過去從未呼叫這支（CI run 40177738227：dispute 0 次）。保母以 API 完成打卡 / 結束服務
+   * （UI 打卡在上一條已覆蓋），飼主從訂單詳情 UI 申報爭議，斷言請求不帶 ownerId、DISPUTED、結案鈕消失。
+   */
+  test('服務完成後飼主申報爭議：訂單轉爭議處理中，結案鈕消失，請求不帶身分參數', async ({
+    request,
+    browser
+  }) => {
+    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆 CONFIRMED 訂單', async () => {
+      return bootstrapConfirmedOrder(request, 'cd', 'Journey爭議方案');
+    });
+
+    await apiStep(
+      '前置：保母以 API Check-in / Check-out，行程全部 DONE、訂單 IN_PROGRESS',
+      async () => {
+        const visitsRes = await request.get(`/api/orders/${orderId}/visits`, {
+          headers: apiAuthed(sitter)
+        });
+        expect(visitsRes.ok()).toBeTruthy();
+        const visits: Array<{ id: string }> = await visitsRes.json();
+        expect(visits.length).toBeGreaterThan(0);
+        for (const visit of visits) {
+          for (const action of ['start', 'end']) {
+            const res = await request.post(`/api/visits/${visit.id}/${action}`, {
+              headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() }
+            });
+            expect(res.ok(), `${action} ${visit.id}: ${res.status()}`).toBeTruthy();
+          }
+        }
+        const after = await request.get(`/api/orders/${orderId}/visits`, {
+          headers: apiAuthed(owner)
+        });
+        const afterVisits: Array<{ status: string }> = await after.json();
+        expect(afterVisits.map((v) => v.status)).toEqual(afterVisits.map(() => 'DONE'));
+        const order = await awaitOrderStatus(request, owner, orderId, ['IN_PROGRESS']);
+        return { visits: afterVisits, status: order.status };
+      }
+    );
+
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    await setBrowserAuth(ownerPage, owner, 'client');
+    const ownerDialogs = trackDialogs(ownerPage);
+    const disputeCalls = trackOrderActionCalls(ownerPage, orderId, 'dispute');
+
+    await step('CD-01 飼主訂單詳情：服務進行中，結案鈕與申報爭議都在', ownerPage, async () => {
+      await ownerPage.goto(`/owner/orders/${orderId}`);
+      await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('服務進行中');
+      await expect(ownerPage.getByTestId('complete-order-btn')).toBeVisible({ timeout: 10000 });
+      await expect(ownerPage.getByTestId('dispute-order-btn')).toBeVisible();
+    });
+
+    await step('CD-02 開申報爭議視窗並填寫描述', ownerPage, async () => {
+      await ownerPage.getByTestId('dispute-order-btn').click();
+      await expect(ownerPage.getByTestId('dispute-modal')).toBeVisible();
+      await ownerPage
+        .getByTestId('dispute-desc-textarea')
+        .fill(`Journey C 爭議：照片與實際不符-${Date.now()}`);
+      await expect(ownerPage.getByTestId('dispute-submit-btn')).toBeEnabled();
+    });
+
+    await step(
+      'CD-03 送出爭議：alert 成功，徽章「爭議處理中」、爭議橫幅出現，結案與申報爭議鈕消失',
+      ownerPage,
+      async () => {
+        await ownerPage.getByTestId('dispute-submit-btn').click();
+        await expectDialog(ownerDialogs, /爭議申報成功/);
+        await expect(ownerPage.getByTestId('dispute-modal')).toHaveCount(0);
+        await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('爭議處理中');
+        await expect(ownerPage.getByTestId('disputed-status-banner')).toBeVisible();
+        await expect(ownerPage.getByTestId('complete-order-btn')).toHaveCount(0);
+        await expect(ownerPage.getByTestId('dispute-order-btn')).toHaveCount(0);
+      }
+    );
+
+    await apiStep(
+      'CD-04 爭議請求：POST /api/orders/{id}/dispute 恰好一次、不帶 ownerId / sitterId；訂單 DISPUTED',
+      async () => {
+        expectSingleTokenOnlyCall(disputeCalls, 'dispute');
+        const order = await awaitOrderStatus(request, owner, orderId, ['DISPUTED']);
+        return { disputeCalls, status: order.status };
+      }
+    );
 
     await ownerContext.close();
   });
