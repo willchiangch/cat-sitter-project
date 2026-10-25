@@ -316,6 +316,8 @@ export interface VisitSummaryDto {
   status: string; // PENDING, IN_PROGRESS, DONE, CLOSED_BY_SYSTEM
   scheduledAt: string;
   finishedAt?: string;
+  /** 照護日誌已正式送出（fix-batch12 U5）；飼主端只在 true 時顯示「查看日誌」 */
+  reportSubmitted?: boolean;
 }
 
 // 查詢訂單底下的行程清單，用來串接打卡/日誌回報頁面 (SD-008)

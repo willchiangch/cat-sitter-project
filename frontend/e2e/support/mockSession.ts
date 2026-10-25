@@ -126,6 +126,8 @@ export interface MockVisit {
   id: string;
   status: string;
   scheduledAt?: string;
+  /** 日誌已正式送出（fix-batch12 U5：飼主端只在 true 時顯示「查看日誌」） */
+  reportSubmitted?: boolean;
 }
 
 /**

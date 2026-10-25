@@ -78,5 +78,20 @@ export const sitterVisitActionLabel = (s: string | null | undefined): string | n
   }
 };
 
-export const ownerVisitActionLabel = (s: string | null | undefined): string | null =>
-  s === 'DONE' ? '查看日誌' : null;
+/**
+ * 飼主端行程入口（fix-batch12 U5）：只有日誌已正式送出才給「查看日誌」。過去 DONE 一律給，已完工但
+ * 保母還沒送出、或逾期被系統關閉的行程點進去只會是「尚無照護回報」空頁（驗收 N11 殘留）。
+ */
+export const ownerVisitActionLabel = (reportSubmitted: boolean | undefined): string | null =>
+  reportSubmitted ? '查看日誌' : null;
+
+/** 飼主端行程已結束但日誌沒有送出時，取代入口按鈕的狀態文字 */
+export const ownerVisitReportPendingLabel = (
+  status: string | null | undefined,
+  reportSubmitted: boolean | undefined
+): string | null => {
+  if (reportSubmitted) return null;
+  if (status === 'DONE') return '日誌尚未送出';
+  if (status === 'CLOSED_BY_SYSTEM') return '未送出日誌';
+  return null;
+};

@@ -78,3 +78,4 @@
 
 **行程清單不分狀態一律顯示「查看日誌」（2026-10-24，驗收 N11）**：飼主訂單詳情對「待執行」行程也顯示「查看日誌」，點進去只會看到「尚未回報」空狀態；保母訂單卡除了 `PENDING` 以外全部是「查看日誌」，執行中的行程看不出要點進去 Check-out，`CONFIRMED`（也是待執行）甚至不會顯示「打卡」。改依行程狀態給文案或不給入口（對照表見 SD-008 §4.3）。迴歸：`frontend/e2e/order-visit-gating.spec.ts` N11（飼主 / 保母各一支，五種狀態逐列比對入口文字；舊版兩支皆紅）。
 
+**飼主點已完工但未送出的行程「查看日誌」落到空頁（2026-10-25，驗收 N11 殘留 / fix-batch12 U5）**：N11 後飼主端以行程 `DONE` 顯示「查看日誌」，但 N13 起 Check-out 後保母仍可繼續編輯草稿，日誌可能還沒送出；逾期的行程也一樣，點進去是「尚無照護回報」（t070-02）。`GET /api/orders/{id}/visits` 新增 `reportSubmitted`，飼主端只在 true 時給入口，否則顯示「日誌尚未送出」/「未送出日誌」。迴歸：`OrderControllerTest.should_FlagReportSubmitted_OnlyForSubmittedReports`（草稿 / 已刪除皆 false）、`order-visit-gating.spec.ts` N11 飼主詳情（舊版紅）。

@@ -309,6 +309,43 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$[0].id").value(visitId.toString()));
     }
 
+    @Autowired
+    private com.petsitter.domain.repository.VisitServiceReportRepository visitServiceReportRepository;
+
+    @Test
+    @DisplayName("GET /{orderId}/visits（fix-batch12 U5）：reportSubmitted 只在日誌已正式送出時為 true（草稿、沒有日誌、已刪除皆 false）")
+    void should_FlagReportSubmitted_OnlyForSubmittedReports() throws Exception {
+        Order order = orderRepository.findById(realOrderId).orElseThrow();
+        java.util.function.BiFunction<String, Integer, Visit> visitAt = (status, days) -> visitRepository.save(Visit.builder()
+                .order(order).status(status).planId(order.getPlanId()).snapshotPlanTitle("U5")
+                .scheduledAt(OffsetDateTime.now().plusDays(days)).build());
+        Visit submitted = visitAt.apply("DONE", 1);
+        Visit draft = visitAt.apply("DONE", 2);
+        Visit deletedSubmitted = visitAt.apply("CLOSED_BY_SYSTEM", 3);
+        visitServiceReportRepository.save(com.petsitter.domain.model.VisitServiceReport.builder()
+                .visitId(submitted.getId()).status("SUBMITTED").content("已送出")
+                .submittedAt(OffsetDateTime.now()).build());
+        visitServiceReportRepository.save(com.petsitter.domain.model.VisitServiceReport.builder()
+                .visitId(draft.getId()).status("DRAFT").content("草稿").build());
+        visitServiceReportRepository.save(com.petsitter.domain.model.VisitServiceReport.builder()
+                .visitId(deletedSubmitted.getId()).status("SUBMITTED").content("已刪除")
+                .submittedAt(OffsetDateTime.now()).isDeleted(true).build());
+        TokenContext.setUserId(ownerId);
+
+        // 依 scheduledAt 排序：setUp 的 PENDING（今天）、submitted、draft、deletedSubmitted
+        mockMvc.perform(get("/api/orders/{orderId}/visits", realOrderId)
+                .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(visitId.toString()))
+                .andExpect(jsonPath("$[0].reportSubmitted").value(false))
+                .andExpect(jsonPath("$[1].id").value(submitted.getId().toString()))
+                .andExpect(jsonPath("$[1].reportSubmitted").value(true))
+                .andExpect(jsonPath("$[2].id").value(draft.getId().toString()))
+                .andExpect(jsonPath("$[2].reportSubmitted").value(false))
+                .andExpect(jsonPath("$[3].id").value(deletedSubmitted.getId().toString()))
+                .andExpect(jsonPath("$[3].reportSubmitted").value(false));
+    }
+
     @Test
     @DisplayName("GET /{orderId}/visits：BOLA 防護 — 非訂單雙方查詢應被拒絕")
     void should_Return403_When_UnrelatedUserQueriesVisits() throws Exception {

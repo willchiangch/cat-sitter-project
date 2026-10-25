@@ -109,35 +109,78 @@ test.describe('訂單詳情依行程狀態控制操作入口', () => {
     });
   }
 
-  test('N11 飼主詳情：只有已完工的行程顯示「查看日誌」', async ({ page }) => {
-    await mockDemoSession(page, 'client');
-    await mockOwnerOrderDetail(page, ORDER_ID, 'IN_PROGRESS', 600, ALL_VISITS);
+  // fix-batch12 U5（驗收 N11 殘留）：過去 DONE 一律給「查看日誌」，已完工但保母還沒送出、或逾期被系統關閉的行程
+  // 點進去是「尚無照護回報」空頁。改由後端 reportSubmitted 決定，未送出顯示狀態文字
+  const OWNER_VISITS: MockVisit[] = [
+    { id: 'v-pending', status: 'PENDING', scheduledAt: '2026-12-01T00:00:00Z' },
+    { id: 'v-in_progress', status: 'IN_PROGRESS', scheduledAt: '2026-12-02T00:00:00Z' },
+    { id: 'v-done-draft', status: 'DONE', scheduledAt: '2026-12-03T00:00:00Z' },
+    {
+      id: 'v-done',
+      status: 'DONE',
+      scheduledAt: '2026-12-04T00:00:00Z',
+      reportSubmitted: true
+    },
+    { id: 'v-closed_by_system', status: 'CLOSED_BY_SYSTEM', scheduledAt: '2026-12-05T00:00:00Z' },
+    { id: 'v-cancelled', status: 'CANCELLED', scheduledAt: '2026-12-06T00:00:00Z' }
+  ];
 
-    await step('各狀態行程的入口：待執行 / 執行中 / 系統結案 / 已取消不顯示', page, async () => {
+  test('N11 飼主詳情：只有日誌已送出的行程顯示「查看日誌」，已完工未送出 / 逾期顯示狀態文字', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'client');
+    await mockOwnerOrderDetail(page, ORDER_ID, 'IN_PROGRESS', 600, OWNER_VISITS);
+
+    await step('各行程入口：只有已送出日誌那筆有「查看日誌」', page, async () => {
       await page.goto(`/owner/orders/${ORDER_ID}`);
-      await expect(page.getByTestId('owner-order-visit-item')).toHaveCount(ALL_VISITS.length);
+      await expect(page.getByTestId('owner-order-visit-item')).toHaveCount(OWNER_VISITS.length);
       const rows = await visitRows(page, 'owner-order-visit-item', 'owner-order-visit-link');
-      expect(rows.map((r) => r.action)).toEqual([null, null, '查看日誌', null, null]);
+      expect(rows.map((r) => r.action)).toEqual([null, null, null, '查看日誌', null, null]);
       expect(rows.map((r) => r.text.replace(/^.*（|）$/g, ''))).toEqual([
         '待執行',
         '執行中',
         '已完工',
+        '已完工',
         '系統結案',
         '已取消'
       ]);
+      const pending = await page
+        .getByTestId('owner-order-visit-item')
+        .evaluateAll((items) =>
+          items.map(
+            (row) =>
+              row.querySelector('[data-testid="owner-order-visit-report-pending"]')?.textContent ??
+              null
+          )
+        );
+      expect(pending).toEqual([null, null, '日誌尚未送出', null, '未送出日誌', null]);
     });
 
-    await step('點已完工行程的「查看日誌」導到日誌檢視頁', page, async () => {
+    await step('點已送出行程的「查看日誌」導到日誌檢視頁並看到內容', page, async () => {
       await page.route('**/api/visits/v-done/report', (route) =>
         route.fulfill({
-          status: 404,
+          status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'MSG_DATA_F11', message: '查無服務日誌' })
+          body: JSON.stringify({
+            data: {
+              reportId: 'r-done',
+              visitId: 'v-done',
+              status: 'SUBMITTED',
+              content: '貓咪精神很好，已完成餵食與清砂。',
+              submittedAt: '2026-12-04T08:00:00Z',
+              media: [],
+              isEditable: false,
+              version: 2,
+              visitStatus: 'DONE',
+              isPurged: false
+            }
+          })
         })
       );
       await page.getByTestId('owner-order-visit-link').click();
       await expect(page).toHaveURL(/\/visit-reports\/view\/v-done$/);
-      await expect(page.getByTestId('client-report-empty-state')).toBeVisible();
+      await expect(page.getByTestId('client-report-text-card')).toContainText('貓咪精神很好');
+      await expect(page.getByTestId('client-report-empty-state')).toHaveCount(0);
     });
   });
 

@@ -154,9 +154,10 @@ Idempotency-Key: <UUID> (必填)
 #### Response (200 OK)
 ```json
 [
-  { "id": "2624511e-...", "status": "PENDING", "scheduledAt": "2026-08-05T00:00:00Z", "finishedAt": null }
+  { "id": "2624511e-...", "status": "PENDING", "scheduledAt": "2026-08-05T00:00:00Z", "finishedAt": null, "reportSubmitted": false }
 ]
 ```
+* `reportSubmitted`（2026-10-25 fix-batch12 U5）：該行程有 `status = SUBMITTED` 且未刪除的 `visit_service_reports`（`VisitServiceReportRepository.findSubmittedVisitIds`，一次查整張訂單，無 N+1）。
 * 前端 `SitterOrders.tsx`（CONFIRMED/IN_PROGRESS 卡片）與 `OwnerOrderDetail.tsx`（同狀態）依此清單渲染行程列表，導向 `/visit-reports/manage|view/{visitId}`。
 * **入口按鈕依行程狀態決定（2026-10-24，驗收 N11）**，文案集中在 `statusLabels.ts` 的 `sitterVisitActionLabel` / `ownerVisitActionLabel`：
 
@@ -164,10 +165,11 @@ Idempotency-Key: <UUID> (必填)
   | :--- | :--- | :--- |
   | `PENDING` / `CONFIRMED` | 打卡 / 回報 | 不顯示 |
   | `IN_PROGRESS` | 繼續回報 | 不顯示 |
-  | `DONE` | 查看 / 送出日誌 | 查看日誌 |
-  | `CLOSED_BY_SYSTEM` / `CANCELLED` | 不顯示 | 不顯示 |
+  | `DONE` | 查看 / 送出日誌 | `reportSubmitted` 才顯示「查看日誌」，否則文字「日誌尚未送出」 |
+  | `CLOSED_BY_SYSTEM` | 不顯示 | `reportSubmitted` 才顯示「查看日誌」，否則文字「未送出日誌」 |
+  | `CANCELLED` | 不顯示 | 不顯示 |
 
-  飼主只看得到 `SUBMITTED` 日誌（SD-022 SUBMITTED-only Gate），而送出要求行程 `DONE`，所以其餘狀態點進去必定是空日誌；`CLOSED_BY_SYSTEM` 是逾期未打卡被系統關閉，不會有日誌。
+  飼主只看得到 `SUBMITTED` 日誌（SD-022 SUBMITTED-only Gate）。2026-10-25 前飼主端以行程 `DONE` 判斷，已完工但保母還沒送出（N13 起 Check-out 後仍可編輯草稿）、或逾期的行程點進去是「尚無照護回報」空頁（驗收 N11 殘留 / fix-batch12 U5），改以 `reportSubmitted` 判斷（`ownerVisitActionLabel(reportSubmitted)`、`ownerVisitReportPendingLabel`）。
 * 同時修正 `SitterOrders.tsx`/`OwnerOrders.tsx` 的「進行中」分頁篩選漏了 `IN_PROGRESS` 狀態（保母打卡後訂單反而在三個分頁都找不到）。
 
 ---

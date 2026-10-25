@@ -34,6 +34,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     private final OrderRepository orderRepository;
     private final ProfileRepository profileRepository;
     private final VisitRepository visitRepository;
+    private final com.petsitter.domain.repository.VisitServiceReportRepository visitServiceReportRepository;
     private final SupplementPaymentResolver supplementPaymentResolver;
     private final OwnerCancellationService ownerCancellationService;
 
@@ -87,13 +88,19 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     public List<VisitSummaryDto> getOrderVisits(UUID orderId, UUID requesterId) {
         requireOrderParty(orderId, requesterId);
 
-        return visitRepository.findByOrderId(orderId).stream()
+        List<Visit> visits = visitRepository.findByOrderId(orderId);
+        java.util.Set<UUID> submitted = visits.isEmpty()
+                ? java.util.Set.of()
+                : new java.util.HashSet<>(visitServiceReportRepository.findSubmittedVisitIds(
+                        visits.stream().map(Visit::getId).toList()));
+        return visits.stream()
                 .sorted(java.util.Comparator.comparing(Visit::getScheduledAt))
                 .map(visit -> VisitSummaryDto.builder()
                         .id(visit.getId())
                         .status(visit.getStatus())
                         .scheduledAt(visit.getScheduledAt())
                         .finishedAt(visit.getFinishedAt())
+                        .reportSubmitted(submitted.contains(visit.getId()))
                         .build())
                 .toList();
     }

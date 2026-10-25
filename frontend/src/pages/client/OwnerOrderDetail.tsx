@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { ownerVisitActionLabel, visitStatusLabel } from '../../components/ui/statusLabels';
+import {
+  ownerVisitActionLabel,
+  ownerVisitReportPendingLabel,
+  visitStatusLabel
+} from '../../components/ui/statusLabels';
 import OrderDisputeModal from '../../components/orders/OrderDisputeModal';
 import PaymentProofImage from '../../components/orders/PaymentProofImage';
 import {
@@ -35,8 +39,9 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
       <h4 style={{ margin: '0 0 0.25rem 0' }}>行程</h4>
       {visits.map((visit) => {
-        // 只有已完工的行程才可能有已送出的日誌；待執行 / 執行中點進去只會是空日誌（驗收 N11）
-        const action = ownerVisitActionLabel(visit.status);
+        // 只有日誌已正式送出才給入口；其他狀態點進去只會是空日誌（驗收 N11、fix-batch12 U5）
+        const action = ownerVisitActionLabel(visit.reportSubmitted);
+        const reportPending = ownerVisitReportPendingLabel(visit.status, visit.reportSubmitted);
         return (
           <div
             key={visit.id}
@@ -64,6 +69,14 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
               >
                 {action}
               </button>
+            )}
+            {reportPending && (
+              <span
+                data-testid="owner-order-visit-report-pending"
+                style={{ flexShrink: 0, color: 'var(--color-on-surface-variant)' }}
+              >
+                {reportPending}
+              </span>
             )}
           </div>
         );
