@@ -57,7 +57,7 @@
 * **Given**: 飼主自己的訂單，狀態分別為 `PENDING`、`PENDING_PAYMENT`（未上傳憑證）、`PENDING_PAYMENT`（已有憑證）、`PENDING_PAYMENT` 補款階段（最新變更 `M_DONE`、差額 > 0、未核帳）、`PAID` / `CONFIRMED` / `IN_PROGRESS` / `MODIFYING` / `REFUND_VERIFY` / `DISPUTED` / `COMPLETED` / `CANCELLED`。
 * **When**: 飼主 `POST /api/orders/{id}/cancel`（帶畫面上的 version）；另測別的飼主、該訂單保母、SITTER 角色、版本過期、缺 version。
 * **Then**: 前兩者成功：訂單與行程 `CANCELLED`、`cancelledBy=OWNER`、`order_logs` 有 `ORDER_CANCELLED_BY_OWNER`、保母收到 `ORDER_AFFAIR`「飼主已取消預約」通知；其餘狀態 409 且訂單不變（補款階段訊息含「補款」，已付款類訊息含「PRD-016」）；非本人 403、版本過期 409、缺 version 400。
-* **自動化對應**: `OwnerCancellationServiceTest`（各狀態、補款排除、BOLA、版本、通知）、`OrderControllerTest.should_CancelOrder_When_OwnerCancelsOwnPendingOrder` / `should_RejectCancel_When_NotOwnerOrNotCancellable`（HTTP 層 + 保母端 `cancelledBy`）、`NotificationListenerLinkTest.orderCancelledByOwnerNotifiesSitter`；前端 `frontend/e2e/owner-cancel-booking.spec.ts`；真後端 Journey B「保母評估中飼主取消預約」（需 CI 驗證）。
+* **自動化對應**: `OwnerCancellationServiceTest`（各狀態、補款排除、BOLA、版本、通知）、`OrderControllerTest.should_CancelOrder_When_OwnerCancelsOwnPendingOrder` / `should_RejectCancel_When_NotOwnerOrNotCancellable`（HTTP 層 + 保母端 `cancelledBy`）、`NotificationListenerLinkTest.orderCancelledByOwnerNotifiesSitter`；前端 `frontend/e2e/owner-cancel-booking.spec.ts`（保母端先看歷史訂單、再切評估中斷言空狀態 `sitter-orders-empty`，避免列表未載入就通過，驗收 A4）；真後端 Journey B「保母評估中飼主取消預約」（需 CI 驗證）。
 
 ## Scenario 8: 飼主撤單與保母接單 / 報價同時起跑
 * **Given**: 一張 `PENDING` 單，飼主與保母拿同一個 version。

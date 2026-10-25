@@ -186,6 +186,14 @@ test.describe('PRD-006 飼主付款前撤單（fix-batch10 H5）', () => {
         '飼主已取消預約'
       );
       await expect(page.getByTestId(`sitter-order-owner-cancelled-${rejectedId}`)).toHaveCount(0);
+    });
+
+    // 驗收 A4：在歷史訂單看到兩張單（列表已載入）後再切評估中，避免「還沒載入就 0 筆」的空轉
+    await step('評估中分頁：列表已載入，撤單與婉拒的單都不在這裡', page, async () => {
+      await page.getByTestId('sitter-orders-tab-evaluating').click();
+      await expect(page.getByTestId('sitter-orders-loading')).toHaveCount(0);
+      await expect(page.getByTestId('sitter-orders-empty')).toBeVisible();
+      await expect(page.getByTestId('sitter-orders-count')).toHaveText('共 0 筆');
       await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
     });
 

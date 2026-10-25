@@ -160,6 +160,7 @@ const SitterOrders: React.FC = () => {
             color: 'var(--color-on-surface-variant)',
             fontWeight: '500'
           }}
+          data-testid="sitter-orders-count"
         >
           共 {filteredOrders.length} 筆
         </span>
@@ -203,7 +204,12 @@ const SitterOrders: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+          <div
+            style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}
+            data-testid="sitter-orders-loading"
+          >
+            載入中...
+          </div>
         ) : filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
             <Card key={order.id}>
@@ -546,7 +552,10 @@ const SitterOrders: React.FC = () => {
             </Card>
           ))
         ) : (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+          <div
+            style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}
+            data-testid="sitter-orders-empty"
+          >
             目前沒有相關訂單
           </div>
         )}

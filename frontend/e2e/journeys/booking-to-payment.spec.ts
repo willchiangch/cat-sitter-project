@@ -46,15 +46,21 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
     const ownerDialogs = trackDialogs(ownerPage);
     const bookingPath = `/booking/${sitter.userId}`;
 
-    await step('B-01 未登入訪客在公開頁點立即預約，導向註冊頁並帶 redirect', ownerPage, async () => {
-      await ownerPage.goto(`/sitter/${sitter.userId}/profile`);
-      await expect(ownerPage.getByTestId('public-profile-book-now-btn')).toBeVisible();
-      await snap(ownerPage, 'B-01 保母公開頁');
-      await ownerPage.getByTestId('public-profile-book-now-btn').click();
-      await expect(ownerPage).toHaveURL(
-        new RegExp(`/register\\?redirect=${encodeURIComponent(bookingPath).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
-      );
-    });
+    await step(
+      'B-01 未登入訪客在公開頁點立即預約，導向註冊頁並帶 redirect',
+      ownerPage,
+      async () => {
+        await ownerPage.goto(`/sitter/${sitter.userId}/profile`);
+        await expect(ownerPage.getByTestId('public-profile-book-now-btn')).toBeVisible();
+        await snap(ownerPage, 'B-01 保母公開頁');
+        await ownerPage.getByTestId('public-profile-book-now-btn').click();
+        await expect(ownerPage).toHaveURL(
+          new RegExp(
+            `/register\\?redirect=${encodeURIComponent(bookingPath).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+          )
+        );
+      }
+    );
 
     const owner = await apiStep('API 建立飼主帳號（略過 OTP）', () =>
       provisionAndLogin(request, 'b', 'OWNER', 'Journey飼主B')
@@ -67,7 +73,10 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await ownerPage.getByTestId('login-password-input').fill(owner.password);
       await snap(ownerPage, 'B-02 登入表單填寫完成');
       await ownerPage.getByTestId('login-submit-btn').click();
-      await expect(ownerPage).toHaveURL(new RegExp(bookingPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), { timeout: 15000 });
+      await expect(ownerPage).toHaveURL(
+        new RegExp(bookingPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+        { timeout: 15000 }
+      );
       await expect(ownerPage.getByRole('heading', { name: '選擇服務方案' })).toBeVisible();
     });
 
@@ -75,7 +84,9 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await ownerPage.goto('/pets');
       await ownerPage.getByTestId('btn-add-pet').click();
       await ownerPage.getByTestId('input-pet-name').fill('Journey測試貓B');
-      await ownerPage.getByTestId('avatar-file-input').setInputFiles(path.join(__dirname, 'fixtures/pet-avatar.jpg'));
+      await ownerPage
+        .getByTestId('avatar-file-input')
+        .setInputFiles(path.join(__dirname, 'fixtures/pet-avatar.jpg'));
       await snap(ownerPage, 'B-03 寵物表單填寫完成');
       await ownerPage.getByTestId('btn-save-pet').click();
       // 存檔後 PetManager 會自動切到該寵物的編輯面板，畫面上同時有「寵物卡片」與
@@ -146,7 +157,9 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
     await step('B-06 飼主上傳線下付款憑證', ownerPage, async () => {
       await ownerPage.goto(`/owner/orders/${orderId}`);
       await ownerPage.getByTestId('input-payment-last-five').fill('12345');
-      await ownerPage.getByTestId('input-payment-file').setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
+      await ownerPage
+        .getByTestId('input-payment-file')
+        .setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
       await ownerPage.getByTestId('checkbox-disclaimer-agreed').check();
       await snap(ownerPage, 'B-06 付款表單填寫完成');
       await ownerPage.getByTestId('btn-submit-payment-proof').click();
@@ -154,7 +167,9 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await awaitOrderStatus(request, owner, orderId, ['PAID']);
       // 舊版 API poll 到 PAID 就直接截圖，畫面可能還停在付款表單；reload 後斷言 PAID 畫面再截
       await ownerPage.reload();
-      await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toHaveCount(0, { timeout: 10000 });
+      await expect(ownerPage.getByTestId('btn-submit-payment-proof')).toHaveCount(0, {
+        timeout: 10000
+      });
       // B1 迴歸：飼主看自己的憑證也要走簽名網址
       await expectSignedPaymentProof(ownerPage, '飼主端付款憑證預覽為簽名網址，不帶簽名 403');
     });
@@ -205,7 +220,9 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       // 先用 API poll 確認資料真的可讀了，再切去 UI 驗證顯示
       await pollUntil(
         async () => {
-          const res = await request.get(`/api/care-notes/${sitter.userId}/${owner.userId}`, { headers: apiAuthed(owner) });
+          const res = await request.get(`/api/care-notes/${sitter.userId}/${owner.userId}`, {
+            headers: apiAuthed(owner)
+          });
           return res.ok() ? res.json() : null;
         },
         (body) => JSON.stringify(body).includes(careNoteContent)
@@ -445,13 +462,23 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
 
     await setBrowserAuth(page, sitter, 'sitter');
 
-    await step('BC-03 保母歷史訂單：顯示「飼主已取消預約」，評估中沒有這張單', page, async () => {
+    await step('BC-03 保母歷史訂單：顯示「飼主已取消預約」', page, async () => {
       await page.goto('/sitter/orders');
-      await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
       await page.getByTestId('sitter-orders-tab-history').click();
       await expect(page.getByTestId(`sitter-order-owner-cancelled-${orderId}`)).toHaveText(
         '飼主已取消預約'
       );
+    });
+
+    // 驗收 A4：過去 goto 後立刻斷言 btn-go-order-eval 數量 0，列表還沒載入就會通過（空轉）。
+    // 先在歷史訂單看到這張單（證明列表已載入），再切回評估中斷言空狀態並截圖
+    await step('BC-03 保母評估中分頁：列表已載入，沒有這張單', page, async () => {
+      await page.getByTestId('sitter-orders-tab-evaluating').click();
+      await expect(page.getByTestId('sitter-orders-loading')).toHaveCount(0);
+      await expect(page.getByTestId('sitter-orders-empty')).toBeVisible();
+      await expect(page.getByTestId('sitter-orders-count')).toHaveText('共 0 筆');
+      await expect(page.getByTestId('btn-go-order-eval')).toHaveCount(0);
+      await expect(page.getByTestId(`sitter-order-total-${orderId}`)).toHaveCount(0);
     });
 
     await step('BC-04 保母評估頁：顯示「飼主已取消預約」，沒有接單 / 報價按鈕', page, async () => {
