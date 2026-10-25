@@ -504,8 +504,8 @@ export async function bootstrapPendingOrder(
   const { res: bookingRes, ok: bookingResOk } = await withGatewayRetry(() =>
     request.post('/api/orders/booking', {
       headers: { ...apiAuthed(owner), 'Idempotency-Key': bookingKey },
+      // 不帶 ownerId：飼主身分由後端從 token 取得（fix-batch11 I2）
       data: {
-        ownerId: owner.userId,
         sitterId: sitter.userId,
         items: [{ planId: sitter.planId, dates, timesPerDay: 1, petIds: [petId] }],
         answers: [],

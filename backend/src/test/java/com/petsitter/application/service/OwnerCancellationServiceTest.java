@@ -122,8 +122,8 @@ class OwnerCancellationServiceTest {
 
     private UUID createPendingOrder() {
         keySeq++;
-        return bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId)
+        return bookingService.createBooking(ownerId, BookingRequest.builder()
+                .sitterId(sitterId)
                 .items(List.of(BookingItemRequest.builder()
                         .planId(planId)
                         .dates(List.of(LocalDate.of(2026, 12, 1).plusDays(keySeq % 20)))

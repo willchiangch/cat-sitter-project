@@ -51,6 +51,12 @@
 * **Then**: 系統拒絕送單，錯誤訊息附題目名稱，不建立訂單。
 * **自動化對應**: `BookingServiceTest.should_RejectBooking_When_RequiredQuestionUnanswered()`
 
+## Scenario 7: 送單的飼主身分取自 token（fix-batch11 I2，安全 / BOLA）
+* **Given**: 保母 A 已認證且開放預約；飼主 A、飼主 B、保母 B。請求帶真的 JWT，走完整 `SecurityConfig` filter chain；body 刻意沿用舊前端格式並填 `ownerId=<飼主 A>`。
+* **When**: (1) 飼主 B 的 token 送單；(2) 飼主 B 已被保母 A 全域黑名單（PRO）時以同樣 body 送單；(3) 保母 B 的 token 送單、未登入送單；(4) 飼主 A 本人送單。
+* **Then**: (1) 201，訂單 `owner_id` 是飼主 B，飼主 A 名下沒有任何訂單（body 的 `ownerId` 被忽略）；(2) 403，沒有建單（黑名單以 token 身分判斷，不能冒用別的飼主繞過）；(3) 403 / 401，沒有建單；(4) 201，訂單屬於飼主 A。前端送出的 body 只有 `answers` / `expectedTotalAmount` / `items` / `sitterId`。
+* **自動化對應**: `OrderIdentityFromTokenSecurityTest.booking_*`；前端 `public-booking-questionnaire.spec.ts` 主流程「預約 body 不帶 ownerId」。
+
 ---
 
 ## 驗證矩陣
@@ -59,6 +65,7 @@
 | 1 | 併發送出預約 | 多筆 PENDING 成功 | 檢查 `orders` 記錄是否存在多筆且 ID 不同。 |
 | 2 | 同一張單併發確認接單 | 僅一勝，另一個 409 | 訂單列 `SELECT ... FOR UPDATE`；快照 1 筆。不同張的同日單同時接 → 全部成功（不做容量控管）。 |
 | 3 | 檢查狀態變更 | 成功者轉為 `PENDING_PAYMENT` | 狀態機轉換正確性驗證。 |
+| 3.5 | 他人 / 錯角色送單、body 冒填 ownerId | 訂單一律掛在 token 身分名下；保母 403、未登入 401 | `@PreAuthorize("hasRole('OWNER')")` + `TokenContext`；`BookingRequest` 已無 `ownerId` 欄位（Scenario 7） |
 | 4 | 飼主進入「選擇服務方案」頁 | 只顯示 `GET /api/sitters/{id}/plans` 回傳的方案，不得出現任何寫死的佔位方案 | 方案卡數量 = API 回傳數量、名稱逐一對上；頁面不含「尊榮包月」「此方案目前檔期已滿」（`frontend/e2e/client-booking.spec.ts` 迴歸 (P2)） |
 
 ---
@@ -66,7 +73,7 @@
 ## 自動化實作追溯 (Traceability)
 - **測試專案**: `backend`
 - **測試類別**: [BookingServiceTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/BookingServiceTest.java)
-- **執行指令**: `mvn test -Dtest=BookingServiceTest`
+- **執行指令**: `mvn test -Dtest=BookingServiceTest,OrderIdentityFromTokenSecurityTest`
 - **前端迴歸**: [client-booking.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/client-booking.spec.ts)「迴歸 (P2)」（mock API，`npx playwright test e2e/client-booking.spec.ts -g P2`）
 - **mock E2E 前置（2026-10，Backlog 第 4 批 E1）**：`client-booking.spec.ts` 以假 token 進 Demo，必須先呼叫 `e2e/support/mockSession.ts` 的 `mockDemoSession()` 攔 AppHeader 每頁都打的通知 / KYC 狀態 API，並 mock `GET /api/owner/favorites`（預約頁愛心）。漏攔的 API 打到真後端會 401 → axios refresh 也 401 → 清掉 accessToken，下一次換頁被 `RequireAuth`（C1 起訂閱 location）導去 `/login?redirect=...`。這是測試 mock 不完整，不是產品 bug：真實使用者只有 refresh token 真的失效時才會被清 token 並導去登入。
 - **漏 mock 偵測（2026-10-24，backlog 第 6 批 N9）**：`mockDemoSession()` 加上 context 層 `/api/` catch-all（回 501 並記錄）後，`client-booking.spec.ts` 現形 3 組過去打到後端的請求：`GET /api/sitter/profile/{id}`、`GET /api/sitters/{id}/questions`（預約頁靠正式站種子保母的真實資料才渲染得出來）、送出後導去的 `GET /api/orders/{id}`（詳情頁 401 → 截圖是錯誤畫面）。三者已補 mock，導頁步驟另加斷言 `order-status-badge` 為「待評估」，且 `order-total-amount` 等於本次預約金額（`mockOwnerOrderDetail(page, id, status, totalAmount)`：TS-005-01 $3,200、TS-005-02 $5,200、問卷主流程 $500；驗收 R6，過去寫死 600 讓截圖金額與預約內容對不上）；`test.afterEach` 斷言沒有漏 mock（SD-FRONTEND-SPEC §4.1）。
@@ -82,3 +89,4 @@
 
 - **預約頁保母卡片長名稱 + 愛心溢出（2026-10-24，驗收 N3 / backlog 第 6 批 G5）**：名稱欄 `flex: 1` 沒有 `minWidth: 0`，Journey 的長顯示名稱（含時間戳）把它撐到 249px，愛心被擠到殼外（x≈871，內容區右緣 811）。改 `minWidth: 0` + 名稱 `overflowWrap: anywhere`、頭像與愛心 `flexShrink: 0`。迴歸：`ui-layout-contrast.spec.ts` N3（名稱、愛心落在 `client-booking-sitter-card` 內，`<main>` 沒被撐寬）。
 - **預約頁保母卡名稱被擠成 6 行、日期欄被擠成「2026 / 年 / 10/25」（2026-10-24，驗收 N14）**：N3 修好溢出，但頭像 80px、名稱、愛心仍擠同一列，名稱欄只剩約 100px；沒有頭像時指向外部 `via.placeholder.com`，載不到就是寫著「150 x 150」的灰圓。排程卡的「照護對象」區塊是 `width: 100%` 的第三個 flex 子元素卻沒有換行，跟日期欄搶同一列。修正：保母卡改成上列「頭像（64px，無頭像用名稱首字）+ 愛心」、下列名稱佔滿卡片寬；排程列 `flexWrap: wrap`、日期欄 `minWidth: 0`、照護對象 `flexBasis: 100%`。迴歸：`ui-layout-contrast.spec.ts` N14（名稱 ≤ 2 行、不打 placeholder 服務、照護對象在日期欄下方且不重疊、年份單行）。
+- **任何已登入者都能以別的飼主名義下單（2026-10-25，fix-batch11 I2，安全 / BOLA）**：I1 修完後全後端掃描身分欄位時發現。`BookingService.createBooking` 的訂單飼主取自 request body 的 `ownerId`，`POST /api/orders/booking` 也沒有 `@PreAuthorize`；飼主 UUID 在保母端訂單詳情就看得到。保母或任何人都能替別的飼主建單（飼主收到莫名的預約、保母端看到假訂單），被保母黑名單的飼主也能冒用別人的 `ownerId` 繞過黑名單檢查（`isBlocked(sitterId, ownerId)` 用的是 body 的值）。修法：`BookingRequest` 移除 `ownerId`，`createBooking(ownerId, request)` 由 controller 傳入 `TokenContext.getUserId()`，端點加 `@PreAuthorize("hasRole('OWNER')")`；舊前端 body 多帶的 `ownerId` 被 Jackson 忽略。迴歸：Scenario 7。

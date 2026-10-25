@@ -14,7 +14,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BookingRequest {
-    private UUID ownerId;
+    // 不收 ownerId（fix-batch11 I2，BOLA）：飼主身分由 OrderController 從 token 取得後傳入 createBooking。
+    // 舊前端 body 仍會帶 ownerId，Jackson 忽略未知欄位，不會報錯也不會被使用
     private UUID sitterId;
     private List<BookingItemRequest> items;
     private List<QuestionnaireAnswerRequest> answers;

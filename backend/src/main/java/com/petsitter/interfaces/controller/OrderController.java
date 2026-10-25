@@ -38,15 +38,19 @@ public class OrderController {
     private final OwnerCancellationService ownerCancellationService;
 
     /**
-     * 飼主送出預約申請
+     * 飼主送出預約申請。
+     * fix-batch11 I2（BOLA）：飼主身分取自 token。過去讀 body 的 ownerId 且沒有角色限制，
+     * 任何已登入者（含保母）都能以別的飼主名義下單；舊前端仍會在 body 帶 ownerId，會被忽略
      */
+    @PreAuthorize("hasRole('OWNER')")
     @PostMapping("/booking")
     public ResponseEntity<Map<String, UUID>> createBooking(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody BookingRequest request) {
         
         request.setIdempotencyKey(idempotencyKey);
-        UUID orderId = bookingService.createBooking(request);
+        UUID ownerId = TokenContext.getUserId();
+        UUID orderId = bookingService.createBooking(ownerId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("orderId", orderId));
     }
 

@@ -5,7 +5,7 @@ import {
   mockOwnerOrderDetail,
   mockOwnerOrderList
 } from './support/mockSession';
-import { step, trackDialogs, expectDialog } from './support/evidence';
+import { step, apiStep, trackDialogs, expectDialog } from './support/evidence';
 
 const sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda';
 const questionId = 'q1023000-0000-0000-0000-000000000001';
@@ -195,6 +195,15 @@ test.describe('PRD-005 動態問卷與 Zero-Trust 價格核對', () => {
       { questionId, answerValues: ['不會'] }
     ]);
     expect(lastBookingBody.expectedTotalAmount).toBe(500);
+
+    await apiStep(
+      '預約 body 不帶 ownerId（飼主身分由後端取自 token，fix-batch11 I2）',
+      async () => {
+        const keys = Object.keys(lastBookingBody).sort();
+        expect(keys).toEqual(['answers', 'expectedTotalAmount', 'items', 'sitterId']);
+        return { bodyKeys: keys };
+      }
+    );
 
     await step('送出後導向新訂單詳情頁 /owner/orders/{orderId}（$ 500）', page, async () => {
       await expect(page).toHaveURL(new RegExp(`/owner/orders/${BOOKED_ORDER_ID}$`));

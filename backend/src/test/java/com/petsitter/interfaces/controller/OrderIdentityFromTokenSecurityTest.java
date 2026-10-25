@@ -1,12 +1,15 @@
 package com.petsitter.interfaces.controller;
 
+import com.petsitter.domain.model.GatekeeperRule;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.model.Visit;
+import com.petsitter.domain.repository.GatekeeperRuleRepository;
 import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.ServicePlanRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -27,6 +30,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +50,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>
  * 這裡刻意不用 @WithMockUser / TokenContext.setUserId：請求帶真的 JWT（JwtUtils 簽發），走完整
  * SecurityConfig filter chain → JwtAuthenticationFilter 寫 TokenContext → @PreAuthorize → 真的 service + DB。
+ * I2：POST /api/orders/booking 過去讀 body 的 ownerId 且沒有角色限制，任何已登入者都能以別的飼主名義下單。
+ * <p>
  * 每支端點三種情境：別人的 token 操作 A 的訂單 → 403（含舊攻擊手法：帶受害者 UUID 的 query param）、
  * 錯角色 → 403、本人 → 200（並帶一個亂填的舊身分 param，證明後端忽略它，舊前端在部署空窗期不壞）。
  */
@@ -85,6 +91,12 @@ class OrderIdentityFromTokenSecurityTest {
 
     @Autowired
     private SubscriptionRepository subscriptionRepository;
+
+    @Autowired
+    private ProfileRepository profileRepository;
+
+    @Autowired
+    private GatekeeperRuleRepository gatekeeperRuleRepository;
 
     private User ownerA;
     private User ownerB;
@@ -373,5 +385,73 @@ class OrderIdentityFromTokenSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("已成功提交爭議申請"));
         assertThat(statusOf(order)).isEqualTo("DISPUTED");
+    }
+
+    // ---- POST /booking（飼主送出預約，fix-batch11 I2） ----
+
+    private void openSitterA() {
+        profileRepository.saveAndFlush(com.petsitter.domain.model.Profile.builder()
+                .userId(sitterA.getId()).type("SITTER").kycStatus("VERIFIED").isOpen(true).build());
+    }
+
+    /** 舊前端的 body：仍帶 ownerId（這裡填受害飼主 A） */
+    private MockHttpServletRequestBuilder bookingReq() {
+        return post("/api/orders/booking")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ownerId\":\"" + ownerA.getId() + "\",\"sitterId\":\"" + sitterA.getId()
+                        + "\",\"items\":[{\"planId\":\"" + planA.getId() + "\",\"dates\":[\""
+                        + LocalDate.now().plusDays(3) + "\"],\"timesPerDay\":1,\"petIds\":[]}],"
+                        + "\"answers\":[],\"expectedTotalAmount\":600}");
+    }
+
+    @Test
+    @DisplayName("POST /booking：飼主 B 在 body 填飼主 A 的 ownerId → 201 但訂單掛在 B 名下（body ownerId 被忽略）")
+    void booking_bodyOwnerIdIgnored_orderBelongsToCaller() throws Exception {
+        openSitterA();
+        String body = mockMvc.perform(bookingReq().header("Authorization", bearer(ownerB)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID orderId = UUID.fromString(body.replaceAll(".*\"orderId\":\"([0-9a-f-]{36})\".*", "$1"));
+        Order created = orderRepository.findById(orderId).orElseThrow();
+        assertThat(created.getOwner().getId()).isEqualTo(ownerB.getId());
+        assertThat(orderRepository.findAll()).noneMatch(o -> o.getOwner().getId().equals(ownerA.getId()));
+    }
+
+    @Test
+    @DisplayName("POST /booking：被保母全域黑名單的飼主 B 冒用飼主 A 的 ownerId → 仍以 B 判斷黑名單 403，沒有建單")
+    void booking_blacklistUsesTokenIdentity() throws Exception {
+        openSitterA();
+        subscriptionRepository.saveAndFlush(Subscription.builder().sitter(sitterA).planTier("PRO").build());
+        gatekeeperRuleRepository.saveAndFlush(GatekeeperRule.builder()
+                .sitterId(sitterA.getId()).ruleType("BLACK").scopeType("GLOBAL").targetUserId(ownerB.getId()).build());
+        long before = orderRepository.count();
+        mockMvc.perform(bookingReq().header("Authorization", bearer(ownerB)))
+                .andExpect(status().isForbidden());
+        assertThat(orderRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("POST /booking：錯角色（保母）→ 403、未登入 → 401，都沒有建單")
+    void booking_wrongRole_403() throws Exception {
+        openSitterA();
+        long before = orderRepository.count();
+        mockMvc.perform(bookingReq().header("Authorization", bearer(sitterB)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(bookingReq())
+                .andExpect(status().isUnauthorized());
+        assertThat(orderRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("POST /booking：飼主本人 → 201，訂單飼主為 token 身分")
+    void booking_self_201() throws Exception {
+        openSitterA();
+        String body = mockMvc.perform(bookingReq().header("Authorization", bearer(ownerA)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.orderId").isString())
+                .andReturn().getResponse().getContentAsString();
+        UUID orderId = UUID.fromString(body.replaceAll(".*\"orderId\":\"([0-9a-f-]{36})\".*", "$1"));
+        assertThat(orderRepository.findById(orderId).orElseThrow().getOwner().getId()).isEqualTo(ownerA.getId());
     }
 }

@@ -122,8 +122,8 @@ class OrderEvaluationTest {
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
                 .timesPerDay(1)
                 .build();
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId)
+        UUID orderId = bookingService.createBooking(ownerId, BookingRequest.builder()
+                .sitterId(sitterId)
                 .items(List.of(item))
                 .expectedTotalAmount(500)
                 .idempotencyKey("quote-test-1").build());
@@ -166,8 +166,8 @@ class OrderEvaluationTest {
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
                 .timesPerDay(1)
                 .build();
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId)
+        UUID orderId = bookingService.createBooking(ownerId, BookingRequest.builder()
+                .sitterId(sitterId)
                 .items(List.of(item))
                 .expectedTotalAmount(500)
                 .idempotencyKey("quote-test-2").build());
@@ -199,8 +199,8 @@ class OrderEvaluationTest {
                 .dates(List.of(LocalDate.of(2026, 6, 1)))
                 .timesPerDay(1)
                 .build();
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId)
+        UUID orderId = bookingService.createBooking(ownerId, BookingRequest.builder()
+                .sitterId(sitterId)
                 .items(List.of(item))
                 .expectedTotalAmount(500)
                 .idempotencyKey("quote-test-3").build());
@@ -229,8 +229,8 @@ class OrderEvaluationTest {
     // ---------------------------------------------------------------------------------------------
 
     private UUID createPendingOrder(LocalDate date, String key) {
-        return bookingService.createBooking(BookingRequest.builder()
-                .sitterId(sitterId).ownerId(ownerId)
+        return bookingService.createBooking(ownerId, BookingRequest.builder()
+                .sitterId(sitterId)
                 .items(List.of(com.petsitter.application.dto.BookingItemRequest.builder()
                         .planId(planId).dates(List.of(date)).timesPerDay(1).build()))
                 .expectedTotalAmount(500)

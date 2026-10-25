@@ -44,8 +44,12 @@ public class BookingService {
     private final ProfileRepository profileRepository;
     private final SitterQuestionRepository sitterQuestionRepository;
 
+    /**
+     * @param ownerId 飼主身分，一律由 controller 從 token（TokenContext）取得（fix-batch11 I2）。
+     *                過去讀 request.ownerId，任何已登入者都能以別的飼主名義下單（也能繞過以飼主為對象的黑名單）
+     */
     @Transactional
-    public UUID createBooking(BookingRequest request) {
+    public UUID createBooking(UUID ownerId, BookingRequest request) {
         log.info("[BookingService] Creating PENDING order for sitter: {}", request.getSitterId());
 
         // 保母實名認證與接單狀態雙重校驗 (SD-017 / SD-005 聯動)
@@ -57,7 +61,7 @@ public class BookingService {
         }
 
         // 全域門禁卡控防禦
-        if (gatekeeperService.isBlocked(request.getSitterId(), request.getOwnerId(), null)) {
+        if (gatekeeperService.isBlocked(request.getSitterId(), ownerId, null)) {
             throw new org.springframework.security.access.AccessDeniedException("保母目前不開放預約");
         }
 
@@ -72,7 +76,7 @@ public class BookingService {
                     .orElseThrow(() -> new IllegalArgumentException("找不到指定的服務方案: " + itemReq.getPlanId()));
 
             // 方案級門禁卡控防禦
-            if (gatekeeperService.isBlocked(request.getSitterId(), request.getOwnerId(), plan.getId())) {
+            if (gatekeeperService.isBlocked(request.getSitterId(), ownerId, plan.getId())) {
                 throw new org.springframework.security.access.AccessDeniedException("您無權預約此方案");
             }
 
@@ -113,7 +117,7 @@ public class BookingService {
         List<QuestionnaireAnswer> questionnaireAnswers = buildQuestionnaireAnswers(request.getSitterId(), request.getAnswers());
 
         Order order = Order.builder()
-                .owner(userRepository.findById(request.getOwnerId()).orElseThrow())
+                .owner(userRepository.findById(ownerId).orElseThrow())
                 .sitter(userRepository.findById(request.getSitterId()).orElseThrow())
                 .planId(request.getItems().get(0).getPlanId()) // 保留首個方案作為主要方案
                 .status("PENDING")

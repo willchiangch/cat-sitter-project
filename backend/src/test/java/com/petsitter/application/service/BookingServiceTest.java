@@ -137,8 +137,7 @@ class BookingServiceTest {
         for (int i = 0; i < concurrentCount; i++) {
             final int index = i;
             futures.add(CompletableFuture.supplyAsync(() -> {
-                return bookingService.createBooking(BookingRequest.builder()
-                        .ownerId(ownerId)
+                return bookingService.createBooking(ownerId, BookingRequest.builder()
                         .sitterId(sitterId)
                         .items(List.of(item))
                         .expectedTotalAmount(500)
@@ -164,8 +163,8 @@ class BookingServiceTest {
                 .build();
         List<UUID> ids = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            ids.add(bookingService.createBooking(BookingRequest.builder()
-                    .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+            ids.add(bookingService.createBooking(ownerId, BookingRequest.builder()
+                    .sitterId(sitterId).items(List.of(item))
                     .expectedTotalAmount(500)
                     .idempotencyKey(keyPrefix + "-" + i).build()));
         }
@@ -229,7 +228,6 @@ class BookingServiceTest {
     @DisplayName("TS-005-06: POST /api/orders/booking 回應契約 - 201 且 body 只有 { orderId: <uuid> }，不包 data 外層")
     void ts005_06_should_ReturnOrderIdObject_When_BookingCreated() throws Exception {
         BookingRequest request = BookingRequest.builder()
-                .ownerId(ownerId)
                 .sitterId(sitterId)
                 .items(List.of(com.petsitter.application.dto.BookingItemRequest.builder()
                         .planId(planId)
@@ -239,15 +237,22 @@ class BookingServiceTest {
                 .expectedTotalAmount(500)
                 .build();
 
-        String body = mockMvc.perform(post("/api/orders/booking")
-                        .with(user(ownerId.toString()).roles("OWNER"))
-                        .header("Idempotency-Key", "contract-key")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.orderId").isString())
-                .andExpect(jsonPath("$.data").doesNotExist())
-                .andReturn().getResponse().getContentAsString();
+        // 飼主身分取自 token（fix-batch11 I2）；MockMvc 與測試同執行緒，直接設 TokenContext
+        com.petsitter.infrastructure.security.TokenContext.setUserId(ownerId);
+        String body;
+        try {
+            body = mockMvc.perform(post("/api/orders/booking")
+                            .with(user(ownerId.toString()).roles("OWNER"))
+                            .header("Idempotency-Key", "contract-key")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.orderId").isString())
+                    .andExpect(jsonPath("$.data").doesNotExist())
+                    .andReturn().getResponse().getContentAsString();
+        } finally {
+            com.petsitter.infrastructure.security.TokenContext.clear();
+        }
 
         // 前端 PublicBookingPage 只認這個形狀（backlog F3 移除了 `res.orderId || res` fallback），契約變了要一起改前端
         java.util.Map<String, Object> json = objectMapper.readValue(body,
@@ -278,8 +283,7 @@ class BookingServiceTest {
                 .timesPerDay(1)
                 .build();
 
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .ownerId(ownerId)
+        UUID orderId = bookingService.createBooking(ownerId, BookingRequest.builder()
                 .sitterId(sitterId)
                 .items(List.of(item1, item2))
                 .expectedTotalAmount(2800) // (500*4) + (800*1)
@@ -320,13 +324,13 @@ class BookingServiceTest {
                 .build();
 
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> bookingService.createBooking(BookingRequest.builder()
-                        .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+                () -> bookingService.createBooking(ownerId, BookingRequest.builder()
+                        .sitterId(sitterId).items(List.of(item))
                         .expectedTotalAmount(500)
                         .idempotencyKey("no-answer-key").build()));
 
-        UUID orderId = bookingService.createBooking(BookingRequest.builder()
-                .ownerId(ownerId).sitterId(sitterId).items(List.of(item))
+        UUID orderId = bookingService.createBooking(ownerId, BookingRequest.builder()
+                .sitterId(sitterId).items(List.of(item))
                 .expectedTotalAmount(500)
                 .answers(List.of(com.petsitter.application.dto.QuestionnaireAnswerRequest.builder()
                         .questionId(question.getId())

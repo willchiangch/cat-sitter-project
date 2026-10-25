@@ -213,8 +213,8 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   const handleSubmitBooking = async () => {
     if (isSubmitting) return;
     if (booking.planConfigs.length === 0) return;
-    const ownerId = pets && pets.length > 0 ? pets[0].ownerId : null;
-    if (!ownerId) {
+    // 飼主身分由後端從 token 取得，送單不帶 ownerId（fix-batch11 I2）；這裡只檢查是否已有毛孩
+    if (!pets || pets.length === 0) {
       alert('請先去新增毛孩資料以建立預約！');
       return;
     }
@@ -248,7 +248,6 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
     }, 0);
 
     const requestBody = {
-      ownerId: ownerId,
       sitterId: booking.sitterId,
       items: booking.planConfigs.flatMap((planConfig) =>
         planConfig.schedules.map((schedule) => ({

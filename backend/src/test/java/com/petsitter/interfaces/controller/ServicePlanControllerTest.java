@@ -484,6 +484,8 @@ class ServicePlanControllerTest {
     @Test
     @DisplayName("Scenario 10: 預約送單日期超出方案生效區間拒絕 (422 PLAN_NOT_IN_RANGE)")
     void ts003_10_should_RejectBooking_When_DateOutOfRange() throws Exception {
+        // 飼主身分取自 token（fix-batch11 I2）
+        TokenContext.setUserId(ownerA.getId());
         // P4 在有效區間內的方案 (相對日期：now - 5 ~ now + 5)
         ServicePlan p4 = servicePlanRepository.save(ServicePlan.builder()
                 .sitter(sitterC).name("P4").price(500L)
@@ -493,7 +495,6 @@ class ServicePlanControllerTest {
 
         // 1. 預約過早日期 (now - 10)
         BookingRequest earlyReq = BookingRequest.builder()
-                .ownerId(ownerA.getId())
                 .sitterId(sitterC.getId())
                 .items(List.of(BookingItemRequest.builder()
                         .planId(p4.getId())
@@ -513,7 +514,6 @@ class ServicePlanControllerTest {
 
         // 2. 預約過晚日期 (now + 10)
         BookingRequest lateReq = BookingRequest.builder()
-                .ownerId(ownerA.getId())
                 .sitterId(sitterC.getId())
                 .items(List.of(BookingItemRequest.builder()
                         .planId(p4.getId())

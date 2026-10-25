@@ -32,7 +32,7 @@
 
 ### 2.1 提交預約申請
 - **Endpoint**: `POST /api/orders/booking`
-- **Auth**: `ROLE_OWNER`
+- **Auth**: `@PreAuthorize("hasRole('OWNER')")`，飼主身分取自 token（`TokenContext`），由 controller 傳入 `BookingService.createBooking(ownerId, request)`。Request Body **沒有** `ownerId`（fix-batch11 I2 移除；過去讀 body 的 `ownerId`，任何已登入者都能以別的飼主名義下單、也能冒用別人繞過黑名單）。舊前端多帶的 `ownerId` 會被 Jackson 忽略。保母角色 → 403、未登入 → 401
 - **Headers**:
   - `Idempotency-Key`: `UUID` (必填)
 - **Request Body**:

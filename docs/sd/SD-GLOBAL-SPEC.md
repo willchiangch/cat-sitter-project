@@ -56,6 +56,7 @@
 - **資源歸屬檢查**：Service 層以 token 身分比對資源擁有者（例：`order.sitter.id == token.userId`），找得到資源但不屬於呼叫者 → `AccessDeniedException` → **403**；資源不存在 → 400 / 404。不可用 `findByIdAndXxxId` 查不到就一律 400，否則分不出越權。
 - **允許的例外**（參數是「操作對象」而非「呼叫者」）：公開查詢（`GET /api/sitters/{sitterId}/plans|questions`、`GET /api/sitter/profile/{sitterId}`）、對象型參數（收藏 / 黑名單 / 轉介的目標 `sitterId` / `ownerId`）、ADMIN 專用端點、配對型路徑（`/api/care-notes/{sitterId}/{ownerId}`：其中之一必須等於 token 身分，寫入端點限 `sitterId == token`，SD-021 §1.3）。
 - **部署相容**：移除身分參數時，後端不宣告該參數即可——Spring 對未宣告的 query param / Jackson 對未知 JSON 欄位（`FAIL_ON_UNKNOWN_PROPERTIES=false`）都直接忽略，舊前端在「後端已部署、前端未部署」的空窗期仍可運作。部署順序：先後端再前端。
+- **已套用的端點（fix-batch11）**：`POST /api/orders/{id}/confirm|quote|reject`（SITTER）、`/complete|/dispute`（OWNER）——原本 `@RequestParam sitterId/ownerId`；`POST /api/orders/booking`（OWNER）——原本 body `ownerId`。2026-10-25 全 controller 掃描（23 支）後，其餘端點的呼叫者身分都已取自 token；仍收 `sitterId` / `ownerId` 的只剩上列「允許的例外」（`/api/sitter/trust-circle/referral-candidates?ownerId=` 與 `CreateReferralRequest.ownerId` 是 PRD-010 D 主動分享的通知對象）。
 - **迴歸測試**：`OrderIdentityFromTokenSecurityTest`（真 JWT + 真 `SecurityConfig` filter chain，不用 `@WithMockUser`）——每支端點「別人的 token 操作他人訂單 → 403」「錯角色 → 403」「本人 → 200（多帶亂填的舊身分參數也被忽略）」。
 
 ## 4. 檔案與資料共用機制

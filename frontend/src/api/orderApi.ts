@@ -12,9 +12,9 @@ export interface BookingQuestionnaireAnswer {
   answerValues: string[];
 }
 
+// 不帶 ownerId：飼主身分由後端從 JWT 取得（fix-batch11 I2，BOLA）
 export interface BookingRequest {
   sitterId: string;
-  ownerId: string;
   items: BookingItem[];
   answers?: BookingQuestionnaireAnswer[];
   expectedTotalAmount?: number;
