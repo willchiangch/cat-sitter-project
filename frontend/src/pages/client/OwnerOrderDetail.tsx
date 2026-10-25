@@ -20,6 +20,9 @@ interface OwnerOrderDetailProps {
   orderId: string;
 }
 
+// 零行程訂單的結案提示（fix-batch12 U4，PRD-009 B.3）
+const NO_VISIT_COMPLETION_HINT = '此訂單沒有任何行程，無法確認結案，請聯繫保母或平台管理員協助處理';
+
 // 訂單成立後的行程清單唯讀檢視，串接日誌檢視頁面 (SD-008)。訂單詳情本身不帶 visitId，
 // 只能靠 GET /api/orders/{orderId}/visits 另外查
 const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
@@ -103,6 +106,8 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
     orderId,
     isServiceStage
   );
+  // fix-batch12 U4：零行程的訂單永遠不會有行程完工，過去仍提示「所有行程完工後即可確認結案」，飼主卡住。
+  // PRD-009 B.3：零行程不自動結案、由管理員人工處理，這裡引導飼主聯繫保母或平台
   const canComplete =
     visitsLoaded && visits.length > 0 && visits.every((v) => FINISHED_VISIT_STATUSES.has(v.status));
 
@@ -648,7 +653,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                       textAlign: 'center'
                     }}
                   >
-                    所有行程完工後即可確認結案
+                    {visits.length === 0 ? NO_VISIT_COMPLETION_HINT : '所有行程完工後即可確認結案'}
                   </p>
                 )
               )}

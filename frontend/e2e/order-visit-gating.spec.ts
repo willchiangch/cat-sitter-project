@@ -50,6 +50,7 @@ test.describe('訂單詳情依行程狀態控制操作入口', () => {
     status: string;
     visits: MockVisit[];
     canComplete: boolean;
+    hint?: string;
   }[] = [
     {
       label: 'CONFIRMED、行程待執行：不顯示確認結案',
@@ -67,10 +68,12 @@ test.describe('訂單詳情依行程狀態控制操作入口', () => {
       canComplete: false
     },
     {
-      label: '沒有任何行程：不顯示確認結案',
+      label: '沒有任何行程：不顯示確認結案，提示聯繫保母或平台',
       status: 'CONFIRMED',
       visits: [],
-      canComplete: false
+      canComplete: false,
+      // fix-batch12 U4：零行程永遠不會「所有行程完工」，過去提示會讓飼主卡住（PRD-009 B.3 由管理員人工處理）
+      hint: '此訂單沒有任何行程，無法確認結案，請聯繫保母或平台管理員協助處理'
     },
     {
       label: 'IN_PROGRESS、行程全部已完工或系統結案：顯示確認結案',
@@ -99,7 +102,7 @@ test.describe('訂單詳情依行程狀態控制操作入口', () => {
         } else {
           await expect(page.getByTestId('complete-order-btn')).toHaveCount(0);
           await expect(page.getByTestId('complete-order-hint')).toHaveText(
-            '所有行程完工後即可確認結案'
+            c.hint ?? '所有行程完工後即可確認結案'
           );
         }
       });

@@ -18,7 +18,7 @@
    - **零行程不自動結案**（2026-10-25，fix-batch10 H3，與手動結案的 N10 檢查一致）：`triggerAutoCompletion` 對沒有任何行程的訂單 `continue`，並寫 WARN log `[AutoCompletion] Order {id} ({status}) has no visits, skipped auto-completion; needs manual review` 供人工處理。過去 `allMatch` 對空集合回 true、`lastVisitTime` 退回 `OffsetDateTime.MIN` 必定早於 48 小時門檻，零行程訂單會被直接結案並排撥款。
 2. **手動結案 (Manual)**：飼主點擊【確認結案】。
    - **後端檢核**（`CompletionService.manualComplete`）：呼叫者須為訂單飼主、訂單狀態須為 `CONFIRMED` 或 `IN_PROGRESS`（`MANUAL_COMPLETABLE_STATUSES`，與 1.3 `disputeOrder` 同一組；2026-10-25 fix-batch10 H2 前只擋 `DISPUTED`，`COMPLETED` 重複呼叫會重設 `completed_at` / `payout_at` 把撥款日往後推，`MODIFYING` / `REFUND_VERIFY` 結案會繞過 PRD-016 協商；其餘狀態一律 `IllegalStateException` → 409 `STATE_CONFLICT`，訊息：已結案「此訂單已結案，不可重複結案」、協商中「訂單變更協商中，請待協商完成後再結案」、爭議「爭議中的訂單不可結案」、其他「此訂單狀態（X）不可結案」）、訂單**至少有一筆行程**且全部行程為 `DONE` 或 `CLOSED_BY_SYSTEM`，否則拋 `IllegalStateException`。零行程檢查是 2026-10-24 驗收 N10 補上的：`allMatch` 對空集合回 true，而資料模型不保證至少一筆行程（預約 `dates` 可為空陣列；訂單變更確認時 `updateVisitsSafely` 會刪除全部未執行行程，`dates` 為空則不補）。
-   - **前端顯示條件**（`OwnerOrderDetail.tsx`）：訂單 `CONFIRMED`/`IN_PROGRESS` 時另查 `GET /api/orders/{orderId}/visits`，行程**非空且全部** `DONE`/`CLOSED_BY_SYSTEM` 才顯示「確認結案 (完成預約)」(`complete-order-btn`)；否則顯示灰字提示「所有行程完工後即可確認結案」(`complete-order-hint`)。與後端檢核同一套條件，避免飼主在服務開始前看到按鈕、按了才被拒絕。
+   - **前端顯示條件**（`OwnerOrderDetail.tsx`）：訂單 `CONFIRMED`/`IN_PROGRESS` 時另查 `GET /api/orders/{orderId}/visits`，行程**非空且全部** `DONE`/`CLOSED_BY_SYSTEM` 才顯示「確認結案 (完成預約)」(`complete-order-btn`)；否則顯示灰字提示「所有行程完工後即可確認結案」(`complete-order-hint`)；**行程為空**時改提示「此訂單沒有任何行程，無法確認結案，請聯繫保母或平台管理員協助處理」（2026-10-25 fix-batch12 U4，PRD-009 B.3）。與後端檢核同一套條件，避免飼主在服務開始前看到按鈕、按了才被拒絕。
 3. **強制結案 (Admin-Override)**：管理員處理爭議後結案。
 
 ### 1.2 財務時間戳記 (Financial Benchmarks)

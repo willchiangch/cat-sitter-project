@@ -49,3 +49,5 @@
 **自動結案排程把零行程訂單結案（2026-10-25，fix-batch10 H3 / 第 9 批另外發現 #3）**：N10 只在 `manualComplete` 補了零行程檢查，`triggerAutoCompletion` 對 `IN_PROGRESS` 訂單同樣用 `allMatch`（空集合 true），最後行程時間退回 `OffsetDateTime.MIN`，必定早於 48 小時門檻，於是沒有任何服務的訂單被自動結案並排 D+3 撥款。改為零行程 `continue` + WARN log 供人工處理。迴歸：TS-009-11 `should_SkipAutoCompletion_When_OrderHasNoVisits`（同批正常訂單照常結案，確認不會中斷排程）。
 
 **保母可冒充飼主結案 / 申報爭議（2026-10-25，fix-batch11 I1，安全 / BOLA）**：`POST /api/orders/{id}/complete`、`/dispute` 以 `@RequestParam ownerId` 當呼叫者身分且沒有 `@PreAuthorize`。訂單的保母本來就看得到 `ownerId`（訂單詳情回應），等於保母自己就能「代替飼主確認結案」，提前觸發 D+3 撥款排程；任何知道 UUID 的人也能替飼主申報爭議、把訂單卡進 `DISPUTED`。過去 TS-009-05 只驗 service 層「參數 ownerId ≠ 訂單飼主」，沒驗「參數是誰傳的」，所以一直綠。修法：兩支改 `@PreAuthorize("hasRole('OWNER')")` + `TokenContext.getUserId()`，service 越權改拋 `AccessDeniedException` → 403（SD-009 §2.1 / §2.2、SD-GLOBAL-SPEC §3.4）。迴歸：TS-009-05 改寫為真 JWT 測試（舊版 controller 下全紅）。
+
+**零行程訂單提示「所有行程完工後即可確認結案」，飼主永遠卡住（2026-10-25，驗收截圖新問題 5 / fix-batch12 U4）**：N10 後零行程訂單不顯示結案鈕是對的，但提示文字讓飼主以為等行程完工就好，實際上永遠不會有行程完工。零行程改提示「此訂單沒有任何行程，無法確認結案，請聯繫保母或平台管理員協助處理」（PRD-009 B.3）。迴歸：`order-visit-gating.spec.ts` N10「沒有任何行程」案（舊版紅）。
