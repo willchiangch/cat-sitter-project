@@ -6,7 +6,8 @@ import {
   setBrowserAuth,
   awaitOrderStatus,
   expectSignedPaymentProof,
-  expectSignedRefundProof
+  expectSignedRefundProof,
+  apiAuthed
 } from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
@@ -45,9 +46,12 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     request,
     browser
   }) => {
-    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆單天 CONFIRMED 訂單', async () => {
-      return bootstrapConfirmedOrder(request, 'd1', 'Journey方案D1');
-    });
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：兜出一筆單天 CONFIRMED 訂單',
+      async () => {
+        return bootstrapConfirmedOrder(request, 'd1', 'Journey方案D1');
+      }
+    );
     // B2 迴歸用：首次付款（bootstrap 以後五碼 12345 付款並核帳）的紀錄，補款後不得被覆寫
     const initialPayment = await apiStep('前置：記下首次付款的後五碼與核帳時間', async () => {
       const detail = await awaitOrderStatus(request, owner, orderId, ['CONFIRMED']);
@@ -80,7 +84,9 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     await step('保母從訂單列表真實點入報價，接受換算後的新總額（2 天）', sitterPage, async () => {
       await sitterPage.goto('/sitter/orders');
       await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
-      await expect(sitterPage.getByTestId('btn-go-modification-quote')).toBeVisible({ timeout: 10000 });
+      await expect(sitterPage.getByTestId('btn-go-modification-quote')).toBeVisible({
+        timeout: 10000
+      });
       await sitterPage.getByTestId('btn-go-modification-quote').click();
       await expect(sitterPage).toHaveURL(new RegExp(`/sitter/orders/${orderId}/quote`));
 
@@ -113,15 +119,52 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
     });
 
-    await step('保母重新進入報價頁（補款階段）：唯讀，無報價/拒絕/退款區塊（C2 迴歸）', sitterPage, async () => {
-      await sitterPage.goto(`/sitter/orders/${orderId}/quote`);
-      await expect(sitterPage.getByTestId('mod-quote-readonly-summary')).toContainText('應補款 $ 600', {
-        timeout: 10000
-      });
-      await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
-      await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
-      await expect(sitterPage.getByTestId('refund-proof-section')).toHaveCount(0);
-    });
+    await step(
+      '保母重新進入報價頁（補款階段）：唯讀，無報價/拒絕/退款區塊（C2 迴歸）',
+      sitterPage,
+      async () => {
+        await sitterPage.goto(`/sitter/orders/${orderId}/quote`);
+        await expect(sitterPage.getByTestId('mod-quote-readonly-summary')).toContainText(
+          '應補款 $ 600',
+          {
+            timeout: 10000
+          }
+        );
+        await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
+        await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
+        await expect(sitterPage.getByTestId('refund-proof-section')).toHaveCount(0);
+      }
+    );
+
+    // 驗收 A3（fix-batch12）：補款階段的 PENDING_PAYMENT 不可撤單（OwnerCancellationService 的補款排除），
+    // 過去只有 JUnit；這裡讓真後端留證據：詳情 cancellableByOwner=false，直接打撤單 API 回 409 並導向 PRD-016 協商
+    await apiStep(
+      '補款階段：cancellableByOwner=false，POST /cancel 回 409（請走 PRD-016 協商），訂單仍待付款',
+      async () => {
+        const detailRes = await request.get(`/api/orders/${orderId}`, {
+          headers: apiAuthed(owner)
+        });
+        expect(detailRes.ok()).toBeTruthy();
+        const detail = await detailRes.json();
+        expect(detail.status).toBe('PENDING_PAYMENT');
+        expect(detail.cancellableByOwner).toBe(false);
+        const cancelRes = await request.post(`/api/orders/${orderId}/cancel`, {
+          headers: apiAuthed(owner),
+          data: { version: detail.version }
+        });
+        expect(cancelRes.status()).toBe(409);
+        const cancelBody = await cancelRes.json();
+        expect(cancelBody.message).toContain('補款階段');
+        expect(cancelBody.message).toContain('PRD-016');
+        const after = await awaitOrderStatus(request, owner, orderId, ['PENDING_PAYMENT']);
+        return {
+          cancellableByOwner: detail.cancellableByOwner,
+          cancelStatus: cancelRes.status(),
+          cancelBody,
+          statusAfter: after.status
+        };
+      }
+    );
 
     await step('飼主補款上傳憑證', page, async () => {
       await page.goto(`/owner/orders/${orderId}`);
@@ -130,8 +173,12 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('payment-amount-due')).toHaveText('$ 600');
       await expect(page.getByTestId('order-total-amount')).toHaveText('$ 1,200');
       await expect(page.getByTestId('payment-top-up-notice')).toBeVisible();
+      // 驗收 A3：補款階段不顯示「取消預約」
+      await expect(page.getByTestId('owner-cancel-booking-btn')).toHaveCount(0);
       await page.getByTestId('input-payment-last-five').fill('54321');
-      await page.getByTestId('input-payment-file').setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
+      await page
+        .getByTestId('input-payment-file')
+        .setInputFiles(path.join(__dirname, 'fixtures/kyc-selfie.jpg'));
       await page.getByTestId('checkbox-disclaimer-agreed').check();
       await snap(page, '補款表單填寫完成');
       await page.getByTestId('btn-submit-payment-proof').click();
@@ -190,9 +237,15 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     request,
     browser
   }) => {
-    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆兩天 CONFIRMED 訂單（減少天數才有退款可測）', async () => {
-      return bootstrapConfirmedOrder(request, 'd2', 'Journey方案D2', ['2026-05-20', '2026-05-21']);
-    });
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：兜出一筆兩天 CONFIRMED 訂單（減少天數才有退款可測）',
+      async () => {
+        return bootstrapConfirmedOrder(request, 'd2', 'Journey方案D2', [
+          '2026-05-20',
+          '2026-05-21'
+        ]);
+      }
+    );
 
     await setBrowserAuth(page, owner, 'client');
     const ownerDialogs = trackDialogs(page);
@@ -247,34 +300,44 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
     });
 
-    await step('保母重新真實點入變更協商入口，上傳退款憑證（迴歸：飼主確認後此頁過去會 404）', sitterPage, async () => {
-      await sitterPage.goto('/sitter/orders');
-      await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
-      await expect(sitterPage.getByTestId('btn-go-modification-quote')).toBeVisible({ timeout: 10000 });
-      await sitterPage.getByTestId('btn-go-modification-quote').click();
-      await expect(sitterPage).toHaveURL(new RegExp(`/sitter/orders/${orderId}/quote`));
-      await expect(sitterPage.getByTestId('mod-quote-error')).not.toBeVisible();
-      // C2 迴歸 (P7)：飼主已同意，報價表單與拒絕按鈕都不可再出現
-      await expect(sitterPage.getByTestId('refund-proof-section')).toBeVisible({ timeout: 10000 });
-      await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
-      await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
+    await step(
+      '保母重新真實點入變更協商入口，上傳退款憑證（迴歸：飼主確認後此頁過去會 404）',
+      sitterPage,
+      async () => {
+        await sitterPage.goto('/sitter/orders');
+        await sitterPage.getByTestId('sitter-orders-tab-ongoing').click();
+        await expect(sitterPage.getByTestId('btn-go-modification-quote')).toBeVisible({
+          timeout: 10000
+        });
+        await sitterPage.getByTestId('btn-go-modification-quote').click();
+        await expect(sitterPage).toHaveURL(new RegExp(`/sitter/orders/${orderId}/quote`));
+        await expect(sitterPage.getByTestId('mod-quote-error')).not.toBeVisible();
+        // C2 迴歸 (P7)：飼主已同意，報價表單與拒絕按鈕都不可再出現
+        await expect(sitterPage.getByTestId('refund-proof-section')).toBeVisible({
+          timeout: 10000
+        });
+        await expect(sitterPage.getByTestId('quote-submit-btn')).toHaveCount(0);
+        await expect(sitterPage.getByTestId('reject-mod-btn')).toHaveCount(0);
 
-      // C4：退款憑證改為上傳圖片（私有物件），不再有手填網址欄位
-      await expect(sitterPage.getByTestId('refund-proof-input')).toHaveCount(0);
-      await sitterPage
-        .getByTestId('refund-proof-file-input')
-        .setInputFiles(path.join(__dirname, 'fixtures/report-photo.jpg'));
-      await snap(sitterPage, '退款憑證選擇完成');
-      await sitterPage.getByTestId('refund-proof-submit-btn').click();
-      await expectDialog(sitterDialogs, /退款憑證已成功上傳/);
-      await expect(sitterPage.getByTestId('refund-proof-success-banner')).toBeVisible({ timeout: 10000 });
-      await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
-      // C4 迴歸：預覽是 refund-proofs/ 私有物件的簽名網址，且圖片真的載入
-      await expectSignedRefundProof(
-        sitterPage.getByTestId('refund-proof-section'),
-        '保母端退款憑證預覽為簽名網址，不帶簽名 403'
-      );
-    });
+        // C4：退款憑證改為上傳圖片（私有物件），不再有手填網址欄位
+        await expect(sitterPage.getByTestId('refund-proof-input')).toHaveCount(0);
+        await sitterPage
+          .getByTestId('refund-proof-file-input')
+          .setInputFiles(path.join(__dirname, 'fixtures/report-photo.jpg'));
+        await snap(sitterPage, '退款憑證選擇完成');
+        await sitterPage.getByTestId('refund-proof-submit-btn').click();
+        await expectDialog(sitterDialogs, /退款憑證已成功上傳/);
+        await expect(sitterPage.getByTestId('refund-proof-success-banner')).toBeVisible({
+          timeout: 10000
+        });
+        await expect(sitterPage.getByTestId('refund-proof-submit-btn')).toHaveCount(0);
+        // C4 迴歸：預覽是 refund-proofs/ 私有物件的簽名網址，且圖片真的載入
+        await expectSignedRefundProof(
+          sitterPage.getByTestId('refund-proof-section'),
+          '保母端退款憑證預覽為簽名網址，不帶簽名 403'
+        );
+      }
+    );
 
     await step('飼主重新真實點入變更協商入口，確認收到退款', page, async () => {
       await page.goto(`/owner/orders/${orderId}`);
@@ -290,7 +353,9 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await snap(page, '確認收到退款前');
       await page.getByTestId('refund-confirm-btn').click();
       await expectDialog(ownerDialogs, /已確認收到退款/);
-      await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByTestId('refund-confirm-success-banner')).toBeVisible({
+        timeout: 10000
+      });
       await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
 
       await awaitOrderStatus(request, sitter, orderId, ['CONFIRMED']);
