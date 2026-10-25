@@ -7,7 +7,7 @@ import { test, expect, type Page, type Request } from '@playwright/test';
  * 1. 每個 UI 步驟一律用 step()，步驟結束（斷言通過後）自動截圖；步驟失敗也會截一張 FAIL- 開頭的圖。
  *    Playwright 內建 screenshot:'on' 只會截 `page` fixture，browser.newContext() 開出來的
  *    ownerPage/sitterPage/anonPage 失敗時完全沒有截圖，這裡補上。
- * 2. 純 API 步驟用 apiStep()，回傳值會以 JSON 附進報告（token/password 會遮蔽）。
+ * 2. 純 API 步驟用 apiStep()，回傳值會以 JSON 附進報告（token/password/secret 的非空值會遮蔽，null 保留）。
  * 3. 步驟中間需要額外截圖時用 snap()，不要再直接 testInfo.attach(page.screenshot())。
  * 4. 頁面上的 window.alert/confirm 一律用 trackDialogs() 接手：原生對話框不會出現在截圖裡，
  *    本專案操作結果幾乎都用 alert() 呈現，不接手的話「操作後截圖」只會截到操作前的畫面。
@@ -212,7 +212,25 @@ export async function step<T>(label: string, page: Page, body: () => Promise<T>)
   });
 }
 
-const SENSITIVE_KEY = /token|password|secret/i;
+const SENSITIVE_KEY = /token|password|secret|authorization/i;
+// key 不敏感的字串裡夾帶的 JWT（例如 authHeaders: ['Bearer eyJ…']）也遮掉；mock spec 的假 token 不是 JWT 形狀，保留可讀
+const JWT_LIKE = /eyJ[\w-]+\.[\w-]+\.[\w-]*/g;
+
+/**
+ * 敏感 key 底下的值一律遮蔽，但 null / undefined / 空字串原樣保留（驗收 A6：過去整個 tokens 物件被遮成
+ * "***"，「token 已清成 null」從證據看不出來）。物件 / 陣列往下遞迴，裡面每個非空葉值都遮，
+ * 所以 { token: { value: '真 token' } } 這種巢狀結構也不會漏出來。
+ */
+function maskSensitive(value: unknown): unknown {
+  if (value === null || value === undefined || value === '') return value;
+  if (Array.isArray(value)) return value.map(maskSensitive);
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, maskSensitive(v)])
+    );
+  }
+  return '***';
+}
 
 export async function apiStep<T>(label: string, body: () => Promise<T>): Promise<T> {
   return test.step(label, async () => {
@@ -227,7 +245,16 @@ export async function apiStep<T>(label: string, body: () => Promise<T>): Promise
       );
       throw err;
     }
-    const json = JSON.stringify(result ?? null, (k, v) => (SENSITIVE_KEY.test(k) ? '***' : v), 2);
+    const json = JSON.stringify(
+      result ?? null,
+      (k, v) =>
+        SENSITIVE_KEY.test(k)
+          ? maskSensitive(v)
+          : typeof v === 'string'
+            ? v.replace(JWT_LIKE, 'eyJ***')
+            : v,
+      2
+    );
     await record('api', label, 'json', json);
     return result;
   });

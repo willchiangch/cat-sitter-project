@@ -129,6 +129,7 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 - spec 必須 `test.afterEach(({ page }) => assertNoUnmockedApi(page))`，有任何漏 mock 或走到 refresh 就紅。`npm run e2e:lint` 會擋「用了 mockDemoSession / mockSessionApis 卻沒呼叫 assertNoUnmockedApi」的 spec。
 - 導頁後的落地頁也要 mock（例如 `mockOwnerOrderDetail()`、`mockOwnerOrderList()`），並在截圖前斷言業務內容（如 `order-status-badge`）已渲染，不能只斷言 URL。
 - 尚未改用 mockSession 的舊 spec（不在上述機制內）見 `.e2e-runs/20261024-backlog/fix-batch6.md`「另外發現」。
+- **證據 JSON 的遮蔽（`e2e/support/evidence.ts` 的 `apiStep`，2026-10-25 驗收 A6）**：key 符合 `token|password|secret|authorization` 的值遞迴遮成 `"***"`，但 `null` / `undefined` / 空字串原樣保留，讓「token 已清成 null」看得出來（過去整個 `tokens` 物件被遮成 `"***"`）；巢狀物件 / 陣列裡每個非空葉值都遮，不會因為內層 key 不敏感而漏出。key 不敏感的字串中夾帶 JWT 形狀（`eyJ….….…`）的片段也遮成 `eyJ***`（例如 `authHeaders: ['Bearer eyJ…']`）；mock 的假 token 不是 JWT 形狀，保留可讀。
 
 ---
 
