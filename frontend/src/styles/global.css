@@ -26,6 +26,9 @@
 
   /* Common States */
   --color-error: #b02500;
+  /* 疊在 --color-error 底上的文字（fix-batch12 U1）：過去沒定義，帳號設定「確認註銷」color 失效而繼承到深紅字，
+   * 深紅字配深紅底幾乎看不見。#ffffff 對 #b02500 約 6.7:1 */
+  --color-on-error: #ffffff;
   --color-tertiary: #006b1b; /* Completed Nodes */
 
   --max-width-mobile: 390px; /* iPhone standard from Stitch */

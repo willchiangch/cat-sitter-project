@@ -327,6 +327,23 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  test('U1：帳號設定「確認註銷」紅底白字，對比度 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await page.route('**/api/auth/webauthn/credentials', (route) => route.fulfill(json([])));
+
+    await step('帳號設定：展開註銷確認，「確認註銷」文字對紅底 ≥ 4.5:1', page, async () => {
+      await page.goto('/account-settings');
+      await page.getByTestId('account-settings-deactivate-btn').click();
+      const btn = page.getByTestId('account-settings-deactivate-confirm-btn');
+      await expect(btn).toHaveText('確認註銷');
+      // 過去 --color-on-error 未定義，color 繼承到父層深紅字：深紅字配深紅底（驗收截圖新問題 2）
+      const c = await contrastOf(btn);
+      expect(c.backgroundImage).toBe('none');
+      expect(c.backgroundColor).toBe('rgb(176, 37, 0)');
+      expect(c.ratio, `確認註銷 ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
   test('N5：日誌回報頁「上傳」按鈕留在媒體卡片內，狀態徽章不被擠成直排', async ({ page }) => {
     await mockDemoSession(page, 'sitter');
     await page.route('**/api/visits/v-n5/report', (route) =>

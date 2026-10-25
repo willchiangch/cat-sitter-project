@@ -191,4 +191,5 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 - `.btn-primary` 的底色是 `background: var(--color-primary-gradient)`（`background-image`）。要做次要/破壞性按鈕時，**必須用 `background` 簡寫覆蓋**，只寫 `backgroundColor` 蓋不掉漸層。
 - 破壞性次要按鈕（例如保母核對面板「駁回憑證」）：白底 `--color-surface-lowest`、文字與框線 `--color-error`（#b02500 對 #ffffff 約 6.8:1）。
 - 2026-10 前「駁回憑證」只設 `backgroundColor`，實際呈現金色漸層底配灰棕字（驗收 N3 / Backlog 第 3 批 U8）。迴歸：`e2e/payment-reject-button-contrast.spec.ts`（以 computed style 計算對比度）。
+- 破壞性主要按鈕（實心紅底，例如帳號設定「確認註銷」）：`background: var(--color-error)` + `color: var(--color-on-error)`（`#ffffff`，約 6.7:1）。`--color-on-error` 在 2026-10-25 前未定義，`color` 失效改繼承父層深色字，呈現深紅底配深色字（對比 2:1，驗收截圖新問題 2 / fix-batch12 U1）。迴歸：`ui-layout-contrast.spec.ts` U1。
 
