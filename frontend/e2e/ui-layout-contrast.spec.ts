@@ -344,6 +344,33 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  test('U2：金額的「$」與數字之間是不斷行空白，窄欄也不會斷成「$ / 1,200」', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await mockOwnerOrderDetail(page, ORDER_ID, 'CONFIRMED', 1200);
+
+    await step('訂單詳情總額：U+00A0 分隔，壓到 1px 寬仍只佔一行', page, async () => {
+      await page.goto(`/owner/orders/${ORDER_ID}`);
+      const amount = page.getByTestId('order-total-amount');
+      await expect(amount).toHaveText('$ 1,200');
+      const probe = await amount.evaluate((el) => {
+        const text = el.textContent ?? '';
+        // 複製一份放進 1px 寬的容器，量它被迫換行後的行數（驗收截圖：D1 08/11/12「總額: $ / 1,200」）
+        const box = document.createElement('div');
+        box.style.cssText = 'position:absolute;left:-9999px;top:0;width:1px;';
+        const span = document.createElement('span');
+        span.style.font = getComputedStyle(el).font;
+        span.textContent = text;
+        box.appendChild(span);
+        document.body.appendChild(box);
+        const lines = span.getClientRects().length;
+        box.remove();
+        return { codePoints: [...text].map((c) => c.codePointAt(0)), lines };
+      });
+      expect(probe.codePoints[1], '「$」後面是 U+00A0').toBe(0xa0);
+      expect(probe.lines, '1px 寬時仍不換行').toBe(1);
+    });
+  });
+
   test('N5：日誌回報頁「上傳」按鈕留在媒體卡片內，狀態徽章不被擠成直排', async ({ page }) => {
     await mockDemoSession(page, 'sitter');
     await page.route('**/api/visits/v-n5/report', (route) =>

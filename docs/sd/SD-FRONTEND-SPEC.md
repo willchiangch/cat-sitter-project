@@ -186,6 +186,8 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 ### 6.4.1 金額顯示（2026-10-24，驗收 N15）
 畫面上所有金額一律經由 `src/utils/money.ts` 的 `formatMoney(amount)` 輸出 `$ 1,200`（負數 `$ -600`），不得在頁面自己寫 `$ {x.toLocaleString()}` 或直接印 `$ {plan.price}`。千分位固定 `en-US`，不跟瀏覽器語系（無參數 `toLocaleString()` 在 de-DE 會是 `1.200`）。過去方案卡（`SitterPlans`）、預約頁方案價格是沒有千分位的 `$ 1200`，公開頁是 `NT$ 600`，其餘頁面 `$ 1,200`。迴歸：`e2e/service-plans.spec.ts` 新增方案卡斷言 `$ 1,200`；Journey A 步驟 8 公開頁斷言 `$ 600` / `$ 900`。
 
+`$` 與數字之間是不斷行空白 U+00A0（`MONEY_SEPARATOR`，2026-10-25 fix-batch12 U2）：一般空白在窄欄會斷成「$ / 1,200」（驗收截圖 D1 08/11/12、D2 14 的「總額: $ / 1,200」「應補款 $ / 600」）。E2E 的 `toHaveText('$ 1,200')` 會把 U+00A0 正規化成空白，既有斷言不受影響；要驗分隔字元請比對 code point。迴歸：`ui-layout-contrast.spec.ts` U2（1px 寬容器內仍為 1 行）。
+
 ### 6.5 按鈕對比度（WCAG AA，2026-10）
 - 文字對背景對比度至少 4.5:1（一般文字）。
 - `.btn-primary` 的底色是 `background: var(--color-primary-gradient)`（`background-image`）。要做次要/破壞性按鈕時，**必須用 `background` 簡寫覆蓋**，只寫 `backgroundColor` 蓋不掉漸層。

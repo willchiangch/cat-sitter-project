@@ -276,3 +276,5 @@
 **方案卡價格沒有千分位「$ 1200」（2026-10-24，驗收 N15）**：`SitterPlans` 方案卡與預約頁方案價格直接印 `$ {plan.price}`，其他頁面是 `$ {x.toLocaleString()}`，公開頁又是 `NT$ 600`。新增全站唯一的 `formatMoney`（`src/utils/money.ts`，固定 en-US 千分位）並替換所有金額顯示（SD-FRONTEND-SPEC §6.4.1）。迴歸：`service-plans.spec.ts` 新增方案後卡片斷言 `$ 1,200`（舊版紅）。
 
 **（測試本身的問題，非產品 bug）Scenario 11 / 12 沒設身分，靠 TokenContext 的 dummy UUID 通過（2026-10-25，fix-batch12 J2）**：`ts003_11`「Sitter B 編輯 / 刪除 A 的方案 → 403」與 `ts003_12`「不存在的方案 → 404」只掛了 `with(user(...))`，沒有 `TokenContext.setUserId`，controller 實際以全 0 UUID 執行——11 測到的是「0000 不是 A」而不是「B 不是 A」。J2 移除 dummy 後兩支變 401 現形，補上 `TokenContext.setUserId(sitterB / sitterA)`，斷言不變。
+
+**金額在窄欄斷成「$ / 1,200」（2026-10-25，驗收截圖新問題 3 / fix-batch12 U2）**：`formatMoney` 的 `$` 與數字之間是一般空白，訂單卡「總額」、報價頁「應補款」在窄欄換行成兩行。改用不斷行空白 U+00A0（SD-FRONTEND-SPEC §6.4.1）。迴歸：`ui-layout-contrast.spec.ts` U2（舊版紅：分隔字元為 U+0020）。
