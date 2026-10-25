@@ -538,6 +538,10 @@ class ServicePlanControllerTest {
         ServicePlan p1 = servicePlanRepository.save(ServicePlan.builder()
                 .sitter(sitterA).name("P1").price(500L).isDeleted(false).build());
 
+        // J2：過去這裡沒設身分，靠 TokenContext 的 0000 dummy UUID 「剛好」不是 A 而得到 403，
+        // 實際上測的是匿名者而不是 Sitter B
+        TokenContext.setUserId(sitterB.getId());
+
         // 1. Sitter B 嘗試修改 P1
         ServicePlanDto updateDto = ServicePlanDto.builder()
                 .name("越權修改")
@@ -563,6 +567,8 @@ class ServicePlanControllerTest {
     @DisplayName("Scenario 12: 編輯/刪除不存在的方案編號防禦 (404 PLAN_NOT_FOUND)")
     void ts003_12_should_Return404_When_PlanDoesNotExist() throws Exception {
         UUID nonExistentId = UUID.randomUUID();
+        // J2：過去沒設身分，靠 0000 dummy UUID 執行
+        TokenContext.setUserId(sitterA.getId());
 
         ServicePlanDto updateDto = ServicePlanDto.builder()
                 .name("不存在的方案更新")

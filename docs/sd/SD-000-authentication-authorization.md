@@ -463,7 +463,7 @@ CREATE TABLE registration_otps (
 | POST | /api/auth/register | 送出註冊表單，寄送 Email OTP（不立即建立帳號、不核發 Token） | `PermitAll` |
 | POST | /api/auth/register/verify-otp | 驗證 OTP，通過後正式建立帳號並自動登入（取得雙 Token） | `PermitAll` |
 | POST | /api/auth/register/resend-otp | 重新寄送註冊 OTP（60 秒冷卻） | `PermitAll` |
-| POST | /api/auth/deactivate | 帳號註銷（軟刪除），需重新輸入密碼確認 | `Authenticated`（實際靠 JWT 解出 `TokenContext`，與 `switch-role` 相同模式） |
+| POST | /api/auth/deactivate | 帳號註銷（軟刪除），需重新輸入密碼確認 | `Authenticated`（路徑在 `/api/auth/**` permitAll 之下，實際靠 JWT 解出 `TokenContext`，與 `switch-role`、`logout-all-devices` 相同模式；未帶 token → `TokenContext.getUserId()` 拋例外 → 401） |
 | POST | /api/auth/google | Google 第三方登入（既有 Email 自動綁定；新 Email 需帶 `role` 才建立帳號） | `PermitAll` |
 | POST | /api/auth/logout-all-devices | 登出所有裝置（現況等同登出目前這組 session，見上方已知限制說明） | `Authenticated` |
 | POST | /api/auth/webauthn/register/options | 產生生物辨識裝置註冊選項（回傳格式為 `toCredentialsCreateJson()`，可直接丟給 `navigator.credentials.create()`） | `Authenticated`（經 `TokenContext` 手動把關，同 `/deactivate`） |

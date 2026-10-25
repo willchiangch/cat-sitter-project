@@ -19,6 +19,7 @@
   - **JWT Claims 擴充**：於 `AuthService.createAuthResponse()` 簽發 token 時，在 extra claims 中塞入 `userId` (即 `user.getId().toString()`)。
   - **Filter 截收與執行期綁定**：在 `JwtAuthenticationFilter.doFilterInternal()` 驗證 JWT 並解析 claims 時，從 claims 取出 `userId`，呼叫 `TokenContext.setUserId(UUID.fromString(userId))`。
   - **ThreadLocal 洩漏防禦**：在 `filterChain.doFilter(request, response)` 執行完成後，於 `finally` 區塊強制呼叫 `TokenContext.clear()`，杜絕 ThreadLocal 髒資料污染與潛在記憶體洩漏。
+- **後續（2026-10-25 fix-batch12 J2）**：`TokenContext.getUserId()` 原本在 ThreadLocal 為空時仍回傳 zero-UUID 作為「開發測試 fallback」，已移除——沒有身分一律拋 `AuthenticationCredentialsNotFoundException` → 401；身分可選的匿名端點用 `tryGetUserId()`（見 SD-GLOBAL-SPEC §3.4）。
 - **Known Deviation**：為避免影響範圍過大，JWT `subject` 仍維持使用 `email`，暫不重構為 `accountId`。此偏離已於 `SD-GLOBAL-SPEC` 補強備註。
 
 ### 2. Switch-Role 角色回退與 Refresh Token 角色維持防線 (CRITICAL)
