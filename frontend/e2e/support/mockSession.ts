@@ -187,3 +187,13 @@ export async function serveFixtureImage(page: Page, url: string, fixture: string
     route.fulfill({ status: 200, contentType: 'image/jpeg', path: path.join(FIXTURES, fixture) })
   );
 }
+
+/**
+ * mock 登入回應用的「可解碼、未簽名」JWT（`header.payload.sig`，base64url）。
+ * 前端只解 payload 的 role claim（manualRoleSwitch.ts 的 ROLE_CLAIM_TO_APP_ROLE），不驗簽。
+ * 過去 mock 回 `accessToken: 'fake'`，解不出 role，畫面靠 RoleContext 預設值（保母）而測不到角色有沒有生效（驗收 A1）。
+ */
+export function unsignedJwt(claims: Record<string, unknown>): string {
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  return `${b64({ alg: 'none', typ: 'JWT' })}.${b64(claims)}.e2e-unsigned`;
+}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import { applyLoginRole } from '../../contexts/loginRole';
 import { isWebAuthnSupported, loginWithBiometricCredential } from '../../api/webauthnApi';
 
 declare global {
@@ -10,31 +11,9 @@ declare global {
   }
 }
 
-const GOOGLE_CLIENT_ID = '1020176535925-78mcs53q25ku3s4ob6j0kpvp6tpu32cu.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID =
+  '1020176535925-78mcs53q25ku3s4ob6j0kpvp6tpu32cu.apps.googleusercontent.com';
 const GOOGLE_SCRIPT_ID = 'google-identity-services';
-
-const ROLE_CLAIM_TO_APP_ROLE: Record<string, string> = {
-  OWNER: 'client',
-  SITTER: 'sitter',
-  ADMIN: 'admin'
-};
-
-const decodeJwtRole = (token: string): string | null => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload)?.role || null;
-  } catch (e) {
-    return null;
-  }
-};
 
 // 只允許同源相對路徑（單一 / 開頭、非 //），避免 redirect 參數被用來做開放重導向
 const getSafeRedirectTarget = (): string => {
@@ -42,7 +21,11 @@ const getSafeRedirectTarget = (): string => {
   return redirect && /^\/(?!\/)/.test(redirect) ? redirect : '/demo';
 };
 
-const applyAuthResponseAndRedirect = (data: { accessToken?: string; refreshToken?: string }) => {
+const applyAuthResponseAndRedirect = (data: {
+  accessToken?: string;
+  refreshToken?: string;
+  role?: string;
+}) => {
   if (!data.accessToken) {
     throw new Error('登入失敗，請確認帳號密碼');
   }
@@ -50,11 +33,7 @@ const applyAuthResponseAndRedirect = (data: { accessToken?: string; refreshToken
   localStorage.setItem('refreshToken', data.refreshToken || '');
   localStorage.setItem('authMode', 'manual');
 
-  const roleClaim = decodeJwtRole(data.accessToken);
-  const appRole = roleClaim ? ROLE_CLAIM_TO_APP_ROLE[roleClaim] : null;
-  if (appRole) {
-    localStorage.setItem('userRole', appRole);
-  }
+  applyLoginRole(data);
 
   // 用整頁重新整理讓 RoleContext 重新從 localStorage 初始化，
   // 避免它 mount 時的自動登入 useEffect 用種子帳號蓋掉這次真實登入
@@ -231,8 +210,18 @@ const LoginPage: React.FC = () => {
         </h1>
 
         {googleRoleSelectVisible ? (
-          <form onSubmit={handleGoogleRoleConfirm} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', textAlign: 'center' }} data-testid="google-role-select-banner">
+          <form
+            onSubmit={handleGoogleRoleConfirm}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
+            <div
+              style={{
+                fontSize: '0.875rem',
+                color: 'var(--color-on-surface-variant)',
+                textAlign: 'center'
+              }}
+              data-testid="google-role-select-banner"
+            >
               歡迎 {googleFullName || googleEmail}，首次使用 Google 登入，請選擇身份以建立帳號
             </div>
 
@@ -242,14 +231,20 @@ const LoginPage: React.FC = () => {
                 value={googleRole}
                 onChange={(e) => setGoogleRole(e.target.value as 'OWNER' | 'SITTER')}
                 data-testid="google-role-select-input"
-                style={{ padding: '0.625rem', borderRadius: '6px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.625rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
               >
                 <option value="OWNER">飼主</option>
                 <option value="SITTER">保母</option>
               </select>
             </div>
 
-            {googleError && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{googleError}</div>}
+            {googleError && (
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{googleError}</div>
+            )}
 
             <button
               type="submit"
@@ -348,13 +343,23 @@ const LoginPage: React.FC = () => {
               </div>
             </form>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-on-surface-variant)', fontSize: '0.75rem' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                color: 'var(--color-on-surface-variant)',
+                fontSize: '0.75rem'
+              }}
+            >
               <div style={{ flex: 1, height: '1px', background: 'var(--color-outline-variant)' }} />
               或
               <div style={{ flex: 1, height: '1px', background: 'var(--color-outline-variant)' }} />
             </div>
 
-            {googleError && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{googleError}</div>}
+            {googleError && (
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{googleError}</div>
+            )}
             {/* Google 按鈕是 GSI 注入的 iframe，無法 disabled；送出中改用 pointer-events 擋點擊，
                 handleGoogleCredential 本身也有 loginInFlightRef 擋重入 */}
             <div

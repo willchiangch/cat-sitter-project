@@ -1,6 +1,6 @@
 import axiosClient from '../api/axiosClient';
 
-type AppRole = 'sitter' | 'client' | 'admin';
+export type AppRole = 'sitter' | 'client' | 'admin';
 
 /**
  * 正式登入 (authMode=manual) 的使用者在 /demo 切換角色 (SD-001 §切換角色，Backlog 第 3 批 D3)。
@@ -15,7 +15,7 @@ type AppRole = 'sitter' | 'client' | 'admin';
  */
 export class RoleSwitchError extends Error {}
 
-const ROLE_CLAIM_TO_APP_ROLE: Record<string, AppRole> = {
+export const ROLE_CLAIM_TO_APP_ROLE: Record<string, AppRole> = {
   OWNER: 'client',
   CLIENT: 'client',
   SITTER: 'sitter',

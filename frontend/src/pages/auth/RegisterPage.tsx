@@ -1,29 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
-
-const ROLE_CLAIM_TO_APP_ROLE: Record<string, string> = {
-  OWNER: 'client',
-  SITTER: 'sitter',
-  ADMIN: 'admin'
-};
-
-const decodeJwtRole = (token: string): string | null => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload)?.role || null;
-  } catch (e) {
-    return null;
-  }
-};
+import { applyLoginRole } from '../../contexts/loginRole';
 
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
@@ -83,11 +61,7 @@ const RegisterPage: React.FC = () => {
       localStorage.setItem('refreshToken', data.refreshToken || '');
       localStorage.setItem('authMode', 'manual');
 
-      const roleClaim = decodeJwtRole(data.accessToken);
-      const appRole = roleClaim ? ROLE_CLAIM_TO_APP_ROLE[roleClaim] : null;
-      if (appRole) {
-        localStorage.setItem('userRole', appRole);
-      }
+      applyLoginRole(data);
 
       window.location.href = getSafeRedirectTarget();
     } catch (err: any) {
@@ -145,7 +119,10 @@ const RegisterPage: React.FC = () => {
         </h1>
 
         {step === 'form' ? (
-          <form onSubmit={handleSubmitForm} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <form
+            onSubmit={handleSubmitForm}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>姓名</label>
               <input
@@ -154,7 +131,11 @@ const RegisterPage: React.FC = () => {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 data-testid="register-fullname-input"
-                style={{ padding: '0.625rem', borderRadius: '6px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.625rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
               />
             </div>
 
@@ -166,7 +147,11 @@ const RegisterPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 data-testid="register-email-input"
-                style={{ padding: '0.625rem', borderRadius: '6px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.625rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
               />
             </div>
 
@@ -179,7 +164,11 @@ const RegisterPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 data-testid="register-password-input"
-                style={{ padding: '0.625rem', borderRadius: '6px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.625rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
               />
             </div>
 
@@ -189,7 +178,11 @@ const RegisterPage: React.FC = () => {
                 value={role}
                 onChange={(e) => setRole(e.target.value as 'OWNER' | 'SITTER')}
                 data-testid="register-role-select"
-                style={{ padding: '0.625rem', borderRadius: '6px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.625rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
               >
                 <option value="OWNER">飼主</option>
                 <option value="SITTER">保母</option>
@@ -216,7 +209,9 @@ const RegisterPage: React.FC = () => {
               <span>我已閱讀並同意《服務條款》與《隱私權政策》</span>
             </label>
 
-            {error && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</div>}
+            {error && (
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</div>
+            )}
 
             <button
               type="submit"
@@ -230,14 +225,28 @@ const RegisterPage: React.FC = () => {
 
             <Link
               to={`/login${window.location.search}`}
-              style={{ fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+              style={{
+                fontSize: '0.8rem',
+                textAlign: 'center',
+                color: 'var(--color-on-surface-variant)'
+              }}
             >
               已經有帳號了？返回登入
             </Link>
           </form>
         ) : (
-          <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', textAlign: 'center' }} data-testid="register-otp-sent-banner">
+          <form
+            onSubmit={handleVerifyOtp}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
+            <div
+              style={{
+                fontSize: '0.875rem',
+                color: 'var(--color-on-surface-variant)',
+                textAlign: 'center'
+              }}
+              data-testid="register-otp-sent-banner"
+            >
               驗證碼已寄送至 {email}，請於 10 分鐘內完成驗證
             </div>
 
@@ -262,7 +271,9 @@ const RegisterPage: React.FC = () => {
               />
             </div>
 
-            {error && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</div>}
+            {error && (
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</div>
+            )}
 
             <button
               type="submit"

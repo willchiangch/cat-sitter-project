@@ -35,6 +35,8 @@
   - **Refresh 失敗時只清「還是自己那顆」的 token（2026-10 backlog G2）**：送出 refresh 前記下當下的 `refreshToken`；失敗時若 localStorage 的 `refreshToken` 已不是那顆（別的分頁在這期間重新登入、寫入新 token——SD-000 單一 session 下舊 refresh token 隨即失效，refresh 必然 401），**不清除**，改用 localStorage 現有的 access token 重試原請求並放行 Queue。只有仍是同一顆（或為空）時才清除 `accessToken`/`refreshToken` 並 reject。過去無條件清除，會把別分頁剛拿到的新 token 一起清掉，兩個分頁一起被登出。迴歸：`e2e/axios-refresh-cross-tab.spec.ts`。
   - **session 失效一律導去登入（2026-10-24，驗收 N16）**：遇 401 時 localStorage 沒有 `refreshToken` 就**不送** `/auth/refresh`；refresh 失敗或沒有 refresh token 時清除 token 並 `window.dispatchEvent(new Event('auth:session-expired'))`（`SESSION_EXPIRED_EVENT`），`RequireAuth` 監聽此事件重新判斷 token、導向 `/login?redirect=<目前路徑>`（與未登入直接開受保護頁同一條路；公開頁沒有掛 `RequireAuth`，不會被導走）。`main.tsx` 的 `QueryClient` 預設 `retry` 對 401 不重試，其餘錯誤維持最多 3 次。過去 token 清掉後停在原頁「$ 0 + 載入失敗」，且 React Query 重試再送 3 次 `{ refreshToken: null }`。
 
+- **登入後的角色（`localStorage.userRole`）以回應 `role` 為準（2026-10-25，fix-batch12 J5）**：`/auth/login`、`/auth/google`、`/auth/register/verify-otp`、WebAuthn 登入成功後一律呼叫 `src/contexts/loginRole.ts` 的 `applyLoginRole(data)`：先用回應的 `role`（`OWNER`/`CLIENT`→`client`、`SITTER`→`sitter`、`ADMIN`→`admin`），沒有可辨識的值才退回 JWT `role` claim（`decodeTokenRole`），**兩者都解不出就移除 `userRole`**，不得沿用。過去只看 JWT claim、解不出時不動 `userRole`，而 session 失效時攔截器只清 token、不清 `userRole`，下一位登入者就沿用上一位的角色。迴歸：`e2e/login-role-resolution.spec.ts`（保母登入 → session 失效 → 飼主以不可解碼 token 登入，舊版仍顯示「貓咪保母」）。
+
 ### 2.2 Vite PWA 快取策略限制 (Service Worker)
 - **場景**：PWA Service Worker 預設行為可能過度快取網路請求。
 - **風險**：如果把 `/api/*` 的回應也快取下來，會造成「資料不一致幽靈」。例如：使用者已點擊結案，但重整畫面後因讀取 SW Cache 卻依然顯示 `IN_PROGRESS`。
