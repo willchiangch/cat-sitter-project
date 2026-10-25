@@ -274,6 +274,59 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // 驗收 A5（N17 漏網）：飼主記事本檢視、帳號設定、通知中心的頁面容器過去是 padding '1rem 0' / '1.5rem 0'，
+  // 內容邊界 469–810，其他頁 493–787。改用 PAGE_PADDING
+  test('N17：記事本檢視 / 帳號設定 / 通知中心的內容左右內縮是 48px', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await page.route(
+      (url) => url.pathname === '/api/care-notes/s-1/o-1',
+      (route) =>
+        route.fulfill(
+          json({
+            data: {
+              careNoteId: 'c-1',
+              sitterId: 's-1',
+              ownerId: 'o-1',
+              sections: {
+                SERVICE: [
+                  {
+                    id: 'i-1',
+                    sectionType: 'SERVICE',
+                    title: '餵食',
+                    content: '早晚各一次',
+                    sortOrder: 0
+                  }
+                ]
+              }
+            }
+          })
+        )
+    );
+    await page.route(
+      (url) => url.pathname === '/api/care-media/s-1/o-1',
+      (route) => route.fulfill(json({ data: [] }))
+    );
+    await page.route('**/api/auth/webauthn/credentials', (route) => route.fulfill(json([])));
+
+    await step('飼主記事本檢視頁：內容左右內縮 48px', page, async () => {
+      await page.goto('/care-notes/view/s-1/o-1');
+      await expect(page.getByTestId('client-carenote-section-SERVICE')).toBeVisible();
+      await expectStandardPageInset(page, '記事本檢視頁');
+    });
+
+    await step('帳號設定頁：內容左右內縮 48px', page, async () => {
+      await page.goto('/account-settings');
+      await expect(page.getByTestId('account-settings-deactivate-btn')).toBeVisible();
+      await expectStandardPageInset(page, '帳號設定頁');
+    });
+
+    await step('通知中心：內容左右內縮 48px', page, async () => {
+      await page.goto('/notifications');
+      await expect(page.getByRole('heading', { name: '通知中心' })).toBeVisible();
+      await expectStandardPageInset(page, '通知中心');
+    });
+  });
+
   test('N5：日誌回報頁「上傳」按鈕留在媒體卡片內，狀態徽章不被擠成直排', async ({ page }) => {
     await mockDemoSession(page, 'sitter');
     await page.route('**/api/visits/v-n5/report', (route) =>

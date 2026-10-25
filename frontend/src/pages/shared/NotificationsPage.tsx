@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PAGE_PADDING } from '../../components/layout/pageLayout';
 import { useRole } from '../../contexts/RoleContext';
 import {
   useNotificationsQuery,
@@ -68,7 +69,7 @@ export const NotificationsPage: React.FC = () => {
   const hasUnread = data?.content.some((n) => !n.isRead);
 
   return (
-    <div style={{ padding: '1.5rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ padding: PAGE_PADDING, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* 標題區 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>

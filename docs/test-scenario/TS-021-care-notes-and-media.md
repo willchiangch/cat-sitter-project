@@ -294,3 +294,5 @@
 **照護記事本管理頁左右留白比其他頁窄（2026-10-24，驗收 N17）**：`CareNoteManager` 頁面容器是 `padding: '1rem 0'`，只靠 `<main>` 的 1.5rem，內容左右各比其他頁寬 24px（469–810 vs 493–787），換頁時邊界跳動。改用共用 `PAGE_PADDING`（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` N4 加 `expectStandardPageInset`（舊版紅）。
 
 **保母可以對任意飼主建立記事本、上傳媒體（2026-10-25，第 11 批另外發現 #2 / fix-batch12 J1，安全）**：`PUT /api/care-notes/{sitterId}/{ownerId}`、`POST /api/care-media/{sitterId}/{ownerId}`、套用模板只檢查 `sitterId == Token.userId`，`ownerId` 任填都能寫入，被填的飼主讀取時就會看到陌生保母的內容（騷擾 / 釣魚載體）。產品決定以「雙方有過任何狀態的訂單」作為配對關係前提，讀取同規則。新增 `CareRelationshipGuard`（Controller 層，先於 Idempotency 與 GCS），`OrderRepository.existsOrderBetween` 排除軟刪除。迴歸：`CareRelationshipSecurityTest`（真 JWT + 真 SecurityConfig，7 cases，Scenario 8d）；既有 `CareNoteControllerTest` / `CareMediaControllerTest` 的合法讀寫案例補上雙方訂單前置資料。
+
+**飼主記事本檢視頁左右留白比其他頁窄（2026-10-25，驗收 A5 / N17 漏網）**：`CareNoteView` 頁面容器 `padding: '1rem 0'`，內容邊界 469–810（其他頁 493–787）。改用 `PAGE_PADDING`。迴歸：`ui-layout-contrast.spec.ts`「N17：記事本檢視 / 帳號設定 / 通知中心」（舊版紅）。

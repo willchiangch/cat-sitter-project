@@ -143,3 +143,5 @@
 **通知連結寫成不存在的路由（2026-10，Backlog 第 3 批 D1 / 第 2 批另外發現 #2）**：`NotificationListener` 的付款確認、付款退回、照護日誌通知 `linkUrl` 都是 `/client/orders`，影像到期提醒是 `/visits/report?orderId=`，前端 `routes.tsx` 根本沒有這兩條路徑（飼主端是 `/owner/orders`）。前端點擊處理只認 `/sitter/orders`、`/client/orders`、`/sitter/kyc` 三個寫死字串，`/client/orders` 被硬轉成 `/owner/orders` 才看起來正常；影像到期提醒、保母推薦（`/booking/{id}`）點了完全沒反應。修法：後端改寫真實路由，飼主訂單相關一律導 `/owner/orders/{orderId}`（`VisitNotificationEvent` 補 `orderId`）；前端改成 `resolveNotificationLink()` 原樣導覽，舊通知於前端轉換、拒絕非同源路徑。迴歸見情境六。
 
 **mock E2E 落地截圖是錯誤畫面（2026-10-24，驗收 R1 / backlog 第 6 批，測試缺陷非產品 bug）**：`notification-links.spec.ts` 自己寫一份 session mock，沒有攔訂單詳情與 visits，點通知後詳情頁帶假 token 打到後端 401 → refresh 401，截圖是紅字「Refresh token 找不到或無效」，斷言只看 URL 所以照樣綠。改用 `mockDemoSession` + `mockOwnerOrderDetail` / `mockOwnerOrderList` + 推薦預約頁的公開檔案 / 方案 / 問卷 / 收藏 / 寵物 mock；每個案例導頁後先斷言落地頁業務內容再截圖，`test.afterEach` 斷言沒有漏 mock（SD-FRONTEND-SPEC §4.1）。
+
+**通知中心左右留白比其他頁窄（2026-10-25，驗收 A5 / N17 漏網）**：`NotificationsPage` 頁面容器 `padding: '1.5rem 0'`，內容左右各比其他頁寬 24px。改用 `PAGE_PADDING`。迴歸：`ui-layout-contrast.spec.ts`「N17：記事本檢視 / 帳號設定 / 通知中心」（舊版紅）。

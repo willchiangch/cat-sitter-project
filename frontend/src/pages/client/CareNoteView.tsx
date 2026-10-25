@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useCareNoteQuery } from '../../hooks/useCareNote';
 import { useCareMediaQuery } from '../../hooks/useCareMedia';
 import LightBox from '../../components/ui/LightBox';
+import { PAGE_PADDING } from '../../components/layout/pageLayout';
 import type { CareMedia } from '../../api/careApi';
 
 interface CareNoteViewProps {
@@ -39,7 +40,7 @@ const CareNoteView: React.FC<CareNoteViewProps> = ({ sitterId, ownerId }) => {
     careNote?.sections && Object.values(careNote.sections).some((secItems) => secItems.length > 0);
 
   return (
-    <div style={{ padding: '1rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ padding: PAGE_PADDING, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Header */}
       <div>
         <h1
