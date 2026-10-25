@@ -20,13 +20,16 @@ import java.util.UUID;
 /**
  * 本機 / 非正式環境專用：保母自助切換訂閱等級（開發與 demo 用）。
  *
- * <p>正式站（SPRING_PROFILES_ACTIVE=prod）不註冊這個 bean，端點不存在（404）。
+ * <p>只在 local profile 註冊（fix-batch12 J4 白名單）：正式站（SPRING_PROFILES_ACTIVE=prod）、
+ * 以及任何其他 profile（staging、uat、拼錯的值…）都不註冊這個 bean，端點不存在（404）。
+ * 過去是黑名單 {@code @Profile("!prod")}，只要部署時 profile 不是剛好叫 prod 就會開出來。
+ * 注意：application.yml 的 {@code spring.profiles.default: local} 仍會在「完全沒設 profile」時啟用 local。
  * 過去這支端點掛在 GatekeeperController，任何已登入使用者都能把自己升到 PRO / ULTIMATE，
  * 繞過 PlanGatingAspect 的付費門檻。正式站開通一律走 {@link AdminSubscriptionController}
  * （hasRole ADMIN、寫 ADMIN_SUBSCRIPTION_SET 審計），線上訂閱付款待 SD-015。
  */
 @RestController
-@Profile("!prod")
+@Profile("local")
 @RequestMapping("/api/sitter/gatekeeper")
 @RequiredArgsConstructor
 public class GatekeeperDevSubscriptionController {

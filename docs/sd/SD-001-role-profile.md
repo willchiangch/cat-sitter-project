@@ -309,9 +309,9 @@ ALTER TABLE refresh_tokens ADD COLUMN active_role VARCHAR(50);
 |--------|------|------|-----|-----|
 | GET | `/api/sitter/gatekeeper/subscription` | 保母查自己的 `planTier` / `expiredAt`（無資料列視為 FREE） | Sitter | 全部 |
 | POST | `/api/admin/subscriptions/{sitterId}` | 管理員開通 / 調整等級與到期日，寫 `ADMIN_SUBSCRIPTION_SET` 審計（`AdminSubscriptionController`，class 層 `@PreAuthorize("hasRole('ADMIN')")`） | Admin | 全部 |
-| POST | `/api/sitter/gatekeeper/subscription/mock` | 開發用：保母自助切換等級（`GatekeeperDevSubscriptionController`，`@Profile("!prod")`） | 已登入 | **僅非正式環境**；`SPRING_PROFILES_ACTIVE=prod`（deploy.yml）不註冊 bean，回 404 |
+| POST | `/api/sitter/gatekeeper/subscription/mock` | 開發用：保母自助切換等級（`GatekeeperDevSubscriptionController`，`@Profile("local")` 白名單） | 已登入 | **僅 local profile**；正式站（deploy.yml `SPRING_PROFILES_ACTIVE=prod`）與任何其他 profile 都不註冊 bean，回 404。2026-10-25 fix-batch12 J4 由黑名單 `@Profile("!prod")` 改為白名單：避免部署時 profile 設成 prod 以外的值（staging / 拼錯）就把端點開出來。注意 `application.yml` 的 `spring.profiles.default: local` 在「完全沒設 profile」時仍會啟用 local |
 
-過去 `subscription/mock` 寫在 `GatekeeperController` 裡、沒有 profile 也沒有角色限制，正式站任何已登入使用者都能把自己升到 PRO / ULTIMATE。現在正式站開通只走管理員端點；保母端 `GatekeeperSettings` 不再有「模擬升級 / 降級」按鈕，鎖定畫面顯示「請聯繫平台管理員開通」（`data-testid="gatekeeper-contact-admin"`）。線上訂閱付款待 SD-015。迴歸：`GatekeeperSubscriptionProdProfileTest`（真 prod profile + 真 JWT：bean 不存在、保母打 mock 404、SITTER / OWNER 打管理員端點 403、匿名 401、ADMIN 200）、`GatekeeperDevSubscriptionLocalProfileTest`（local 仍可用）。
+過去 `subscription/mock` 寫在 `GatekeeperController` 裡、沒有 profile 也沒有角色限制，正式站任何已登入使用者都能把自己升到 PRO / ULTIMATE。現在正式站開通只走管理員端點；保母端 `GatekeeperSettings` 不再有「模擬升級 / 降級」按鈕，鎖定畫面顯示「請聯繫平台管理員開通」（`data-testid="gatekeeper-contact-admin"`）。線上訂閱付款待 SD-015。迴歸：`GatekeeperSubscriptionProdProfileTest`（真 prod profile + 真 JWT：bean 不存在、保母打 mock 404、SITTER / OWNER 打管理員端點 403、匿名 401、ADMIN 200）、`GatekeeperDevSubscriptionLocalProfileTest`（local 仍可用）、`GatekeeperDevSubscriptionOtherProfileTest`（staging profile：bean 不存在、404，J4）；正式站 E2E 證據：TS-JOURNEY-05 測試 1 步驟 1.5。
 
 ---
 

@@ -61,6 +61,26 @@ test.describe('Journey E: 信任/門禁邊界 (TS-JOURNEY-05)', () => {
       return statusBody.data;
     });
 
+    // fix-batch12 J4（驗收 A7）：開發用自助升級端點只在 local profile 註冊（@Profile("local")），
+    // 正式站必須不存在；過去只有 JUnit（GatekeeperSubscriptionProdProfileTest）證明，正式站沒有證據
+    await apiStep(
+      '保母打開發用自助升級端點 /subscription/mock，正式站應回 404 且訂閱仍為 FREE',
+      async () => {
+        const mockRes = await request.post('/api/sitter/gatekeeper/subscription/mock', {
+          headers: apiAuthed(sitter),
+          data: { planTier: 'ULTIMATE' }
+        });
+        expect(mockRes.status()).toBe(404);
+        const subRes = await request.get('/api/sitter/gatekeeper/subscription', {
+          headers: apiAuthed(sitter)
+        });
+        expect(subRes.ok()).toBeTruthy();
+        const subscription = await subRes.json();
+        expect(subscription.planTier).toBe('FREE');
+        return { mockStatus: mockRes.status(), subscription };
+      }
+    );
+
     const anonContext = await browser.newContext();
     const anonPage = await anonContext.newPage();
     const anonLogins = trackLoginRequests(anonPage);

@@ -45,7 +45,7 @@
 
 ### 主流程
 
-> **現行實作（MVP，2026-10，fix-batch10 H1）**：線上訂閱付款尚未上線（待 SD-015），以下「A. 方案訂購與升級流程」為目標設計。**正式站只有平台管理員能開通 / 調整保母的訂閱等級與到期日**（PRD-020 管理後台，`POST /api/admin/subscriptions/{sitterId}`，限 `ADMIN` 角色、寫入 `ADMIN_SUBSCRIPTION_SET` 審計）。保母端沒有任何自助升級入口，功能鎖定畫面一律提示「請聯繫平台管理員開通」。開發用的自助切換端點 `POST /api/sitter/gatekeeper/subscription/mock` 只在非正式環境（`SPRING_PROFILES_ACTIVE` 不含 `prod`）註冊，正式站不存在（404）——過去它在正式站對任何已登入使用者開放，等於可以自行升到 PRO / ULTIMATE 繞過付費門檻。
+> **現行實作（MVP，2026-10，fix-batch10 H1）**：線上訂閱付款尚未上線（待 SD-015），以下「A. 方案訂購與升級流程」為目標設計。**正式站只有平台管理員能開通 / 調整保母的訂閱等級與到期日**（PRD-020 管理後台，`POST /api/admin/subscriptions/{sitterId}`，限 `ADMIN` 角色、寫入 `ADMIN_SUBSCRIPTION_SET` 審計）。保母端沒有任何自助升級入口，功能鎖定畫面一律提示「請聯繫平台管理員開通」。開發用的自助切換端點 `POST /api/sitter/gatekeeper/subscription/mock` 只在本機開發環境（`local` profile，2026-10-25 起為白名單）註冊，正式站不存在（404）——過去它在正式站對任何已登入使用者開放，等於可以自行升到 PRO / ULTIMATE 繞過付費門檻。
 
 **A. 方案訂購與升級流程**
 1. **合約條款同意**：保母首次訂購/升級付費方案前，系統彈出「付費方案服務條款」。保母需勾選同意後方可繼續。系統記錄 `terms_agreed: true`，後續訂購無需重複同意。

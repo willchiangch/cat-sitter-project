@@ -25,6 +25,7 @@
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 1 | API：建立保母帳號、切換角色、送出 KYC，**不呼叫 admin 審核** | Profile 停在 `kycStatus=PENDING_REVIEW` | 以保母 token 呼叫 `GET /api/sitter/kyc/status` 斷言 `data.kycStatus=PENDING_REVIEW`（獨立 apiStep 留證據）。不釘這個前提的話，Profile 實際停在 `UNVERIFIED` 時步驟 2 照樣 gated、照樣綠燈 |
+| 1.5 | API：保母帶自己的 token 打開發用自助升級端點 `POST /api/sitter/gatekeeper/subscription/mock {planTier: ULTIMATE}`（fix-batch12 J4 / 驗收 A7） | 正式站不存在這支端點 | 斷言 404；再 `GET /api/sitter/gatekeeper/subscription` 斷言 `planTier=FREE`（apiStep 回傳 `{mockStatus, subscription}`）。端點是 `@Profile("local")` 白名單，過去只有 JUnit 證明正式站 404 |
 | 2 | UI：全新未登入瀏覽器 context 打開 `/sitter/{sitterId}/profile` | 顯示模糊化內容，看不到真實姓名/方案/預約按鈕 | 匿名頁面 0 次 `POST /api/auth/login`、公開頁 API 不帶 `Authorization`（`expectStillAnonymous`，C1：過去會在背景以 `sitter@test.com` 登入）；以同一個匿名 context 的 request（不帶 token）呼叫 `GET /api/sitter/profile/{sitterId}`，斷言 `gated=true`、`displayName="保母休息中"`（apiStep 留證據） |
 
 ### 測試 2：已停權保母 + 在途訂單邊界

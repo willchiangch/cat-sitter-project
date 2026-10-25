@@ -90,9 +90,13 @@
 
 **保母可以自己把訂閱升到任何等級（2026-10-25，fix-batch10 H1 / 第 9 批另外發現 #1，安全）**：`GatekeeperController` 的 `POST /api/sitter/gatekeeper/subscription/mock` 沒有 profile、沒有角色限制，正式站任何已登入使用者帶自己的 token 就能把自己設成 PRO / ULTIMATE，繞過 `PlanGatingAspect` 的付費門檻（議價調整、檔期、白名單）；前端門禁頁的「模擬升級專業版 / 頂級版」「模擬降級 Free」按鈕就是打這支。修法：端點移到 `GatekeeperDevSubscriptionController` 並加 `@Profile("!prod")`，正式站（deploy.yml `SPRING_PROFILES_ACTIVE=prod`）不註冊、回 404；正式站開通只走 `POST /api/admin/subscriptions/{sitterId}`（`hasRole('ADMIN')`）；前端移除所有模擬按鈕，鎖定畫面改顯示「請聯繫平台管理員開通」。本 spec 原本靠點「模擬升級」解鎖，改成修改 `/subscription` 的 mock 回應後重新進頁（等同管理員開通），且任何對 `/subscription/mock` 的呼叫都會落到 `mockDemoSession` 的 catch-all 而紅。
 
+**開發用自助升級端點是黑名單 `@Profile("!prod")`（2026-10-25，驗收 A7 / fix-batch12 J4，安全，推測風險）**：只要部署時 profile 不是剛好叫 `prod`（staging、uat、拼錯）端點就會註冊，任何保母都能自升 ULTIMATE。改白名單 `@Profile("local")`；`GatekeeperDevSubscriptionOtherProfileTest` 以 staging profile 起 context 證明 bean 不存在、404（舊寫法下 bean 會註冊、200）。另在 TS-JOURNEY-05 加正式站 404 的 E2E 證據。殘留：`application.yml` 的 `spring.profiles.default: local` 在完全沒設 profile 時仍會啟用 local（見 fix-batch12 另外發現）。
+
 | 驗證 | 預期 | 自動化 |
 | :--- | :--- | :--- |
 | prod profile 起 context | `GatekeeperDevSubscriptionController` 不存在；SITTER 帶真 JWT 打 `/subscription/mock` → 404、`subscriptions` 無資料列 | `GatekeeperSubscriptionProdProfileTest` |
 | SITTER / OWNER 打 `POST /api/admin/subscriptions/{id}` | 403，訂閱不變；匿名 401；ADMIN 200 寫入 PRO | 同上 |
 | local profile | `/subscription/mock` 200（本機開發 / demo 仍可用） | `GatekeeperDevSubscriptionLocalProfileTest` |
+| 非 local、非 prod profile（staging） | bean 不存在；SITTER 打 `/subscription/mock` → 404、訂閱不變（J4 白名單） | `GatekeeperDevSubscriptionOtherProfileTest` |
+| 正式站 E2E | 拋棄式保母打 `/subscription/mock` → 404、`GET /subscription` 仍 FREE | TS-JOURNEY-05 測試 1 步驟 1.5 |
 | FREE 進門禁頁 | 「目前方案：FREE。如需開通專業版 / 頂級版，請聯繫平台管理員開通。」；無任何名稱含「模擬 / 升級」的按鈕；PRO 畫面也無「模擬 / 升級 / 降級」按鈕 | `e2e/gatekeeper-flow.spec.ts` TS-001-02 |

@@ -155,7 +155,7 @@ stateDiagram-v2
   - 對應 PRD：`PRD-015-payment-integration.md`
   - 任務：串接第三方金流、Webhooks 簽章驗證、代收代付撥款紀錄（T+3）與高精度整數運算。
 - [ ] **SD-012: SaaS 訂閱管理與 UI** (🔴 **Pending SD-015**)
-  - 現行（2026-10，fix-batch10 H1）：正式站只有管理員能開通（上方 Internal Admin Subscription API）；保母自助切換端點 `/api/sitter/gatekeeper/subscription/mock` 改為 `@Profile("!prod")`，正式站 404；保母端移除「模擬升級」按鈕。細節見 SD-001「訂閱等級查詢與開通」。
+  - 現行（2026-10，fix-batch10 H1）：正式站只有管理員能開通（上方 Internal Admin Subscription API）；保母自助切換端點 `/api/sitter/gatekeeper/subscription/mock` 改為 `@Profile("!prod")`，正式站 404（2026-10-25 fix-batch12 J4 再收斂為白名單 `@Profile("local")`）；保母端移除「模擬升級」按鈕。細節見 SD-001「訂閱等級查詢與開通」。
 - [x] **SD-013: 工作日誌媒體生命週期管理** (✅ **Implemented & COMPLIANT**)
   - 對應 PRD：`PRD-013-media-retention.md`
   - 任務：設計 GCS 批次物理刪除排程、SaaS 方案升級追溯展延演算法、以及前端逾期佔位盒。
