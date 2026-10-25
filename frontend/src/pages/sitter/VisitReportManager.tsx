@@ -8,6 +8,7 @@ import {
   useStartVisitMutation,
   useEndVisitMutation
 } from '../../hooks/useVisitReport';
+import { SUCCESS_CONTAINER_COLOR, SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
 
 interface VisitReportManagerProps {
   visitId: string;
@@ -81,32 +82,36 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
 
     if (remainingDays <= 3 && remainingDays > 0) {
       return (
-        <div style={{
-          padding: '1rem',
-          borderRadius: '12px',
-          backgroundColor: '#fef3c7',
-          color: '#d97706',
-          marginBottom: '1.5rem',
-          fontSize: '0.875rem',
-          fontWeight: '500'
-        }}>
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '12px',
+            backgroundColor: '#fef3c7',
+            color: '#d97706',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
           ⚠️ 此報告的照片將於 {remainingDays} 天後自動移除，請儘快備份。
         </div>
       );
     }
-    
+
     if (report.isPurged) {
       return (
-        <div style={{
-          padding: '1rem',
-          borderRadius: '12px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          color: 'var(--color-on-surface-variant)',
-          marginBottom: '1.5rem',
-          fontSize: '0.875rem',
-          fontWeight: '500',
-          border: '1px solid rgba(255, 255, 255, 0.05)'
-        }}>
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            color: 'var(--color-on-surface-variant)',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            border: '1px solid rgba(255, 255, 255, 0.05)'
+          }}
+        >
           🐾 此報告的部分照片已逾期移除。
         </div>
       );
@@ -428,11 +433,12 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
       )}
       {successMsg && (
         <div
+          data-testid="visit-report-success-msg"
           style={{
             padding: '1rem',
             borderRadius: '12px',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            color: '#10b981',
+            backgroundColor: SUCCESS_CONTAINER_COLOR,
+            color: SUCCESS_TEXT_COLOR,
             marginBottom: '1.5rem',
             fontSize: '0.875rem',
             fontWeight: '500'

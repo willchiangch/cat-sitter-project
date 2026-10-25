@@ -5,6 +5,7 @@ import type { KycStatusDto } from '../../api/kycApi';
 import { useQueryClient } from '@tanstack/react-query';
 import { KYC_STATUS_QUERY_KEY } from '../../hooks/useKyc';
 import { profileKycStatusLabel } from '../../components/ui/statusLabels';
+import { STATUS_TONE_STYLE, SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
 
 const SitterKycSubmit: React.FC = () => {
   const queryClient = useQueryClient();
@@ -443,7 +444,7 @@ const SitterKycSubmit: React.FC = () => {
             )}
 
             {successMsg && (
-              <div style={{ color: '#10b981', fontSize: '0.9rem', fontWeight: '500' }}>
+              <div style={{ color: SUCCESS_TEXT_COLOR, fontSize: '0.9rem', fontWeight: '500' }}>
                 ✅ {successMsg}
               </div>
             )}
@@ -474,18 +475,15 @@ const SitterKycSubmit: React.FC = () => {
 const getStatusBadgeStyle = (status: string) => {
   switch (status) {
     case 'UNVERIFIED':
-      return {
-        backgroundColor: 'var(--color-surface-high)',
-        color: 'var(--color-on-surface-variant)'
-      };
+      return STATUS_TONE_STYLE.neutral;
     case 'PENDING_REVIEW':
-      return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' };
+      return STATUS_TONE_STYLE.info;
     case 'VERIFIED':
-      return { backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399' };
+      return STATUS_TONE_STYLE.success;
     case 'REJECTED':
-      return { backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' };
+      return STATUS_TONE_STYLE.warning;
     case 'SUSPENDED':
-      return { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171' };
+      return STATUS_TONE_STYLE.danger;
     default:
       return {};
   }

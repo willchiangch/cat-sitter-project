@@ -205,7 +205,11 @@ const SitterOrders: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {isLoading ? (
           <div
-            style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}
+            style={{
+              textAlign: 'center',
+              padding: '40px 0',
+              color: 'var(--color-on-surface-variant)'
+            }}
             data-testid="sitter-orders-loading"
           >
             載入中...
@@ -553,7 +557,11 @@ const SitterOrders: React.FC = () => {
           ))
         ) : (
           <div
-            style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}
+            style={{
+              textAlign: 'center',
+              padding: '40px 0',
+              color: 'var(--color-on-surface-variant)'
+            }}
             data-testid="sitter-orders-empty"
           >
             目前沒有相關訂單

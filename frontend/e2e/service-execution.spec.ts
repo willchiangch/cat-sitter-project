@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
 import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
 import { step, trackDialogs, expectDialog } from './support/evidence';
+import { contrastOf } from './support/layout';
 
 test.describe('Service Execution & Check-in Flow E2E', () => {
   // N9：漏 mock 的 /api 請求會被 catch-all 攔下回 501，這裡讓它變紅而不是靜默打到正式站
@@ -173,6 +174,12 @@ test.describe('Service Execution & Check-in Flow E2E', () => {
       // 3. 點擊開始服務 (Check-in)
       await page.getByTestId('sitter-report-start-visit-btn').click();
       await expect(page.locator('text=已成功 Check-in，照護服務開始！')).toBeVisible();
+      // fix-batch12 U7：成功訊息過去 #10b981 配 rgba 綠底，約 2.3:1
+      const success = await contrastOf(page.getByTestId('visit-report-success-msg'));
+      expect(
+        success.ratio,
+        `成功訊息 ${success.color} on ${success.backgroundColor}`
+      ).toBeGreaterThanOrEqual(4.5);
       // 4. 驗證 IN_PROGRESS 狀態之 UI
       await expect(page.locator('text=執行中')).toBeVisible();
       await expect(page.getByTestId('sitter-report-content-input')).toBeVisible();

@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card';
 import { getPendingKycList, suspendSitter, unsuspendSitter } from '../../api/kycApi';
 import type { PendingKycRecordDto } from '../../api/kycApi';
 import { useRole } from '../../contexts/RoleContext';
+import { SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
 
 const AdminKycList: React.FC = () => {
   const { currentRole } = useRole();
@@ -368,7 +369,7 @@ const AdminKycList: React.FC = () => {
                   style={{
                     fontSize: '0.85rem',
                     fontWeight: '500',
-                    color: controlMsg.type === 'success' ? '#10b981' : '#ef4444'
+                    color: controlMsg.type === 'success' ? SUCCESS_TEXT_COLOR : '#ef4444'
                   }}
                 >
                   {controlMsg.text}

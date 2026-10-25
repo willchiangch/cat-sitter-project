@@ -88,7 +88,15 @@ const OwnerOrders: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 0',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
+            載入中...
+          </div>
         ) : filteredOrders.length > 0 ? (
           filteredOrders.map((order) => (
             <Card key={order.id} onClick={() => navigate(`/owner/orders/${order.id}`)}>
@@ -175,7 +183,14 @@ const OwnerOrders: React.FC = () => {
             </Card>
           ))
         ) : (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 0',
+              color: 'var(--color-on-surface-variant)'
+            }}
+            data-testid="owner-orders-empty"
+          >
             目前沒有相關訂單
           </div>
         )}

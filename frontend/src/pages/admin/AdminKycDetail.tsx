@@ -6,6 +6,7 @@ import type { KycRecordDetailDto } from '../../api/kycApi';
 import { useRole } from '../../contexts/RoleContext';
 import { kycRecordStatusLabel } from '../../components/ui/statusLabels';
 import { PAGE_PADDING } from '../../components/layout/pageLayout';
+import { STATUS_TONE_STYLE, SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
 
 interface AdminKycDetailProps {
   kycRecordId: string;
@@ -396,7 +397,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
           {successMsg && (
             <div
               style={{
-                color: '#10b981',
+                color: SUCCESS_TEXT_COLOR,
                 fontSize: '0.9rem',
                 fontWeight: '500',
                 marginBottom: '1rem'
@@ -522,16 +523,13 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
 const getKycBadgeStyle = (status: string) => {
   switch (status) {
     case 'PENDING':
-      return { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' };
+      return STATUS_TONE_STYLE.info;
     case 'APPROVED':
-      return { backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399' };
+      return STATUS_TONE_STYLE.success;
     case 'REJECTED':
-      return { backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' };
+      return STATUS_TONE_STYLE.warning;
     default:
-      return {
-        backgroundColor: 'var(--color-surface-high)',
-        color: 'var(--color-on-surface-variant)'
-      };
+      return STATUS_TONE_STYLE.neutral;
   }
 };
 

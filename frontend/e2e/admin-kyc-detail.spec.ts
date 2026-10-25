@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { step } from './support/evidence';
 import { assertNoUnmockedApi, mockDemoSession, serveFixtureImage } from './support/mockSession';
-import { expectStandardPageInset } from './support/layout';
+import { contrastOf, expectStandardPageInset } from './support/layout';
 
 /**
  * Backlog 第 3 批 U1：AdminKycDetail 在 390px 的 AppShell 裡溢出，證件照/自拍被裁掉，管理員看不到要審的照片。
@@ -99,12 +99,23 @@ test.describe('管理端 KYC 審核詳情 (U1/U2)', () => {
     await step('開詳情頁：徽章為待審核', page, async () => {
       await page.goto(`/admin/kyc/${recordId}`);
       await expect(page.getByTestId('admin-kyc-detail-status-badge')).toHaveText(/^待審核/);
+      // fix-batch12 U7：過去淺藍字配淺藍底（#60a5fa，約 2:1）
+      const c = await contrastOf(page.getByTestId('admin-kyc-detail-status-badge'));
+      expect(c.ratio, `待審核徽章 ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
     });
 
     await step('點批准：成功訊息出現時徽章已是已通過、仍在詳情頁', page, async () => {
       await page.getByTestId('admin-kyc-detail-approve-btn').click();
       await expect(page.getByText('實名認證審核已通過！')).toBeVisible();
       await expect(page.getByTestId('admin-kyc-detail-status-badge')).toHaveText(/^已通過/);
+      // fix-batch12 U7：成功訊息過去 #10b981 白底約 2.5:1、已通過徽章 #34d399 約 1.6:1
+      for (const [label, locator] of [
+        ['成功訊息', page.getByText('實名認證審核已通過！')],
+        ['已通過徽章', page.getByTestId('admin-kyc-detail-status-badge')]
+      ] as const) {
+        const c = await contrastOf(locator);
+        expect(c.ratio, `${label} ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+      }
       await expect(page).toHaveURL(new RegExp(`/admin/kyc/${recordId}$`));
       await expect(page.getByTestId('admin-kyc-detail-approve-btn')).toBeDisabled();
       // N2：停用要看得出來（過去 .btn-primary 沒有 :disabled 樣式，外觀與可按時完全相同）

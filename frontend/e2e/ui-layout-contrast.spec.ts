@@ -4,7 +4,8 @@ import {
   assertNoUnmockedApi,
   mockDemoSession,
   mockOwnerOrderDetail,
-  mockOwnerOrderList
+  mockOwnerOrderList,
+  serveFixtureImage
 } from './support/mockSession';
 import {
   contrastOf,
@@ -368,6 +369,64 @@ test.describe('G5 版面溢出與對比度', () => {
       });
       expect(probe.codePoints[1], '「$」後面是 U+00A0').toBe(0xa0);
       expect(probe.lines, '1px 寬時仍不換行').toBe(1);
+    });
+  });
+
+  // fix-batch12 U7（驗收截圖新問題 8）：KYC 徽章沿用深色主題的 rgba 底 + 淺色字，淺色主題下對比約 1.4~2.1
+  test('U7：保母 KYC 頁各狀態徽章對比度 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    let kycStatus = 'PENDING_REVIEW';
+    await page.route('**/api/sitter/kyc/status', (route) =>
+      route.fulfill(json({ data: { kycStatus, rejectReason: '', submittedAt: '' } }))
+    );
+    // 已送件的狀態會載入證件照預覽
+    const mediaUrl = 'https://storage.example.test/kyc/u7-media.jpg?X-Goog-Signature=mock';
+    await page.route('**/api/sitter/kyc/media/*', (route) =>
+      route.fulfill(json({ data: { signedUrl: mediaUrl } }))
+    );
+    await serveFixtureImage(page, mediaUrl, 'kyc-selfie.jpg');
+    const cases: Array<[string, string]> = [
+      ['PENDING_REVIEW', '審核中'],
+      ['VERIFIED', '已認證'],
+      ['REJECTED', '被駁回'],
+      ['SUSPENDED', '已停權']
+    ];
+    for (const [status, label] of cases) {
+      kycStatus = status;
+      await step(`KYC 徽章「${label}」對比度 ≥ 4.5:1`, page, async () => {
+        await page.goto('/sitter/kyc');
+        const badge = page.getByTestId('sitter-kyc-status-badge');
+        await expect(badge).toHaveText(label);
+        const c = await contrastOf(badge);
+        expect(c.backgroundImage).toBe('none');
+        expect(c.ratio, `${label} ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  });
+
+  test('U7：訂單列表空狀態「目前沒有相關訂單」對比度 ≥ 4.5:1（保母 / 飼主）', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/orders/sitter', (route) => route.fulfill(json([])));
+
+    await step('保母訂單列表空狀態', page, async () => {
+      await page.goto('/sitter/orders');
+      const empty = page.getByTestId('sitter-orders-empty');
+      await expect(empty).toHaveText('目前沒有相關訂單');
+      const c = await contrastOf(empty);
+      expect(c.ratio, `${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  test('U7：飼主訂單列表空狀態「目前沒有相關訂單」對比度 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await mockOwnerOrderList(page, []);
+
+    await step('飼主訂單列表空狀態', page, async () => {
+      await page.goto('/owner/orders');
+      const empty = page.getByTestId('owner-orders-empty');
+      await expect(empty).toHaveText('目前沒有相關訂單');
+      const c = await contrastOf(empty);
+      expect(c.ratio, `${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
     });
   });
 
