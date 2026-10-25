@@ -57,6 +57,12 @@
 * **Then**: (1) 201，訂單 `owner_id` 是飼主 B，飼主 A 名下沒有任何訂單（body 的 `ownerId` 被忽略）；(2) 403，沒有建單（黑名單以 token 身分判斷，不能冒用別的飼主繞過）；(3) 403 / 401，沒有建單；(4) 201，訂單屬於飼主 A。前端送出的 body 只有 `answers` / `expectedTotalAmount` / `items` / `sitterId`。
 * **自動化對應**: `OrderIdentityFromTokenSecurityTest.booking_*`；前端 `public-booking-questionnaire.spec.ts` 主流程「預約 body 不帶 ownerId」。
 
+## Scenario 8: 預約的 petIds 必須全屬 token 飼主（fix-batch12 J3，安全 / IDOR 預防）
+* **Given**: 保母 A 已認證且開放預約；飼主 A 有兩隻毛孩、飼主 B 有一隻；另有飼主 A 已刪除的毛孩。請求帶真 JWT 走完整 filter chain。
+* **When**: 飼主 A 送單，(1) `petIds` = [A 的毛孩, B 的毛孩]；(2) `petIds` = [A 已刪除的毛孩]、或亂數 UUID；(3) `petIds` = [A 的兩隻毛孩]。
+* **Then**: (1) 403，沒有建單；(2) 400，沒有建單；(3) 201，`OrderItem.petIds` 原樣存入兩隻。
+* **自動化對應**: `OrderIdentityFromTokenSecurityTest.booking_otherOwnersPet_403` / `booking_unknownOrDeletedPet_400` / `booking_ownPets_201`。
+
 ---
 
 ## 驗證矩陣
@@ -66,6 +72,7 @@
 | 2 | 同一張單併發確認接單 | 僅一勝，另一個 409 | 訂單列 `SELECT ... FOR UPDATE`；快照 1 筆。不同張的同日單同時接 → 全部成功（不做容量控管）。 |
 | 3 | 檢查狀態變更 | 成功者轉為 `PENDING_PAYMENT` | 狀態機轉換正確性驗證。 |
 | 3.5 | 他人 / 錯角色送單、body 冒填 ownerId | 訂單一律掛在 token 身分名下；保母 403、未登入 401 | `@PreAuthorize("hasRole('OWNER')")` + `TokenContext`；`BookingRequest` 已無 `ownerId` 欄位（Scenario 7） |
+| 3.6 | petIds 夾帶別人的 / 不存在的毛孩 | 403 / 400，不建單 | `BookingService.requirePetsOwnedBy`（Scenario 8） |
 | 4 | 飼主進入「選擇服務方案」頁 | 只顯示 `GET /api/sitters/{id}/plans` 回傳的方案，不得出現任何寫死的佔位方案 | 方案卡數量 = API 回傳數量、名稱逐一對上；頁面不含「尊榮包月」「此方案目前檔期已滿」（`frontend/e2e/client-booking.spec.ts` 迴歸 (P2)） |
 
 ---
@@ -90,3 +97,4 @@
 - **預約頁保母卡片長名稱 + 愛心溢出（2026-10-24，驗收 N3 / backlog 第 6 批 G5）**：名稱欄 `flex: 1` 沒有 `minWidth: 0`，Journey 的長顯示名稱（含時間戳）把它撐到 249px，愛心被擠到殼外（x≈871，內容區右緣 811）。改 `minWidth: 0` + 名稱 `overflowWrap: anywhere`、頭像與愛心 `flexShrink: 0`。迴歸：`ui-layout-contrast.spec.ts` N3（名稱、愛心落在 `client-booking-sitter-card` 內，`<main>` 沒被撐寬）。
 - **預約頁保母卡名稱被擠成 6 行、日期欄被擠成「2026 / 年 / 10/25」（2026-10-24，驗收 N14）**：N3 修好溢出，但頭像 80px、名稱、愛心仍擠同一列，名稱欄只剩約 100px；沒有頭像時指向外部 `via.placeholder.com`，載不到就是寫著「150 x 150」的灰圓。排程卡的「照護對象」區塊是 `width: 100%` 的第三個 flex 子元素卻沒有換行，跟日期欄搶同一列。修正：保母卡改成上列「頭像（64px，無頭像用名稱首字）+ 愛心」、下列名稱佔滿卡片寬；排程列 `flexWrap: wrap`、日期欄 `minWidth: 0`、照護對象 `flexBasis: 100%`。迴歸：`ui-layout-contrast.spec.ts` N14（名稱 ≤ 2 行、不打 placeholder 服務、照護對象在日期欄下方且不重疊、年份單行）。
 - **任何已登入者都能以別的飼主名義下單（2026-10-25，fix-batch11 I2，安全 / BOLA）**：I1 修完後全後端掃描身分欄位時發現。`BookingService.createBooking` 的訂單飼主取自 request body 的 `ownerId`，`POST /api/orders/booking` 也沒有 `@PreAuthorize`；飼主 UUID 在保母端訂單詳情就看得到。保母或任何人都能替別的飼主建單（飼主收到莫名的預約、保母端看到假訂單），被保母黑名單的飼主也能冒用別人的 `ownerId` 繞過黑名單檢查（`isBlocked(sitterId, ownerId)` 用的是 body 的值）。修法：`BookingRequest` 移除 `ownerId`，`createBooking(ownerId, request)` 由 controller 傳入 `TokenContext.getUserId()`，端點加 `@PreAuthorize("hasRole('OWNER')")`；舊前端 body 多帶的 `ownerId` 被 Jackson 忽略。迴歸：Scenario 7。
+- **預約的 petIds 沒有驗證歸屬（2026-10-25，第 11 批另外發現 #4 / fix-batch12 J3，安全）**：`BookingService` 原樣把 `items[].petIds` 存進 `OrderItem.petIds`，飼主可以把別人的毛孩 UUID（保母端訂單詳情、記事本都看得到）塞進自己的訂單；目前訂單詳情不依 petIds 回傳毛孩資料，但之後任何「照 petIds 顯示毛孩」的功能都會直接變成 IDOR。修法：建單前以 `PetRepository.findAllById` 檢查，不存在 / 已刪除 400、屬於別的飼主 403。迴歸：Scenario 8，舊程式碼 2 支紅（皆 201）。

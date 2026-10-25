@@ -3,12 +3,14 @@ package com.petsitter.interfaces.controller;
 import com.petsitter.domain.model.GatekeeperRule;
 import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.OrderItem;
+import com.petsitter.domain.model.Pet;
 import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.repository.GatekeeperRuleRepository;
 import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.domain.repository.PetRepository;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.ServicePlanRepository;
 import com.petsitter.domain.repository.SubscriptionRepository;
@@ -97,6 +99,9 @@ class OrderIdentityFromTokenSecurityTest {
 
     @Autowired
     private GatekeeperRuleRepository gatekeeperRuleRepository;
+
+    @Autowired
+    private PetRepository petRepository;
 
     private User ownerA;
     private User ownerB;
@@ -396,12 +401,17 @@ class OrderIdentityFromTokenSecurityTest {
 
     /** 舊前端的 body：仍帶 ownerId（這裡填受害飼主 A） */
     private MockHttpServletRequestBuilder bookingReq() {
+        return bookingReq("");
+    }
+
+    /** petIdsJson：逗號分隔、已加引號的 UUID 清單（J3） */
+    private MockHttpServletRequestBuilder bookingReq(String petIdsJson) {
         return post("/api/orders/booking")
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"ownerId\":\"" + ownerA.getId() + "\",\"sitterId\":\"" + sitterA.getId()
                         + "\",\"items\":[{\"planId\":\"" + planA.getId() + "\",\"dates\":[\""
-                        + LocalDate.now().plusDays(3) + "\"],\"timesPerDay\":1,\"petIds\":[]}],"
+                        + LocalDate.now().plusDays(3) + "\"],\"timesPerDay\":1,\"petIds\":[" + petIdsJson + "]}],"
                         + "\"answers\":[],\"expectedTotalAmount\":600}");
     }
 
@@ -453,5 +463,57 @@ class OrderIdentityFromTokenSecurityTest {
                 .andReturn().getResponse().getContentAsString();
         UUID orderId = UUID.fromString(body.replaceAll(".*\"orderId\":\"([0-9a-f-]{36})\".*", "$1"));
         assertThat(orderRepository.findById(orderId).orElseThrow().getOwner().getId()).isEqualTo(ownerA.getId());
+    }
+
+    // ---- POST /booking 的 petIds 歸屬（fix-batch12 J3） ----
+
+    private Pet savePet(User owner, boolean deleted) {
+        return petRepository.saveAndFlush(Pet.builder()
+                .ownerId(owner.getId()).name("J3 " + owner.getFullName()).species("CAT")
+                .isDeleted(deleted).build());
+    }
+
+    private String quoted(Pet... pets) {
+        return java.util.Arrays.stream(pets).map(p -> "\"" + p.getId() + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    @Test
+    @DisplayName("POST /booking（J3）：petIds 夾帶別的飼主的毛孩 → 403，沒有建單")
+    void booking_otherOwnersPet_403() throws Exception {
+        openSitterA();
+        Pet mine = savePet(ownerA, false);
+        Pet others = savePet(ownerB, false);
+        long before = orderRepository.count();
+        mockMvc.perform(bookingReq(quoted(mine, others)).header("Authorization", bearer(ownerA)))
+                .andExpect(status().isForbidden());
+        assertThat(orderRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("POST /booking（J3）：petIds 是不存在 / 已刪除的毛孩 → 400，沒有建單")
+    void booking_unknownOrDeletedPet_400() throws Exception {
+        openSitterA();
+        Pet deleted = savePet(ownerA, true);
+        long before = orderRepository.count();
+        mockMvc.perform(bookingReq(quoted(deleted)).header("Authorization", bearer(ownerA)))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(bookingReq("\"" + UUID.randomUUID() + "\"").header("Authorization", bearer(ownerA)))
+                .andExpect(status().isBadRequest());
+        assertThat(orderRepository.count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("POST /booking（J3）：petIds 全是自己的毛孩 → 201，petIds 原樣存入")
+    void booking_ownPets_201() throws Exception {
+        openSitterA();
+        Pet p1 = savePet(ownerA, false);
+        Pet p2 = savePet(ownerA, false);
+        String body = mockMvc.perform(bookingReq(quoted(p1, p2)).header("Authorization", bearer(ownerA)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID orderId = UUID.fromString(body.replaceAll(".*\"orderId\":\"([0-9a-f-]{36})\".*", "$1"));
+        assertThat(orderRepository.findById(orderId).orElseThrow().getItems().get(0).getPetIds())
+                .containsExactly(p1.getId(), p2.getId());
     }
 }

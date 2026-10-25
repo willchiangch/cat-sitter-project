@@ -9,6 +9,7 @@ import com.petsitter.domain.model.ServicePlan;
 import com.petsitter.domain.model.SitterQuestion;
 import com.petsitter.domain.model.Visit;
 import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.domain.repository.PetRepository;
 import com.petsitter.domain.repository.ServicePlanRepository;
 import com.petsitter.domain.repository.SitterQuestionRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -43,6 +44,7 @@ public class BookingService {
     private final GatekeeperService gatekeeperService;
     private final ProfileRepository profileRepository;
     private final SitterQuestionRepository sitterQuestionRepository;
+    private final PetRepository petRepository;
 
     /**
      * @param ownerId 飼主身分，一律由 controller 從 token（TokenContext）取得（fix-batch11 I2）。
@@ -68,6 +70,8 @@ public class BookingService {
         if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("預約項目不得為空");
         }
+
+        requirePetsOwnedBy(ownerId, request);
 
         java.util.List<OrderItem> orderItems = new java.util.ArrayList<>();
         
@@ -151,6 +155,36 @@ public class BookingService {
 
         log.info("[BookingService] Successfully created PENDING order ID: {}", savedOrder.getId());
         return savedOrder.getId();
+    }
+
+    /**
+     * fix-batch12 J3：預約的 petIds 必須全部是 token 飼主自己的毛孩（未刪除）。
+     * 過去原樣存入 OrderItem.petIds，之後若有人照 petIds 顯示毛孩資料就會變成 IDOR。
+     * 依 SD-GLOBAL-SPEC §3.4：毛孩不存在 / 已刪除 → 400；存在但屬於別的飼主 → 403。
+     */
+    private void requirePetsOwnedBy(UUID ownerId, BookingRequest request) {
+        java.util.Set<UUID> petIds = request.getItems().stream()
+                .filter(item -> item.getPetIds() != null)
+                .flatMap(item -> item.getPetIds().stream())
+                .collect(java.util.stream.Collectors.toSet());
+        if (petIds.isEmpty()) {
+            return;
+        }
+        if (petIds.contains(null)) {
+            throw new IllegalArgumentException("找不到指定的毛孩");
+        }
+        java.util.Map<UUID, com.petsitter.domain.model.Pet> found = petRepository.findAllById(petIds).stream()
+                .filter(pet -> !pet.isDeleted())
+                .collect(java.util.stream.Collectors.toMap(com.petsitter.domain.model.Pet::getId, pet -> pet));
+        for (UUID petId : petIds) {
+            com.petsitter.domain.model.Pet pet = found.get(petId);
+            if (pet == null) {
+                throw new IllegalArgumentException("找不到指定的毛孩");
+            }
+            if (!ownerId.equals(pet.getOwnerId())) {
+                throw new org.springframework.security.access.AccessDeniedException("只能為自己的毛孩預約");
+            }
+        }
     }
 
     /**

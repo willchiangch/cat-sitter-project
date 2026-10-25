@@ -33,6 +33,7 @@
 ### 2.1 提交預約申請
 - **Endpoint**: `POST /api/orders/booking`
 - **Auth**: `@PreAuthorize("hasRole('OWNER')")`，飼主身分取自 token（`TokenContext`），由 controller 傳入 `BookingService.createBooking(ownerId, request)`。Request Body **沒有** `ownerId`（fix-batch11 I2 移除；過去讀 body 的 `ownerId`，任何已登入者都能以別的飼主名義下單、也能冒用別人繞過黑名單）。舊前端多帶的 `ownerId` 會被 Jackson 忽略。保母角色 → 403、未登入 → 401
+- **petIds 歸屬（fix-batch12 J3）**：所有 `items[].petIds` 必須是 token 飼主自己的、未刪除的毛孩。毛孩不存在 / 已刪除 → **400**「找不到指定的毛孩」；存在但屬於別的飼主 → **403**「只能為自己的毛孩預約」（SD-GLOBAL-SPEC §3.4 的「不存在 400 / 不屬於你 403」）。檢查在方案與金額驗證之前，任一不符都不建單。`petIds` 可以為空。
 - **Headers**:
   - `Idempotency-Key`: `UUID` (必填)
 - **Request Body**:
@@ -81,6 +82,13 @@ sequenceDiagram
     API->>SVC: createBooking(ownerId, req)
     
     activate SVC
+    Note over SVC, DB: [J3] 0.5 petIds 必須全屬 token 飼主
+    SVC->>DB: SELECT pets WHERE id IN (petIds) AND is_deleted = false
+    alt 不存在 / 已刪除
+        SVC-->>C: 400 Bad Request
+    else 屬於別的飼主
+        SVC-->>C: 403 Forbidden
+    end
     Note over SVC: [Zero Trust] 1. 根據 DB 方案重算金額
     SVC->>SVC: serverCalculatedTotal
     alt Amount Mismatch
