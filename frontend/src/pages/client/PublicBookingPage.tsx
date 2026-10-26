@@ -493,6 +493,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                 variant="secondary"
                 onClick={() => setIsAddingPlan(false)}
                 fullWidth
+                data-testid="client-booking-btn-cancel-add-plan"
                 style={{
                   border: 'none',
                   backgroundColor: 'rgba(0,0,0,0.04)',

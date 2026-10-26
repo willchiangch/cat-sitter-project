@@ -120,3 +120,9 @@
   * 清除上傳至模擬/本地 GCS `avatars` 資料夾下的臨時圖檔。
 
 * **匿名視角不得被種子帳號污染（2026-10，C1）**：匿名訪客開 `/sitter/{id}/profile` 時前端不得在背景登入任何帳號，公開頁 API 一律不帶 `Authorization`。過去 `RoleContext` 會以 `sitter@test.com` 背景登入，見 TS-001「五」與 SD-001「UX 設計」。迴歸：`frontend/e2e/seed-auto-login-scope.spec.ts`。
+
+## 本測試發現並修復的真實 bug
+
+**公開檔案設定頁在 390px 下頭像被壓扁、「新增」斷成兩字、新增區域鈕畫到卡片外（2026-10-26，驗收 20261026-1517 N5 / fix-batch14）**：K4 讓 `Button` 吃到 `.btn` 基底（膠囊、15px 字、`0.75rem 1.5rem`）後，這頁從未截圖驗證。補截圖時量到：(1) 頭像框沒有 `flexShrink: 0`，被右側說明文字壓成 66×96 的橢圓；(2) 標籤列 `<input>` 預設固有寬度（`min-width:auto`）把「新增」擠成「新 / 增」；(3) 服務區域兩個輸入框 + 新增鈕不換行，新增鈕右緣超出卡片約 140px；(4) 公開開關被說明文字擠窄。修法：頭像框與開關 `flexShrink: 0`、說明欄 `flex: 1; minWidth: 0`；輸入框 `minWidth: 0`；新增鈕 `nowrap` + `flexShrink: 0`；區域列 `flexWrap: wrap`、輸入框各 `flex: 1 1 6rem`，放不下時新增鈕換到下一列。迴歸：`ui-layout-contrast.spec.ts`「N5：保母公開檔案設定」（兩顆新增鈕專案樣式 + 單行、不與輸入框重疊、輸入框 ≥ 80px、頭像框 96×96、開關 50px、新增區域鈕在表單內、不溢出；修正前以同一量測得新增鈕 2 行，紅）。
+
+**管理端敏感詞管理「搜尋」斷成兩行、表頭被擠成「敏感 / 詞」「操 / 作」（2026-10-26，驗收 20261026-1517 N5 / fix-batch14）**：搜尋列 `<input flex:1>` 的固有寬度把「搜尋」鈕擠成兩行，新增列同理；390px 下表頭逐字斷行。修法：輸入框（與其外層欄）`minWidth: 0`、新增 / 搜尋鈕 `nowrap` + `flexShrink: 0`、表頭 `nowrap`；補 testid `admin-keyword-btn-search` / `-btn-prev` / `-btn-next` / `-page-label` / `-th-*`。迴歸：`ui-layout-contrast.spec.ts`「N5：管理端敏感詞管理」（新增 / 搜尋 / 上一頁 / 下一頁 / 頁碼 / 三個表頭單行、secondary 專案樣式、不與輸入框重疊、搜尋框 ≥ 80px、不溢出；修正前以同一量測得「搜尋」2 行，紅）。

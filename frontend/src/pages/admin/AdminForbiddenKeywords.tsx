@@ -8,6 +8,12 @@ import {
 } from '../../hooks/usePublicProfile';
 import { Trash2, Search, Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
 
+const KEYWORD_TH_STYLE: React.CSSProperties = {
+  padding: '0.75rem 0.5rem',
+  color: 'var(--color-on-surface-variant)',
+  whiteSpace: 'nowrap'
+};
+
 const AdminForbiddenKeywords: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -92,7 +98,7 @@ const AdminForbiddenKeywords: React.FC = () => {
           onSubmit={handleAddKeyword}
           style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}
         >
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <label
               style={{
                 display: 'block',
@@ -131,7 +137,9 @@ const AdminForbiddenKeywords: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              height: '45px'
+              height: '45px',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
             }}
             data-testid="admin-keyword-btn-add"
           >
@@ -153,6 +161,8 @@ const AdminForbiddenKeywords: React.FC = () => {
             placeholder="搜尋敏感詞..."
             style={{
               flex: 1,
+              // fix-batch14 N5：input 固有寬度（min-width:auto）把「搜尋」擠成兩行
+              minWidth: 0,
               padding: '0.75rem',
               borderRadius: '8px',
               border: '1px solid var(--color-surface-high)',
@@ -165,7 +175,15 @@ const AdminForbiddenKeywords: React.FC = () => {
           <Button
             type="submit"
             variant="secondary"
-            style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}
+            data-testid="admin-keyword-btn-search"
           >
             <Search size={18} /> 搜尋
           </Button>
@@ -220,20 +238,18 @@ const AdminForbiddenKeywords: React.FC = () => {
           <div>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
+                {/* fix-batch14 N5：390px 下表頭被擠成「敏感 / 詞」「操 / 作」，表頭一律不換行 */}
                 <tr style={{ borderBottom: '2px solid var(--color-surface-high)' }}>
-                  <th
-                    style={{ padding: '0.75rem 0.5rem', color: 'var(--color-on-surface-variant)' }}
-                  >
+                  <th style={KEYWORD_TH_STYLE} data-testid="admin-keyword-th-keyword">
                     敏感詞
                   </th>
-                  <th
-                    style={{ padding: '0.75rem 0.5rem', color: 'var(--color-on-surface-variant)' }}
-                  >
+                  <th style={KEYWORD_TH_STYLE} data-testid="admin-keyword-th-created">
                     新增時間
                   </th>
                   <th
+                    data-testid="admin-keyword-th-action"
                     style={{
-                      padding: '0.75rem 0.5rem',
+                      ...KEYWORD_TH_STYLE,
                       textAlign: 'right',
                       color: 'var(--color-on-surface-variant)'
                     }}
@@ -298,10 +314,12 @@ const AdminForbiddenKeywords: React.FC = () => {
                   disabled={page === 0}
                   onClick={() => setPage(page - 1)}
                   style={{ padding: '0.5rem 1rem' }}
+                  data-testid="admin-keyword-btn-prev"
                 >
                   上一頁
                 </Button>
                 <span
+                  data-testid="admin-keyword-page-label"
                   style={{
                     alignSelf: 'center',
                     fontSize: '0.875rem',
@@ -315,6 +333,7 @@ const AdminForbiddenKeywords: React.FC = () => {
                   disabled={page >= data.totalPages - 1}
                   onClick={() => setPage(page + 1)}
                   style={{ padding: '0.5rem 1rem' }}
+                  data-testid="admin-keyword-btn-next"
                 >
                   下一頁
                 </Button>

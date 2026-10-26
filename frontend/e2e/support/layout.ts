@@ -244,9 +244,20 @@ export async function expectStandardPageInset(page: Page, label: string) {
  */
 export async function textLineCount(locator: Locator): Promise<number> {
   return locator.evaluate((el) => {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+    // 只量文字節點：按鈕裡的 SVG 圖示（lucide Plus / ArrowRight）也會產生 client rect，
+    // 與文字垂直位置不同會被誤算成另一行。行框以 bottom 對齊（同一行不同字型的 top 會差幾 px），容許 2px
+    const bottoms: number[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent?.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of Array.from(range.getClientRects())) {
+        if (r.width > 0 && !bottoms.some((b) => Math.abs(b - r.bottom) <= 2))
+          bottoms.push(r.bottom);
+      }
+    }
+    return bottoms.length;
   });
 }
 

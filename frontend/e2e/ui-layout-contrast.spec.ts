@@ -9,6 +9,7 @@ import {
 } from './support/mockSession';
 import {
   type ContrastResult,
+  buttonLookOf,
   contrastOf,
   effectiveGradientContrastOf,
   expectInside,
@@ -1260,6 +1261,218 @@ test.describe('G5 版面溢出與對比度', () => {
       expect(fonts.button, '分頁籤字型＝父層字型').toBe(fonts.parent);
       expect(fonts.button).toContain('Manrope');
       return fonts;
+    });
+  });
+  // fix-batch14 N5（驗收 20261026-1517）：K4 / K6 讓 Button 吃到 .btn 基底與 fullWidth 後，以下畫面從未截圖驗證
+  test('N5：預約頁「新增其他方案」→「返回上頁」（取消新增方案）fullWidth 單行、專案按鈕基底', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'client');
+    await mockLongNameBookingPage(page);
+
+    await step('選方案後點「新增其他方案」，量測取消新增鈕', page, async () => {
+      await page.goto(`/booking/${SITTER_ID}`);
+      await page.getByTestId('client-booking-plan-card-0').click();
+      await expect(page.getByRole('heading', { name: '排程配置' })).toBeVisible();
+      await page.getByTestId('client-booking-btn-add-plan').click();
+      const cancel = page.getByTestId('client-booking-btn-cancel-add-plan');
+      await expect(cancel).toHaveText('返回上頁');
+      const look = await buttonLookOf(cancel);
+      expect(look.classes).toContain('btn');
+      expect(look.fontFamily).toContain('Plus Jakarta Sans');
+      expect(look.borderTopStyle, '沒有原生 outset 框').toBe('none');
+      await expectSingleLine(cancel, '返回上頁');
+      // fullWidth（K6 起生效）：與父層內容寬相同
+      const widths = await cancel.evaluate((el) => {
+        const parent = el.parentElement!;
+        const cs = getComputedStyle(parent);
+        return {
+          button: el.getBoundingClientRect().width,
+          parentContent:
+            parent.getBoundingClientRect().width -
+            parseFloat(cs.paddingLeft) -
+            parseFloat(cs.paddingRight)
+        };
+      });
+      expect(Math.abs(widths.button - widths.parentContent), 'fullWidth').toBeLessThan(1);
+      const contrast = await contrastOf(cancel);
+      expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
+      await expectNoHorizontalOverflow(page);
+      return { look, widths, contrast };
+    });
+
+    await step('點「返回上頁」回到排程配置，已選方案保留', page, async () => {
+      await page.getByTestId('client-booking-btn-cancel-add-plan').click();
+      await expect(page.getByRole('heading', { name: '排程配置' })).toBeVisible();
+      await expect(page.getByTestId('client-booking-btn-add-plan')).toBeVisible();
+      await expect(page.getByTestId('client-booking-btn-cancel-add-plan')).toHaveCount(0);
+    });
+  });
+
+  test('N5：保母公開檔案設定「新增」標籤 / 區域鈕單行、不撐寬、輸入框不被擠扁', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route(
+      (url) => url.pathname === `/api/sitter/profile/${SITTER_ID}`,
+      (route) =>
+        route.fulfill(
+          json({
+            gated: false,
+            sitterId: SITTER_ID,
+            displayName: `版面測試保母-${LONG_ID}`,
+            avatarUrl: '',
+            bio: '版面測試',
+            tags: ['貓咪專門'],
+            serviceAreas: [{ city: '台北市', district: '大安區' }],
+            isOpen: true,
+            isVisible: true,
+            version: 1
+          })
+        )
+    );
+
+    await step('新增標籤 / 區域列量測', page, async () => {
+      await page.goto('/sitter/profile-settings');
+      await expect(page.getByTestId('sitter-profile-input-tag')).toBeVisible();
+      const measured: Record<string, unknown> = {};
+      for (const [btnId, inputId] of [
+        ['sitter-profile-btn-add-tag', 'sitter-profile-input-tag'],
+        ['sitter-profile-btn-add-area', 'sitter-profile-input-district']
+      ]) {
+        const btn = page.getByTestId(btnId);
+        await expect(btn).toHaveText('新增');
+        const look = await expectProjectButton(btn, btnId);
+        await expectSingleLine(btn, btnId);
+        const input = page.getByTestId(inputId);
+        await expectNoOverlap(btn, input, `${btnId} 與輸入框`);
+        const inputBox = (await input.boundingBox())!;
+        expect(inputBox.width, `${inputId} 寬度`).toBeGreaterThanOrEqual(80);
+        measured[btnId] = { look, button: await btn.boundingBox(), input: inputBox };
+      }
+      // 頭像框與公開開關固定尺寸不被壓縮（過去頭像 66×96 橢圓、開關被擠窄）
+      const avatar = (await page.getByTestId('sitter-profile-avatar-frame').boundingBox())!;
+      expect([Math.round(avatar.width), Math.round(avatar.height)], '頭像框').toEqual([96, 96]);
+      const track = (await page.getByTestId('sitter-profile-toggle-visible-track').boundingBox())!;
+      expect(Math.round(track.width), '公開開關寬').toBe(50);
+      measured.avatar = avatar;
+      measured.toggle = track;
+      await expectInside(
+        page.getByTestId('sitter-profile-btn-add-area'),
+        page.getByTestId('sitter-profile-input-tag').locator('xpath=ancestor::form[1]'),
+        '新增區域鈕'
+      );
+      const save = page.getByTestId('sitter-profile-btn-save');
+      await expect(save).toHaveText('儲存公開檔案');
+      await expectSingleLine(save, '儲存公開檔案');
+      await expectNoHorizontalOverflow(page);
+      return measured;
+    });
+  });
+
+  test('N5：管理端敏感詞管理的新增 / 搜尋 / 分頁鈕單行、不撐寬', async ({ page }) => {
+    await mockDemoSession(page, 'admin');
+    await page.route(
+      (url) => url.pathname === '/api/admin/forbidden-keywords',
+      (route) =>
+        route.fulfill(
+          json({
+            content: Array.from({ length: 10 }, (_, i) => ({
+              id: `kw-${i}`,
+              keyword: `敏感詞${i}`,
+              createdBy: 'admin',
+              createdAt: '2026-10-20T00:00:00Z'
+            })),
+            totalElements: 12,
+            totalPages: 2,
+            size: 10,
+            number: 0
+          })
+        )
+    );
+
+    await step('新增列、搜尋列、分頁列量測', page, async () => {
+      await page.goto('/admin/forbidden-keywords');
+      await expect(page.getByTestId('admin-keyword-page-label')).toHaveText('頁碼 1 / 2');
+      const add = page.getByTestId('admin-keyword-btn-add');
+      const search = page.getByTestId('admin-keyword-btn-search');
+      const prev = page.getByTestId('admin-keyword-btn-prev');
+      const next = page.getByTestId('admin-keyword-btn-next');
+      await expect(add).toHaveText('新增');
+      await expect(search).toHaveText('搜尋');
+      await expect(prev).toHaveText('上一頁');
+      await expect(next).toHaveText('下一頁');
+      const looks = {
+        search: await expectProjectButton(search, '搜尋'),
+        prev: await expectProjectButton(prev, '上一頁'),
+        next: await expectProjectButton(next, '下一頁')
+      };
+      for (const [l, name] of [
+        [add, '新增'],
+        [search, '搜尋'],
+        [prev, '上一頁'],
+        [next, '下一頁'],
+        [page.getByTestId('admin-keyword-page-label'), '頁碼'],
+        [page.getByTestId('admin-keyword-th-keyword'), '表頭 敏感詞'],
+        [page.getByTestId('admin-keyword-th-created'), '表頭 新增時間'],
+        [page.getByTestId('admin-keyword-th-action'), '表頭 操作']
+      ] as const) {
+        await expectSingleLine(l, name);
+      }
+      await expect(prev).toBeDisabled();
+      await expectNoOverlap(add, page.getByTestId('admin-keyword-input-add'), '新增鈕與輸入框');
+      await expectNoOverlap(
+        search,
+        page.getByTestId('admin-keyword-input-search'),
+        '搜尋鈕與輸入框'
+      );
+      const searchInput = (await page.getByTestId('admin-keyword-input-search').boundingBox())!;
+      expect(searchInput.width, '搜尋框寬度').toBeGreaterThanOrEqual(80);
+      await expectNoHorizontalOverflow(page);
+      return { looks, searchInput };
+    });
+  });
+
+  test('N5：管理端訂閱方案管理的查詢 / 覆寫鈕單行、不撐寬', async ({ page }) => {
+    const subSitterId = '3d498178-14c0-4376-b81e-7fb02e6150a5';
+    await mockDemoSession(page, 'admin');
+    await page.route(
+      (url) => url.pathname === `/api/admin/subscriptions/${subSitterId}`,
+      (route) =>
+        route.fulfill(
+          json({
+            sitterId: subSitterId,
+            planTier: 'PRO',
+            expiredAt: '2026-12-31T00:00:00Z',
+            monthlyOrderCount: 3
+          })
+        )
+    );
+
+    await step('查詢一位保母後量測查詢鈕與覆寫鈕', page, async () => {
+      await page.goto('/admin/subscription');
+      await page.getByTestId('admin-sub-input-sitter-id').fill(subSitterId);
+      await page.getByTestId('admin-sub-btn-lookup').click();
+      await expect(page.getByTestId('admin-sub-select-plan')).toHaveValue('PRO');
+      const lookup = page.getByTestId('admin-sub-btn-lookup');
+      const save = page.getByTestId('admin-sub-btn-save');
+      await expect(lookup).toHaveText('查詢');
+      await expect(save).toHaveText('確認覆寫方案');
+      await expectSingleLine(lookup, '查詢');
+      await expectSingleLine(save, '確認覆寫方案');
+      await expectNoOverlap(
+        lookup,
+        page.getByTestId('admin-sub-input-sitter-id'),
+        '查詢鈕與輸入框'
+      );
+      const input = (await page.getByTestId('admin-sub-input-sitter-id').boundingBox())!;
+      expect(input.width, 'UUID 輸入框寬度').toBeGreaterThanOrEqual(120);
+      await expectNoHorizontalOverflow(page);
+      return {
+        lookup: await buttonLookOf(lookup),
+        save: await buttonLookOf(save),
+        input
+      };
     });
   });
 });

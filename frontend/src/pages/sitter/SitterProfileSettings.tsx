@@ -9,6 +9,16 @@ import {
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { Camera, Plus, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
+/** 標籤 / 區域「新增」鈕：不換行、不被輸入框壓縮（fix-batch14 N5） */
+const ADD_BUTTON_STYLE: React.CSSProperties = {
+  padding: '0.5rem 1rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '4px',
+  whiteSpace: 'nowrap',
+  flexShrink: 0
+};
+
 const SitterProfileSettings: React.FC = () => {
   const { userId: sitterId } = useCurrentUser();
   const { data: profile, isLoading, error, refetch } = usePublicProfileQuery(sitterId, 'edit');
@@ -198,7 +208,11 @@ const SitterProfileSettings: React.FC = () => {
       {/* 大頭貼上傳卡片 */}
       <Card style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ position: 'relative', width: '96px', height: '96px' }}>
+          {/* fix-batch14 N5：沒有 flexShrink 0，390px 下被右側說明文字擠成 66×96 的橢圓 */}
+          <div
+            data-testid="sitter-profile-avatar-frame"
+            style={{ position: 'relative', width: '96px', height: '96px', flexShrink: 0 }}
+          >
             <img
               src={avatarPreview || 'https://via.placeholder.com/150'}
               alt="Avatar Preview"
@@ -342,16 +356,17 @@ const SitterProfileSettings: React.FC = () => {
             />
           </div>
 
-          {/* 是否公開顯示 */}
+          {/* 是否公開顯示（fix-batch14 N5：開關 flexShrink 0，過去被說明文字擠窄、圓鈕畫到軌道外） */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: '0.75rem',
               padding: '0.5rem 0'
             }}
           >
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <h4
                 style={{
                   margin: 0,
@@ -374,11 +389,13 @@ const SitterProfileSettings: React.FC = () => {
             </div>
             <label
               className="switch"
+              data-testid="sitter-profile-toggle-visible-track"
               style={{
                 position: 'relative',
                 display: 'inline-block',
                 width: '50px',
-                height: '26px'
+                height: '26px',
+                flexShrink: 0
               }}
             >
               <input
@@ -456,6 +473,7 @@ const SitterProfileSettings: React.FC = () => {
                 </span>
               ))}
             </div>
+            {/* fix-batch14 N5：input 預設固有寬度（min-width:auto）把「新增」擠成「新 / 增」 */}
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
@@ -465,6 +483,7 @@ const SitterProfileSettings: React.FC = () => {
                 maxLength={10}
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   padding: '0.5rem',
                   borderRadius: '6px',
                   border: '1px solid var(--color-surface-high)',
@@ -478,7 +497,7 @@ const SitterProfileSettings: React.FC = () => {
                 type="button"
                 onClick={handleAddTag}
                 variant="secondary"
-                style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center' }}
+                style={ADD_BUTTON_STYLE}
                 data-testid="sitter-profile-btn-add-tag"
               >
                 <Plus size={16} /> 新增
@@ -524,14 +543,17 @@ const SitterProfileSettings: React.FC = () => {
                 </span>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            {/* fix-batch14 N5：兩個輸入框 + 新增鈕過去不換行，「新增」被推到卡片外（右緣超出約 140px）。
+                改為可換行：輸入框各至少 6rem，放不下時新增鈕換到下一列 */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               <input
                 type="text"
                 value={newCity}
                 onChange={(e) => setNewCity(e.target.value)}
                 placeholder="縣市 (e.g. 台北市)"
                 style={{
-                  flex: 1,
+                  flex: '1 1 6rem',
+                  minWidth: 0,
                   padding: '0.5rem',
                   borderRadius: '6px',
                   border: '1px solid var(--color-surface-high)',
@@ -547,7 +569,8 @@ const SitterProfileSettings: React.FC = () => {
                 onChange={(e) => setNewDistrict(e.target.value)}
                 placeholder="行政區 (e.g. 信義區)"
                 style={{
-                  flex: 1,
+                  flex: '1 1 6rem',
+                  minWidth: 0,
                   padding: '0.5rem',
                   borderRadius: '6px',
                   border: '1px solid var(--color-surface-high)',
@@ -561,7 +584,7 @@ const SitterProfileSettings: React.FC = () => {
                 type="button"
                 onClick={handleAddArea}
                 variant="secondary"
-                style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center' }}
+                style={ADD_BUTTON_STYLE}
                 data-testid="sitter-profile-btn-add-area"
               >
                 <Plus size={16} /> 新增
