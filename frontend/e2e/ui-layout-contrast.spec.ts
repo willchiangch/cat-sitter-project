@@ -367,6 +367,30 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // fix-batch13 K9（驗收 20261026-0007 A-04 08、11）：白字配 #ef4444（3.76）/ #10b981（2.54）
+  test('K9：管理端停權工具「執行停權」「解除停權」白字對底色對比 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'admin');
+    await mockKycPending(page, []);
+
+    await step('停權工具兩顆按鈕的對比度', page, async () => {
+      await page.goto('/admin/kyc');
+      const ratios: Record<string, number> = {};
+      for (const [id, label] of [
+        ['admin-kyc-suspend-btn', '執行停權'],
+        ['admin-kyc-unsuspend-btn', '解除停權']
+      ]) {
+        const btn = page.getByTestId(id);
+        await expect(btn).toHaveText(label);
+        const c = await contrastOf(btn);
+        expect(c.backgroundImage).toBe('none');
+        expect(c.color, `${label} 白字`).toBe('rgb(255, 255, 255)');
+        expect(c.ratio, `${label} ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+        ratios[label] = c.ratio;
+      }
+      return ratios;
+    });
+  });
+
   // fix-batch13 K7（驗收 20261026-0007 D1 18、21）：日期換兩行時頭像被 flex 壓成橢圓
   test('K7：保母訂單卡日期兩行時，飼主頭像仍是 48px 正圓', async ({ page }) => {
     await mockDemoSession(page, 'sitter');

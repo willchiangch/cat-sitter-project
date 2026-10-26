@@ -384,10 +384,11 @@ const AdminKycList: React.FC = () => {
                   style={{
                     flex: 1,
                     padding: '10px 0',
-                    backgroundColor: '#ef4444',
+                    // fix-batch13 K9：白字配 #ef4444 只有 3.76:1，改 --color-error #b02500 + --color-on-error（6.7:1）
+                    backgroundColor: 'var(--color-error)',
                     border: 'none',
                     borderRadius: '6px',
-                    color: 'white',
+                    color: 'var(--color-on-error)',
                     fontWeight: '600',
                     fontSize: '0.85rem',
                     cursor: 'pointer'
@@ -403,10 +404,11 @@ const AdminKycList: React.FC = () => {
                   style={{
                     flex: 1,
                     padding: '10px 0',
-                    backgroundColor: '#10b981',
+                    // fix-batch13 K9：白字配 #10b981 只有 2.54:1，改 #047857（5.48:1）
+                    backgroundColor: SUCCESS_TEXT_COLOR,
                     border: 'none',
                     borderRadius: '6px',
-                    color: 'white',
+                    color: '#ffffff',
                     fontWeight: '600',
                     fontSize: '0.85rem',
                     cursor: 'pointer'
