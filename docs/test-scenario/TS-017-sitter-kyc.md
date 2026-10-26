@@ -109,3 +109,5 @@
 **管理端停權工具按鈕白字低對比（2026-10-26，驗收 20261026-0007 截圖新問題 8 / fix-batch13 K9）**：`AdminKycList` 的「執行停權」白字配 `#ef4444`（量測 3.76:1）、「解除停權」白字配 `#10b981`（2.54:1），未達 AA。改 `--color-error` + `--color-on-error`（6.7:1）、`#047857` + 白字（5.48:1）。迴歸：`ui-layout-contrast.spec.ts` K9（computed style 量測，舊版紅）。
 
 **KYC 被駁回 / 已停權說明標題低對比（2026-10-26，驗收 20261026-0007 截圖新問題 9 / fix-batch13 K10）**：`SitterKycSubmit` 駁回標題 `#fbbf24`、停權標題 `#f87171` 疊在 10% 淡底上，量測 1.54 / 2.42。改 `#92400e` / `#991b1b`（6.56 / 7.28）；管理端 KYC 詳情 / 清單、保母 KYC 頁的錯誤字 `#ef4444`（3.76）改 `--color-error`。全站替換表見 SD-FRONTEND-SPEC §6.5。迴歸：`ui-layout-contrast.spec.ts` K10 KYC 案。
+
+**KYC 審核詳情「返回待審清單」是原生按鈕（2026-10-26，驗收 20261026-1517 截圖新問題 1 / fix-batch14 L2）**：`AdminKycDetail.tsx` 的返回鈕是 `className="btn-secondary"` 的原生 `<button>`，但 `.btn-secondary` 從未定義，畫面是直角、1px 灰框、系統字（A-04 10）；fix-batch13 K4 只修了 `Button` 元件的 `.btn` 基底，這顆沒用元件所以修不到。改 `Button variant="secondary"`、`nowrap`、testid `admin-kyc-detail-back-btn`。迴歸：`ui-layout-contrast.spec.ts`「L2：KYC 詳情『返回待審清單』」（class / 圓角 / 字型 / 底色 / 單行 / 在 main 內；舊版紅）。全專案原生按鈕盤點見 SD-FRONTEND-SPEC §2.4。

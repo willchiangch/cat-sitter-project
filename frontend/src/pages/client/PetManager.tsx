@@ -9,6 +9,7 @@ import {
   useUploadAvatarMutation
 } from '../../hooks/usePets';
 import type { Pet } from '../../types/pet';
+import Button from '../../components/ui/Button';
 import {
   Plus,
   User,
@@ -977,20 +978,20 @@ const PetManager: React.FC = () => {
                     }}
                   >
                     {isAdding && (
-                      <button
+                      // fix-batch14 L2：過去 className="btn-secondary"（從未定義）的原生 <button>，灰底系統字
+                      <Button
                         type="button"
+                        variant="secondary"
                         onClick={() => setIsAdding(false)}
-                        className="btn-secondary"
+                        data-testid="btn-cancel-add-pet"
                         style={{
                           padding: '0.5rem 1.25rem',
-                          borderRadius: '8px',
-                          border: 'none',
                           fontSize: '0.875rem',
-                          cursor: 'pointer'
+                          whiteSpace: 'nowrap'
                         }}
                       >
                         取消
-                      </button>
+                      </Button>
                     )}
                     <button
                       type="submit"
@@ -1097,7 +1098,8 @@ const PetManager: React.FC = () => {
                         </button>
                       ) : (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button
+                          <Button
+                            variant="secondary"
                             onClick={() => {
                               setIsEditingNotes(false);
                               setOptimisticLockError(null);
@@ -1106,17 +1108,15 @@ const PetManager: React.FC = () => {
                                 environmentalNotes: selectedPet.environmentalNotes || ''
                               });
                             }}
-                            className="btn-secondary"
+                            data-testid="btn-cancel-edit-notes"
                             style={{
                               padding: '6px 12px',
-                              borderRadius: '8px',
-                              border: 'none',
                               fontSize: '0.75rem',
-                              cursor: 'pointer'
+                              whiteSpace: 'nowrap'
                             }}
                           >
                             取消
-                          </button>
+                          </Button>
                           <button
                             onClick={handleSaveNotes}
                             className="btn-primary"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
 import { getKycDetail, getAdminMediaUrl, reviewKyc } from '../../api/kycApi';
 import type { KycRecordDetailDto } from '../../api/kycApi';
 import { useRole } from '../../contexts/RoleContext';
@@ -140,13 +141,16 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
         >
           管理端 - 實名認證審查
         </h2>
-        <button
-          className="btn-secondary"
+        {/* fix-batch14 L2：過去是 className="btn-secondary" 的原生 <button>，但 .btn-secondary 從未定義，
+            呈現瀏覽器原生外觀（直角、灰框、系統字，驗收 20261026-1517 A-04 10） */}
+        <Button
+          variant="secondary"
           onClick={() => navigate('/admin/kyc')}
-          style={{ padding: '8px 16px', fontSize: '0.9rem' }}
+          data-testid="admin-kyc-detail-back-btn"
+          style={{ padding: '8px 16px', fontSize: '0.9rem', whiteSpace: 'nowrap', flexShrink: 0 }}
         >
           返回待審清單
-        </button>
+        </Button>
       </div>
 
       {currentRole !== 'admin' && (

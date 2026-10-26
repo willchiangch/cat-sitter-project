@@ -77,3 +77,7 @@
 - **漏 mock 偵測（2026-10-24，backlog 第 6 批 N9）**：`public-booking-questionnaire.spec.ts` 送出後導去的訂單詳情（`GET /api/orders/{id}`）與 F3 迴歸導去的訂單列表（`GET /api/orders/owner`）過去沒 mock、打到後端；已用 `mockOwnerOrderDetail()` / `mockOwnerOrderList()` 補上，導頁步驟加斷言 `order-status-badge` 為「待評估」，`test.afterEach` 斷言沒有漏 mock（SD-FRONTEND-SPEC §4.1）。
 - **送單 mock 契約（2026-10，backlog F3）**：`public-booking-questionnaire.spec.ts` 的 `POST /api/orders/booking` mock 改為真實格式 `201 { orderId }`（過去 `{ code, message, data }` 會讓前端導去 `/owner/orders/[object Object]`），主流程最後斷言導向 `/owner/orders/{orderId}`；另有「迴歸 (F3)」驗證回應缺 `orderId` 時的錯誤提示，詳見 TS-005 Scenario 6
 - **最後驗證日期**: 2026-07-18
+
+## 本測試發現並修復的真實 bug
+
+**題目列的排序 / 啟停 / 編輯 / 刪除是瀏覽器原生按鈕（2026-10-26，fix-batch14 L2 全專案原生 `<button>` 盤點）**：`SitterQuestionManager.tsx` 題目列 5 顆 `<button>` 只設了 padding / fontSize，沒有任何底色與框線重設，畫面是灰底、2px outset 框、系統字。改用 `Button`（↑ / ↓ / 停用 / 編輯為 `secondary`，刪除為 `danger-outline`）、`nowrap`。迴歸：`ui-layout-contrast.spec.ts`「L2：問卷題目列」（5 顆的 class / 圓角 / 字型 / 底色或紅框、單行；舊版紅）；`sitter-question-manager.spec.ts` 既有流程（排序、啟停、刪除）不變。

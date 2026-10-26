@@ -56,3 +56,5 @@
 **結案、申報爭議後飼主詳情的行程區塊整個消失，進不去日誌（2026-10-26，驗收 20261026-0007 截圖新問題 2 / fix-batch13 K2）**：C-08 結案後（COMPLETED）、CD-03 申報爭議後（DISPUTED）的截圖都沒有行程區塊。`OwnerOrderDetail.tsx` 的 `isServiceStage` 只含 CONFIRMED / IN_PROGRESS，行程清單又包在同一個區塊裡跟動作按鈕一起顯示，其他狀態連 `GET /visits` 都不發。爭議中正是最需要回頭看日誌的時候。修法：行程清單改依 `VISIT_LIST_STATUSES`（加上 COMPLETED / DISPUTED / MODIFYING / REFUND_VERIFY 與補款階段）獨立顯示，動作按鈕維持只在 CONFIRMED / IN_PROGRESS（PRD-009 A.4）。迴歸：TS-009-12（`order-visit-gating.spec.ts` K2 四個狀態，舊版 4 支紅）、Journey C C-09 / CD-05。
 
 **爭議 / 結案橫幅低對比（2026-10-26，驗收 20261026-0007 截圖新問題 9 / fix-batch13 K10）**：飼主詳情爭議橫幅 `#d97706` 對 `#fef3c7` 量測 2.86、結案橫幅 `#16a34a` 對 `#dcfce7` 3.0，未達 AA。改 `#92400e`（6.37）、`#047857`（4.99）。迴歸：`ui-layout-contrast.spec.ts` K10 DISPUTED / COMPLETED（舊版紅）。
+
+**帳務總覽「← 上個月」「下個月 →」斷成兩行（2026-10-26，驗收 20261026-1517 截圖新問題 2 / fix-batch14 L2）**：`SitterLedger.tsx` 的月份切換是原生 `<button>`（左右各 1rem 內距），月份欄 `minWidth: 90px`，390px 殼內放不下，按鈕文字斷成「← 上 / 個月」（ui 80df3 01）。改 `Button secondary`、`whiteSpace: nowrap`、`flexShrink: 0`、內距 0.875rem，列間距 0.75rem。迴歸：`ui-layout-contrast.spec.ts`「L2：帳務總覽」（兩鈕與月份各自單行、專案按鈕樣式、三者同列不重疊、不溢出；舊版紅）。

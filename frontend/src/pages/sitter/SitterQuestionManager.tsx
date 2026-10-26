@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
 import {
   getMyQuestions,
   createQuestion,
@@ -23,6 +24,13 @@ const emptyForm = (): SitterQuestion => ({
   options: [],
   required: false
 });
+
+/** 題目列的排序 / 啟停 / 編輯 / 刪除：Button 基底樣式下的小尺寸，不換行 */
+const QUESTION_ACTION_STYLE: React.CSSProperties = {
+  padding: '0.3rem 0.6rem',
+  fontSize: '0.75rem',
+  whiteSpace: 'nowrap'
+};
 
 const SitterQuestionManager: React.FC = () => {
   const [questions, setQuestions] = useState<SitterQuestion[]>([]);
@@ -430,51 +438,52 @@ const SitterQuestionManager: React.FC = () => {
                     alignItems: 'flex-end'
                   }}
                 >
+                  {/* fix-batch14 L2：過去 5 顆都是沒有任何底色 / 框線重設的原生 <button>（灰底、2px outset 框、系統字） */}
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
-                    <button
+                    <Button
+                      variant="secondary"
                       onClick={() => handleMove(index, -1)}
                       disabled={index === 0}
                       data-testid={`question-move-up-${q.id}`}
-                      style={{ padding: '0.3rem 0.5rem', cursor: 'pointer' }}
+                      style={QUESTION_ACTION_STYLE}
                     >
                       ↑
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="secondary"
                       onClick={() => handleMove(index, 1)}
                       disabled={index === questions.length - 1}
                       data-testid={`question-move-down-${q.id}`}
-                      style={{ padding: '0.3rem 0.5rem', cursor: 'pointer' }}
+                      style={QUESTION_ACTION_STYLE}
                     >
                       ↓
-                    </button>
+                    </Button>
                   </div>
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
-                    <button
+                    <Button
+                      variant="secondary"
                       onClick={() => handleToggleActive(q)}
                       data-testid={`question-toggle-active-${q.id}`}
-                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                      style={QUESTION_ACTION_STYLE}
                     >
                       {q.isActive ? '停用' : '啟用'}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="secondary"
                       onClick={() => startEdit(q)}
                       data-testid={`question-edit-${q.id}`}
-                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer' }}
+                      style={QUESTION_ACTION_STYLE}
                     >
                       編輯
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="danger-outline"
                       onClick={() => handleDelete(q.id!)}
                       data-testid={`question-delete-${q.id}`}
-                      style={{
-                        padding: '0.3rem 0.6rem',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        color: 'var(--color-error)'
-                      }}
+                      style={QUESTION_ACTION_STYLE}
                     >
                       刪除
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>

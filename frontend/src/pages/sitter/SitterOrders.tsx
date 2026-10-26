@@ -46,14 +46,35 @@ const SitterOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              gap: '0.5rem',
               padding: '0.5rem 0.75rem',
               backgroundColor: 'var(--color-surface-low)',
               borderRadius: '8px',
               fontSize: '0.875rem'
             }}
           >
-            <span>
-              {new Date(visit.scheduledAt).toLocaleDateString()}（{visitStatusLabel(visit.status)}）
+            {/* fix-batch14 L2：390px 卡片內「10/27/2026（待執行）」被「打卡 / 回報」擠到「待執 / 行）」中間斷行
+                （驗收 20261026-1517 B 27、C 02、D1 21）。改為日期 / 狀態上下兩行，各自不換行 */}
+            <span
+              data-testid="sitter-order-visit-label"
+              style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}
+            >
+              <span
+                data-testid="sitter-order-visit-date"
+                style={{ whiteSpace: 'nowrap', fontWeight: 600 }}
+              >
+                {new Date(visit.scheduledAt).toLocaleDateString()}
+              </span>
+              <span
+                data-testid="sitter-order-visit-status"
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.75rem',
+                  color: 'var(--color-on-surface-variant)'
+                }}
+              >
+                {visitStatusLabel(visit.status)}
+              </span>
             </span>
             {action && (
               <button

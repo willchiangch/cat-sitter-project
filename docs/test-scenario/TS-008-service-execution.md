@@ -83,3 +83,5 @@
 **日誌回報頁成功訊息綠字配淺綠底對比不足（2026-10-25，驗收截圖新問題 8 / fix-batch12 U7）**：「已成功 Check-in」等訊息 `#10b981` 疊 `rgba(16,185,129,0.1)`，約 2.3:1。改 `#047857` / `#ecfdf5`（5.2:1），加 `data-testid="visit-report-success-msg"`。迴歸：`service-execution.spec.ts` Check-in 步驟量測（舊版紅）。
 
 **日誌回報頁狀態徽章低對比（2026-10-26，fix-batch12 另外發現 #3 / fix-batch13 K10）**：`VisitReportManager`「執行中」`#d97706` 對 `#fef3c7`（2.86）、「待送出日誌」`#ea580c` 對 `#ffedd5`（3.11），影像到期提醒同為 2.86。改 `#92400e`（6.37）、`#9a3412`（6.38）。迴歸：`ui-layout-contrast.spec.ts` K10「執行中」徽章（舊版紅）。
+
+**保母訂單卡行程列「10/27/2026（待執行）」被「打卡 / 回報」擠成兩行（2026-10-26，驗收 20261026-1517 截圖新問題 4 / fix-batch14 L2）**：`SitterOrders.tsx` 行程列把日期與狀態放在同一個 `<span>`，旁邊是「打卡 / 回報」，卡片內只剩約 130px，斷在「待執 / 行）」中間（B 27、B2 15、C 02、D1 21）。改為日期在上、狀態在下兩行，各自 `nowrap`（狀態 0.75rem、`--color-on-surface-variant`，不加全形括號），列 `gap: 0.5rem`。迴歸：`ui-layout-contrast.spec.ts`「L2：保母訂單卡行程列」（日期 / 狀態各自單行、上下排列左緣對齊、狀態對比 ≥ 4.5、與打卡鈕不重疊；舊版紅）；`order-visit-gating.spec.ts` 保母端入口文案不變。

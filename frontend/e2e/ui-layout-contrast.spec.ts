@@ -13,6 +13,8 @@ import {
   expectInside,
   expectNoHorizontalOverflow,
   expectNoOverlap,
+  expectProjectButton,
+  expectSingleLine,
   expectStandardPageInset,
   gradientContrastOf
 } from './support/layout';
@@ -1004,6 +1006,251 @@ test.describe('G5 版面溢出與對比度', () => {
           `未選中「${name}」實際對比度（opacity ${g.opacity}、底 ${g.backdrop}、色標 ${g.stops.join(' / ') || '無漸層'}）`
         ).toBeGreaterThanOrEqual(4.5);
       }
+    });
+  });
+  // fix-batch14 L2（驗收 20261026-1517 截圖新問題 1 / A-04 10）：「返回待審清單」是 className="btn-secondary" 的
+  // 原生 <button>，但 .btn-secondary 從未定義 → 直角、灰框、系統字
+  test('L2：KYC 詳情「返回待審清單」為專案 Button secondary，單行不換行', async ({ page }) => {
+    const recordId = 'b1000000-0000-0000-0000-0000000014a1';
+    const kycSitterId = 'b2000000-0000-0000-0000-0000000014a1';
+    const frontUrl = 'https://storage.example.test/kyc/l2-front.jpg?X-Goog-Signature=mock';
+    const selfieUrl = 'https://storage.example.test/kyc/l2-selfie.jpg?X-Goog-Signature=mock';
+    await mockDemoSession(page, 'admin');
+    await page.route(`**/api/admin/kyc/${recordId}`, (route) =>
+      route.fulfill(
+        json({
+          data: {
+            recordId,
+            sitterId: kycSitterId,
+            fullName: 'L2 返回鈕測試保母',
+            email: 'l2-back@example.test',
+            kycStatus: 'PENDING',
+            submittedAt: '2026-10-24T00:00:00Z',
+            idCardFrontKey: 'kyc/front',
+            selfieKey: 'kyc/selfie'
+          }
+        })
+      )
+    );
+    await page.route(`**/api/admin/kyc/${kycSitterId}/media/*`, (route) =>
+      route.fulfill(
+        json({
+          data: { signedUrl: route.request().url().endsWith('/selfie') ? selfieUrl : frontUrl }
+        })
+      )
+    );
+    await serveFixtureImage(page, frontUrl, 'kyc-id-front.jpg');
+    await serveFixtureImage(page, selfieUrl, 'kyc-selfie.jpg');
+
+    await step('返回鈕樣式與版面', page, async () => {
+      await page.goto(`/admin/kyc/${recordId}`);
+      await expect(page.getByText('L2 返回鈕測試保母')).toBeVisible();
+      const back = page.getByTestId('admin-kyc-detail-back-btn');
+      await expect(back).toHaveText('返回待審清單');
+      const look = await expectProjectButton(back, '返回待審清單');
+      await expectSingleLine(back, '返回待審清單');
+      await expectInside(back, page.locator('main'), '返回待審清單');
+      await expectNoHorizontalOverflow(page);
+      return look;
+    });
+  });
+
+  // fix-batch14 L2（驗收 20261026-1517 截圖新問題 2 / ui 80df3 01）：原生 <button> 左右各 1rem，390px 殼內斷成兩行
+  test('L2：帳務總覽「← 上個月」「下個月 →」單行、專案按鈕樣式，與月份同一列不重疊', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/orders/sitter/ledger**', (route) =>
+      route.fulfill(json({ yearMonth: '2026-10', totalRevenue: 0, entries: [] }))
+    );
+
+    await step('月份切換列量測', page, async () => {
+      await page.goto('/sitter/ledger');
+      await expect(page.getByTestId('ledger-empty')).toHaveText('本月尚無已結案訂單');
+      const prev = page.getByTestId('ledger-prev-month-btn');
+      const next = page.getByTestId('ledger-next-month-btn');
+      const month = page.getByTestId('ledger-current-month');
+      await expect(prev).toHaveText('← 上個月');
+      await expect(next).toHaveText('下個月 →');
+      const looks = {
+        prev: await expectProjectButton(prev, '上個月'),
+        next: await expectProjectButton(next, '下個月')
+      };
+      await expectSingleLine(prev, '上個月');
+      await expectSingleLine(next, '下個月');
+      await expectSingleLine(month, '月份');
+      await expectNoOverlap(prev, month, '上個月與月份');
+      await expectNoOverlap(month, next, '月份與下個月');
+      // 三者同一列：垂直中心差 < 2px
+      const boxes = await Promise.all([prev, month, next].map((l) => l.boundingBox()));
+      const centers = boxes.map((b) => b!.y + b!.height / 2);
+      expect(Math.max(...centers) - Math.min(...centers), '三者同一列').toBeLessThan(2);
+      await expectNoHorizontalOverflow(page);
+      return { looks, boxes };
+    });
+  });
+
+  // fix-batch14 L2（驗收 20261026-1517 截圖新問題 4 / B 27、C 02、D1 21）：
+  // 「10/27/2026（待執行）」被「打卡 / 回報」擠到「待執 / 行）」中間斷行。改為日期 / 狀態上下兩行
+  test('L2：保母訂單卡行程列日期與狀態各自不斷行，不與「打卡 / 回報」重疊', async ({ page }) => {
+    const scheduledAt = '2026-10-27T00:00:00Z';
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/orders/sitter', (route) =>
+      route.fulfill(
+        json([
+          {
+            id: ORDER_ID,
+            ownerId: 'o-1',
+            ownerName: 'Journey飼主c',
+            sitterId: SITTER_ID,
+            status: 'CONFIRMED',
+            totalAmount: 600,
+            amountDue: 600,
+            hasPaymentProof: true,
+            paymentProofLastFive: '12345',
+            scheduledDatesLabel: '2026-10-27 (共 1 天)'
+          }
+        ])
+      )
+    );
+    await page.route(`**/api/orders/${ORDER_ID}/visits`, (route) =>
+      route.fulfill(json([{ id: 'v-l2', status: 'PENDING', scheduledAt, reportSubmitted: false }]))
+    );
+
+    await step('進行中分頁行程列量測', page, async () => {
+      await page.goto('/sitter/orders');
+      await page.getByTestId('sitter-orders-tab-ongoing').click();
+      const row = page.getByTestId('sitter-order-visit-item');
+      await expect(row).toHaveCount(1);
+      const expectedDate = await page.evaluate(
+        (iso) => new Date(iso).toLocaleDateString(),
+        scheduledAt
+      );
+      const label = row.getByTestId('sitter-order-visit-label');
+      await expect(label).toHaveText(`${expectedDate}待執行`);
+      const date = row.getByTestId('sitter-order-visit-date');
+      const status = row.getByTestId('sitter-order-visit-status');
+      await expect(date).toHaveText(expectedDate);
+      await expect(status).toHaveText('待執行');
+      await expectSingleLine(date, '日期');
+      await expectSingleLine(status, '狀態');
+      // 版面：日期在上、狀態在下（刻意兩行），左緣對齊
+      const [db, sb] = [(await date.boundingBox())!, (await status.boundingBox())!];
+      expect(sb.y, '狀態在日期下方').toBeGreaterThanOrEqual(db.y + db.height - 0.5);
+      expect(Math.abs(sb.x - db.x), '左緣對齊').toBeLessThan(0.5);
+      const statusContrast = await contrastOf(status);
+      expect(statusContrast.ratio, '狀態文字對比').toBeGreaterThanOrEqual(4.5);
+      const action = row.getByTestId('sitter-order-visit-link');
+      await expect(action).toHaveText('打卡 / 回報');
+      await expectSingleLine(action, '打卡 / 回報');
+      await expectNoOverlap(label, action, '日期狀態與打卡鈕');
+      await expectInside(action, row, '打卡鈕');
+      await expectNoHorizontalOverflow(page);
+      return {
+        label: await label.boundingBox(),
+        date: await date.boundingBox(),
+        status: await status.boundingBox(),
+        action: await action.boundingBox(),
+        statusContrast
+      };
+    });
+  });
+
+  // fix-batch14 L2（全專案原生 <button> 盤點）：題目列 5 顆按鈕沒有任何底色 / 框線重設（灰底、outset 框、系統字）
+  test('L2：問卷題目列的排序 / 啟停 / 編輯 / 刪除為專案按鈕樣式且不換行', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/sitter/questions', (route) =>
+      route.fulfill(
+        json([
+          {
+            id: 'q-l2-1',
+            questionText: '貓咪是否有固定的飲食時間？',
+            answerType: 'RADIO',
+            options: ['有', '沒有'],
+            required: true,
+            sortOrder: 0,
+            isActive: true,
+            version: 0
+          },
+          {
+            id: 'q-l2-2',
+            questionText: '有沒有特別需要注意的行為？',
+            answerType: 'TEXTAREA',
+            options: [],
+            required: false,
+            sortOrder: 1,
+            isActive: false,
+            version: 0
+          }
+        ])
+      )
+    );
+
+    await step('第一題的五顆按鈕量測', page, async () => {
+      await page.goto('/sitter/questions');
+      const looks: Record<string, unknown> = {};
+      for (const [id, text] of [
+        ['question-move-up-q-l2-1', '↑'],
+        ['question-move-down-q-l2-1', '↓'],
+        ['question-toggle-active-q-l2-1', '停用'],
+        ['question-edit-q-l2-1', '編輯']
+      ]) {
+        const btn = page.getByTestId(id);
+        await expect(btn).toHaveText(text);
+        looks[id] = await expectProjectButton(btn, text);
+        await expectSingleLine(btn, text);
+      }
+      const del = page.getByTestId('question-delete-q-l2-1');
+      await expect(del).toHaveText('刪除');
+      looks['question-delete-q-l2-1'] = await expectProjectButton(del, '刪除', 'danger-outline');
+      await expectSingleLine(del, '刪除');
+      // 第一題的「↑」停用（Button 停用 opacity 0.5），第二題已停用顯示「啟用」
+      await expect(page.getByTestId('question-move-up-q-l2-1')).toBeDisabled();
+      await expect(page.getByTestId('question-toggle-active-q-l2-2')).toHaveText('啟用');
+      await expectNoHorizontalOverflow(page);
+      return looks;
+    });
+  });
+
+  // fix-batch14 L2：毛孩新增表單的「取消」是 className="btn-secondary"（未定義）的原生 <button>
+  test('L2：毛孩新增表單「取消」為專案 Button secondary', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await page.route(
+      (url) => url.pathname === '/api/pets',
+      (route) => route.fulfill(json({ code: 200, message: 'OK', data: [] }))
+    );
+
+    await step('開啟新增表單，量測取消鈕', page, async () => {
+      await page.goto('/pets');
+      await page.getByTestId('btn-add-pet').first().click();
+      const cancel = page.getByTestId('btn-cancel-add-pet');
+      await expect(cancel).toHaveText('取消');
+      const look = await expectProjectButton(cancel, '取消');
+      await expectSingleLine(cancel, '取消');
+      await expectNoOverlap(cancel, page.getByTestId('btn-save-pet'), '取消與儲存');
+      await expectNoHorizontalOverflow(page);
+      return look;
+    });
+  });
+
+  // fix-batch14 L2：原生 <button> 不繼承字型（UA 13.33px 系統字）。global.css 加 button { font-family: inherit }
+  test('L2：只有 inline 樣式的原生 <button>（訂單分頁籤）繼承頁面字型，不是系統字', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/orders/sitter', (route) => route.fulfill(json([])));
+
+    await step('分頁籤字型', page, async () => {
+      await page.goto('/sitter/orders');
+      const tab = page.getByTestId('sitter-orders-tab-ongoing');
+      await expect(tab).toBeVisible();
+      const fonts = await tab.evaluate((el) => ({
+        button: getComputedStyle(el).fontFamily,
+        parent: getComputedStyle(el.parentElement!).fontFamily
+      }));
+      expect(fonts.button, '分頁籤字型＝父層字型').toBe(fonts.parent);
+      expect(fonts.button).toContain('Manrope');
+      return fonts;
     });
   });
 });

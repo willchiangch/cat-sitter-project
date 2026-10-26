@@ -108,6 +108,12 @@ h3,
   padding: 2rem 1.5rem;
 }
 
+/* 原生 <button> 不繼承字型（UA 樣式是 13.33px 系統字）：沒用 Button 元件、只寫 inline 樣式的按鈕
+ * （圖示鈕、分頁籤、行內文字鈕）一律改繼承頁面字型（fix-batch14 L2）。.btn / .btn-primary / inline fontFamily 仍優先 */
+button {
+  font-family: inherit;
+}
+
 /* Button 元件（src/components/ui/Button.tsx）的基底 class（fix-batch13 K4）：過去 .btn 從未定義，
  * 沒加 btn-primary 的 Button 只有 inline 底色，其餘全是瀏覽器原生樣式（2px outset 黑框、直角、13.33px 系統字），
  * 例：撤單後評估頁「返回訂單列表」（驗收 BC-04 11）、婉拒面板「確定拒絕」「取消」（BR-01 02）。

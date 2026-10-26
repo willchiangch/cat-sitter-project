@@ -54,3 +54,7 @@
 
 * **資料清理**：
     * 每次測試前執行全域 `DatabaseCleanupListener`，清空 `pets`, `pet_edit_logs`, `orders` 等表，重新初始化乾淨測試資料。
+
+## 本測試發現並修復的真實 bug
+
+**毛孩新增表單與照護備註的「取消」是原生按鈕（2026-10-26，fix-batch14 L2 全專案原生 `<button>` 盤點）**：`PetManager.tsx` 兩顆「取消」寫 `className="btn-secondary"`，但 `.btn-secondary` 從未定義，畫面是瀏覽器預設灰底與系統字。改 `Button variant="secondary"`（testid `btn-cancel-add-pet` / `btn-cancel-edit-notes`）。迴歸：`ui-layout-contrast.spec.ts`「L2：毛孩新增表單『取消』」（class / 圓角 / 字型 / 底色、單行、不與儲存鈕重疊；舊版紅）。

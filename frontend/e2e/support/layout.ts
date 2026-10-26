@@ -237,3 +237,68 @@ export async function expectStandardPageInset(page: Page, label: string) {
     right: STANDARD_PAGE_INSET
   });
 }
+
+/**
+ * 元素文字實際排成幾行（以文字 Range 的行框 top 去重計算，fix-batch13 K7 同一手法）。
+ * 「不換行」斷言用這個，不用高度猜：padding / line-height 不同的按鈕高度門檻不一樣。
+ */
+export async function textLineCount(locator: Locator): Promise<number> {
+  return locator.evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+  });
+}
+
+export async function expectSingleLine(locator: Locator, label: string) {
+  expect(await textLineCount(locator), `${label} 行數`).toBe(1);
+  const clipped = await locator.evaluate((el) => el.scrollWidth > el.clientWidth + 0.5);
+  expect(clipped, `${label} 文字被裁切（scrollWidth > clientWidth）`).toBe(false);
+}
+
+export interface ButtonLook {
+  classes: string[];
+  fontFamily: string;
+  borderRadius: string;
+  borderTopStyle: string;
+  backgroundColor: string;
+  color: string;
+}
+
+/** 按鈕實際渲染外觀（回傳給 step 留 JSON 證據；fix-batch14 L2 原生 <button> 統一處理） */
+export async function buttonLookOf(locator: Locator): Promise<ButtonLook> {
+  return locator.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      classes: Array.from(el.classList),
+      fontFamily: cs.fontFamily,
+      borderRadius: cs.borderTopLeftRadius,
+      borderTopStyle: cs.borderTopStyle,
+      backgroundColor: cs.backgroundColor,
+      color: cs.color
+    };
+  });
+}
+
+/**
+ * 專案 Button 元件基底（.btn，fix-batch13 K4）：膠囊圓角、Plus Jakarta Sans；secondary 為 #f3f4f6 底、無框線。
+ * 原生 <button> 會是 2px outset 框、直角、系統字。
+ */
+export async function expectProjectButton(
+  locator: Locator,
+  label: string,
+  variant: 'secondary' | 'danger-outline' = 'secondary'
+): Promise<ButtonLook> {
+  const look = await buttonLookOf(locator);
+  expect(look.classes, `${label} class`).toContain('btn');
+  expect(look.borderRadius, `${label} 圓角`).toBe('9999px');
+  expect(look.fontFamily, `${label} 字型`).toContain('Plus Jakarta Sans');
+  if (variant === 'secondary') {
+    expect(look.backgroundColor, `${label} 底色`).toBe('rgb(243, 244, 246)');
+    expect(look.borderTopStyle, `${label} 框線`).toBe('none');
+  } else {
+    expect(look.borderTopStyle, `${label} 框線`).toBe('solid');
+    expect(look.color, `${label} 文字色（--color-error）`).toBe('rgb(176, 37, 0)');
+  }
+  return look;
+}

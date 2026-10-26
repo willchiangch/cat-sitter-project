@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
 import { useSitterLedgerQuery } from '../../hooks/useOrders';
 import { formatMoney } from '../../utils/money';
 
@@ -21,6 +22,15 @@ const shiftMonth = (yearMonth: string, delta: number) => {
   const [year, month] = yearMonth.split('-').map(Number);
   const date = new Date(year, month - 1 + delta, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+// fix-batch14 L2：過去是原生 <button>（左右各 1rem 內距），390px 殼內「← 上個月」「下個月 →」被擠成兩行
+// （驗收 20261026-1517 ui 80df3 01）。改用 Button secondary、不換行、不被壓縮
+const MONTH_NAV_STYLE: React.CSSProperties = {
+  padding: '0.5rem 0.875rem',
+  fontSize: '0.875rem',
+  whiteSpace: 'nowrap',
+  flexShrink: 0
 };
 
 const SitterLedger: React.FC = () => {
@@ -53,42 +63,38 @@ const SitterLedger: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '1rem',
+          gap: '0.75rem',
           marginBottom: '1.5rem'
         }}
       >
-        <button
+        <Button
+          variant="secondary"
           onClick={() => setMonth((m) => shiftMonth(m, -1))}
           data-testid="ledger-prev-month-btn"
-          style={{
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            border: '1px solid var(--color-outline-variant)',
-            backgroundColor: 'var(--color-surface-low)',
-            cursor: 'pointer'
-          }}
+          style={MONTH_NAV_STYLE}
         >
           ← 上個月
-        </button>
+        </Button>
         <span
           data-testid="ledger-current-month"
-          style={{ fontSize: '1.1rem', fontWeight: '700', minWidth: '90px', textAlign: 'center' }}
+          style={{
+            fontSize: '1.1rem',
+            fontWeight: '700',
+            minWidth: '80px',
+            textAlign: 'center',
+            whiteSpace: 'nowrap'
+          }}
         >
           {month}
         </span>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => setMonth((m) => shiftMonth(m, 1))}
           data-testid="ledger-next-month-btn"
-          style={{
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            border: '1px solid var(--color-outline-variant)',
-            backgroundColor: 'var(--color-surface-low)',
-            cursor: 'pointer'
-          }}
+          style={MONTH_NAV_STYLE}
         >
           下個月 →
-        </button>
+        </Button>
       </div>
 
       <Card style={{ textAlign: 'center', marginBottom: '2rem' }}>
