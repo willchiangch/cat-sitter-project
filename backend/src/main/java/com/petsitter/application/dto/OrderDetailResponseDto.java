@@ -43,6 +43,11 @@ public class OrderDetailResponseDto {
     private OffsetDateTime payoutAt;
     private List<OrderItem> items; // 預約內容快照清單
     /**
+     * 訂單所用方案的可預訂日期區間 (PRD-003 B)，訂單變更精靈的前端防呆用 (SD-016 §2.1)；
+     * 權威檢查在 ModificationService.proposeModification（422 PLAN_NOT_IN_RANGE）
+     */
+    private List<PlanDateRangeDto> planDateRanges;
+    /**
      * 取消者：OWNER = 飼主付款前撤單（fix-batch10 H5）；SITTER = 保母婉拒（fix-batch13 K1，
      * 2026-10-26 前婉拒的舊訂單欄位為 NULL，依 ORDER_REJECTED 日誌補判為 SITTER）；訂單變更取消為 null
      */

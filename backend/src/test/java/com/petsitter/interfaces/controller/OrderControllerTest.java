@@ -84,6 +84,9 @@ class OrderControllerTest {
     @Autowired
     private ModificationRequestRepository modRequestRepository;
 
+    @Autowired
+    private com.petsitter.domain.repository.ServicePlanRepository servicePlanRepository;
+
     @MockitoBean
     private EvaluationService evaluationService;
 
@@ -105,6 +108,7 @@ class OrderControllerTest {
         modRequestRepository.deleteAll();
         subscriptionRepository.deleteAll();
         orderRepository.deleteAll();
+        servicePlanRepository.deleteAll();
         userRepository.deleteAll();
 
         User sitter = User.builder().email("sitter@test.com").passwordHash("hash").role("SITTER").build();
@@ -563,6 +567,50 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.status").value("M_DONE"))
                 .andExpect(jsonPath("$.orderStatus").value("REFUND_VERIFY"))
                 .andExpect(jsonPath("$.diffAmount").value(-500));
+    }
+
+    @Test
+    @DisplayName("L1：GET 訂單詳情帶 planDateRanges（null 端點照樣輸出）；POST modify 新增區間外日期 → 422 PLAN_NOT_IN_RANGE")
+    void should_ExposePlanDateRanges_And_Return422_When_ModifyOutOfPlanRange() throws Exception {
+        User sitter = userRepository.findById(sitterId).orElseThrow();
+        com.petsitter.domain.model.ServicePlan plan = servicePlanRepository.save(com.petsitter.domain.model.ServicePlan.builder()
+                .sitter(sitter).name("寒假限定").price(500L)
+                .startDate(java.time.LocalDate.parse("2027-01-20"))
+                .build());
+        Order order = orderRepository.findById(realOrderId).orElseThrow();
+        order.setPlanId(plan.getId());
+        order.setItems(new java.util.ArrayList<>(List.of(new com.petsitter.domain.model.OrderItem(
+                "BOOKING", "寒假限定", 500, 1, plan.getId(), List.of("2027-01-25"), 1, List.of()))));
+        orderRepository.saveAndFlush(order);
+        TokenContext.setUserId(ownerId);
+
+        String detail = mockMvc.perform(get("/api/orders/{orderId}", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planDateRanges.length()").value(1))
+                .andExpect(jsonPath("$.planDateRanges[0].planId").value(plan.getId().toString()))
+                .andExpect(jsonPath("$.planDateRanges[0].planName").value("寒假限定"))
+                .andExpect(jsonPath("$.planDateRanges[0].startDate").value("2027-01-20"))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        // 全域 non-null 序列化下仍要輸出 null（= 該端不限），不能整個欄位消失（jsonPath exists() 對 null 值判為不存在，改比原文）
+        org.assertj.core.api.Assertions.assertThat(detail).contains("\"endDate\":null");
+
+        String payload = "{\"items\":[{\"category\":\"BOOKING\",\"serviceName\":\"寒假限定\",\"unitPrice\":500,"
+                + "\"quantity\":2,\"planId\":\"" + plan.getId() + "\",\"dates\":[\"2027-01-19\",\"2027-01-25\"],"
+                + "\"timesPerDay\":1}],\"totalDays\":2,\"dates\":[\"2027-01-19\",\"2027-01-25\"]}";
+        mockMvc.perform(post("/api/orders/{orderId}/modify", realOrderId)
+                        .with(user(ownerId.toString()).roles("OWNER"))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .param("requestedBy", "OWNER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("PLAN_NOT_IN_RANGE"))
+                .andExpect(jsonPath("$.message").value("變更日期 2027-01-19 不在方案「寒假限定」的可預訂日期區間"));
+
+        org.assertj.core.api.Assertions.assertThat(modRequestRepository.count()).isZero();
+        org.assertj.core.api.Assertions.assertThat(orderRepository.findById(realOrderId).orElseThrow().getStatus())
+                .isEqualTo("CONFIRMED");
     }
 
     // ===== C4 迴歸：退款憑證改為上傳圖片 + 私有物件 + 簽名網址，不再接受/回傳任意外部網址 =====

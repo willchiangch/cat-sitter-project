@@ -84,12 +84,9 @@ public class BookingService {
                 throw new org.springframework.security.access.AccessDeniedException("您無權預約此方案");
             }
 
-            // 雙向日期區間防禦 (SD-003)
+            // 雙向日期區間防禦 (SD-003 §3)；判斷與訂單變更 (ModificationService) 共用 ServicePlan.isBookableOn
             for (LocalDate date : itemReq.getDates()) {
-                if (plan.getStartDate() != null && date.isBefore(plan.getStartDate())) {
-                    throw new ServicePlanException(HttpStatus.UNPROCESSABLE_ENTITY, "PLAN_NOT_IN_RANGE", "方案目前不在生效區間");
-                }
-                if (plan.getEndDate() != null && date.isAfter(plan.getEndDate())) {
+                if (!plan.isBookableOn(date)) {
                     throw new ServicePlanException(HttpStatus.UNPROCESSABLE_ENTITY, "PLAN_NOT_IN_RANGE", "方案目前不在生效區間");
                 }
             }

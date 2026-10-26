@@ -61,6 +61,19 @@
 * **Then**: 非圖片或 > 5MB → 400 不上傳；JSON 網址字串 → 400、DB 不寫入；上傳成功存 `refund-proofs/` Object Key；飼主與保母取得 10 分鐘簽名網址，第三方 403 且不簽名；舊資料的外部網址或未上傳 → 409 且回應不含該網址；`GET .../modification` 只回 `hasRefundProof`。前端飼主端以 `<img>` 顯示簽名網址，退款區塊內沒有任何 `<a>` 連結。
 * **自動化對應**: `OrderControllerTest` 中 `C4` 前綴的 7 支與 `should_UploadRefundProof_Successfully_UsingTokenContextIdentity`；mock E2E `order-modification.spec.ts`（multipart content-type、預覽 `src` 為簽名網址、無 `<a>`）；Journey D 退款分支步驟 7、8（`expectSignedRefundProof`：`refund-proofs/` + `X-Goog-Signature` + 圖片載入）。
 
+## Scenario 2f: 變更新增日期須在方案可預訂區間內 (2026-10-26，驗收 20261026-1517 L1)
+* **Given**: 方案「暑假限定」可預訂區間 `2026-07-01 ~ 2026-08-31`，原訂單 `2026-07-10`、`2026-07-11`。
+* **When / Then**:
+  - 新增 `2026-09-01`（迄日後）或 `2026-06-30`（起日前，只設起日的方案）→ 422 `PLAN_NOT_IN_RANGE`，訊息含該日期與方案名；不建立變更請求、訂單仍 `CONFIRMED`。
+  - 新增 `2026-07-01`、`2026-08-31`（兩端點）→ 成功。
+  - 常態開放方案（無區間）新增任意未來日期 → 成功（舊版前端寫死 2026-05 會擋）。
+  - 保母事後把區間縮到 `~ 2026-07-15`，原訂單 `07-20、07-21` 減為 `07-20` → 成功，且不查方案（沒有新增日期）。
+  - payload 竄改 `planId` 為不受限的方案 → 仍以原訂單方案判斷，422；不查竄改的方案。
+  - `items[].dates` 格式錯誤 → 400。
+  - `GET /api/orders/{id}` 回 `planDateRanges`，未設的端點輸出 `null`（不被全域 non-null 吃掉）。
+* **前端（mock）**：精靈顯示真實區間（`modify-plan-range` 全文比對）、預填原訂單日期；區間外前端擋下且不送 API（`dialog` 全文錨定）；端點日期可送且送出的 `dates`/`items[].dates`/`planId` 正確；常態開放填一年後可送；原訂單日期不受區間縮短影響；後端 422 原因顯示給飼主；格式錯誤（含 `2027-02-30`）擋下。
+* **自動化對應**: `ModificationServiceTest` 中 `L1` 前綴 8 支；`ModificationServiceIntegrationTest.should_EnforcePlanRange_And_ExposeItOnOrderDetail`（真 DB）；`OrderControllerTest.should_ExposePlanDateRanges_And_Return422_When_ModifyOutOfPlanRange`（HTTP 契約）；mock E2E `order-modification.spec.ts` `L1：` 5 支；Journey D 步驟 1、5a（TS-JOURNEY-04）。
+
 ## Scenario 3: 非本人發起變更應被拒絕
 * **Given**: 訂單 `CONFIRMED`，僅飼主與保母為訂單雙方。
 * **When**: 第三方（非該訂單的飼主或保母）呼叫發起變更 API。
@@ -115,6 +128,7 @@
 | 7 | 補款核帳 | 訂單回到發起變更前狀態 | `Order.status = previous_status`、`supplement_verified_at` 非 null、`paid_at` 不變（Scenario 1b） |
 | 9 | 確認收到退款 / 無差額同意 | 訂單回到發起變更前狀態 | `Order.status = previous_status`，整筆取消（含無差額的整筆取消）為 `CANCELLED`（Scenario 2b / 2e） |
 | 10 | 重送已完成的協商動作 / 非退款階段上傳退款憑證 | 409、資料不變；協商頁不再顯示該動作 | `ModificationRequest.status`、`Order.status` 不變（Scenario 2c） |
+| 11 | 發起變更新增區間外日期 | 422 `PLAN_NOT_IN_RANGE`，前端預先擋下 | 不建立 `modification_requests`、`Order.status` 不變；區間取自原訂單方案（Scenario 2f） |
 | 8 | 補款上傳/駁回 | 首次付款紀錄保留 | `orders.payment_proof_url/last_five/payment_idempotency_key/disclaimer_agreed_at/paid_at` 不變（Scenario 1b） |
 
 ---
@@ -125,8 +139,9 @@
 - **E2E 對應**: [order-modification.spec.ts](file:///Users/will_chiang/Widget_home/cat-sitter-project/frontend/e2e/order-modification.spec.ts)
 - **補款應付金額 (P8 迴歸)**: [OrderQueryServiceListTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/application/service/OrderQueryServiceListTest.java)；E2E `frontend/e2e/journeys/order-modification-negotiation.spec.ts` 補款分支步驟 7/8
 - **補款核帳狀態復原 / 首次付款不覆寫 (B2 迴歸)**: [PaymentControllerTest](file:///Users/will_chiang/Widget_home/cat-sitter-project/backend/src/test/java/com/petsitter/interfaces/controller/PaymentControllerTest.java) Scenario 1b 五支；E2E Journey D 補款分支步驟 8
-- **執行指令**: `mvn test -Dtest=ModificationServiceTest,ModificationServiceIntegrationTest,OrderQueryServiceListTest,PaymentControllerTest`
-- **最後驗證日期**: 2026-07-18
+- **方案可預訂區間 (L1)**: `ModificationServiceTest`、`ModificationServiceIntegrationTest`、`OrderControllerTest`（Scenario 2f）
+- **執行指令**: `mvn test -Dtest=ModificationServiceTest,ModificationServiceIntegrationTest,OrderQueryServiceListTest,PaymentControllerTest,OrderControllerTest`
+- **最後驗證日期**: 2026-10-26
 
 ---
 
@@ -147,3 +162,5 @@
 **協商結清後的正常終態以紅色錯誤字呈現、API 回 409（2026-10-24，驗收 N8 / backlog 第 6 批 G5）**：`GET /api/orders/{id}/modification` 查無進行中的協商時丟 `IllegalStateException` → 409「此訂單目前沒有進行中的變更請求」，兩個協商頁一律把它當成讀取失敗，以紅字「目前沒有進行中的變更協商（可能已完成、已拒絕或不存在）」顯示。這是正常空狀態，不是衝突：改成 `ModificationService.getActiveModificationRequest` 回 `Optional`、controller 回 204；前端 204 → null 顯示中性空狀態，其他錯誤才紅字。迴歸：`OrderControllerTest.should_Return204_When_NoActiveModificationRequest`（飼主與保母各打一次，204 且 body 為空）、`ModificationServiceTest.should_ReturnEmpty_When_OrderHasNoNegotiationRelatedStatus`；mock `order-modification.spec.ts` 結清步驟改斷言 `mod-confirm-empty` 全文與灰色、`mod-confirm-error` 數量 0；Journey D 步驟 9 改斷言 `mod-*-empty`。
 
 **保母訂單卡日期兩行時飼主頭像被壓成橢圓（2026-10-26，驗收 20261026-0007 截圖新問題 6 / fix-batch13 K7）**：變更後的訂單日期標籤「2026-05-26 ~ 2026-05-27 (共 2 天)」在 390px 換成兩行，`SitterOrders` 卡片頭像沒有 `flexShrink: 0`，被 flex 壓成 36×48。頭像固定不縮、文字欄 `minWidth: 0`（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` K7（舊版紅）。
+
+**變更精靈把方案區間寫死成 2026-05-01 ~ 05-31、後端完全不檢查（2026-10-26，驗收 20261026-1517 L1）**：`OrderModificationWizard.tsx` 以常數 `planStart = '2026-05-01'`、`planEnd = '2026-05-31'` 當「方案限制區間」，預填 `2026-05-26, 2026-05-27`，跟訂單實際方案無關。真實訂單（例如明天以後）填任何合法的未來日期都被前端以 `PLAN_NOT_IN_RANGE` 擋下，飼主只能填 2026-05 的過去日期，結果行程變成過去日期卻顯示「待執行」（Journey D 的 D1 14/16/21 截圖）；Journey D 與 mock spec 只好照抄 2026-05 日期。另一方面 `ModificationService.proposeModification()` 沒有任何日期檢查，繞過前端可以把訂單改到方案區間外，違反 PRD-003 B。修法：後端在建立變更請求前檢查新增日期是否落在原訂單方案的可預訂區間（SD-016 §2.1，422 `PLAN_NOT_IN_RANGE`，與 `BookingService` 共用 `ServicePlan.isBookableOn`）；訂單詳情回傳 `planDateRanges`，前端改用真實區間、預填原訂單日期、顯示後端錯誤原因。Journey D 與 mock 改用相對今天的日期。迴歸見 Scenario 2f。

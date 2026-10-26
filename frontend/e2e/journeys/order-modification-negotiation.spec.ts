@@ -13,6 +13,16 @@ import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evid
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * 相對今天的日期（比照 bootstrapPendingOrder 的 tomorrow 寫法）。L1 前寫死 2026-05-xx，
+ * 因為精靈把方案區間寫死成 2026-05-01~05-31；結果行程全是過去日期卻顯示「待執行」（驗收 20261026-1517）
+ */
+function day(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().split('T')[0];
+}
+
 /** C2 迴歸 (P7)：協商結清後直接打網址重新進入兩個協商頁，不得再出現任何可操作按鈕 */
 async function expectNegotiationPagesClosed(ownerPage: Page, sitterPage: Page, orderId: string) {
   await step('結清後保母重新進入報價頁：無任何可操作按鈕', sitterPage, async () => {
@@ -69,11 +79,13 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await page.getByTestId('btn-go-modification-wizard').click();
       await expect(page).toHaveURL(new RegExp(`/orders/${orderId}/modify`));
 
-      // OrderModificationWizard.tsx 目前用寫死的 2026-05-01~2026-05-31 當方案有效期間 mock，
-      // 跟真實訂單日期無關，變更後日期只要落在這個區間就不會觸發前端的 PLAN_NOT_IN_RANGE 防呆
-      await page.getByTestId('modify-dates-input').fill('2026-05-26, 2026-05-27');
+      // L1：方案區間取自真實方案（bootstrap 的方案未設區間 = 常態開放），預填原訂單日期（明天）
+      await expect(page.getByTestId('modify-plan-range')).toHaveText('常態開放（不限日期）');
+      await expect(page.getByTestId('modify-dates-input')).toHaveValue(day(1));
+      await page.getByTestId('modify-dates-input').fill(`${day(1)}, ${day(2)}`);
       await snap(page, '變更日期填寫完成');
       await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(ownerDialogs, /變更申請已成功提交/);
       await expect(page.getByTestId('modification-success-banner')).toBeVisible({ timeout: 10000 });
     });
 
@@ -117,6 +129,22 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await expect(page.getByTestId('mod-confirm-go-pay-btn')).toBeVisible();
       await expect(page.getByTestId('refund-confirm-section')).toHaveCount(0);
       await expect(page.getByTestId('refund-confirm-btn')).toHaveCount(0);
+    });
+
+    // L1：訂單詳情帶出真實方案區間（常態開放），行程改成變更後的兩個未來日期（過去寫死 2026-05 的過去日期）
+    await apiStep('變更生效：planDateRanges 為常態開放、行程為明天與後天兩筆 PENDING', async () => {
+      const detail = await awaitOrderStatus(request, owner, orderId, ['PENDING_PAYMENT']);
+      expect(detail.planDateRanges).toEqual([
+        { planId: sitter.planId, planName: sitter.planName, startDate: null, endDate: null }
+      ]);
+      const visitsRes = await request.get(`/api/orders/${orderId}/visits`, {
+        headers: apiAuthed(owner)
+      });
+      expect(visitsRes.ok()).toBeTruthy();
+      const visits: { status: string; scheduledAt: string }[] = await visitsRes.json();
+      expect(visits.map((v) => v.scheduledAt.slice(0, 10))).toEqual([day(1), day(2)]);
+      expect(visits.map((v) => v.status)).toEqual(['PENDING', 'PENDING']);
+      return { planDateRanges: detail.planDateRanges, visits };
     });
 
     await step(
@@ -241,10 +269,7 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
     const { sitter, owner, orderId } = await apiStep(
       '前置：兜出一筆兩天 CONFIRMED 訂單（減少天數才有退款可測）',
       async () => {
-        return bootstrapConfirmedOrder(request, 'd2', 'Journey方案D2', [
-          '2026-05-20',
-          '2026-05-21'
-        ]);
+        return bootstrapConfirmedOrder(request, 'd2', 'Journey方案D2', [day(1), day(2)]);
       }
     );
 
@@ -256,7 +281,9 @@ test.describe('Journey D: 訂單變更協商 (TS-JOURNEY-04)', () => {
       await page.getByTestId('btn-go-modification-wizard').click();
       await expect(page).toHaveURL(new RegExp(`/orders/${orderId}/modify`));
 
-      await page.getByTestId('modify-dates-input').fill('2026-05-20');
+      await expect(page.getByTestId('modify-plan-range')).toHaveText('常態開放（不限日期）');
+      await expect(page.getByTestId('modify-dates-input')).toHaveValue(`${day(1)}, ${day(2)}`);
+      await page.getByTestId('modify-dates-input').fill(day(1));
       await snap(page, '變更日期填寫完成');
       await page.getByTestId('modify-submit-btn').click();
       await expectDialog(ownerDialogs, /變更申請已成功提交/);

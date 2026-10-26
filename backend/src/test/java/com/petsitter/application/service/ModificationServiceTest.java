@@ -36,6 +36,8 @@ class ModificationServiceTest {
     private OrderSnapshotRepository snapshotRepo;
     @Mock
     private VisitRepository visitRepository;
+    @Mock
+    private ServicePlanRepository servicePlanRepository;
 
     @InjectMocks
     private ModificationService modificationService;
@@ -382,5 +384,158 @@ class ModificationServiceTest {
         assertThat(ModificationService.isWholeCancellation(order)).isTrue();
         order.setItems(new ArrayList<>(List.of(new OrderItem())));
         assertThat(ModificationService.isWholeCancellation(order)).isFalse();
+    }
+
+    // ---- L1（驗收 20261026-1517）：變更新增日期須落在方案可預訂區間，後端權威檢查 ----
+
+    private ServicePlan planWithRange(LocalDate start, LocalDate end) {
+        return ServicePlan.builder().id(UUID.randomUUID()).name("暑假限定").price(500L)
+                .startDate(start).endDate(end).build();
+    }
+
+    /** 原訂單：方案 plan 的 2026-07-10、07-11 兩天 */
+    private void givenOrderOnPlan(ServicePlan plan, String... dates) {
+        OrderItem item = new OrderItem("BOOKING", plan.getName(), 500, dates.length, plan.getId(),
+                new ArrayList<>(List.of(dates)), 1, new ArrayList<>());
+        order.setItems(new ArrayList<>(List.of(item)));
+        order.setPlanId(plan.getId());
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+    }
+
+    private ModificationPayloadDto proposalOn(UUID planId, String... dates) {
+        OrderItem item = new OrderItem("BOOKING", "暑假限定", 500, dates.length, planId,
+                new ArrayList<>(List.of(dates)), 1, new ArrayList<>());
+        return ModificationPayloadDto.builder()
+                .items(new ArrayList<>(List.of(item)))
+                .dates(java.util.Arrays.stream(dates).map(LocalDate::parse).toList())
+                .totalDays(dates.length)
+                .build();
+    }
+
+    @Test
+    @DisplayName("L1：新增日期晚於方案 endDate → 422 PLAN_NOT_IN_RANGE，不建立變更請求、訂單狀態不變")
+    void should_RejectAddedDate_When_AfterPlanEndDate() {
+        ServicePlan plan = planWithRange(LocalDate.parse("2026-07-01"), LocalDate.parse("2026-08-31"));
+        givenOrderOnPlan(plan, "2026-07-10", "2026-07-11");
+        when(servicePlanRepository.findById(plan.getId())).thenReturn(Optional.of(plan));
+
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.petsitter.application.exception.ServicePlanException.class,
+                () -> modificationService.proposeModification(ownerId, orderId,
+                        proposalOn(plan.getId(), "2026-07-10", "2026-07-11", "2026-09-01"), "OWNER"));
+
+        assertThat(ex.getError()).isEqualTo("PLAN_NOT_IN_RANGE");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ex.getMessage()).contains("2026-09-01");
+        verify(modRepo, never()).save(any());
+        assertThat(order.getStatus()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("L1：新增日期早於方案 startDate → 422 PLAN_NOT_IN_RANGE")
+    void should_RejectAddedDate_When_BeforePlanStartDate() {
+        ServicePlan plan = planWithRange(LocalDate.parse("2026-07-01"), null);
+        givenOrderOnPlan(plan, "2026-07-10");
+        when(servicePlanRepository.findById(plan.getId())).thenReturn(Optional.of(plan));
+
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.petsitter.application.exception.ServicePlanException.class,
+                () -> modificationService.proposeModification(ownerId, orderId,
+                        proposalOn(plan.getId(), "2026-06-30", "2026-07-10"), "OWNER"));
+
+        assertThat(ex.getError()).isEqualTo("PLAN_NOT_IN_RANGE");
+        verify(modRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("L1：常態開放方案（無區間）任何未來日期都可變更——舊版前端寫死 2026-05 會擋下的日期")
+    void should_AcceptAnyDate_When_PlanHasNoRange() {
+        ServicePlan plan = planWithRange(null, null);
+        givenOrderOnPlan(plan, "2026-10-27");
+        when(servicePlanRepository.findById(plan.getId())).thenReturn(Optional.of(plan));
+        when(snapshotRepo.findByOrderId(orderId)).thenReturn(Optional.of(snapshot));
+
+        modificationService.proposeModification(ownerId, orderId,
+                proposalOn(plan.getId(), "2026-10-27", "2026-10-28"), "OWNER");
+
+        ArgumentCaptor<ModificationRequest> captor = ArgumentCaptor.forClass(ModificationRequest.class);
+        verify(modRepo).save(captor.capture());
+        assertThat(captor.getValue().getDates()).containsExactly("2026-10-27", "2026-10-28");
+        assertThat(order.getStatus()).isEqualTo("MODIFYING");
+    }
+
+    @Test
+    @DisplayName("L1：區間內的新增日期可變更（含 startDate / endDate 兩端點）")
+    void should_AcceptAddedDates_When_WithinRangeInclusive() {
+        ServicePlan plan = planWithRange(LocalDate.parse("2026-07-01"), LocalDate.parse("2026-08-31"));
+        givenOrderOnPlan(plan, "2026-07-10");
+        when(servicePlanRepository.findById(plan.getId())).thenReturn(Optional.of(plan));
+        when(snapshotRepo.findByOrderId(orderId)).thenReturn(Optional.of(snapshot));
+
+        modificationService.proposeModification(ownerId, orderId,
+                proposalOn(plan.getId(), "2026-07-01", "2026-07-10", "2026-08-31"), "OWNER");
+
+        verify(modRepo).save(any(ModificationRequest.class));
+    }
+
+    @Test
+    @DisplayName("L1：原訂單已有的日期不受方案區間事後縮短影響——減少天數仍可送出")
+    void should_NotRecheckOriginalDates_When_PlanRangeShrunkAfterBooking() {
+        // 成交時方案到 8/31，之後保母把區間縮到 7/15；原訂單 7/20、7/21 減為 7/20
+        ServicePlan plan = planWithRange(LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-15"));
+        givenOrderOnPlan(plan, "2026-07-20", "2026-07-21");
+        when(snapshotRepo.findByOrderId(orderId)).thenReturn(Optional.of(snapshot));
+
+        modificationService.proposeModification(ownerId, orderId, proposalOn(plan.getId(), "2026-07-20"), "OWNER");
+
+        verify(modRepo).save(any(ModificationRequest.class));
+        // 沒有新增日期就不必查方案
+        verify(servicePlanRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("L1：以原訂單的方案判斷，不信任 payload 竄改的 planId")
+    void should_CheckOriginalOrderPlan_NotPayloadPlanId() {
+        ServicePlan plan = planWithRange(LocalDate.parse("2026-07-01"), LocalDate.parse("2026-08-31"));
+        givenOrderOnPlan(plan, "2026-07-10");
+        when(servicePlanRepository.findById(plan.getId())).thenReturn(Optional.of(plan));
+        UUID tamperedPlanId = UUID.randomUUID();
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                com.petsitter.application.exception.ServicePlanException.class,
+                () -> modificationService.proposeModification(ownerId, orderId,
+                        proposalOn(tamperedPlanId, "2026-07-10", "2026-12-25"), "OWNER"));
+
+        verify(servicePlanRepository, never()).findById(tamperedPlanId);
+        verify(modRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("L1：payload items 內的日期格式錯誤 → IllegalArgumentException（400），不是 500")
+    void should_RejectMalformedItemDate() {
+        ServicePlan plan = planWithRange(null, null);
+        givenOrderOnPlan(plan, "2026-07-10");
+        ModificationPayloadDto prop = proposalOn(plan.getId(), "2026-07-10");
+        prop.getItems().get(0).setDates(new ArrayList<>(List.of("2026/07/11")));
+
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> modificationService.proposeModification(ownerId, orderId, prop, "OWNER"));
+        assertThat(ex.getMessage()).contains("2026/07/11");
+        verify(modRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("L1：ServicePlan.isBookableOn 兩端點含、單邊不限、無區間常態開放")
+    void should_EvaluatePlanBookableRange() {
+        LocalDate s = LocalDate.parse("2026-07-01");
+        LocalDate e = LocalDate.parse("2026-08-31");
+        ServicePlan both = planWithRange(s, e);
+        assertThat(both.isBookableOn(s)).isTrue();
+        assertThat(both.isBookableOn(e)).isTrue();
+        assertThat(both.isBookableOn(s.minusDays(1))).isFalse();
+        assertThat(both.isBookableOn(e.plusDays(1))).isFalse();
+        assertThat(planWithRange(null, e).isBookableOn(LocalDate.parse("2000-01-01"))).isTrue();
+        assertThat(planWithRange(s, null).isBookableOn(LocalDate.parse("2099-12-31"))).isTrue();
+        assertThat(planWithRange(null, null).isBookableOn(LocalDate.parse("2099-12-31"))).isTrue();
     }
 }

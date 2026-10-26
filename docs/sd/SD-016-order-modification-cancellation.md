@@ -39,6 +39,12 @@ stateDiagram-v2
 ### 2.1 發起變更請求 (飼主/保母)
 - **Endpoint**: `POST /api/orders/{orderId}/modify`
 - **Headers**: `Idempotency-Key: UUID` (必填)
+- **方案可預訂區間檢查（PRD-016 資料規則 / PRD-003 B，2026-10-26 L1）**：`ModificationService.requireAddedDatesWithinPlanRange()` 在狀態檢查之後、建立 `ModificationRequest` 之前執行：
+  - 受檢日期 = payload `dates` ∪ 各 `items[].dates`，扣掉原訂單 `Order.items[].dates` 已有的日期（只檢查**新增**的日期）。
+  - 方案 = `ModificationService.bookedPlanIds(order)`：原訂單 `items[].planId` 去重，舊資料沒有時 fallback `orders.plan_id`；**不讀 payload 的 `planId`**（Zero-Trust）。方案已實體刪除者略過。
+  - 判斷共用 `ServicePlan.isBookableOn(date)`：`startDate`/`endDate` 皆 null = 常態開放；兩端點含。
+  - 違反 → `ServicePlanException` 422 `{"error":"PLAN_NOT_IN_RANGE","message":"變更日期 YYYY-MM-DD 不在方案「<名稱>」的可預訂日期區間"}`，不建立變更請求、訂單狀態不變。`items[].dates` 格式錯誤 → 400 `INVALID_PARAMETER`。
+- **前端防呆（UX，非權威）**：`GET /api/orders/{orderId}` 回傳 `planDateRanges: [{planId, planName, startDate, endDate}]`（同 `bookedPlanIds` 順序；`startDate`/`endDate` 以 `@JsonInclude(ALWAYS)` 強制輸出 null，不受全域 non-null 影響）。`OrderModificationWizard` 取各方案區間交集顯示於 `modify-plan-range`（兩端皆 null 顯示「常態開放（不限日期）」、單端 null 顯示「不限」），預填原訂單日期，送出前擋下格式錯誤與新增日期超出區間；後端錯誤以 `提交變更失敗 (<error>)：<message>` 顯示。2026-10-26 前精靈把區間寫死 `2026-05-01 ~ 2026-05-31`、預填 `2026-05-26, 2026-05-27`，後端完全不檢查。
 
 ### 2.2 查詢訂單目前進行中的變更請求
 - **Endpoint**: `GET /api/orders/{orderId}/modification`

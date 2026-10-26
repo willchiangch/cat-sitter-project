@@ -38,6 +38,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     private final SupplementPaymentResolver supplementPaymentResolver;
     private final OwnerCancellationService ownerCancellationService;
     private final com.petsitter.domain.repository.OrderLogRepository orderLogRepository;
+    private final com.petsitter.domain.repository.ServicePlanRepository servicePlanRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -79,6 +80,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .completedAt(order.getCompletedAt())
                 .payoutAt(order.getPayoutAt())
                 .items(order.getItems())
+                .planDateRanges(resolvePlanDateRanges(order))
                 .cancelledBy(rejection != null ? Order.CANCELLED_BY_SITTER : order.getCancelledBy())
                 .sitterRejectReason(rejection != null ? rejection.reason() : null)
                 .cancellableByOwner(ownerCancellationService.isCancellableByOwner(order))
@@ -87,6 +89,23 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     }
 
     private record SitterRejection(String reason) {
+    }
+
+    /**
+     * 訂單所用方案的可預訂日期區間（L1）：訂單變更精靈據此做前端防呆，取代寫死的 2026-05-01~05-31。
+     * 方案已不存在者略過（後端 ModificationService 同樣略過）
+     */
+    private List<com.petsitter.application.dto.PlanDateRangeDto> resolvePlanDateRanges(Order order) {
+        return ModificationService.bookedPlanIds(order).stream()
+                .map(servicePlanRepository::findById)
+                .flatMap(java.util.Optional::stream)
+                .map(plan -> com.petsitter.application.dto.PlanDateRangeDto.builder()
+                        .planId(plan.getId())
+                        .planName(plan.getName())
+                        .startDate(plan.getStartDate())
+                        .endDate(plan.getEndDate())
+                        .build())
+                .toList();
     }
 
     /**

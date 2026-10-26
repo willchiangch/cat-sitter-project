@@ -109,7 +109,7 @@ sequenceDiagram
 
 ### 3. 飼主預約送單時程防禦 (Booking Time Gating)
 
-在預約時的防禦，當預約日期不在方案的生效區間內時拋出 `422` 錯誤，不回傳 500。
+在預約時的防禦，當預約日期不在方案的生效區間內時拋出 `422` 錯誤，不回傳 500。判斷集中在 `ServicePlan.isBookableOn(date)`（兩端點含；`startDate`/`endDate` 為 null 的一端不限，皆 null = 常態開放）。訂單變更（SD-016 §2.1）新增的日期共用同一判斷與錯誤碼（2026-10-26 L1）。
 
 ```mermaid
 sequenceDiagram

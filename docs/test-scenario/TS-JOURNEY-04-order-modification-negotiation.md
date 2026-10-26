@@ -27,11 +27,12 @@
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 1 | UI：飼主 `/owner/orders/{orderId}` 點「申請訂單變更」 | 導向 `/orders/{orderId}/modify` | 按鈕為本次新增，`OwnerOrderDetail.tsx` CONFIRMED 狀態下才顯示 |
-| 2 | UI：填新日期（2 天）送出 | 顯示「變更請求已送出」 | `POST /api/orders/{orderId}/modify` 200，`Order=MODIFYING` |
+| 2 | UI：精靈顯示方案區間「常態開放（不限日期）」、預填原訂單日期（明天）；改填明天、後天（2 天）送出 | 顯示「變更申請已成功提交」與「變更請求已送出」 | `modify-plan-range` 全文比對、`modify-dates-input` 預填值比對（L1）；`POST /api/orders/{orderId}/modify` 200，`Order=MODIFYING` |
 | 3 | UI：保母 `/sitter/orders` 進行中分頁點「處理訂單變更協商」 | 導向 `/sitter/orders/{orderId}/quote`，表單已預填換算後總額 | 連結為本次新增；`GET /api/orders/{orderId}/modification` 200 |
 | 4 | UI：接受預填總額，送出報價 | 顯示「報價已送出」 | `POST .../modification/quote` 200，`ModificationRequest=QUOTED`，`diffAmount=+600` |
 | 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `-$ 600` 也會通過，分不出補款/退款方向） |
 | 6 | UI：確認變更 | 顯示「變更已確認」；同意表單消失、只剩「前往補款」，**沒有退款區塊** | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT`；`confirm-submit-btn`、`refund-confirm-section`、`refund-confirm-btn` 數量為 0（C2） |
+| 6a | API：變更生效後查詢訂單詳情與行程（L1） | 方案區間為常態開放；行程是明天、後天兩筆待執行 | `planDateRanges = [{planId, planName, startDate: null, endDate: null}]`；`GET /api/orders/{id}/visits` 的 `scheduledAt` 日期 = `[day(1), day(2)]`、狀態皆 `PENDING`（L1 前行程是 2026-05 的過去日期，D1 14/16/21） |
 | 6b | UI：保母直接打網址重新進入報價頁 | 唯讀摘要「應補款 $ 600」，無報價、拒絕、退款憑證區塊 | `quote-submit-btn`、`reject-mod-btn`、`refund-proof-section` 數量為 0（C2） |
 | 6c | API：飼主在補款階段查詢訂單並直接打撤單 `POST /api/orders/{id}/cancel {version}`（驗收 A3，fix-batch12） | 補款階段不可撤單，需走 PRD-016 協商 | `GET /api/orders/{id}` 的 `cancellableByOwner=false`；撤單回 **409**，`message` 含「補款階段」與「PRD-016」；訂單仍 `PENDING_PAYMENT`（`OwnerCancellationService` 的 `SupplementPaymentResolver` 排除，過去只有 JUnit） |
 | 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；**沒有「取消預約」鈕**（`owner-cancel-booking-btn` 數量 0）；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
@@ -42,7 +43,7 @@
 
 | 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
 | :--- | :--- | :--- | :--- |
-| 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單 2 天，改為 1 天 |
+| 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單明天、後天 2 天（`datesOverride: [day(1), day(2)]`），精靈預填這兩天、區間「常態開放（不限日期）」，改為明天 1 天 |
 | 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600`；報價表單消失，飼主同意前沒有退款憑證區塊 | `quote-submit-btn`、`refund-proof-section` 數量為 0（C2） |
 | 5-6 | 飼主確認，差額欄位顯示 `-$ 600 (負值為退款)`（`formatMoney` 負數格式，負號在幣別前；`$` 後為 U+00A0） | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
 | 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在；選擇退款截圖上傳（不再有手填網址欄位），送出後表單消失並顯示簽名網址預覽（`apiStep` 留遮簽名網址 JSON、不帶簽名 GET 斷言 403，驗收 S1/S3） | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof`（multipart）200；`refund-proof-preview` 的 `src` 為 `refund-proofs/` 簽名網址且 `naturalWidth>0`（C4） |
@@ -53,7 +54,7 @@
 
 ## 三、邊界條件 / 例外場景
 
-* **前端方案有效期間為寫死 mock 常數**：`OrderModificationWizard.tsx` 的 `planStart`/`planEnd` 目前是寫死字串 `2026-05-01`/`2026-05-31`，跟訂單實際日期或方案真實有效期無關，純粹是前端輸入防呆。測試因此故意把變更後日期填在這個區間內（跟現有 mock 版單模組測試 `order-modification.spec.ts`同慣例），不代表這是有意義的業務日期——若未來要把這個常數換成串接真實方案資料，屬於獨立的產品待辦，非本次修復範圍。
+* **方案可預訂區間取自真實方案（2026-10-26 L1 起）**：精靈的區間來自 `GET /api/orders/{id}` 的 `planDateRanges`（SD-016 §2.1）。Journey 的方案由 `bootstrapVerifiedSitter` 建立、未設區間，所以精靈顯示「常態開放（不限日期）」，變更日期一律用相對今天的未來日期（`day(1)`、`day(2)`，與 `bootstrapPendingOrder` 的 tomorrow 同一寫法，`bootstrapConfirmedOrder` 的 `datesOverride` 也改傳 `[day(1), day(2)]`）。區間外 422 由 JUnit / mock 覆蓋（TS-016 Scenario 2f）；Journey 用 FREE 保母、無法設區間，不在真後端重測。2026-10-26 前精靈寫死 `2026-05-01 ~ 05-31`，Journey 只能填 2026-05 的過去日期。
 * **Zero-Trust 對帳**：`confirmModification` 後端會重新核對 `agreedDiffAmount` 與 `ModificationRequest.diffAmount` 是否一致；`OwnerModificationConfirm.tsx` 的輸入框預設值就是後端算好的最新差額，本測試直接接受預填值送出，沒有特別測「篡改差額」這個防線——該防線已有 `ModificationServiceTest.should_RejectConfirm_When_AgreedAmountMismatchesQuote` 單元測試覆蓋。
 * **不驗證的點（刻意）**：`ModificationService` 全程沒有發送任何通知事件（非 Check-in/付款那類有 `eventPublisher` 的模組），本 journey 不斷言任何通知內容。
 * **既有技術債（非本次修復範圍）**：SD-016 文件本身已註記 `propose/quote/reject/confirm` 四支端點的 `Idempotency-Key` 只在 Controller 層強制必填，`ModificationService` 內部沒有真的做去重（見 SD-016 §5 WARNING）；另外 `OrderModificationWizard.tsx` 呼叫 `modifyOrder()` 時 `requestedBy` 參數寫死 `'OWNER'`，若保母透過同一個頁面發起變更會被後端拒絕（`callerIsOwner=false` 但 `requestedBy='OWNER'`），本 journey 只測飼主發起的路徑，這個保母發起路徑的斷路屬已知缺陷，留給後續處理。
@@ -92,3 +93,5 @@
 8. **退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：本 journey 退款步驟 7 過去填的是 `https://storage.googleapis.com/e2e-journey-test/refund-proof.jpg`——任何字串都會被接受、原樣回給飼主端。改為上傳圖片到私有物件 + 簽名網址（SD-016 §2.5/§2.5.1）；步驟 7 改用 `fixtures/report-photo.jpg` 上傳，步驟 7、8 以 `expectSignedRefundProof` 斷言雙方預覽都是 `refund-proofs/` 簽名網址且真的載入，飼主退款區塊內沒有 `<a>`。
 
 **退款差額的負數格式與 TS 不一致（2026-10-26，驗收 20261026-0007 退款 5-6 / fix-batch13）**：TS 寫 `-$600`，畫面 `formatMoney` 輸出 `$ -600`，舊斷言 `toContainText('-600')` 只比對子字串，沒有釘住格式（TS 與畫面不一致也看不出來）。統一為負號在幣別前 `-$ 600`（SD-FRONTEND-SPEC §6.4.1），前端 `formatMoney` 與本 TS 一起改；Journey D 5-6 與 mock `order-modification.spec.ts` 改為整段 `toHaveText('-$ 600 (負值為退款)')`（mock 另比對 code point）。
+
+**變更精靈的方案區間寫死 2026-05、Journey 被迫填過去日期（2026-10-26，驗收 20261026-1517 L1）**：精靈以常數 `2026-05-01 ~ 05-31` 當方案區間，真實訂單（明天以後）填任何未來日期都被前端 `PLAN_NOT_IN_RANGE` 擋下；Journey D 因此把變更後日期填成 `2026-05-26, 2026-05-27`（退款分支原始訂單也寫死 `2026-05-20, 05-21`），行程變成過去日期卻顯示「待執行」（D1 14/16/21）。後端則完全不檢查日期。修法：後端檢查新增日期須在原訂單方案的可預訂區間（422），訂單詳情回 `planDateRanges`，精靈改用真實區間並預填原訂單日期（SD-016 §2.1、TS-016 Scenario 2f）。本 journey 步驟 2 斷言區間文字與預填值、步驟 6a 斷言 `planDateRanges` 與行程日期為明天 / 後天。

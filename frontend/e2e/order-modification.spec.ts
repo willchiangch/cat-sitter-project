@@ -23,7 +23,7 @@ function modState(status: string, orderStatus: string, diffAmount: number): ModM
     newTotalAmount: 2400 + diffAmount,
     currentOrderTotalAmount: 2400,
     orderVersion: 1,
-    dates: ['2026-05-26', '2026-05-27'],
+    dates: [day(1), day(2)],
     hasRefundProof: false
   };
 }
@@ -31,11 +31,36 @@ function modState(status: string, orderStatus: string, diffAmount: number): ModM
 let mod: ModMock = null;
 let refundUploadContentType = '';
 
+/** 相對今天的日期（比照 journey 的 tomorrow 寫法），L1 起不再寫死 2026-05 */
+function day(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().split('T')[0];
+}
+
+interface PlanRange {
+  planId: string;
+  planName: string;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+const planId = '3d498178-14c0-4376-b81e-7fb02e615dda';
+const originalDates = [day(1), day(2), day(3), day(4)];
+/** 各測試指定訂單方案的可預訂區間（GET /api/orders/{id} 的 planDateRanges） */
+let planRanges: PlanRange[] = [];
+/** 變更送出攔截：null = 200 成功；否則回這個錯誤 */
+let modifyError: { status: number; body: Record<string, string> } | null = null;
+let modifyBodies: { dates: string[]; items: { dates: string[]; planId: string }[] }[] = [];
+
 test.describe('Order Modification Flow', () => {
   test.setTimeout(60000);
 
   test.beforeEach(async ({ page }) => {
     mod = modState('QUOTED', 'MODIFYING', -600);
+    planRanges = [{ planId, planName: '基礎照顧', startDate: null, endDate: null }];
+    modifyError = null;
+    modifyBodies = [];
     // 訂單詳情 GET — 變更精靈需要先讀取原始項目內容，才能在變更時保留正確欄位
     await page.route(`**/api/orders/${orderId}`, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
@@ -58,11 +83,12 @@ test.describe('Order Modification Flow', () => {
               serviceName: '基礎照顧',
               unitPrice: 500,
               quantity: 4,
-              planId: '3d498178-14c0-4376-b81e-7fb02e615dda',
-              dates: ['2026-05-25', '2026-05-26', '2026-05-27', '2026-05-28'],
+              planId,
+              dates: originalDates,
               timesPerDay: 1
             }
-          ]
+          ],
+          planDateRanges: planRanges
         })
       });
     });
@@ -85,6 +111,15 @@ test.describe('Order Modification Flow', () => {
 
     // 攔截變更申請 API
     await page.route(`**/api/orders/${orderId}/modify**`, async (route) => {
+      modifyBodies.push(route.request().postDataJSON());
+      if (modifyError) {
+        await route.fulfill({
+          status: modifyError.status,
+          contentType: 'application/json',
+          body: JSON.stringify(modifyError.body)
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -179,25 +214,117 @@ test.describe('Order Modification Flow', () => {
     await page.goto('/demo');
   });
 
-  test('should propose modification and enforce date ranges', async ({ page }) => {
-    await page.getByRole('button', { name: '直接進入變更精靈 (飼主/保母)' }).click();
+  test('L1：方案有區間時，新增日期超出區間被前端擋下（PLAN_NOT_IN_RANGE），區間內可送出', async ({
+    page
+  }) => {
+    planRanges = [{ planId, planName: '基礎照顧', startDate: day(1), endDate: day(10) }];
+    const dialogs = trackDialogs(page);
 
-    // 1. 測試超出範圍的日期防呆 (PLAN_NOT_IN_RANGE)
-    await page.getByTestId('modify-dates-input').fill('2026-06-01');
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('PLAN_NOT_IN_RANGE');
-      await dialog.accept();
+    await step('進入變更精靈：顯示真實方案區間、預填原訂單日期', page, async () => {
+      await page.getByRole('button', { name: '直接進入變更精靈 (飼主/保母)' }).click();
+      await expect(page.getByTestId('modify-plan-range')).toHaveText(`${day(1)} ~ ${day(10)}`);
+      await expect(page.getByTestId('modify-dates-input')).toHaveValue(originalDates.join(', '));
     });
-    await page.getByTestId('modify-submit-btn').click();
 
-    // 2. 測試正確區間的日期
-    await page.getByTestId('modify-dates-input').fill('2026-05-26, 2026-05-27');
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain('變更申請已成功提交');
-      await dialog.accept();
+    await step('新增區間外日期（endDate 後一天）：前端擋下，不送 API', page, async () => {
+      await page.getByTestId('modify-dates-input').fill(`${day(1)}, ${day(11)}`);
+      await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(
+        dialogs,
+        new RegExp(
+          `^錯誤 \\(PLAN_NOT_IN_RANGE\\)：${day(11)} 超出方案可預訂日期區間（${day(1)} ~ ${day(10)}）$`
+        )
+      );
+      await expect(page.getByTestId('modification-success-banner')).toHaveCount(0);
+      expect(modifyBodies).toHaveLength(0);
     });
-    await page.getByTestId('modify-submit-btn').click();
-    await expect(page.getByTestId('modification-success-banner')).toBeVisible();
+
+    await step(
+      '新增 endDate 當天（含端點）：送出成功，送出的日期就是輸入的日期',
+      page,
+      async () => {
+        await page.getByTestId('modify-dates-input').fill(`${day(1)}, ${day(10)}`);
+        await page.getByTestId('modify-submit-btn').click();
+        await expectDialog(dialogs, /變更申請已成功提交/);
+        await expect(page.getByTestId('modification-success-banner')).toBeVisible();
+        expect(modifyBodies).toHaveLength(1);
+        expect(modifyBodies[0].dates).toEqual([day(1), day(10)]);
+        expect(modifyBodies[0].items.map((i) => i.dates)).toEqual([[day(1), day(10)]]);
+        expect(modifyBodies[0].items.map((i) => i.planId)).toEqual([planId]);
+      }
+    );
+  });
+
+  test('L1：常態開放方案（無區間）可變更到任何未來日期——舊版寫死 2026-05-01~05-31 會擋下', async ({
+    page
+  }) => {
+    const dialogs = trackDialogs(page);
+
+    await step('區間顯示「常態開放」，填一年後的日期仍可送出', page, async () => {
+      await page.getByRole('button', { name: '直接進入變更精靈 (飼主/保母)' }).click();
+      await expect(page.getByTestId('modify-plan-range')).toHaveText('常態開放（不限日期）');
+      await page.getByTestId('modify-dates-input').fill(`${day(1)}, ${day(365)}`);
+      await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(dialogs, /變更申請已成功提交/);
+      await expect(page.getByTestId('modification-success-banner')).toBeVisible();
+      expect(modifyBodies.map((b) => b.dates)).toEqual([[day(1), day(365)]]);
+    });
+  });
+
+  test('L1：原訂單已有的日期不受區間事後縮短影響，減少天數可送出', async ({ page }) => {
+    // 原訂單 day1~day4；保母事後把區間改成 day5 起
+    planRanges = [{ planId, planName: '基礎照顧', startDate: day(5), endDate: null }];
+    const dialogs = trackDialogs(page);
+
+    await step('區間顯示「day5 ~ 不限」，減為 day1、day2 仍可送出', page, async () => {
+      await page.getByRole('button', { name: '直接進入變更精靈 (飼主/保母)' }).click();
+      await expect(page.getByTestId('modify-plan-range')).toHaveText(`${day(5)} ~ 不限`);
+      await page.getByTestId('modify-dates-input').fill(`${day(1)}, ${day(2)}`);
+      await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(dialogs, /變更申請已成功提交/);
+      await expect(page.getByTestId('modification-success-banner')).toBeVisible();
+      expect(modifyBodies.map((b) => b.dates)).toEqual([[day(1), day(2)]]);
+    });
+  });
+
+  test('L1：後端 422 PLAN_NOT_IN_RANGE 的原因要顯示給飼主，不吞成「請重試」', async ({ page }) => {
+    modifyError = {
+      status: 422,
+      body: {
+        error: 'PLAN_NOT_IN_RANGE',
+        message: `變更日期 ${day(20)} 不在方案「基礎照顧」的可預訂日期區間`
+      }
+    };
+    const dialogs = trackDialogs(page);
+
+    await step('送出後端判定區間外的日期：顯示後端原因、不顯示成功', page, async () => {
+      await page.getByRole('button', { name: '直接進入變更精靈 (飼主/保母)' }).click();
+      await expect(page.getByTestId('modify-plan-range')).toHaveText('常態開放（不限日期）');
+      await page.getByTestId('modify-dates-input').fill(day(20));
+      await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(
+        dialogs,
+        new RegExp(
+          `^提交變更失敗 \\(PLAN_NOT_IN_RANGE\\)：變更日期 ${day(20)} 不在方案「基礎照顧」的可預訂日期區間$`
+        )
+      );
+      await expect(page.getByTestId('modification-success-banner')).toHaveCount(0);
+      expect(modifyBodies).toHaveLength(1);
+    });
+  });
+
+  test('L1：日期格式錯誤（含不存在的日期）前端擋下，不送 API', async ({ page }) => {
+    const dialogs = trackDialogs(page);
+
+    await step('輸入 2026/12/01 與 2027-02-30：提示格式錯誤', page, async () => {
+      await page.getByRole('button', { name: '直接進入變更精靈 (飼主/保母)' }).click();
+      await expect(page.getByTestId('modify-plan-range')).toHaveText('常態開放（不限日期）');
+      await page.getByTestId('modify-dates-input').fill('2026/12/01, 2027-02-30');
+      await page.getByTestId('modify-submit-btn').click();
+      await expectDialog(dialogs, /^日期格式錯誤（需為 YYYY-MM-DD）：2026\/12\/01, 2027-02-30$/);
+      await expect(page.getByTestId('modification-success-banner')).toHaveCount(0);
+      expect(modifyBodies).toHaveLength(0);
+    });
   });
 
   test('should support cancellation by submitting empty dates', async ({ page }) => {

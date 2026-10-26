@@ -34,6 +34,14 @@ export interface OrderItemDto {
   petIds?: string[];
 }
 
+/** 訂單所用方案的可預訂日期區間 (PRD-003 B)；startDate/endDate 皆 null = 常態開放 */
+export interface PlanDateRangeDto {
+  planId: string;
+  planName: string;
+  startDate: string | null; // YYYY-MM-DD
+  endDate: string | null;
+}
+
 export interface ModificationPayloadDto {
   items: OrderItemDto[];
   totalDays: number;
@@ -287,6 +295,8 @@ export interface OrderDetailResponseDto {
   completedAt?: string;
   payoutAt?: string;
   items: OrderItemDto[];
+  // 訂單方案的可預訂日期區間，變更精靈前端防呆用 (SD-016 §2.1)；舊後端沒有此欄位
+  planDateRanges?: PlanDateRangeDto[];
   sitterPaymentInfo?: BankAccountInfo;
   // 取消者：'OWNER' = 飼主付款前撤單（fix-batch10 H5）；'SITTER' = 保母婉拒（fix-batch13 K1）；
   // 訂單變更取消等為 undefined

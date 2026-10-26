@@ -52,8 +52,15 @@ class ModificationServiceIntegrationTest {
     @Autowired
     private ModificationRequestRepository modRepo;
 
+    @Autowired
+    private ServicePlanRepository servicePlanRepository;
+
+    @Autowired
+    private OrderQueryService orderQueryService;
+
     private UUID orderId;
     private UUID ownerId;
+    private User sitterUser;
 
     @BeforeEach
     void setUp() {
@@ -61,11 +68,13 @@ class ModificationServiceIntegrationTest {
         modRepo.deleteAll();
         snapshotRepo.deleteAll();
         orderRepository.deleteAll();
+        servicePlanRepository.deleteAll();
         userRepository.deleteAll();
 
         User owner = userRepository.save(User.builder().email("owner@test.com").passwordHash("hash").role("OWNER").build());
         User sitter = userRepository.save(User.builder().email("sitter@test.com").passwordHash("hash").role("SITTER").build());
         ownerId = owner.getId();
+        sitterUser = sitter;
         
         Order order = orderRepository.save(Order.builder()
                 .owner(owner)
@@ -160,5 +169,48 @@ class ModificationServiceIntegrationTest {
         assertThat(after.getStatus()).isEqualTo("REFUND_VERIFY");
         assertThat(after.getTotalAmount()).as("差額只套用一次").isEqualTo(800);
         assertThat(modRepo.findById(modReq.getId()).orElseThrow().getStatus()).isEqualTo("M_DONE");
+    }
+
+    @Test
+    @DisplayName("L1：真 DB — 訂單詳情回傳方案可預訂區間；新增日期超出區間 422 PLAN_NOT_IN_RANGE 且不留變更請求，區間內可送出")
+    void should_EnforcePlanRange_And_ExposeItOnOrderDetail() {
+        ServicePlan plan = servicePlanRepository.save(ServicePlan.builder()
+                .sitter(sitterUser).name("暑假限定").price(500L)
+                .startDate(java.time.LocalDate.parse("2026-07-01"))
+                .endDate(java.time.LocalDate.parse("2026-08-31"))
+                .build());
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        order.setPlanId(plan.getId());
+        order.setItems(new ArrayList<>(java.util.List.of(new OrderItem(
+                "BOOKING", "暑假限定", 500, 2, plan.getId(),
+                java.util.List.of("2026-07-10", "2026-07-11"), 1, java.util.List.of()))));
+        orderRepository.save(order);
+
+        var detail = orderQueryService.getOrderDetail(orderId, ownerId);
+        assertThat(detail.getPlanDateRanges()).hasSize(1);
+        assertThat(detail.getPlanDateRanges().get(0).getPlanId()).isEqualTo(plan.getId());
+        assertThat(detail.getPlanDateRanges().get(0).getStartDate()).hasToString("2026-07-01");
+        assertThat(detail.getPlanDateRanges().get(0).getEndDate()).hasToString("2026-08-31");
+
+        ModificationPayloadDto outOfRange = ModificationPayloadDto.builder()
+                .items(new ArrayList<>(order.getItems()))
+                .dates(java.util.List.of(java.time.LocalDate.parse("2026-07-10"), java.time.LocalDate.parse("2026-09-01")))
+                .totalDays(2)
+                .build();
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.petsitter.application.exception.ServicePlanException.class,
+                () -> modificationService.proposeModification(ownerId, orderId, outOfRange, "OWNER"));
+        assertThat(ex.getError()).isEqualTo("PLAN_NOT_IN_RANGE");
+        assertThat(modRepo.count()).isZero();
+        assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo("CONFIRMED");
+
+        ModificationPayloadDto inRange = ModificationPayloadDto.builder()
+                .items(new ArrayList<>(order.getItems()))
+                .dates(java.util.List.of(java.time.LocalDate.parse("2026-07-10"), java.time.LocalDate.parse("2026-08-31")))
+                .totalDays(2)
+                .build();
+        modificationService.proposeModification(ownerId, orderId, inRange, "OWNER");
+        assertThat(modRepo.count()).isEqualTo(1);
+        assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo("MODIFYING");
     }
 }

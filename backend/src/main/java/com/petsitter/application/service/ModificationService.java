@@ -25,6 +25,7 @@ public class ModificationService {
     private final OrderSnapshotRepository snapshotRepo;
     private final VisitRepository visitRepository;
     private final MediaStorageService mediaStorageService;
+    private final ServicePlanRepository servicePlanRepository;
 
     /** 退款憑證檔案限制，與付款憑證 (SD-007 §5.1) 相同 */
     static final long MAX_PROOF_BYTES = 5L * 1024 * 1024;
@@ -45,6 +46,8 @@ public class ModificationService {
         if (!List.of("CONFIRMED", "IN_PROGRESS").contains(order.getStatus())) {
             throw new IllegalStateException("訂單當前狀態不允許變更");
         }
+
+        requireAddedDatesWithinPlanRange(order, proposed);
 
         OrderSnapshot snapshot = snapshotRepo.findByOrderId(orderId)
                 .orElseThrow(() -> new IllegalStateException("找不到訂單快照，無法計算變更金額"));
@@ -71,6 +74,79 @@ public class ModificationService {
 
         order.setStatus("MODIFYING");
         orderRepository.save(order);
+    }
+
+    /**
+     * 變更後「新增」的日期必須落在訂單方案的可預訂日期區間內 (PRD-016 資料規則 / PRD-003 B / SD-016 §2.1)，
+     * 否則 422 PLAN_NOT_IN_RANGE，與預約送單 (BookingService) 同一套錯誤碼。
+     * <ul>
+     *   <li>方案以原訂單 items 的 planId 為準（不信任前端 payload 的 planId），舊資料沒有時 fallback order.planId</li>
+     *   <li>原訂單已有的日期不檢查：那是成交當下已在區間內的合約內容，保母事後縮短區間不應讓飼主連減少天數都送不出</li>
+     *   <li>方案已不存在（實體刪除）時略過該方案，無區間可比</li>
+     * </ul>
+     * 2026-10-26 前後端完全沒有這道檢查，前端精靈則寫死 2026-05-01~05-31 當方案區間（驗收 20261026-1517 L1），
+     * 真實訂單的未來日期一律被前端擋下，繞過前端的請求則任何日期都收
+     */
+    private void requireAddedDatesWithinPlanRange(Order order, ModificationPayloadDto proposed) {
+        java.util.Set<LocalDate> requested = new java.util.TreeSet<>();
+        if (proposed.getDates() != null) {
+            requested.addAll(proposed.getDates());
+        }
+        if (proposed.getItems() != null) {
+            for (OrderItem item : proposed.getItems()) {
+                if (item.getDates() == null) {
+                    continue;
+                }
+                for (String d : item.getDates()) {
+                    try {
+                        requested.add(LocalDate.parse(d));
+                    } catch (java.time.format.DateTimeParseException e) {
+                        throw new IllegalArgumentException("變更日期格式錯誤: " + d);
+                    }
+                }
+            }
+        }
+
+        Set<String> originalDates = order.getItems() == null ? Set.of()
+                : order.getItems().stream()
+                        .filter(i -> i.getDates() != null)
+                        .flatMap(i -> i.getDates().stream())
+                        .collect(Collectors.toSet());
+        List<LocalDate> added = requested.stream()
+                .filter(d -> !originalDates.contains(d.toString()))
+                .toList();
+        if (added.isEmpty()) {
+            return;
+        }
+
+        for (UUID planId : bookedPlanIds(order)) {
+            servicePlanRepository.findById(planId).ifPresent(plan -> {
+                for (LocalDate date : added) {
+                    if (!plan.isBookableOn(date)) {
+                        throw new com.petsitter.application.exception.ServicePlanException(
+                                org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "PLAN_NOT_IN_RANGE",
+                                "變更日期 " + date + " 不在方案「" + plan.getName() + "」的可預訂日期區間");
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * 訂單使用的方案（依原訂單 items 出現順序去重）；舊資料 items 沒有 planId 時 fallback order.planId。
+     * 變更日期檢查與訂單詳情的 planDateRanges 共用
+     */
+    static List<UUID> bookedPlanIds(Order order) {
+        List<UUID> ids = order.getItems() == null ? List.of()
+                : order.getItems().stream()
+                        .map(OrderItem::getPlanId)
+                        .filter(java.util.Objects::nonNull)
+                        .distinct()
+                        .toList();
+        if (ids.isEmpty() && order.getPlanId() != null) {
+            return List.of(order.getPlanId());
+        }
+        return ids;
     }
 
     /**

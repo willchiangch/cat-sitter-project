@@ -77,4 +77,15 @@ public class ServicePlan extends BaseEntity {
     @Builder.Default
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
+
+    /**
+     * 日期是否落在方案「可預訂日期區間」(PRD-003 B / SD-003 §3)：startDate、endDate 皆為 null = 常態開放；
+     * 只設一端時另一端不限。預約送單 (BookingService) 與訂單變更新增日期 (ModificationService) 共用
+     */
+    public boolean isBookableOn(LocalDate date) {
+        if (startDate != null && date.isBefore(startDate)) {
+            return false;
+        }
+        return endDate == null || !date.isAfter(endDate);
+    }
 }
