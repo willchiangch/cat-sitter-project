@@ -262,6 +262,51 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // fix-batch13 K4（驗收 20261026-0007 BC-04 11）：Button 元件的 .btn 從未定義，「返回訂單列表」是原生按鈕
+  // （2px outset 黑框、直角、13.33px 系統字）
+  test('K4：撤單後評估頁「返回訂單列表」為專案按鈕樣式（膠囊、無原生框、設計字體、對比 ≥ 4.5）', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route(`**/api/orders/${ORDER_ID}`, (route) =>
+      route.fulfill(
+        json({
+          id: ORDER_ID,
+          ownerName: '撤單測試飼主',
+          status: 'CANCELLED',
+          cancelledBy: 'OWNER',
+          totalAmount: 600,
+          version: 4,
+          items: []
+        })
+      )
+    );
+
+    await step('返回鈕 computed style', page, async () => {
+      await page.goto(`/sitter/eval/${ORDER_ID}`);
+      const back = page.getByTestId('sitter-order-eval-back-to-list');
+      await expect(back).toHaveText('返回訂單列表');
+      const look = await back.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          borderStyle: cs.borderTopStyle,
+          borderRadius: cs.borderTopLeftRadius,
+          fontFamily: cs.fontFamily,
+          fontSize: parseFloat(cs.fontSize),
+          height: el.getBoundingClientRect().height
+        };
+      });
+      expect(look.borderStyle, '沒有原生 outset 框').toBe('none');
+      expect(look.borderRadius).toBe('9999px');
+      expect(look.fontFamily).toContain('Plus Jakarta Sans');
+      expect(look.fontSize).toBeGreaterThanOrEqual(15);
+      expect(look.height, '觸控高度').toBeGreaterThanOrEqual(40);
+      const c = await contrastOf(back);
+      expect(c.backgroundImage).toBe('none');
+      expect(c.ratio, `${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
   // fix-batch13 K8（驗收 20261026-0007 B-04 09）：日曆卡約 200px 寬，月份標題斷成「2026年10 / 月」
   test('K8：預約日曆月份標題單行，不與左右切換鈕重疊', async ({ page }) => {
     await mockDemoSession(page, 'client');

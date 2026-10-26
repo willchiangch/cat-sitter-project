@@ -108,6 +108,32 @@ h3,
   padding: 2rem 1.5rem;
 }
 
+/* Button 元件（src/components/ui/Button.tsx）的基底 class（fix-batch13 K4）：過去 .btn 從未定義，
+ * 沒加 btn-primary 的 Button 只有 inline 底色，其餘全是瀏覽器原生樣式（2px outset 黑框、直角、13.33px 系統字），
+ * 例：撤單後評估頁「返回訂單列表」（驗收 BC-04 11）、婉拒面板「確定拒絕」「取消」（BR-01 02）。
+ * 用 :not(.btn-primary)，同時帶 btn-primary 的 Button 完全沿用 .btn-primary，不受影響。 */
+.btn:not(.btn-primary) {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.75rem 1.5rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.btn:not(.btn-primary):not(:disabled):active {
+  transform: scale(0.96);
+}
+
 /* Signature CTA - Glass & Gradient Rule */
 .btn-primary {
   background: var(--color-primary-gradient);
