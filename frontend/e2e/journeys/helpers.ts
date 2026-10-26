@@ -746,3 +746,44 @@ export function expectSingleTokenOnlyCall(calls: OrderActionCall[], label: strin
   expect(call.query, `${label} 的 query 不應帶 sitterId`).not.toHaveProperty('sitterId');
   expect(call.query, `${label} 的 query 不應帶 ownerId`).not.toHaveProperty('ownerId');
 }
+
+export interface BookingCall extends OrderActionCall {
+  /** request body 的頂層欄位（排序後）；fix-batch11 I2 起不應有 ownerId */
+  bodyKeys: string[];
+  /** body.sitterId（下單對象，屬於業務資料、不是呼叫者身分） */
+  sitterId: unknown;
+}
+
+/**
+ * 記錄頁面打到 `POST /api/orders/booking` 的請求 body 與回應狀態（fix-batch13 K3）。
+ * 第 11 批把下單的飼主身分改取自 token（I2），真後端 journey 過去只有「B-04 201」的間接證據，
+ * 看不到前端實際送出的 body 是否還帶 ownerId。
+ */
+export function trackBookingCalls(page: Page): BookingCall[] {
+  const calls: BookingCall[] = [];
+  page.on('response', (res) => {
+    const url = new URL(res.url());
+    if (url.pathname !== '/api/orders/booking') return;
+    const body = (res.request().postDataJSON() ?? {}) as Record<string, unknown>;
+    calls.push({
+      method: res.request().method(),
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams.entries()),
+      status: res.status(),
+      bodyKeys: Object.keys(body).sort(),
+      sitterId: body.sitterId
+    });
+  });
+  return calls;
+}
+
+/** 下單恰好一次、201、query 與 body 都不帶 ownerId，body.sitterId 是下單對象 */
+export function expectSingleTokenOnlyBooking(calls: BookingCall[], sitterId: string) {
+  expect(calls, 'booking 應恰好呼叫一次').toHaveLength(1);
+  const [call] = calls;
+  expect(call.method).toBe('POST');
+  expect(call.status, 'booking 回應狀態').toBe(201);
+  expect(call.query, 'booking 的 query 不應帶 ownerId').not.toHaveProperty('ownerId');
+  expect(call.bodyKeys, 'booking body 不應帶 ownerId').not.toContain('ownerId');
+  expect(call.sitterId).toBe(sitterId);
+}

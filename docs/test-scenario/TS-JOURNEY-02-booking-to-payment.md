@@ -26,7 +26,9 @@
 | 2 | API 背景建飼主帳號（略過 OTP）→ UI 改走「已有帳號？返回登入」→ `/login` 真實登入 | 登入成功後**自動導回** `/booking/{sitterId}`，不是預設的 `/demo` | 驗證 `LoginPage.tsx`/`RegisterPage.tsx` 新增的 redirect 白名單邏輯真的生效 |
 | 3 | UI：`/pets` 建立寵物（名稱必填，物種預設 CAT）+ 上傳頭像 | 寵物卡片顯示新建資料與頭像 | `POST /api/pets` 201；頭像是建檔後另外 `POST /api/pets/{id}/avatar`，要等寵物卡片的 `<img>` 出現且已載入（`naturalWidth>0`）才算完成，只等卡片出現會截到名字首字佔位 |
 | 4 | UI：`/booking/{sitterId}` 選方案卡片 → 選一個未來日期 → 確認日期 → 下一步 → 送出 | 訂單建立成功，送出成功後頁面會自動導向 `/owner/orders/{orderId}` | `POST /api/orders/booking` 201，訂單狀態 `PENDING`；**注意**：只 `await` 點擊送出按鈕不代表送單完成，click() 只保證事件派發，要等這個導向真的發生才代表非同步送單流程跑完 |
+| 4b | API 證據（fix-batch13 K3） | 頁面實際發出的 `POST /api/orders/booking` 恰好一次、201；**query 與 body 都不帶 `ownerId`**（飼主身分取自 token，fix-batch11 I2），`body.sitterId` 為下單對象 | `trackBookingCalls` + `expectSingleTokenOnlyBooking`（`journeys/helpers.ts`），`apiStep` 留 `bodyKeys` |
 | 5 | UI：保母 `/sitter/orders`「評估中」分頁找到訂單 → 進入評估頁 → 原價直接接受 | 訂單狀態轉為待付款；導回 `/sitter/orders` 後（不重新整理）該訂單不在「評估中」，「進行中」分頁顯示「待付款」 | `POST /api/orders/{orderId}/confirm`（快速接單路徑）後 `Order=PENDING_PAYMENT`；**注意**：此按鈕背後有 `window.confirm()` 對話框，Playwright 預設會自動 dismiss（回傳 false）導致函式提早 return 什麼都不會發生，測試需要主動註冊 `page.on('dialog', d => d.accept())` |
+| 5b | API 證據（fix-batch13 K3） | 頁面實際發出的 `POST /api/orders/{id}/confirm` 恰好一次、2xx、**query 不帶 `sitterId` / `ownerId`**（fix-batch11 I1） | `trackOrderActionCalls` + `expectSingleTokenOnlyCall` |
 | 6 | UI：飼主 `/owner/orders/{orderId}` 上傳付款憑證（圖片+末五碼+同意勾選） | 訂單狀態轉為已付款待核對；reload 後看得到自己的憑證預覽 | `POST /api/orders/{orderId}/payment-proof` 200，`Order=PAID`；憑證 `<img>` 的 `src` 是 `storage.googleapis.com/<bucket>/payment-proofs/...?...X-Goog-Signature=...` 簽名網址且 `naturalWidth>0` (SD-007 §4.7)；`apiStep` 留 JSON（簽名 / Credential 遮蔽，只留 path 與 `X-Goog-Expires`），並以同一物件**不帶簽名**直接 GET 斷言 403（驗收 S1/S3） |
 | 7 | UI：保母 `/sitter/orders`「進行中」分頁 → 核對入帳面板（後五碼 `12345`、憑證預覽）→ 確認入帳 | 訂單正式成立 | 核對面板憑證預覽為簽名網址且已載入；「駁回憑證」按鈕 `background-image: none`、文字為錯誤色 `#b02500`（U8）；`POST /api/orders/{orderId}/verify-payment` 200，`Order=CONFIRMED`；核對面板預覽同步驟 6 留 JSON 並斷言不帶簽名 403 |
 | 8 | UI：保母在 `/care-notes/manage/{sitterId}/{ownerId}` 新增一則「其他說明」項目並儲存；飼主在 `/care-notes/view/{sitterId}/{ownerId}` 確認看得到 | 雙方都能看到同一份記事本內容 | `PUT` 記事本 API 200，飼主端查詢包含剛寫入的內容 |
@@ -41,6 +43,7 @@
 | B2-01 | UI：保母 `/sitter/orders` →「查看並處理訂單」 | 導到 `/sitter/eval/{orderId}`，報價總計 `$ 600`，只有「原價直接接受」 | `sitter-order-eval-btn-confirm` 數量 0 |
 | B2-02 | UI：加價 300、折扣 100、填調整原因 | 報價總計 `$ 800`；原價按鈕消失，改顯示「發送調整後報價」 | 有調整時才出現原因欄（`sitter-order-eval-input-reason`）；截圖前把總計捲進畫面 |
 | B2-03 | UI：發送調整後報價 | alert「報價已成功送出」；導回 `/sitter/orders`，不 reload 在「進行中」看到「待付款」與 `$ 800` | `POST /api/orders/{id}/quote` 200，`Order=PENDING_PAYMENT`；`apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`adjustmentReason` 與輸入一致、`amountDue 800` |
+| B2-03b | API 證據（fix-batch13 K3） | 頁面實際發出的 `POST /api/orders/{id}/quote` 恰好一次、2xx、**query 不帶 `sitterId` / `ownerId`** | `trackOrderActionCalls` + `expectSingleTokenOnlyCall` |
 | B2-04 | UI：飼主 `/owner/orders/{id}` | 徽章「待付款」、訂單金額 `$ 800`，不顯示補款差額提示；顯示「加價 $ 200」與保母填的調整原因（fix-batch12 U6） | `order-total-amount`、`payment-top-up-notice` 數量 0、`order-adjustment-amount`、`order-adjustment-reason` |
 | B2-05 | UI：飼主上傳憑證（後五碼 `24680`） | 「付款憑證提交成功」；reload 後徽章「已付款」、金額仍 `$ 800` | `Order=PAID` |
 | B2-06 | UI：保母「進行中」核對入帳 | 後五碼 `24680`、卡片 `$ 800`、首次付款不顯示「補款差額」列；確認後成立 | `POST /verify-payment` 200，`Order=CONFIRMED`；最後 `apiStep` 斷言 `totalAmount 800`、`adjustmentAmount 200`、`paymentProofLastFive 24680` |
@@ -77,6 +80,8 @@ PRD-006 例外處理「飼主在保母審核中嘗試取消」。用 `bootstrapP
 ---
 
 ## 三、邊界條件 / 例外場景
+
+* **第 11 批 BOLA 修正的真後端 network 證據（2026-10-26 fix-batch13 K3）**：6 支改為「身分取自 token」的端點都從頁面實際發出的請求斷言恰好一次、成功、不帶身分參數——booking（步驟 4b，另斷言 body 不帶 `ownerId`）、confirm（5b）、quote（B2-03b）、reject（BR-03），以及 TS-JOURNEY-03 的 complete（8b）、dispute（CD-04）。越權 403 / 錯角色 / 401 依規定不對正式站探測，仍只有 JUnit（`OrderIdentityFromTokenSecurityTest` 等）。
 
 * **開放重導向防護**：`redirect` 參數只接受同源相對路徑（`/^\/(?!\/)/`），本測試只驗證合法 redirect 生效這一半，惡意 `//evil.com` 或絕對網址的防護屬於程式碼審查範圍，未來若要專門測這塊建議另開一條純前端單元測試，不需要動用真後端 journey。
 * **保母接單方式選擇**：主流程選「原價直接接受」（`ConfirmOrderService.confirmOrder` 快速接單路徑）；保母議價路徑（`EvaluationService.sendQuote`）由 §二-B 議價分支在真後端走一次（2026-10-24 起）。議價的零信任金額校驗（`expectedTotalAmount` 不符 → 400 `PRICING_MISMATCH`）與 FREE 方案調價 403 仍由 `OrderControllerTest`/`OrderEvaluationTest` 覆蓋，journey 不重複測。

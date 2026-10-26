@@ -95,6 +95,8 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
     const ownerPage = await ownerContext.newPage();
     await setBrowserAuth(ownerPage, owner, 'client');
     const ownerDialogs = trackDialogs(ownerPage);
+    // fix-batch13 K3：第 11 批 I1 把結案的飼主身分改取自 token，記錄頁面實際發出的請求
+    const completeCalls = trackOrderActionCalls(ownerPage, orderId, 'complete');
 
     await step('C-07 飼主從訂單詳情真實點入查看日誌', ownerPage, async () => {
       await ownerPage.goto(`/owner/orders/${orderId}`);
@@ -123,6 +125,14 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       });
       await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已結案');
     });
+
+    await apiStep(
+      'C-08b 結案請求：POST /api/orders/{id}/complete 恰好一次、2xx、query 不帶 ownerId / sitterId',
+      async () => {
+        expectSingleTokenOnlyCall(completeCalls, 'complete');
+        return { completeCalls };
+      }
+    );
 
     // fix-batch13 K2（驗收 20261026-0007 截圖新問題 2）：過去 COMPLETED 後行程區塊整個消失，進不去日誌
     await step(

@@ -13,7 +13,9 @@ import {
   apiAuthed,
   expectSignedPaymentProof,
   trackOrderActionCalls,
-  expectSingleTokenOnlyCall
+  expectSingleTokenOnlyCall,
+  trackBookingCalls,
+  expectSingleTokenOnlyBooking
 } from './helpers';
 import { step, apiStep, snap, trackDialogs, expectDialog } from '../support/evidence';
 
@@ -110,6 +112,9 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
         .toBeGreaterThan(0);
     });
 
+    // fix-batch13 K3：第 11 批 I2 把下單的飼主身分改取自 token，記錄頁面實際送出的 body
+    const bookingCalls = trackBookingCalls(ownerPage);
+
     await step('B-04 飼主完成預約送單', ownerPage, async () => {
       await ownerPage.goto(bookingPath);
       await expect(ownerPage.getByRole('heading', { name: '選擇服務方案' })).toBeVisible();
@@ -131,6 +136,14 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
     const orderId = ownerPage.url().match(/\/owner\/orders\/([0-9a-f-]+)/)?.[1];
     if (!orderId) throw new Error(`無法從網址解析 orderId: ${ownerPage.url()}`);
 
+    await apiStep(
+      'B-04b 下單請求：POST /api/orders/booking 恰好一次、201、body 不帶 ownerId（身分取自 token）',
+      async () => {
+        expectSingleTokenOnlyBooking(bookingCalls, sitter.userId);
+        return { bookingCalls };
+      }
+    );
+
     // 實測發現：正式站極短時間內（約 1 秒內）用不同身份查詢剛寫入的訂單有機率撲空
     // （見 awaitOrderStatus 註解），下單後不能立刻切換身份查列表頁，要先 poll 確認資料已可讀
     await apiStep('確認訂單已可被查詢到 (PENDING)', async () => {
@@ -139,6 +152,7 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
 
     await setBrowserAuth(page, sitter, 'sitter');
     const sitterDialogs = trackDialogs(page);
+    const confirmCalls = trackOrderActionCalls(page, orderId, 'confirm');
 
     await step('B-05 保母原價直接接受訂單', page, async () => {
       await page.goto('/sitter/orders');
@@ -155,6 +169,14 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await page.getByTestId('sitter-orders-tab-ongoing').click();
       await expect(page.getByText('待付款', { exact: true })).toBeVisible();
     });
+
+    await apiStep(
+      'B-05b 接單請求：POST /api/orders/{id}/confirm 恰好一次、2xx、query 不帶 sitterId / ownerId',
+      async () => {
+        expectSingleTokenOnlyCall(confirmCalls, 'confirm');
+        return { confirmCalls };
+      }
+    );
 
     await step('B-06 飼主上傳線下付款憑證', ownerPage, async () => {
       await ownerPage.goto(`/owner/orders/${orderId}`);
@@ -271,6 +293,7 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
 
     await setBrowserAuth(page, sitter, 'sitter');
     const sitterDialogs = trackDialogs(page);
+    const quoteCalls = trackOrderActionCalls(page, orderId, 'quote');
 
     await step('B2-01 保母開啟訂單評估頁：原始下單金額 $600', page, async () => {
       await page.goto('/sitter/orders');
@@ -305,6 +328,14 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       await expect(page.getByText('待付款', { exact: true })).toBeVisible();
       await expect(page.getByTestId(`sitter-order-total-${orderId}`)).toHaveText('$ 800');
     });
+
+    await apiStep(
+      'B2-03b 報價請求：POST /api/orders/{id}/quote 恰好一次、2xx、query 不帶 sitterId / ownerId',
+      async () => {
+        expectSingleTokenOnlyCall(quoteCalls, 'quote');
+        return { quoteCalls };
+      }
+    );
 
     await apiStep(
       '報價後訂單：PENDING_PAYMENT、totalAmount 800、adjustmentAmount 200、原因與應付金額一致',

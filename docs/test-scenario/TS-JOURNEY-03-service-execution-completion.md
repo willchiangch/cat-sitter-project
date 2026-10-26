@@ -32,6 +32,7 @@
 | 6 | UI：點擊「送出報告」 | 報告正式送出 | `POST /visits/{visitId}/report/submit` 200，`report.status=SUBMITTED` |
 | 7 | UI：飼主 `/owner/orders/{orderId}` 點行程清單裡的「查看日誌」連結 | 導向 `/visit-reports/view/{visitId}`，看得到文字與照片 | 連結同樣來自 `GET /api/orders/{orderId}/visits` |
 | 8 | UI：飼主點擊「確認結案」 | 訂單正式結案；結案前徽章為「服務進行中」、結案後為「已結案」（中文，U5） | `POST /api/orders/{orderId}/complete` 200，`Order=COMPLETED`；**注意**：此按鈕同樣有 `window.confirm()` |
+| 8b | API 證據（fix-batch13 K3） | 頁面實際發出的 `POST /api/orders/{id}/complete` 恰好一次、2xx、**query 不帶 `ownerId` / `sitterId`**（fix-batch11 I1） | `trackOrderActionCalls` + `expectSingleTokenOnlyCall` |
 | 9 | UI：結案後（reload）的飼主詳情 → 點「查看日誌」（fix-batch13 K2） | 行程區塊仍在、「查看日誌」可點，進入後看得到步驟 4 的日誌文字；沒有「申請訂單變更」「確認結案」「申報爭議」 | `owner-order-visit-item` 1 筆、`owner-order-visit-link`「查看日誌」；`btn-go-modification-wizard` / `complete-order-btn` / `dispute-order-btn` 數量 0 |
 
 ### 二-B、服務完成後飼主申報爭議（2026-10-25 fix-batch12 J6 新增，需 CI 驗證）
