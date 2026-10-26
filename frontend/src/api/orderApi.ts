@@ -288,8 +288,11 @@ export interface OrderDetailResponseDto {
   payoutAt?: string;
   items: OrderItemDto[];
   sitterPaymentInfo?: BankAccountInfo;
-  // 取消者：'OWNER' = 飼主付款前撤單；保母婉拒 / 訂單變更取消等為 undefined（fix-batch10 H5）
+  // 取消者：'OWNER' = 飼主付款前撤單（fix-batch10 H5）；'SITTER' = 保母婉拒（fix-batch13 K1）；
+  // 訂單變更取消等為 undefined
   cancelledBy?: string;
+  // 保母婉拒原因（cancelledBy = 'SITTER' 時才有值，保母未填為空字串）
+  sitterRejectReason?: string | null;
   // 目前是否可由飼主撤單（後端 OwnerCancellationService 判斷：PENDING，或未上傳憑證且非補款的 PENDING_PAYMENT）
   cancellableByOwner?: boolean;
 }

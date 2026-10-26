@@ -37,6 +37,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     private final com.petsitter.domain.repository.VisitServiceReportRepository visitServiceReportRepository;
     private final SupplementPaymentResolver supplementPaymentResolver;
     private final OwnerCancellationService ownerCancellationService;
+    private final com.petsitter.domain.repository.OrderLogRepository orderLogRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -57,6 +58,7 @@ public class OrderQueryServiceImpl implements OrderQueryService {
         }
 
         SupplementPaymentResolver.CurrentProof proof = supplementPaymentResolver.currentProof(order);
+        SitterRejection rejection = resolveSitterRejection(order);
 
         return OrderDetailResponseDto.builder()
                 .id(order.getId())
@@ -77,10 +79,31 @@ public class OrderQueryServiceImpl implements OrderQueryService {
                 .completedAt(order.getCompletedAt())
                 .payoutAt(order.getPayoutAt())
                 .items(order.getItems())
-                .cancelledBy(order.getCancelledBy())
+                .cancelledBy(rejection != null ? Order.CANCELLED_BY_SITTER : order.getCancelledBy())
+                .sitterRejectReason(rejection != null ? rejection.reason() : null)
                 .cancellableByOwner(ownerCancellationService.isCancellableByOwner(order))
                 .sitterPaymentInfo(bankAccountInfo)
                 .build();
+    }
+
+    private record SitterRejection(String reason) {
+    }
+
+    /**
+     * 保母婉拒（fix-batch13 K1）：原因只存在 ORDER_REJECTED 日誌。cancelledBy=SITTER 是 K1 起才寫入，
+     * 舊的婉拒單欄位為 NULL，同樣以日誌判定；飼主撤單（OWNER）不查
+     */
+    private SitterRejection resolveSitterRejection(Order order) {
+        if (!"CANCELLED".equals(order.getStatus()) || "OWNER".equals(order.getCancelledBy())) {
+            return null;
+        }
+        return orderLogRepository
+                .findFirstByOrderIdAndActionTypeOrderByCreatedAtDesc(order.getId(), "ORDER_REJECTED")
+                .map(l -> {
+                    Object reason = l.getPayload() == null ? null : l.getPayload().get("rejectReason");
+                    return new SitterRejection(reason == null ? "" : reason.toString());
+                })
+                .orElse(null);
     }
 
     @Override

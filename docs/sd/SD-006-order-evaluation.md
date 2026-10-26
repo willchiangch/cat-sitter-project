@@ -54,6 +54,9 @@
 - **Headers**: `Idempotency-Key: UUID` (必填)
 - **Request Body**: `{ "rejectReason": "...", "version": 1 }`
 - **邏輯檢核**: 狀態轉為 `CANCELLED`，重設 `waiting_for_owner_action = false`。
+- **動作（2026-10-26 fix-batch13 K1）**: `cancelled_by='SITTER'`；所有行程 `CANCELLED`；寫 `order_logs`（`ORDER_REJECTED`，payload `rejectReason`，trim 後、未填為空字串）；發布 `OrderRejectedBySitterEvent(orderId, sitterId, rejectReason)`，`NotificationListener.onOrderRejectedBySitter` AFTER_COMMIT 非同步通知飼主：標題「預約已婉拒」、內容「保母已婉拒您的預約（訂單 #前 8 碼），原因：…」（未填原因為「…，保母未填寫原因。」）、`ORDER_AFFAIR`、`/owner/orders/{orderId}`、`OWNER`。交易回滾（版本過期等）不會發通知。過去只寫日誌，評估頁確認框卻寫「拒絕後飼主將收到通知」。
+- **回應欄位**: `OrderDetailResponseDto.cancelledBy` 為 `SITTER`、新增 `sitterRejectReason`（取自最新一筆 `ORDER_REJECTED` 日誌）。2026-10-26 前婉拒的舊訂單 `cancelled_by` 為 NULL，`OrderQueryServiceImpl.resolveSitterRejection` 依日誌補判為 `SITTER`；`cancelled_by='OWNER'` 不查日誌。
+- **前端**: `OrderEvalView` 確認框「確定要拒絕此訂單嗎？拒絕後飼主將收到通知（含您填寫的原因），此動作無法復原。」（未填原因時沒有括號那段）；`OwnerOrderDetail` 的 `cancelled-status-banner` 為「保母已婉拒此預約」，原因非空時下方 `cancelled-reject-reason`「婉拒原因：…」。
 
 ### 2.4 原價快速接單 (Confirm)
 - **Endpoint**: `POST /api/orders/{orderId}/confirm`（無 body）
@@ -70,8 +73,8 @@
   - `CANCELLED` → 409「此訂單已取消」；`COMPLETED` → 409「此訂單已結案」；其他（`PAID` / `CONFIRMED` / `IN_PROGRESS` / `MODIFYING` / `REFUND_VERIFY` / `DISPUTED`）→ 409，訊息皆附「如需取消請透過『申請訂單變更』與保母協商（PRD-016）」
 - **併發**：以 `OrderRepository.findByIdForUpdate`（`PESSIMISTIC_WRITE`）讀訂單，與保母接單 / 報價共用同一支查詢、同一列的同一把 `FOR UPDATE` 鎖。飼主先 → 保母後到讀到 `CANCELLED` → 409 `STATE_CONFLICT`；保母先 → 飼主後到讀到 `PENDING_PAYMENT`，version 已變 → 409 `MSG_DATA_CONCURRENCY_CONFLICT`（不會把保母剛報價的單撤掉）。飼主同時上傳憑證：`submitPaymentProof` 沒有列鎖但有 `@Version`，撤單先提交則上傳 flush 時樂觀鎖 409；上傳先提交則撤單讀到 `PAID` → 409。
 - **動作**：訂單 `status=CANCELLED`、`cancelled_by='OWNER'`（V20261025_01 新增欄位）、`waiting_for_owner_action=false`；所有行程 `CANCELLED`；同一交易寫 `order_logs`（`ORDER_CANCELLED_BY_OWNER`，payload `previousStatus`。不用 `AuditLogService.writeOrderLog`：它是 `REQUIRES_NEW`，新交易插 `order_logs` 的 FK 檢查要等本交易的 `FOR UPDATE` 列鎖，會互等）；發布 `OrderCancelledByOwnerEvent`，`NotificationListener` AFTER_COMMIT 非同步通知保母（標題「飼主已取消預約」、`ORDER_AFFAIR`、`/sitter/orders`、`SITTER`）。
-- **回應欄位**：`OrderDetailResponseDto` 新增 `cancelledBy`、`cancellableByOwner`；`OrderSummaryDto` 新增 `cancelledBy`。
-- **前端**：`OwnerOrderDetail` 在 `cancellableByOwner` 時顯示「取消預約」（`owner-cancel-booking-btn`，`window.confirm` 後送出，409 時 alert 後端訊息並重抓），`CANCELLED` 顯示 `cancelled-status-banner`（飼主撤「您已取消此預約」/ 其他「此預約已取消」）；`SitterOrders` 對 `cancelledBy=OWNER` 顯示「飼主已取消預約」（`sitter-order-owner-cancelled-{id}`）；`OrderEvalView` 非 PENDING 時若為飼主撤單顯示「飼主已取消預約，無法在此頁面操作。」（`sitter-order-eval-not-pending`）。
+- **回應欄位**：`OrderDetailResponseDto` 新增 `cancelledBy`、`cancellableByOwner`；`OrderSummaryDto` 新增 `cancelledBy`（保母婉拒為 `SITTER`，見 §2.3）。
+- **前端**：`OwnerOrderDetail` 在 `cancellableByOwner` 時顯示「取消預約」（`owner-cancel-booking-btn`，`window.confirm` 後送出，409 時 alert 後端訊息並重抓），`CANCELLED` 顯示 `cancelled-status-banner`（飼主撤「您已取消此預約」/ 保母婉拒「保母已婉拒此預約」+ 原因 / 其他「此預約已取消」）；`SitterOrders` 對 `cancelledBy=OWNER` 顯示「飼主已取消預約」（`sitter-order-owner-cancelled-{id}`）；`OrderEvalView` 非 PENDING 時若為飼主撤單顯示「飼主已取消預約，無法在此頁面操作。」（`sitter-order-eval-not-pending`）。
 
 ---
 

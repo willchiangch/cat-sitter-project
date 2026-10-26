@@ -15,6 +15,7 @@ interface OrderState {
   version: number;
   cancellableByOwner: boolean;
   cancelledBy?: string;
+  sitterRejectReason?: string;
 }
 
 function orderBody(state: OrderState) {
@@ -34,7 +35,10 @@ function orderBody(state: OrderState) {
     items: [],
     sitterPaymentInfo: null,
     cancellableByOwner: state.cancellableByOwner,
-    ...(state.cancelledBy ? { cancelledBy: state.cancelledBy } : {})
+    ...(state.cancelledBy ? { cancelledBy: state.cancelledBy } : {}),
+    ...(state.sitterRejectReason !== undefined
+      ? { sitterRejectReason: state.sitterRejectReason }
+      : {})
   });
 }
 
@@ -144,6 +148,43 @@ test.describe('PRD-006 飼主付款前撤單（fix-batch10 H5）', () => {
       await expect(page.getByTestId('order-status-badge')).toHaveText('待付款');
       await expect(page.getByTestId('owner-cancel-booking-btn')).toHaveCount(0);
       await expect(page.getByTestId('cancelled-status-banner')).toHaveCount(0);
+    });
+  });
+
+  // fix-batch13 K1（PRD-006 D）：保母婉拒過去飼主只看到「此預約已取消」，看不到原因
+  test('保母婉拒：橫幅「保母已婉拒此預約」並顯示婉拒原因；未填原因時不顯示原因列', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'client');
+    const state: OrderState = {
+      status: 'CANCELLED',
+      version: 2,
+      cancellableByOwner: false,
+      cancelledBy: 'SITTER',
+      sitterRejectReason: '當週檔期已滿，抱歉'
+    };
+    await mockOwnerOrder(page, state);
+
+    await step('婉拒原因顯示在已取消橫幅內，沒有取消 / 付款按鈕', page, async () => {
+      await page.goto(`/owner/orders/${orderId}`);
+      await expect(page.getByTestId('order-status-badge')).toHaveText('已取消');
+      const banner = page.getByTestId('cancelled-status-banner');
+      await expect(banner).toHaveText('保母已婉拒此預約婉拒原因：當週檔期已滿，抱歉');
+      await expect(banner.getByTestId('cancelled-reject-reason')).toHaveText(
+        '婉拒原因：當週檔期已滿，抱歉'
+      );
+      await expect(page.getByTestId('owner-cancel-booking-btn')).toHaveCount(0);
+      await expect(page.getByTestId('btn-submit-payment-proof')).toHaveCount(0);
+      expect(
+        (await contrastOf(banner.getByTestId('cancelled-reject-reason'))).ratio
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    await step('保母未填原因：只顯示「保母已婉拒此預約」', page, async () => {
+      state.sitterRejectReason = '';
+      await page.reload();
+      await expect(page.getByTestId('cancelled-status-banner')).toHaveText('保母已婉拒此預約');
+      await expect(page.getByTestId('cancelled-reject-reason')).toHaveCount(0);
     });
   });
 

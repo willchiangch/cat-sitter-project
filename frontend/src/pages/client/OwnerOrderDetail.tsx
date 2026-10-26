@@ -85,6 +85,12 @@ const OwnerOrderVisitList: React.FC<{ orderId: string }> = ({ orderId }) => {
   );
 };
 
+const cancelledBannerText = (cancelledBy?: string) => {
+  if (cancelledBy === 'OWNER') return '您已取消此預約';
+  if (cancelledBy === 'SITTER') return '保母已婉拒此預約';
+  return '此預約已取消';
+};
+
 /** 行程已結束（打卡完工或逾期被系統關閉），與後端 CompletionService.manualComplete 的判斷一致 */
 const FINISHED_VISIT_STATUSES = new Set(['DONE', 'CLOSED_BY_SYSTEM']);
 
@@ -653,7 +659,16 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
               }}
               data-testid="cancelled-status-banner"
             >
-              {order.cancelledBy === 'OWNER' ? '您已取消此預約' : '此預約已取消'}
+              {cancelledBannerText(order.cancelledBy)}
+              {/* fix-batch13 K1：保母婉拒的原因（PRD-006 D），過去飼主只看到「此預約已取消」 */}
+              {order.cancelledBy === 'SITTER' && order.sitterRejectReason?.trim() && (
+                <div
+                  data-testid="cancelled-reject-reason"
+                  style={{ marginTop: '0.375rem', fontWeight: '400', overflowWrap: 'anywhere' }}
+                >
+                  婉拒原因：{order.sitterRejectReason.trim()}
+                </div>
+              )}
             </div>
           )}
 

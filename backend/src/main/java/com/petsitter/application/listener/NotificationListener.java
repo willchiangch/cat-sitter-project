@@ -4,6 +4,7 @@ import com.petsitter.application.event.VisitNotificationEvent;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.OrderCancelledByOwnerEvent;
+import com.petsitter.domain.event.OrderRejectedBySitterEvent;
 import com.petsitter.domain.event.PaymentProofSubmittedEvent;
 import com.petsitter.domain.event.PaymentRejectedEvent;
 import com.petsitter.domain.event.PaymentVerifiedEvent;
@@ -75,6 +76,36 @@ public class NotificationListener {
                     "SITTER"
             );
         }
+    }
+
+    /**
+     * 保母婉拒待評估訂單（PRD-006 主流程 D / fix-batch13 K1）：通知飼主，內容帶婉拒原因，連到該筆訂單詳情。
+     * 類別沿用訂單事務 ORDER_AFFAIR（同撤單通知），Email 依飼主的通知偏好由 NotificationService 決定
+     */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrderRejectedBySitter(OrderRejectedBySitterEvent event) {
+        log.info("Async notification - Order {} rejected by sitter {}", event.orderId(), event.sitterId());
+
+        Order order = orderRepository.findById(event.orderId()).orElse(null);
+        if (order != null) {
+            notificationService.createNotification(
+                    order.getOwner().getId(),
+                    "預約已婉拒",
+                    orderRejectedContent(event),
+                    "ORDER_AFFAIR",
+                    ownerOrderLink(event.orderId()),
+                    "OWNER"
+            );
+        }
+    }
+
+    static String orderRejectedContent(OrderRejectedBySitterEvent event) {
+        String head = "保母已婉拒您的預約（訂單 #" + event.orderId().toString().substring(0, 8) + "）";
+        String reason = event.rejectReason();
+        return reason == null || reason.isBlank()
+                ? head + "，保母未填寫原因。"
+                : head + "，原因：" + reason.trim();
     }
 
     @Async

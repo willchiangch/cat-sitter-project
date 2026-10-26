@@ -115,7 +115,10 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
 
   const handleReject = async () => {
     if (!order || order.version === undefined) return;
-    if (!window.confirm('確定要拒絕此訂單嗎？拒絕後飼主將收到通知，此動作無法復原。')) return;
+    // 與後端行為一致（fix-batch13 K1）：EvaluationService.rejectOrder 交易提交後通知飼主，內容帶婉拒原因
+    const reasonNote = rejectReason.trim() ? '（含您填寫的原因）' : '';
+    if (!window.confirm(`確定要拒絕此訂單嗎？拒絕後飼主將收到通知${reasonNote}，此動作無法復原。`))
+      return;
     setActionLoading(true);
     try {
       await rejectOrder(

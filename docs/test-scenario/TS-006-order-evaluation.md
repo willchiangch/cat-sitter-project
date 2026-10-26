@@ -71,6 +71,12 @@
 * **Then**: (1)(2) 403，訂單仍 `PENDING`；未登入 401；(3) 200 並轉 `PENDING_PAYMENT` / `CANCELLED`（舊身分參數被忽略，舊前端在部署空窗期不壞）；FREE 保母調價仍 403 `AUTH_PLAN_LIMIT`（`PlanGatingAspect` 改以 token 身分判斷方案）。前端請求不再帶任何 query param（`order-eval.spec.ts` 斷言 `searchParams` 為空）。
 * **自動化對應**: `OrderIdentityFromTokenSecurityTest.confirm_*` / `quote_*` / `reject_*`；前端 `frontend/e2e/order-eval.spec.ts`（原價接單 / 報價 / 婉拒三支）。
 
+## Scenario 10: 保母婉拒通知飼主、詳情顯示原因（fix-batch13 K1，PRD-006 D / AC-4）
+* **Given**: 飼主的 `PENDING` 單（三張：填原因、未填原因、維持 PENDING 對照）；另一張在外層交易中婉拒後回滾。
+* **When**: 保母 `rejectOrder`（原因前後帶空白）；查飼主訂單詳情；把一張已婉拒單的 `cancelled_by` 改回 NULL 模擬舊資料再查。
+* **Then**: 訂單與行程 `CANCELLED`、`cancelledBy=SITTER`；交易提交後飼主收到恰好一則「預約已婉拒」（`ORDER_AFFAIR`、`OWNER`、`/owner/orders/{id}`），內容「保母已婉拒您的預約（訂單 #前 8 碼），原因：當週檔期已滿」（原因已 trim），未填原因為「…，保母未填寫原因。」；保母本人沒有通知；回滾的婉拒沒有通知、訂單仍 `PENDING`；詳情 `sitterRejectReason` 為原因 / 空字串，舊資料依日誌判為 `SITTER`；未婉拒單兩欄皆 null。評估頁確認框文案為「…拒絕後飼主將收到通知（含您填寫的原因）…」，request body 帶 `rejectReason` 與 `version`；飼主詳情橫幅「保母已婉拒此預約」與「婉拒原因：…」，未填原因不顯示原因列。
+* **自動化對應**: `OrderEvaluationTest.ts006_07` / `ts006_08`（AFTER_COMMIT 回滾不發）/ `ts006_09`；`NotificationListenerLinkTest.orderRejectedBySitterNotifiesOwnerWithReason`；前端 `order-eval.spec.ts`「可拒絕接單並導回訂單列表」、`owner-cancel-booking.spec.ts`「保母婉拒：橫幅…」；真後端 Journey B BR-03 / BR-03b / BR-04（需 CI 驗證）。
+
 ---
 
 ## 驗證矩陣
@@ -82,6 +88,7 @@
 | 4 | 權限攔截 | FREE 方案調價 | 拋出 `AUTH_PLAN_LIMIT` (403) |
 | 4.5 | 同一張單同時原價接單 + 報價 / 兩次報價 | 只成功一個，另一個 409 | 訂單列 `SELECT ... FOR UPDATE`，快照 1 筆；同日其他單照常可接（不做容量控管） |
 | 4.6 | 飼主付款前撤單 / 與保母接單、報價併發 | 可撤狀態成功、其他 409；併發只成功一方 | `SELECT ... FOR UPDATE` 同一把列鎖 + version；`cancelled_by='OWNER'`（Scenario 7 / 8） |
+| 4.8 | 保母婉拒 | 飼主收到「預約已婉拒」通知（含原因），詳情顯示原因 | `cancelled_by='SITTER'`、`OrderRejectedBySitterEvent` AFTER_COMMIT（Scenario 10） |
 | 4.7 | 他人 / 錯角色呼叫接單、報價、婉拒 | 403，訂單不變；本人 200 | 身分取自 JWT（`TokenContext`）+ `@PreAuthorize("hasRole('SITTER')")`；舊 `?sitterId=` 被忽略（Scenario 9） |
 | 5 | 從列表點入評估頁原價接單，導回列表（不重新整理） | 該訂單不在「評估中」分頁，「進行中」分頁顯示「待付款」 | 前端 `OrderEvalView` 成功後 invalidate `['orders']` 查詢（迴歸，見下方「本測試發現並修復的真實 bug」） |
 
@@ -109,3 +116,5 @@
 **撤單後橫幅像停用按鈕、評估頁沒有出口（2026-10-25，驗收截圖新問題 4 / fix-batch12 U3）**：飼主詳情的 `cancelled-status-banner` 與「取消預約」鈕同樣是灰底（`--color-surface-high`）、置中、粗體，撤單後看起來像一顆停用的按鈕；保母評估頁對非 PENDING 訂單只顯示一行字，沒有返回入口。橫幅改資訊樣式（白底、左側 4px 色條、靠左、`role="status"`），評估頁補「返回訂單列表」（`sitter-order-eval-back-to-list`）。迴歸：`owner-cancel-booking.spec.ts`（比對橫幅與按鈕的 computed style、對比 ≥ 4.5、點返回回到列表；舊版紅）、Journey B BC-04。
 
 **飼主看不到保母的報價調整原因（2026-10-25，驗收 B2-04 / 第 9 批另外發現 #4 / fix-batch12 U6）**：保母評估頁的原因欄寫「飼主會看到」，後端也回 `adjustmentReason`，但飼主訂單詳情只顯示調整後總額。補「保母報價調整：加價 / 折扣 $X」與調整原因。迴歸：`owner-quote-adjustment.spec.ts`（加價 / 折扣 / 原價三案）、Journey B B2-04（需 CI 真後端）。
+
+**保母婉拒不通知飼主，確認框卻承諾會通知（2026-10-26，驗收 20261026-0007 截圖新問題 1 / fix-batch13 K1）**：`OrderEvalView` 婉拒確認框寫「拒絕後飼主將收到通知」，PRD-006 D 也要求通知飼主，但 `EvaluationService.rejectOrder` 只寫 `ORDER_REJECTED` 日誌、沒有發任何事件；飼主鈴鐺沒有未讀，詳情只寫「此預約已取消」，看不到原因（第 10 批另外發現就記錄過）。修法：婉拒寫 `cancelled_by='SITTER'`，發 `OrderRejectedBySitterEvent`，AFTER_COMMIT 通知飼主（`ORDER_AFFAIR`、含原因、連到訂單詳情）；詳情新增 `sitterRejectReason`，飼主端顯示「保母已婉拒此預約」與原因；確認框依是否填原因調整文案。迴歸：Scenario 10（`ts006_07` 在舊版因沒有通知、`cancelledBy` 為 null 而紅）。

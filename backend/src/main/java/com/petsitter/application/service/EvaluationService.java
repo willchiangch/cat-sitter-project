@@ -3,12 +3,14 @@ package com.petsitter.application.service;
 import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.dto.RejectOrderRequest;
 import com.petsitter.application.exception.PricingMismatchException;
+import com.petsitter.domain.event.OrderRejectedBySitterEvent;
 import com.petsitter.domain.model.*;
 import com.petsitter.domain.repository.*;
 import com.petsitter.infrastructure.security.gating.PlanTier;
 import com.petsitter.infrastructure.security.gating.RequirePlan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ public class EvaluationService {
     private final VisitRepository visitRepository;
     private final OrderLogRepository orderLogRepository;
     private final IdempotencyService idempotencyService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @RequirePlan(PlanTier.FREE)
     @Transactional
@@ -138,7 +141,11 @@ public class EvaluationService {
             throw new ObjectOptimisticLockingFailureException(Order.class, orderId);
         }
 
+        String rejectReason = request.getRejectReason() == null ? "" : request.getRejectReason().trim();
+
         order.setStatus("CANCELLED");
+        // fix-batch13 K1：記錄取消者，飼主詳情據此顯示「保母已婉拒此預約」與原因（過去保母婉拒為 NULL，與其他取消分不出來）
+        order.setCancelledBy(Order.CANCELLED_BY_SITTER);
         order.setWaitingForOwnerAction(false);
         orderRepository.save(order);
 
@@ -150,8 +157,12 @@ public class EvaluationService {
                 .order(order)
                 .operatorId(sitterId.toString())
                 .actionType("ORDER_REJECTED")
-                .payload(Map.of("rejectReason", request.getRejectReason() == null ? "" : request.getRejectReason()))
+                .payload(Map.of("rejectReason", rejectReason))
                 .build());
+
+        // PRD-006 D：通知飼主「預約已婉拒」（含原因）。AFTER_COMMIT 監聽，交易回滾（版本過期、併發）時不會發出。
+        // 過去只寫日誌，評估頁確認框卻寫「拒絕後飼主將收到通知」（驗收 20261026-0007 截圖新問題 1）
+        eventPublisher.publishEvent(new OrderRejectedBySitterEvent(orderId, sitterId, rejectReason));
 
         log.info("[EvaluationService] Order {} rejected by sitter {}", orderId, sitterId);
     }

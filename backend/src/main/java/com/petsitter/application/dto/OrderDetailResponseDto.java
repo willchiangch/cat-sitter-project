@@ -42,8 +42,13 @@ public class OrderDetailResponseDto {
     private OffsetDateTime completedAt;
     private OffsetDateTime payoutAt;
     private List<OrderItem> items; // 預約內容快照清單
-    /** 取消者：OWNER = 飼主付款前撤單；其他取消方式為 null（fix-batch10 H5） */
+    /**
+     * 取消者：OWNER = 飼主付款前撤單（fix-batch10 H5）；SITTER = 保母婉拒（fix-batch13 K1，
+     * 2026-10-26 前婉拒的舊訂單欄位為 NULL，依 ORDER_REJECTED 日誌補判為 SITTER）；訂單變更取消為 null
+     */
     private String cancelledBy;
+    /** 保母婉拒原因（cancelledBy = SITTER 時才有值，保母未填為空字串），飼主詳情據此顯示（fix-batch13 K1） */
+    private String sitterRejectReason;
     /** 目前是否可由飼主撤單（OwnerCancellationService.rejectReason 為空），前端據此顯示「取消預約」 */
     private boolean cancellableByOwner;
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)

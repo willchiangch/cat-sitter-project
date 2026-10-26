@@ -78,12 +78,26 @@ class OrderEvaluationTest {
     @Autowired
     private ProfileRepository profileRepository;
 
+    @Autowired
+    private OrderLogRepository orderLogRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private OrderQueryService orderQueryService;
+
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
     private UUID sitterId;
     private UUID ownerId;
     private UUID planId;
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
+        orderLogRepository.deleteAll();
         visitRepository.deleteAll();
         orderSnapshotRepository.deleteAll();
         orderRepository.deleteAll();
@@ -311,5 +325,104 @@ class OrderEvaluationTest {
             assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo("PENDING_PAYMENT");
             assertThat(snapshotCount(orderId)).isEqualTo(1);
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // TS-006-07 ~ 09（fix-batch13 K1）：保母婉拒要通知飼主（PRD-006 主流程 D），飼主詳情看得到婉拒原因。
+    // 過去 rejectOrder 只寫日誌，評估頁確認框卻寫「拒絕後飼主將收到通知」
+    // ---------------------------------------------------------------------------------------------
+
+    private void reject(UUID orderId, String reason, String key) {
+        evaluationService.rejectOrder(sitterId, orderId, com.petsitter.application.dto.RejectOrderRequest.builder()
+                .rejectReason(reason).version(versionOf(orderId)).build(), key);
+    }
+
+    private List<com.petsitter.domain.model.Notification> ownerRejectNotifications() {
+        return notificationRepository.findAll().stream()
+                .filter(n -> n.getUserId().equals(ownerId) && "預約已婉拒".equals(n.getTitle()))
+                .toList();
+    }
+
+    @Test
+    @DisplayName("TS-006-07: 保母婉拒 → CANCELLED、cancelledBy=SITTER，交易提交後通知飼主（ORDER_AFFAIR、含原因、連到訂單詳情）")
+    void ts006_07_should_NotifyOwnerWithReason_When_SitterRejects() {
+        UUID orderId = createPendingOrder(LocalDate.of(2026, 9, 1), "reject-1");
+
+        reject(orderId, "  當週檔期已滿  ", "reject-key-1");
+
+        Order order = orderRepository.findById(orderId).orElseThrow();
+        assertThat(order.getStatus()).isEqualTo("CANCELLED");
+        assertThat(order.getCancelledBy()).isEqualTo("SITTER");
+        assertThat(visitRepository.findByOrderId(orderId))
+                .extracting(com.petsitter.domain.model.Visit::getStatus).containsOnly("CANCELLED");
+        // @Async + AFTER_COMMIT：等它寫進 DB
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(ownerRejectNotifications()).singleElement().satisfies(n -> {
+                    assertThat(n.getCategory()).isEqualTo("ORDER_AFFAIR");
+                    assertThat(n.getRoleTarget()).isEqualTo("OWNER");
+                    assertThat(n.getLinkUrl()).isEqualTo("/owner/orders/" + orderId);
+                    assertThat(n.getContent()).isEqualTo("保母已婉拒您的預約（訂單 #"
+                            + orderId.toString().substring(0, 8) + "），原因：當週檔期已滿");
+                }));
+        // 保母本人不會收到這則通知
+        assertThat(notificationRepository.findAll()).noneMatch(n -> n.getUserId().equals(sitterId));
+    }
+
+    @Test
+    @DisplayName("TS-006-08: 婉拒交易回滾時不發通知（AFTER_COMMIT），訂單仍是 PENDING")
+    void ts006_08_should_NotNotify_When_RejectTransactionRollsBack() {
+        UUID rolledBack = createPendingOrder(LocalDate.of(2026, 9, 2), "reject-rb");
+        UUID committed = createPendingOrder(LocalDate.of(2026, 9, 3), "reject-ok");
+
+        org.springframework.transaction.support.TransactionTemplate tx =
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        tx.executeWithoutResult(status -> {
+            reject(rolledBack, "會被回滾", "reject-key-rb");
+            status.setRollbackOnly();
+        });
+        assertThat(orderRepository.findById(rolledBack).orElseThrow().getStatus()).isEqualTo("PENDING");
+
+        // 對照組：真正提交的婉拒會通知；等到它出現，代表非同步監聽器已在運作，回滾的那筆仍然沒有
+        reject(committed, "對照組", "reject-key-ok");
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(ownerRejectNotifications()).hasSize(1));
+        assertThat(ownerRejectNotifications()).singleElement()
+                .satisfies(n -> assertThat(n.getLinkUrl()).isEqualTo("/owner/orders/" + committed));
+    }
+
+    @Test
+    @DisplayName("TS-006-09: 飼主訂單詳情帶婉拒原因；未填原因為空字串、通知寫「保母未填寫原因」；舊資料（cancelledBy NULL）依日誌判為 SITTER")
+    void ts006_09_should_ExposeRejectReasonInOwnerDetail() {
+        UUID withReason = createPendingOrder(LocalDate.of(2026, 9, 4), "reject-d1");
+        UUID noReason = createPendingOrder(LocalDate.of(2026, 9, 5), "reject-d2");
+        UUID pending = createPendingOrder(LocalDate.of(2026, 9, 6), "reject-d3");
+
+        reject(withReason, "臨時有事", "reject-key-d1");
+        reject(noReason, null, "reject-key-d2");
+
+        var detail = orderQueryService.getOrderDetail(withReason, ownerId);
+        assertThat(detail.getCancelledBy()).isEqualTo("SITTER");
+        assertThat(detail.getSitterRejectReason()).isEqualTo("臨時有事");
+
+        var blank = orderQueryService.getOrderDetail(noReason, ownerId);
+        assertThat(blank.getCancelledBy()).isEqualTo("SITTER");
+        assertThat(blank.getSitterRejectReason()).isEmpty();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(ownerRejectNotifications()).anySatisfy(n -> assertThat(n.getContent())
+                        .isEqualTo("保母已婉拒您的預約（訂單 #" + noReason.toString().substring(0, 8)
+                                + "），保母未填寫原因。")));
+
+        // 2026-10-26 前婉拒的舊訂單：cancelled_by 為 NULL，仍依 ORDER_REJECTED 日誌判定
+        Order legacy = orderRepository.findById(withReason).orElseThrow();
+        legacy.setCancelledBy(null);
+        orderRepository.saveAndFlush(legacy);
+        var legacyDetail = orderQueryService.getOrderDetail(withReason, ownerId);
+        assertThat(legacyDetail.getCancelledBy()).isEqualTo("SITTER");
+        assertThat(legacyDetail.getSitterRejectReason()).isEqualTo("臨時有事");
+
+        // 未婉拒的訂單沒有婉拒原因
+        var pendingDetail = orderQueryService.getOrderDetail(pending, ownerId);
+        assertThat(pendingDetail.getCancelledBy()).isNull();
+        assertThat(pendingDetail.getSitterRejectReason()).isNull();
     }
 }

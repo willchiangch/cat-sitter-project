@@ -5,6 +5,7 @@ import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.MediaExpiryWarningEvent;
 import com.petsitter.domain.event.OrderCancelledByOwnerEvent;
+import com.petsitter.domain.event.OrderRejectedBySitterEvent;
 import com.petsitter.domain.event.PaymentProofSubmittedEvent;
 import com.petsitter.domain.event.PaymentRejectedEvent;
 import com.petsitter.domain.event.PaymentVerifiedEvent;
@@ -128,6 +129,28 @@ class NotificationListenerLinkTest {
         assertThat(category.getValue()).isEqualTo("ORDER_AFFAIR");
         assertThat(role.getValue()).isEqualTo("SITTER");
         assertThat(link.getValue()).isEqualTo("/sitter/orders");
+        assertIsFrontendRoute(link.getValue());
+    }
+
+    @Test
+    @DisplayName("保母婉拒（fix-batch13 K1）→ 通知飼主，ORDER_AFFAIR，內容含原因，連到飼主訂單詳情")
+    void orderRejectedBySitterNotifiesOwnerWithReason() {
+        stubOrder();
+        UUID ownerId = orderRepository.findById(orderId).orElseThrow().getOwner().getId();
+        listener.onOrderRejectedBySitter(new OrderRejectedBySitterEvent(orderId, UUID.randomUUID(), "當週檔期已滿"));
+
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> category = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> role = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).createNotification(org.mockito.ArgumentMatchers.eq(ownerId),
+                org.mockito.ArgumentMatchers.eq("預約已婉拒"), content.capture(), category.capture(), link.capture(),
+                role.capture());
+        assertThat(content.getValue()).isEqualTo(
+                "保母已婉拒您的預約（訂單 #" + orderId.toString().substring(0, 8) + "），原因：當週檔期已滿");
+        assertThat(category.getValue()).isEqualTo("ORDER_AFFAIR");
+        assertThat(role.getValue()).isEqualTo("OWNER");
+        assertThat(link.getValue()).isEqualTo("/owner/orders/" + orderId);
         assertIsFrontendRoute(link.getValue());
     }
 

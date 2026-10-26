@@ -29,6 +29,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
   let orderVersion = 0;
   // fix-batch11 I1（BOLA）：記下接單 / 報價 / 婉拒請求的 URL，斷言前端不再帶 sitterId 等身分 query param
   let actionUrls: string[] = [];
+  let rejectBodies: unknown[] = [];
   const queryKeys = (url: string) => [...new URL(url).searchParams.keys()];
 
   test.beforeEach(async ({ page }) => {
@@ -40,6 +41,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
     orderStatus = 'PENDING';
     orderVersion = 0;
     actionUrls = [];
+    rejectBodies = [];
 
     await page.route(`**/api/orders/${orderId}`, async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
@@ -99,6 +101,7 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
 
     await page.route(`**/api/orders/${orderId}/reject**`, async (route) => {
       actionUrls.push(route.request().url());
+      rejectBodies.push(route.request().postDataJSON());
       orderStatus = 'CANCELLED';
       await route.fulfill({
         status: 200,
@@ -239,12 +242,17 @@ test.describe('SD-006 保母訂單評估頁 E2E 測試', () => {
 
     await step('確認婉拒後導回列表，請求不帶 sitterId', page, async () => {
       await page.getByTestId('sitter-order-eval-btn-submit-reject').click();
-      await expectDialog(dialogs, /確定要拒絕此訂單嗎/);
+      // fix-batch13 K1：確認框文案與後端行為一致（交易提交後通知飼主，內容帶原因）
+      await expectDialog(
+        dialogs,
+        /^確定要拒絕此訂單嗎？拒絕後飼主將收到通知（含您填寫的原因），此動作無法復原。$/
+      );
       await expectDialog(dialogs, /已拒絕此訂單/);
       await expect(page).toHaveURL(/\/sitter\/orders$/);
       expect(orderStatus).toBe('CANCELLED');
       expect(actionUrls).toHaveLength(1);
       expect(queryKeys(actionUrls[0])).toEqual([]);
+      expect(rejectBodies).toEqual([{ rejectReason: '臨時有事無法接單', version: 0 }]);
     });
   });
 

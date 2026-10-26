@@ -100,9 +100,12 @@ public class Order extends BaseEntity {
     @Column(name = "media_expiry_warned", nullable = false)
     private boolean mediaExpiryWarned = false;
 
+    public static final String CANCELLED_BY_SITTER = "SITTER";
+
     /**
-     * 取消者（fix-batch10 H5）：OWNER = 飼主於付款前撤單（OwnerCancellationService）。
-     * 保母婉拒、訂單變更取消、2026-10-25 前的資料為 NULL
+     * 取消者（fix-batch10 H5）：OWNER = 飼主於付款前撤單（OwnerCancellationService）；
+     * SITTER = 保母婉拒待評估訂單（EvaluationService.rejectOrder，fix-batch13 K1 起寫入）。
+     * 訂單變更取消、2026-10-25 前的資料、2026-10-26 前的保母婉拒為 NULL
      */
     @Column(name = "cancelled_by", length = 16)
     private String cancelledBy;
