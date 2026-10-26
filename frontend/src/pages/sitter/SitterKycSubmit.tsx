@@ -195,7 +195,10 @@ const SitterKycSubmit: React.FC = () => {
               padding: '1rem'
             }}
           >
-            <p style={{ fontSize: '0.9rem', color: '#f87171', fontWeight: '600', margin: 0 }}>
+            <p
+              data-testid="sitter-kyc-suspended-title"
+              style={{ fontSize: '0.9rem', color: '#991b1b', fontWeight: '600', margin: 0 }}
+            >
               您的帳號已被管理員停權暫停接單資格。
             </p>
             <p
@@ -221,7 +224,10 @@ const SitterKycSubmit: React.FC = () => {
               marginBottom: '1rem'
             }}
           >
-            <p style={{ fontSize: '0.9rem', color: '#fbbf24', fontWeight: '600', margin: 0 }}>
+            <p
+              data-testid="sitter-kyc-rejected-title"
+              style={{ fontSize: '0.9rem', color: '#92400e', fontWeight: '600', margin: 0 }}
+            >
               前次認證申請已被駁回：
             </p>
             <p
@@ -438,7 +444,7 @@ const SitterKycSubmit: React.FC = () => {
             </div>
 
             {errorMsg && (
-              <div style={{ color: '#ef4444', fontSize: '0.9rem', fontWeight: '500' }}>
+              <div style={{ color: 'var(--color-error)', fontSize: '0.9rem', fontWeight: '500' }}>
                 ⚠️ {errorMsg}
               </div>
             )}

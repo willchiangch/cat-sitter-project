@@ -94,7 +94,13 @@ const AdminTrustScores: React.FC = () => {
       >
         管理端 - 內部信用指標管理
       </h2>
-      <p style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)', marginBottom: '1.5rem' }}>
+      <p
+        style={{
+          fontSize: '0.8rem',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '1.5rem'
+        }}
+      >
         此資訊為後台內部指標，飼主與保母在前台皆無法查看。低於 60 點標註為高風險。
       </p>
 
@@ -127,17 +133,29 @@ const AdminTrustScores: React.FC = () => {
           </h3>
 
           {errorMsg && (
-            <div style={{ color: '#ef4444', marginBottom: '1rem', fontWeight: '500' }}>
+            <div style={{ color: 'var(--color-error)', marginBottom: '1rem', fontWeight: '500' }}>
               {errorMsg}
             </div>
           )}
 
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-on-surface-variant)' }}>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '2rem',
+                color: 'var(--color-on-surface-variant)'
+              }}
+            >
               載入中...
             </div>
           ) : records.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-on-surface-variant)' }}>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '3rem',
+                color: 'var(--color-on-surface-variant)'
+              }}
+            >
               目前沒有保母資料。
             </div>
           ) : (
@@ -168,7 +186,7 @@ const AdminTrustScores: React.FC = () => {
                       <span
                         style={{
                           fontWeight: '700',
-                          color: r.highRisk ? '#dc2626' : 'var(--color-on-surface)'
+                          color: r.highRisk ? 'var(--color-error)' : 'var(--color-on-surface)'
                         }}
                       >
                         {r.trustScore}
@@ -180,7 +198,7 @@ const AdminTrustScores: React.FC = () => {
                             marginLeft: '8px',
                             fontSize: '0.7rem',
                             fontWeight: '700',
-                            color: '#dc2626',
+                            color: 'var(--color-error)',
                             backgroundColor: '#fee2e2',
                             padding: '2px 8px',
                             borderRadius: '9999px'
@@ -218,7 +236,10 @@ const AdminTrustScores: React.FC = () => {
           >
             異動信用點數
           </h3>
-          <form onSubmit={handleAdjust} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <form
+            onSubmit={handleAdjust}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>保母 ID</label>
               <input
@@ -226,17 +247,27 @@ const AdminTrustScores: React.FC = () => {
                 value={targetSitterId}
                 onChange={(e) => setTargetSitterId(e.target.value)}
                 placeholder="從左側清單選取，或直接輸入"
-                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
                 data-testid="trust-adjust-sitter-id"
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>增減點數（負數為扣分）</label>
+              <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>
+                增減點數（負數為扣分）
+              </label>
               <input
                 type="number"
                 value={delta}
                 onChange={(e) => setDelta(Number(e.target.value))}
-                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
                 data-testid="trust-adjust-delta"
               />
             </div>
@@ -261,7 +292,7 @@ const AdminTrustScores: React.FC = () => {
                 style={{
                   fontSize: '0.8rem',
                   fontWeight: '600',
-                  color: adjustMsg.type === 'success' ? '#16a34a' : '#dc2626'
+                  color: adjustMsg.type === 'success' ? '#047857' : 'var(--color-error)'
                 }}
                 data-testid="trust-adjust-message"
               >

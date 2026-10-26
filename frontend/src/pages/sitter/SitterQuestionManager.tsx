@@ -91,7 +91,10 @@ const SitterQuestionManager: React.FC = () => {
     }
 
     const options = isChoiceType
-      ? optionsText.split('\n').map((s) => s.trim()).filter(Boolean)
+      ? optionsText
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean)
       : [];
 
     if (isChoiceType && options.length === 0) {
@@ -210,7 +213,10 @@ const SitterQuestionManager: React.FC = () => {
 
       {editingId && (
         <Card style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>題目內容</label>
               <input
@@ -218,7 +224,11 @@ const SitterQuestionManager: React.FC = () => {
                 value={form.questionText}
                 onChange={(e) => setForm({ ...form, questionText: e.target.value })}
                 maxLength={200}
-                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
                 data-testid="question-text-input"
               />
             </div>
@@ -227,8 +237,14 @@ const SitterQuestionManager: React.FC = () => {
               <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>回答類型</label>
               <select
                 value={form.answerType}
-                onChange={(e) => setForm({ ...form, answerType: e.target.value as QuestionAnswerType })}
-                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--color-outline-variant)' }}
+                onChange={(e) =>
+                  setForm({ ...form, answerType: e.target.value as QuestionAnswerType })
+                }
+                style={{
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
                 data-testid="question-answer-type-select"
               >
                 {Object.entries(ANSWER_TYPE_LABELS).map(([value, label]) => (
@@ -241,7 +257,9 @@ const SitterQuestionManager: React.FC = () => {
 
             {isChoiceType && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>選項內容（每行一個）</label>
+                <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>
+                  選項內容（每行一個）
+                </label>
                 <textarea
                   value={optionsText}
                   onChange={(e) => setOptionsText(e.target.value)}
@@ -271,7 +289,10 @@ const SitterQuestionManager: React.FC = () => {
             </div>
 
             {formError && (
-              <div style={{ color: '#dc2626', fontSize: '0.85rem' }} data-testid="question-form-error">
+              <div
+                style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}
+                data-testid="question-form-error"
+              >
                 {formError}
               </div>
             )}
@@ -305,20 +326,53 @@ const SitterQuestionManager: React.FC = () => {
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          載入中...
+        </div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}>{error}</div>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-error)' }}>
+          {error}
+        </div>
       ) : questions.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
           尚未設定任何問卷題目
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }} data-testid="question-list">
+        <div
+          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          data-testid="question-list"
+        >
           {questions.map((q, index) => (
             <Card key={q.id} data-testid={`question-row-${q.id}`}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '1rem'
+                }}
+              >
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '0.4rem'
+                    }}
+                  >
                     <span
                       style={{
                         fontSize: '0.7rem',
@@ -332,23 +386,50 @@ const SitterQuestionManager: React.FC = () => {
                       {ANSWER_TYPE_LABELS[q.answerType]}
                     </span>
                     {q.required && (
-                      <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#dc2626' }}>必填</span>
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: '700',
+                          color: 'var(--color-error)'
+                        }}
+                      >
+                        必填
+                      </span>
                     )}
                     {!q.isActive && (
-                      <span style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-on-surface-variant)' }}>
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: '700',
+                          color: 'var(--color-on-surface-variant)'
+                        }}
+                      >
                         已停用
                       </span>
                     )}
                   </div>
                   <div style={{ fontWeight: '600' }}>{q.questionText}</div>
                   {q.options.length > 0 && (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--color-on-surface-variant)', marginTop: '0.3rem' }}>
+                    <div
+                      style={{
+                        fontSize: '0.8rem',
+                        color: 'var(--color-on-surface-variant)',
+                        marginTop: '0.3rem'
+                      }}
+                    >
                       選項：{q.options.join('、')}
                     </div>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-end' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.3rem',
+                    alignItems: 'flex-end'
+                  }}
+                >
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
                     <button
                       onClick={() => handleMove(index, -1)}
@@ -385,7 +466,12 @@ const SitterQuestionManager: React.FC = () => {
                     <button
                       onClick={() => handleDelete(q.id!)}
                       data-testid={`question-delete-${q.id}`}
-                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer', color: '#dc2626' }}
+                      style={{
+                        padding: '0.3rem 0.6rem',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        color: 'var(--color-error)'
+                      }}
                     >
                       刪除
                     </button>

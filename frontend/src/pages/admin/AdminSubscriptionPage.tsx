@@ -11,7 +11,7 @@ const PLAN_LABELS: Record<PlanTier, string> = {
   FREE: 'Free (免費版)',
   BASIC: 'Basic (基礎版)',
   PRO: 'Pro (專業版)',
-  ULTIMATE: 'Ultimate (頂級版)',
+  ULTIMATE: 'Ultimate (頂級版)'
 };
 
 interface SubscriptionInfo {
@@ -37,7 +37,9 @@ const AdminSubscriptionPage: React.FC = () => {
     setMessage(null);
     setLoading(true);
     try {
-      const res = await axiosClient.get<SubscriptionInfo>(`/admin/subscriptions/${sitterId.trim()}`);
+      const res = await axiosClient.get<SubscriptionInfo>(
+        `/admin/subscriptions/${sitterId.trim()}`
+      );
       setCurrentSub(res.data);
       setPlanTier(res.data.planTier);
       if (res.data.expiredAt) {
@@ -46,7 +48,10 @@ const AdminSubscriptionPage: React.FC = () => {
         setExpiredAt('');
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.status === 404 ? '找不到該保母 ID' : '查詢失敗';
+      const msg =
+        err.response?.data?.message || err.response?.status === 404
+          ? '找不到該保母 ID'
+          : '查詢失敗';
       setMessage({ type: 'error', text: msg });
       setCurrentSub(null);
     } finally {
@@ -72,7 +77,10 @@ const AdminSubscriptionPage: React.FC = () => {
         body
       );
       setCurrentSub(res.data);
-      setMessage({ type: 'success', text: `已成功將方案更新為 ${PLAN_LABELS[res.data.planTier]}，審計日誌已寫入。` });
+      setMessage({
+        type: 'success',
+        text: `已成功將方案更新為 ${PLAN_LABELS[res.data.planTier]}，審計日誌已寫入。`
+      });
     } catch (err: any) {
       const msg = err.response?.data?.message || '更新失敗';
       setMessage({ type: 'error', text: msg });
@@ -82,25 +90,41 @@ const AdminSubscriptionPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '2rem 1.5rem', fontFamily: 'var(--font-sans)', maxWidth: '640px', margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '2rem 1.5rem',
+        fontFamily: 'var(--font-sans)',
+        maxWidth: '640px',
+        margin: '0 auto'
+      }}
+    >
       <h2
         style={{
           fontSize: '1.75rem',
           fontWeight: '700',
           color: 'var(--color-on-surface)',
           fontFamily: 'var(--font-display)',
-          marginBottom: '0.5rem',
+          marginBottom: '0.5rem'
         }}
       >
         訂閱方案管理 (Admin)
       </h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', marginBottom: '2rem' }}>
+      <p
+        style={{
+          fontSize: '0.875rem',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '2rem'
+        }}
+      >
         人工覆寫保母的 SaaS 訂閱等級與到期日。所有操作均記錄於審計日誌。
       </p>
 
       {/* 查詢保母 */}
       <Card style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-        <form onSubmit={handleLookup} style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+        <form
+          onSubmit={handleLookup}
+          style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}
+        >
           <div style={{ flex: 1 }}>
             <label
               style={{
@@ -108,7 +132,7 @@ const AdminSubscriptionPage: React.FC = () => {
                 fontSize: '0.875rem',
                 fontWeight: '600',
                 marginBottom: '0.5rem',
-                color: 'var(--color-on-surface)',
+                color: 'var(--color-on-surface)'
               }}
             >
               保母 User ID (UUID)
@@ -127,7 +151,7 @@ const AdminSubscriptionPage: React.FC = () => {
                 backgroundColor: 'var(--color-surface)',
                 color: 'var(--color-on-surface)',
                 boxSizing: 'border-box',
-                fontSize: '0.875rem',
+                fontSize: '0.875rem'
               }}
             />
           </div>
@@ -135,7 +159,13 @@ const AdminSubscriptionPage: React.FC = () => {
             type="submit"
             disabled={loading}
             className="btn-primary"
-            style={{ padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '6px', height: '45px' }}
+            style={{
+              padding: '0.75rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              height: '45px'
+            }}
             data-testid="admin-sub-btn-lookup"
           >
             <Search size={16} /> {loading ? '查詢中...' : '查詢'}
@@ -145,7 +175,13 @@ const AdminSubscriptionPage: React.FC = () => {
 
       {/* 當前方案資訊 */}
       {currentSub && (
-        <Card style={{ marginBottom: '1.5rem', padding: '1.5rem', backgroundColor: 'var(--color-surface-low)' }}>
+        <Card
+          style={{
+            marginBottom: '1.5rem',
+            padding: '1.5rem',
+            backgroundColor: 'var(--color-surface-low)'
+          }}
+        >
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
             目前方案：
             <strong style={{ color: 'var(--color-on-surface)', marginLeft: '4px' }}>
@@ -163,7 +199,13 @@ const AdminSubscriptionPage: React.FC = () => {
               <span style={{ marginLeft: '8px', color: 'var(--color-warning)' }}>（無到期日）</span>
             )}
           </p>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--color-on-surface-variant)' }}>
+          <p
+            style={{
+              margin: '4px 0 0 0',
+              fontSize: '0.8rem',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
             本月接單數：{currentSub.monthlyOrderCount}
           </p>
         </Card>
@@ -172,7 +214,10 @@ const AdminSubscriptionPage: React.FC = () => {
       {/* 設定表單 */}
       {currentSub && (
         <Card style={{ padding: '1.5rem' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+          >
             <div>
               <label
                 style={{
@@ -180,7 +225,7 @@ const AdminSubscriptionPage: React.FC = () => {
                   fontSize: '0.875rem',
                   fontWeight: '600',
                   marginBottom: '0.5rem',
-                  color: 'var(--color-on-surface)',
+                  color: 'var(--color-on-surface)'
                 }}
               >
                 新方案等級
@@ -196,7 +241,7 @@ const AdminSubscriptionPage: React.FC = () => {
                   border: '1px solid var(--color-surface-high)',
                   backgroundColor: 'var(--color-surface)',
                   color: 'var(--color-on-surface)',
-                  fontSize: '0.875rem',
+                  fontSize: '0.875rem'
                 }}
               >
                 {PLAN_TIERS.map((t) => (
@@ -214,7 +259,7 @@ const AdminSubscriptionPage: React.FC = () => {
                   fontSize: '0.875rem',
                   fontWeight: '600',
                   marginBottom: '0.5rem',
-                  color: 'var(--color-on-surface)',
+                  color: 'var(--color-on-surface)'
                 }}
               >
                 到期日（選填，留空表示永不到期）
@@ -232,7 +277,7 @@ const AdminSubscriptionPage: React.FC = () => {
                   backgroundColor: 'var(--color-surface)',
                   color: 'var(--color-on-surface)',
                   boxSizing: 'border-box',
-                  fontSize: '0.875rem',
+                  fontSize: '0.875rem'
                 }}
               />
             </div>
@@ -244,7 +289,7 @@ const AdminSubscriptionPage: React.FC = () => {
                   fontSize: '0.875rem',
                   fontWeight: '600',
                   marginBottom: '0.5rem',
-                  color: 'var(--color-on-surface)',
+                  color: 'var(--color-on-surface)'
                 }}
               >
                 異動原因（選填，僅供內部記錄）
@@ -264,7 +309,7 @@ const AdminSubscriptionPage: React.FC = () => {
                   backgroundColor: 'var(--color-surface)',
                   color: 'var(--color-on-surface)',
                   boxSizing: 'border-box',
-                  fontSize: '0.875rem',
+                  fontSize: '0.875rem'
                 }}
               />
             </div>
@@ -280,11 +325,15 @@ const AdminSubscriptionPage: React.FC = () => {
                   alignItems: 'center',
                   gap: '8px',
                   backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-                  color: message.type === 'success' ? '#16a34a' : '#ef4444',
+                  color: message.type === 'success' ? '#047857' : 'var(--color-error)'
                 }}
                 data-testid="admin-sub-message"
               >
-                {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                {message.type === 'success' ? (
+                  <CheckCircle2 size={18} />
+                ) : (
+                  <AlertCircle size={18} />
+                )}
                 {message.text}
               </div>
             )}

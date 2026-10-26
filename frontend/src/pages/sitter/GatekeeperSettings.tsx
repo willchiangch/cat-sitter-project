@@ -174,7 +174,16 @@ export const GatekeeperSettings: React.FC = () => {
   if (isLocked) {
     return (
       <div style={{ padding: '1rem 0' }}>
-        <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.25rem' }}>
+        <div
+          style={{
+            ...cardStyle,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '1.25rem'
+          }}
+        >
           <div
             style={{
               width: '72px',
@@ -190,11 +199,25 @@ export const GatekeeperSettings: React.FC = () => {
             <Lock size={32} />
           </div>
 
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-on-surface)' }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '1.5rem',
+              fontWeight: 800,
+              color: 'var(--color-on-surface)'
+            }}
+          >
             解鎖預約門禁系統 (Gatekeeper)
           </h2>
 
-          <p style={{ margin: 0, color: 'var(--color-on-surface-variant)', lineHeight: 1.6, fontSize: '0.875rem' }}>
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--color-on-surface-variant)',
+              lineHeight: 1.6,
+              fontSize: '0.875rem'
+            }}
+          >
             門禁系統為專業版/頂級版保母專屬功能。透過黑白名單防禦、問卷豁免機制，讓您輕鬆掌握預約接單的主導權，避開惡意騷擾，專注於優質服務。
           </p>
 
@@ -212,23 +235,55 @@ export const GatekeeperSettings: React.FC = () => {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-              <Shield size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
+              <Shield
+                size={20}
+                style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }}
+              />
               <div>
-                <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.9375rem', color: 'var(--color-on-surface)' }}>
+                <h4
+                  style={{
+                    margin: 0,
+                    fontWeight: 700,
+                    fontSize: '0.9375rem',
+                    color: 'var(--color-on-surface)'
+                  }}
+                >
                   專業版 (PRO)
                 </h4>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: 'var(--color-on-surface-variant)' }}>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '0.8125rem',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
                   支援設定全域/方案級黑名單，阻擋特定客戶
                 </p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-              <Shield size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
+              <Shield
+                size={20}
+                style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }}
+              />
               <div>
-                <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.9375rem', color: 'var(--color-on-surface)' }}>
+                <h4
+                  style={{
+                    margin: 0,
+                    fontWeight: 700,
+                    fontSize: '0.9375rem',
+                    color: 'var(--color-on-surface)'
+                  }}
+                >
                   頂級版 (ULTIMATE)
                 </h4>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: 'var(--color-on-surface-variant)' }}>
+                <p
+                  style={{
+                    margin: '4px 0 0 0',
+                    fontSize: '0.8125rem',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
                   解鎖全功能：黑/白名單雙重防禦、預約免填問卷豁免權
                 </p>
               </div>
@@ -274,7 +329,16 @@ export const GatekeeperSettings: React.FC = () => {
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '1.25rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
             <Shield size={22} /> 預約門禁管理系統
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', opacity: 0.9 }}>
@@ -311,8 +375,13 @@ export const GatekeeperSettings: React.FC = () => {
             gap: '8px'
           }}
         >
-          <AlertCircle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: '1px' }} />
-          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#7f1d1d' }}>{errorMessage}</span>
+          <AlertCircle
+            size={18}
+            style={{ color: 'var(--color-error)', flexShrink: 0, marginTop: '1px' }}
+          />
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#7f1d1d' }}>
+            {errorMessage}
+          </span>
         </div>
       )}
       {successMessage && (
@@ -328,7 +397,9 @@ export const GatekeeperSettings: React.FC = () => {
           }}
         >
           <CheckCircle2 size={18} style={{ color: '#027a48', flexShrink: 0, marginTop: '1px' }} />
-          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#027a48' }}>{successMessage}</span>
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#027a48' }}>
+            {successMessage}
+          </span>
         </div>
       )}
 
@@ -347,7 +418,10 @@ export const GatekeeperSettings: React.FC = () => {
           新增門禁規則
         </h3>
 
-        <form onSubmit={handleAddRule} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form
+          onSubmit={handleAddRule}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+        >
           <div>
             <label style={labelStyle}>飼主帳號 Email</label>
             <input
@@ -377,9 +451,16 @@ export const GatekeeperSettings: React.FC = () => {
                   fontWeight: 600,
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  border: scopeType === 'GLOBAL' ? '1px solid var(--color-primary)' : '1px solid var(--color-surface-high)',
-                  backgroundColor: scopeType === 'GLOBAL' ? 'var(--color-primary-container)' : 'white',
-                  color: scopeType === 'GLOBAL' ? 'var(--color-on-primary-container)' : 'var(--color-on-surface-variant)'
+                  border:
+                    scopeType === 'GLOBAL'
+                      ? '1px solid var(--color-primary)'
+                      : '1px solid var(--color-surface-high)',
+                  backgroundColor:
+                    scopeType === 'GLOBAL' ? 'var(--color-primary-container)' : 'white',
+                  color:
+                    scopeType === 'GLOBAL'
+                      ? 'var(--color-on-primary-container)'
+                      : 'var(--color-on-surface-variant)'
                 }}
               >
                 全域
@@ -394,9 +475,16 @@ export const GatekeeperSettings: React.FC = () => {
                   fontWeight: 600,
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  border: scopeType === 'PLAN' ? '1px solid var(--color-primary)' : '1px solid var(--color-surface-high)',
-                  backgroundColor: scopeType === 'PLAN' ? 'var(--color-primary-container)' : 'white',
-                  color: scopeType === 'PLAN' ? 'var(--color-on-primary-container)' : 'var(--color-on-surface-variant)'
+                  border:
+                    scopeType === 'PLAN'
+                      ? '1px solid var(--color-primary)'
+                      : '1px solid var(--color-surface-high)',
+                  backgroundColor:
+                    scopeType === 'PLAN' ? 'var(--color-primary-container)' : 'white',
+                  color:
+                    scopeType === 'PLAN'
+                      ? 'var(--color-on-primary-container)'
+                      : 'var(--color-on-surface-variant)'
                 }}
               >
                 特定方案
@@ -497,9 +585,9 @@ export const GatekeeperSettings: React.FC = () => {
               const matchedPlan = plans.find((p) => p.id === rule.planId);
               const ruleTypeConfig =
                 rule.ruleType === 'BLACK'
-                  ? { label: '黑名單', bg: '#fef2f2', color: '#dc2626' }
+                  ? { label: '黑名單', bg: '#fef2f2', color: 'var(--color-error)' }
                   : rule.ruleType === 'WHITE'
-                    ? { label: '白名單', bg: '#ecfdf3', color: '#16a34a' }
+                    ? { label: '白名單', bg: '#ecfdf3', color: '#047857' }
                     : { label: '免問卷', bg: '#eff6ff', color: '#2563eb' };
               return (
                 <div
@@ -516,11 +604,26 @@ export const GatekeeperSettings: React.FC = () => {
                     gap: '0.75rem'
                   }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--color-on-surface)' }}>
+                  <div
+                    style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}
+                  >
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        color: 'var(--color-on-surface)'
+                      }}
+                    >
                       {rule.targetEmail}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexWrap: 'wrap'
+                      }}
+                    >
                       <span
                         style={{
                           padding: '2px 10px',
@@ -533,8 +636,14 @@ export const GatekeeperSettings: React.FC = () => {
                       >
                         {ruleTypeConfig.label}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
-                        {rule.scopeType === 'GLOBAL' ? '全域' : matchedPlan ? matchedPlan.name : '特定方案'}
+                      <span
+                        style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}
+                      >
+                        {rule.scopeType === 'GLOBAL'
+                          ? '全域'
+                          : matchedPlan
+                            ? matchedPlan.name
+                            : '特定方案'}
                       </span>
                     </div>
                   </div>
@@ -548,7 +657,7 @@ export const GatekeeperSettings: React.FC = () => {
                       backgroundColor: 'transparent',
                       border: 'none',
                       borderRadius: '8px',
-                      color: '#ef4444',
+                      color: 'var(--color-error)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',

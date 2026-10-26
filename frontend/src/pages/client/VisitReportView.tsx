@@ -35,32 +35,36 @@ const VisitReportView: React.FC<VisitReportViewProps> = ({ visitId }) => {
 
     if (remainingDays <= 3 && remainingDays > 0) {
       return (
-        <div style={{
-          padding: '1rem',
-          borderRadius: '12px',
-          backgroundColor: '#fef3c7',
-          color: '#d97706',
-          marginBottom: '1.5rem',
-          fontSize: '0.875rem',
-          fontWeight: '500'
-        }}>
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '12px',
+            backgroundColor: '#fef3c7',
+            color: '#92400e',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500'
+          }}
+        >
           ⚠️ 此報告的照片將於 {remainingDays} 天後自動移除，請儘快備份。
         </div>
       );
     }
-    
+
     if (report.isPurged) {
       return (
-        <div style={{
-          padding: '1rem',
-          borderRadius: '12px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          color: 'var(--color-on-surface-variant)',
-          marginBottom: '1.5rem',
-          fontSize: '0.875rem',
-          fontWeight: '500',
-          border: '1px solid rgba(255, 255, 255, 0.05)'
-        }}>
+        <div
+          style={{
+            padding: '1rem',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            color: 'var(--color-on-surface-variant)',
+            marginBottom: '1.5rem',
+            fontSize: '0.875rem',
+            fontWeight: '500',
+            border: '1px solid rgba(255, 255, 255, 0.05)'
+          }}
+        >
           🐾 此報告的部分照片已逾期移除。
         </div>
       );

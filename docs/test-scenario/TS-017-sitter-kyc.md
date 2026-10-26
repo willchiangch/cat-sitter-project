@@ -107,3 +107,5 @@
 **KYC 狀態徽章與成功訊息對比不足（2026-10-25，驗收截圖新問題 8 / fix-batch12 U7）**：保母 KYC 頁與管理端 KYC 詳情的徽章沿用深色主題配色（`rgba(…, 0.2)` 底 + `#60a5fa` / `#34d399` / `#fbbf24` / `#f87171` 字），淺色主題下「審核中」「待審核」約 2.0:1、「已認證 / 已通過」1.6:1；核准成功訊息 `#10b981` 白底 2.5:1。改用共用 `STATUS_TONE_STYLE` 與 `SUCCESS_TEXT_COLOR`（≥ 4.5）。迴歸：`ui-layout-contrast.spec.ts` U7（四種狀態）、`admin-kyc-detail.spec.ts` U2（待審核、已通過、成功訊息），舊版紅。
 
 **管理端停權工具按鈕白字低對比（2026-10-26，驗收 20261026-0007 截圖新問題 8 / fix-batch13 K9）**：`AdminKycList` 的「執行停權」白字配 `#ef4444`（量測 3.76:1）、「解除停權」白字配 `#10b981`（2.54:1），未達 AA。改 `--color-error` + `--color-on-error`（6.7:1）、`#047857` + 白字（5.48:1）。迴歸：`ui-layout-contrast.spec.ts` K9（computed style 量測，舊版紅）。
+
+**KYC 被駁回 / 已停權說明標題低對比（2026-10-26，驗收 20261026-0007 截圖新問題 9 / fix-batch13 K10）**：`SitterKycSubmit` 駁回標題 `#fbbf24`、停權標題 `#f87171` 疊在 10% 淡底上，量測 1.54 / 2.42。改 `#92400e` / `#991b1b`（6.56 / 7.28）；管理端 KYC 詳情 / 清單、保母 KYC 頁的錯誤字 `#ef4444`（3.76）改 `--color-error`。全站替換表見 SD-FRONTEND-SPEC §6.5。迴歸：`ui-layout-contrast.spec.ts` K10 KYC 案。

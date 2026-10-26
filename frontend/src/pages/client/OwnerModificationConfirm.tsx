@@ -299,10 +299,18 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
       )}
 
       {fetchLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          載入中...
+        </div>
       ) : fetchError ? (
         <div
-          style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}
+          style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-error)' }}
           data-testid="mod-confirm-error"
         >
           {fetchError}
@@ -343,7 +351,7 @@ const OwnerModificationConfirm: React.FC<OwnerModificationConfirmProps> = ({ ord
               >
                 <span>保母報價差額：</span>
                 <strong
-                  style={{ color: modRequest.diffAmount < 0 ? '#dc2626' : '#16a34a' }}
+                  style={{ color: modRequest.diffAmount < 0 ? 'var(--color-error)' : '#047857' }}
                   data-testid="mod-confirm-diff-amount"
                 >
                   {formatMoney(modRequest.diffAmount)} (負值為退款)

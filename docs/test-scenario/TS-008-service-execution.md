@@ -81,3 +81,5 @@
 **飼主點已完工但未送出的行程「查看日誌」落到空頁（2026-10-25，驗收 N11 殘留 / fix-batch12 U5）**：N11 後飼主端以行程 `DONE` 顯示「查看日誌」，但 N13 起 Check-out 後保母仍可繼續編輯草稿，日誌可能還沒送出；逾期的行程也一樣，點進去是「尚無照護回報」（t070-02）。`GET /api/orders/{id}/visits` 新增 `reportSubmitted`，飼主端只在 true 時給入口，否則顯示「日誌尚未送出」/「未送出日誌」。迴歸：`OrderControllerTest.should_FlagReportSubmitted_OnlyForSubmittedReports`（草稿 / 已刪除皆 false）、`order-visit-gating.spec.ts` N11 飼主詳情（舊版紅）。
 
 **日誌回報頁成功訊息綠字配淺綠底對比不足（2026-10-25，驗收截圖新問題 8 / fix-batch12 U7）**：「已成功 Check-in」等訊息 `#10b981` 疊 `rgba(16,185,129,0.1)`，約 2.3:1。改 `#047857` / `#ecfdf5`（5.2:1），加 `data-testid="visit-report-success-msg"`。迴歸：`service-execution.spec.ts` Check-in 步驟量測（舊版紅）。
+
+**日誌回報頁狀態徽章低對比（2026-10-26，fix-batch12 另外發現 #3 / fix-batch13 K10）**：`VisitReportManager`「執行中」`#d97706` 對 `#fef3c7`（2.86）、「待送出日誌」`#ea580c` 對 `#ffedd5`（3.11），影像到期提醒同為 2.86。改 `#92400e`（6.37）、`#9a3412`（6.38）。迴歸：`ui-layout-contrast.spec.ts` K10「執行中」徽章（舊版紅）。

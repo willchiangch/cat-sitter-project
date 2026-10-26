@@ -96,7 +96,14 @@ const FavoriteSitters: React.FC = () => {
         margin: '0 auto'
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1.5rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: '1.5rem'
+        }}
+      >
         <h2
           style={{
             fontSize: '1.75rem',
@@ -120,14 +127,21 @@ const FavoriteSitters: React.FC = () => {
 
       {isSearchOpen && (
         <Card style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-          <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <form
+            onSubmit={handleSearch}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>保母帳號 ID 或 Email</label>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.6rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
                 data-testid="favorite-search-input"
               />
             </div>
@@ -143,7 +157,10 @@ const FavoriteSitters: React.FC = () => {
             </button>
 
             {searchError && (
-              <div style={{ color: '#dc2626', fontSize: '0.85rem' }} data-testid="favorite-search-error">
+              <div
+                style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}
+                data-testid="favorite-search-error"
+              >
                 {searchError}
               </div>
             )}
@@ -197,27 +214,58 @@ const FavoriteSitters: React.FC = () => {
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          載入中...
+        </div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}>{error}</div>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-error)' }}>
+          {error}
+        </div>
       ) : favorites.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>尚未收藏任何保母</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          尚未收藏任何保母
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }} data-testid="favorite-list">
+        <div
+          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+          data-testid="favorite-list"
+        >
           {favorites.map((f) => (
             <Card
               key={f.sitterId}
               data-testid={`favorite-row-${f.sitterId}`}
               style={{ opacity: f.removed || f.hidden ? 0.6 : 1 }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
                 <div
                   onClick={() => !f.removed && navigate(`/booking/${f.sitterId}`)}
                   style={{ cursor: f.removed ? 'default' : 'pointer', flex: 1 }}
                 >
-                  <div style={{ fontWeight: '700' }}>{f.removed ? '帳號已移除' : f.displayName}</div>
+                  <div style={{ fontWeight: '700' }}>
+                    {f.removed ? '帳號已移除' : f.displayName}
+                  </div>
                   {!f.removed && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)', marginTop: '0.2rem' }}>
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--color-on-surface-variant)',
+                        marginTop: '0.2rem'
+                      }}
+                    >
                       {f.hidden ? '休息中/隱藏中' : '服務中'}
                       {f.tags && f.tags.length > 0 && ` · ${f.tags.join('、')}`}
                     </div>
@@ -229,7 +277,7 @@ const FavoriteSitters: React.FC = () => {
                   style={{
                     padding: '0.4rem 0.7rem',
                     fontSize: '0.8rem',
-                    color: '#dc2626',
+                    color: 'var(--color-error)',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer'

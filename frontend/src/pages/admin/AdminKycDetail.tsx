@@ -384,7 +384,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
           {errorMsg && (
             <div
               style={{
-                color: '#ef4444',
+                color: 'var(--color-error)',
                 fontSize: '0.9rem',
                 fontWeight: '500',
                 marginBottom: '1rem'
@@ -420,7 +420,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                   fontSize: '0.95rem',
                   fontWeight: '600',
                   borderRadius: '8px',
-                  backgroundColor: '#10b981'
+                  backgroundColor: '#047857'
                 }}
               >
                 批准認證
@@ -437,7 +437,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                   borderRadius: '8px',
                   border: '1px solid rgba(239, 68, 68, 0.5)',
                   backgroundColor: 'transparent',
-                  color: '#ef4444',
+                  color: 'var(--color-error)',
                   // 不是 .btn-primary，停用樣式要自己給（驗收 N2）
                   cursor: actionLoading || reviewed ? 'not-allowed' : 'pointer',
                   opacity: actionLoading || reviewed ? 0.45 : 1
@@ -484,7 +484,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
                   style={{
                     flex: 1,
                     padding: '10px',
-                    backgroundColor: '#ef4444',
+                    backgroundColor: 'var(--color-error)',
                     color: 'white',
                     border: 'none',
                     borderRadius: '6px',

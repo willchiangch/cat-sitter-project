@@ -245,7 +245,7 @@ const SitterPaymentInfoSettings: React.FC = () => {
                 fontSize: '0.875rem',
                 fontWeight: '500',
                 backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-                color: message.type === 'success' ? '#16a34a' : '#ef4444'
+                color: message.type === 'success' ? '#047857' : 'var(--color-error)'
               }}
               data-testid="sitter-bank-message"
             >

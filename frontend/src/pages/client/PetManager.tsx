@@ -329,7 +329,7 @@ const PetManager: React.FC = () => {
             position: 'fixed',
             top: '24px',
             right: '24px',
-            backgroundColor: toast.type === 'success' ? '#10b981' : '#ef4444',
+            backgroundColor: toast.type === 'success' ? '#047857' : 'var(--color-error)',
             color: 'white',
             padding: '12px 24px',
             borderRadius: '8px',
@@ -661,9 +661,9 @@ const PetManager: React.FC = () => {
                         gap: '4px',
                         padding: '6px 12px',
                         backgroundColor: 'transparent',
-                        border: '1px solid #ef4444',
+                        border: '1px solid var(--color-error)',
                         borderRadius: '8px',
-                        color: '#ef4444',
+                        color: 'var(--color-error)',
                         fontSize: '0.75rem',
                         fontWeight: '600',
                         cursor: 'pointer'
@@ -1161,7 +1161,7 @@ const PetManager: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '8px',
-                          color: '#ef4444',
+                          color: 'var(--color-error)',
                           fontWeight: '700',
                           fontSize: '0.875rem'
                         }}
@@ -1177,7 +1177,7 @@ const PetManager: React.FC = () => {
                         style={{
                           alignSelf: 'flex-start',
                           padding: '4px 10px',
-                          backgroundColor: '#ef4444',
+                          backgroundColor: 'var(--color-error)',
                           color: 'white',
                           border: 'none',
                           borderRadius: '6px',
@@ -1454,7 +1454,7 @@ const PetManager: React.FC = () => {
                               <strong>醫療/個性備註變更：</strong>
                               <div
                                 style={{
-                                  color: '#ef4444',
+                                  color: 'var(--color-error)',
                                   textDecoration: 'line-through',
                                   margin: '2px 0'
                                 }}
@@ -1462,7 +1462,7 @@ const PetManager: React.FC = () => {
                                 原內容：
                                 {log.diffSummary.changes.medicalPersonalityNotes.before || '（空）'}
                               </div>
-                              <div style={{ color: '#10b981', margin: '2px 0' }}>
+                              <div style={{ color: '#047857', margin: '2px 0' }}>
                                 新內容：
                                 {log.diffSummary.changes.medicalPersonalityNotes.after || '（空）'}
                               </div>
@@ -1470,11 +1470,11 @@ const PetManager: React.FC = () => {
                           )}
 
                           {log.diffSummary.changes.environmentalNotes && (
-                            <div style={{ borderLeft: '3px solid #10b981', paddingLeft: '8px' }}>
+                            <div style={{ borderLeft: '3px solid #047857', paddingLeft: '8px' }}>
                               <strong>環境/行為備註變更：</strong>
                               <div
                                 style={{
-                                  color: '#ef4444',
+                                  color: 'var(--color-error)',
                                   textDecoration: 'line-through',
                                   margin: '2px 0'
                                 }}
@@ -1482,7 +1482,7 @@ const PetManager: React.FC = () => {
                                 原內容：
                                 {log.diffSummary.changes.environmentalNotes.before || '（空）'}
                               </div>
-                              <div style={{ color: '#10b981', margin: '2px 0' }}>
+                              <div style={{ color: '#047857', margin: '2px 0' }}>
                                 新內容：
                                 {log.diffSummary.changes.environmentalNotes.after || '（空）'}
                               </div>

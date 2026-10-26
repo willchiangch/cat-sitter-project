@@ -20,7 +20,10 @@ const PaymentProofImage: React.FC<PaymentProofImageProps> = ({ orderId, alt, sty
   }
   if (isError || !data) {
     return (
-      <div data-testid="payment-proof-error" style={{ fontSize: '0.8rem', color: '#ef4444' }}>
+      <div
+        data-testid="payment-proof-error"
+        style={{ fontSize: '0.8rem', color: 'var(--color-error)' }}
+      >
         憑證圖片無法載入，請重新整理頁面
       </div>
     );

@@ -5,7 +5,11 @@ import { formatMoney } from '../../utils/money';
 
 const formatDate = (iso?: string) => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  return new Date(iso).toLocaleDateString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
 };
 
 const currentYearMonth = () => {
@@ -88,7 +92,13 @@ const SitterLedger: React.FC = () => {
       </div>
 
       <Card style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', marginBottom: '0.5rem' }}>
+        <div
+          style={{
+            fontSize: '0.875rem',
+            color: 'var(--color-on-surface-variant)',
+            marginBottom: '0.5rem'
+          }}
+        >
           本月總收入 (依結案日統計)
         </div>
         <div
@@ -100,14 +110,33 @@ const SitterLedger: React.FC = () => {
       </Card>
 
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          載入中...
+        </div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}>載入失敗，請稍後再試</div>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-error)' }}>
+          載入失敗，請稍後再試
+        </div>
       ) : data && data.entries.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} data-testid="ledger-entry-list">
+        <div
+          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          data-testid="ledger-entry-list"
+        >
           {data.entries.map((entry) => (
             <Card key={entry.orderId} data-testid={`ledger-entry-${entry.orderId}`}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: '0.75rem'
+                }}
+              >
                 <span style={{ fontWeight: '700' }}>{entry.ownerName}</span>
                 <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>
                   {formatMoney(entry.totalAmount)}
@@ -130,7 +159,16 @@ const SitterLedger: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>本月尚無已結案訂單</div>
+        <div
+          data-testid="ledger-empty"
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          本月尚無已結案訂單
+        </div>
       )}
     </div>
   );

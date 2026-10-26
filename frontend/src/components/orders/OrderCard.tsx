@@ -67,7 +67,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onClick }) => {
                 style={{
                   fontSize: '0.625rem',
                   backgroundColor: '#dcfce7',
-                  color: '#16a34a',
+                  color: '#047857',
                   padding: '2px 8px',
                   borderRadius: '4px',
                   marginLeft: '8px',

@@ -26,7 +26,10 @@ const SitterProfileSettings: React.FC = () => {
   const [avatarPreview, setAvatarPreview] = useState('');
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -141,7 +144,13 @@ const SitterProfileSettings: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}>
+      <div
+        style={{
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          color: 'var(--color-on-surface-variant)'
+        }}
+      >
         <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>載入個人公開檔案中...</div>
       </div>
     );
@@ -157,7 +166,14 @@ const SitterProfileSettings: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: '2rem 1.5rem', fontFamily: 'var(--font-sans)', maxWidth: '640px', margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '2rem 1.5rem',
+        fontFamily: 'var(--font-sans)',
+        maxWidth: '640px',
+        margin: '0 auto'
+      }}
+    >
       <h2
         style={{
           fontSize: '1.75rem',
@@ -169,7 +185,13 @@ const SitterProfileSettings: React.FC = () => {
       >
         保母公開檔案管理
       </h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', marginBottom: '2rem' }}>
+      <p
+        style={{
+          fontSize: '0.875rem',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '2rem'
+        }}
+      >
         設定您的展示資訊與個人簡介。這些內容將公開在您的專屬預約頁面上，讓飼主能夠更快速地了解您。
       </p>
 
@@ -220,8 +242,16 @@ const SitterProfileSettings: React.FC = () => {
             />
           </div>
           <div>
-            <h4 style={{ margin: 0, fontWeight: '700', color: 'var(--color-on-surface)' }}>大頭照</h4>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
+            <h4 style={{ margin: 0, fontWeight: '700', color: 'var(--color-on-surface)' }}>
+              大頭照
+            </h4>
+            <p
+              style={{
+                margin: '4px 0 0 0',
+                fontSize: '0.75rem',
+                color: 'var(--color-on-surface-variant)'
+              }}
+            >
               支援 JPG 或 PNG，檔案大小上限為 2MB。
             </p>
             {uploadMessage && (
@@ -232,7 +262,7 @@ const SitterProfileSettings: React.FC = () => {
                   borderRadius: '4px',
                   fontSize: '0.75rem',
                   backgroundColor: uploadMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-                  color: uploadMessage.type === 'success' ? '#16a34a' : '#ef4444'
+                  color: uploadMessage.type === 'success' ? '#047857' : 'var(--color-error)'
                 }}
               >
                 {uploadMessage.text}
@@ -244,8 +274,10 @@ const SitterProfileSettings: React.FC = () => {
 
       {/* 公開檔案設定卡片 */}
       <Card style={{ padding: '1.5rem' }}>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+        >
           {/* 暱稱 */}
           <div>
             <label
@@ -311,16 +343,44 @@ const SitterProfileSettings: React.FC = () => {
           </div>
 
           {/* 是否公開顯示 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.5rem 0'
+            }}
+          >
             <div>
-              <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-on-surface)' }}>
+              <h4
+                style={{
+                  margin: 0,
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  color: 'var(--color-on-surface)'
+                }}
+              >
                 公開此檔案
               </h4>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
+              <p
+                style={{
+                  margin: '4px 0 0 0',
+                  fontSize: '0.75rem',
+                  color: 'var(--color-on-surface-variant)'
+                }}
+              >
                 關閉後，飼主將無法搜尋到您，已預約的飼主不受影響。
               </p>
             </div>
-            <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '50px', height: '26px' }}>
+            <label
+              className="switch"
+              style={{
+                position: 'relative',
+                display: 'inline-block',
+                width: '50px',
+                height: '26px'
+              }}
+            >
               <input
                 type="checkbox"
                 checked={isVisible}
@@ -332,7 +392,10 @@ const SitterProfileSettings: React.FC = () => {
                 style={{
                   position: 'absolute',
                   cursor: 'pointer',
-                  top: 0, left: 0, right: 0, bottom: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   backgroundColor: isVisible ? 'var(--color-primary)' : '#ccc',
                   borderRadius: '34px',
                   transition: '0.4s'
@@ -342,7 +405,8 @@ const SitterProfileSettings: React.FC = () => {
                   style={{
                     position: 'absolute',
                     content: '""',
-                    height: '18px', width: '18px',
+                    height: '18px',
+                    width: '18px',
                     left: isVisible ? '28px' : '4px',
                     bottom: '4px',
                     backgroundColor: 'white',
@@ -516,7 +580,7 @@ const SitterProfileSettings: React.FC = () => {
                 alignItems: 'center',
                 gap: '8px',
                 backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-                color: message.type === 'success' ? '#16a34a' : '#ef4444'
+                color: message.type === 'success' ? '#047857' : 'var(--color-error)'
               }}
               data-testid="sitter-profile-message"
             >
@@ -534,7 +598,6 @@ const SitterProfileSettings: React.FC = () => {
           >
             {updateProfileMutation.isPending ? '儲存中...' : '儲存公開檔案'}
           </Button>
-
         </form>
       </Card>
     </div>

@@ -1471,7 +1471,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                 <div key={q.id} data-testid={`booking-question-${q.id}`}>
                   <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
                     {q.questionText}
-                    {q.required && <span style={{ color: '#dc2626' }}> *</span>}
+                    {q.required && <span style={{ color: 'var(--color-error)' }}> *</span>}
                   </div>
 
                   {q.answerType === 'RADIO' && (

@@ -367,6 +367,126 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // fix-batch13 K10（fix-batch12 另外發現 #3、驗收 20261026-0007 截圖新問題 9）：第 12 批已知的低對比色，
+  // 逐一以 computed style 量測。舊值：KYC 駁回標題 #fbbf24、停權標題 #f87171、爭議橫幅 #d97706/#fef3c7、
+  // 結案橫幅 #16a34a/#dcfce7、錯誤字 #ef4444、空狀態 #9ca3af、日誌徽章「執行中」#d97706/#fef3c7
+  const expectAA = async (locator: ReturnType<Page['getByTestId']>, label: string) => {
+    const c = await contrastOf(locator);
+    expect(c.backgroundImage, `${label} 不應是漸層底`).toBe('none');
+    expect(c.ratio, `${label} ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+    return c.ratio;
+  };
+
+  test('K10：保母 KYC 頁「被駁回」「已停權」說明標題對比 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    let kycStatus = 'REJECTED';
+    await page.route('**/api/sitter/kyc/status', (route) =>
+      route.fulfill(
+        json({
+          data: { kycStatus, rejectReason: '證件照模糊', submittedAt: '2026-10-01T00:00:00Z' }
+        })
+      )
+    );
+    const mediaUrl = 'https://storage.example.test/kyc/k10-media.jpg?X-Goog-Signature=mock';
+    await page.route('**/api/sitter/kyc/media/*', (route) =>
+      route.fulfill(json({ data: { signedUrl: mediaUrl } }))
+    );
+    await serveFixtureImage(page, mediaUrl, 'kyc-selfie.jpg');
+
+    await step('被駁回：說明標題', page, async () => {
+      await page.goto('/sitter/kyc');
+      const title = page.getByTestId('sitter-kyc-rejected-title');
+      await expect(title).toHaveText('前次認證申請已被駁回：');
+      return { ratio: await expectAA(title, '駁回標題') };
+    });
+
+    kycStatus = 'SUSPENDED';
+    await step('已停權：說明標題', page, async () => {
+      await page.goto('/sitter/kyc');
+      const title = page.getByTestId('sitter-kyc-suspended-title');
+      await expect(title).toHaveText('您的帳號已被管理員停權暫停接單資格。');
+      return { ratio: await expectAA(title, '停權標題') };
+    });
+  });
+
+  for (const [status, testId, text] of [
+    ['DISPUTED', 'disputed-status-banner', '訂單正處於爭議調解中'],
+    ['COMPLETED', 'completed-status-banner', '訂單已順利結案']
+  ] as const) {
+    test(`K10：飼主訂單詳情 ${status} 橫幅對比 ≥ 4.5:1`, async ({ page }) => {
+      await mockDemoSession(page, 'client');
+      await mockOwnerOrderDetail(page, ORDER_ID, status, 600, [
+        { id: 'v-1', status: 'DONE', reportSubmitted: true }
+      ]);
+
+      await step(`${status} 橫幅`, page, async () => {
+        await page.goto(`/owner/orders/${ORDER_ID}`);
+        const banner = page.getByTestId(testId);
+        await expect(banner).toContainText(text);
+        return { ratio: await expectAA(banner, `${status} 橫幅`) };
+      });
+    });
+  }
+
+  test('K10：飼主付款表單錯誤訊息（--color-error）對比 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await mockOwnerOrderDetail(page, ORDER_ID, 'PENDING_PAYMENT', 600, []);
+
+    await step('未勾選免責聲明就送出：錯誤訊息', page, async () => {
+      await page.goto(`/owner/orders/${ORDER_ID}`);
+      await page.getByTestId('btn-submit-payment-proof').click();
+      const err = page.getByTestId('payment-submit-error');
+      await expect(err).toHaveText('必須勾選並同意線下交易免責聲明');
+      await expect(err).toHaveCSS('color', 'rgb(176, 37, 0)');
+      return { ratio: await expectAA(err, '付款錯誤訊息') };
+    });
+  });
+
+  test('K10：帳務總覽空狀態「本月尚無已結案訂單」對比 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/orders/sitter/ledger**', (route) =>
+      route.fulfill(json({ yearMonth: '2026-10', totalRevenue: 0, entries: [] }))
+    );
+
+    await step('帳務總覽空狀態', page, async () => {
+      await page.goto('/sitter/ledger');
+      const empty = page.getByTestId('ledger-empty');
+      await expect(empty).toHaveText('本月尚無已結案訂單');
+      return { ratio: await expectAA(empty, '帳務空狀態') };
+    });
+  });
+
+  test('K10：日誌回報頁「執行中」徽章對比 ≥ 4.5:1', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    const visitId = 'k10-visit-0000-0000-000000000001';
+    await page.route(`**/api/visits/${visitId}/report`, (route) =>
+      route.fulfill(
+        json({
+          code: 200,
+          message: 'OK',
+          data: {
+            reportId: 'r-k10',
+            visitId,
+            status: 'DRAFT',
+            content: '',
+            submittedAt: null,
+            media: [],
+            isEditable: true,
+            version: 1,
+            visitStatus: 'IN_PROGRESS'
+          }
+        })
+      )
+    );
+
+    await step('執行中徽章', page, async () => {
+      await page.goto(`/visit-reports/manage/${visitId}`);
+      const badge = page.getByTestId('sitter-report-status-badge');
+      await expect(badge).toHaveText('執行中');
+      return { ratio: await expectAA(badge, '執行中徽章') };
+    });
+  });
+
   // fix-batch13 K9（驗收 20261026-0007 A-04 08、11）：白字配 #ef4444（3.76）/ #10b981（2.54）
   test('K9：管理端停權工具「執行停權」「解除停權」白字對底色對比 ≥ 4.5:1', async ({ page }) => {
     await mockDemoSession(page, 'admin');

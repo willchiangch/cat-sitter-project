@@ -277,10 +277,18 @@ const SitterModificationQuote: React.FC<SitterModificationQuoteProps> = ({ order
       )}
 
       {fetchLoading ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>載入中...</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '40px 0',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
+          載入中...
+        </div>
       ) : fetchError ? (
         <div
-          style={{ textAlign: 'center', padding: '40px 0', color: '#dc2626' }}
+          style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-error)' }}
           data-testid="mod-quote-error"
         >
           {fetchError}

@@ -57,7 +57,14 @@ const AdminForbiddenKeywords: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '2rem 1.5rem', fontFamily: 'var(--font-sans)', maxWidth: '800px', margin: '0 auto' }}>
+    <div
+      style={{
+        padding: '2rem 1.5rem',
+        fontFamily: 'var(--font-sans)',
+        maxWidth: '800px',
+        margin: '0 auto'
+      }}
+    >
       <h2
         style={{
           fontSize: '1.75rem',
@@ -69,13 +76,22 @@ const AdminForbiddenKeywords: React.FC = () => {
       >
         系統敏感詞管理 (Admin)
       </h2>
-      <p style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', marginBottom: '2rem' }}>
+      <p
+        style={{
+          fontSize: '0.875rem',
+          color: 'var(--color-on-surface-variant)',
+          marginBottom: '2rem'
+        }}
+      >
         管理全站保母公開檔案（暱稱、自我介紹）過濾用的敏感詞彙。保母更新檔案時，若包含此處的字詞將被阻擋。
       </p>
 
       {/* 新增敏感詞 */}
       <Card style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-        <form onSubmit={handleAddKeyword} style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+        <form
+          onSubmit={handleAddKeyword}
+          style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}
+        >
           <div style={{ flex: 1 }}>
             <label
               style={{
@@ -110,7 +126,13 @@ const AdminForbiddenKeywords: React.FC = () => {
             type="submit"
             disabled={addMutation.isPending}
             className="btn-primary"
-            style={{ padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '8px', height: '45px' }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              height: '45px'
+            }}
             data-testid="admin-keyword-btn-add"
           >
             <Plus size={18} /> {addMutation.isPending ? '新增中...' : '新增'}
@@ -120,7 +142,10 @@ const AdminForbiddenKeywords: React.FC = () => {
 
       {/* 查詢與列表 */}
       <Card style={{ padding: '1.5rem' }}>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem' }}>
+        <form
+          onSubmit={handleSearch}
+          style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem' }}
+        >
           <input
             type="text"
             value={searchQuery}
@@ -158,7 +183,7 @@ const AdminForbiddenKeywords: React.FC = () => {
               alignItems: 'center',
               gap: '8px',
               backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
-              color: message.type === 'success' ? '#16a34a' : '#ef4444'
+              color: message.type === 'success' ? '#047857' : 'var(--color-error)'
             }}
             data-testid="admin-keyword-message"
           >
@@ -168,7 +193,13 @@ const AdminForbiddenKeywords: React.FC = () => {
         )}
 
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--color-on-surface-variant)' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '2rem 0',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
             載入中...
           </div>
         ) : error ? (
@@ -176,7 +207,13 @@ const AdminForbiddenKeywords: React.FC = () => {
             載入敏感詞失敗
           </div>
         ) : !data || data.content.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--color-on-surface-variant)' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '2rem 0',
+              color: 'var(--color-on-surface-variant)'
+            }}
+          >
             無任何敏感詞紀錄
           </div>
         ) : (
@@ -184,18 +221,46 @@ const AdminForbiddenKeywords: React.FC = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--color-surface-high)' }}>
-                  <th style={{ padding: '0.75rem 0.5rem', color: 'var(--color-on-surface-variant)' }}>敏感詞</th>
-                  <th style={{ padding: '0.75rem 0.5rem', color: 'var(--color-on-surface-variant)' }}>新增時間</th>
-                  <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', color: 'var(--color-on-surface-variant)' }}>操作</th>
+                  <th
+                    style={{ padding: '0.75rem 0.5rem', color: 'var(--color-on-surface-variant)' }}
+                  >
+                    敏感詞
+                  </th>
+                  <th
+                    style={{ padding: '0.75rem 0.5rem', color: 'var(--color-on-surface-variant)' }}
+                  >
+                    新增時間
+                  </th>
+                  <th
+                    style={{
+                      padding: '0.75rem 0.5rem',
+                      textAlign: 'right',
+                      color: 'var(--color-on-surface-variant)'
+                    }}
+                  >
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {data.content.map((item) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--color-surface-high)' }}>
-                    <td style={{ padding: '1rem 0.5rem', fontWeight: '600', color: 'var(--color-on-surface)' }}>
+                    <td
+                      style={{
+                        padding: '1rem 0.5rem',
+                        fontWeight: '600',
+                        color: 'var(--color-on-surface)'
+                      }}
+                    >
                       {item.keyword}
                     </td>
-                    <td style={{ padding: '1rem 0.5rem', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
+                    <td
+                      style={{
+                        padding: '1rem 0.5rem',
+                        fontSize: '0.875rem',
+                        color: 'var(--color-on-surface-variant)'
+                      }}
+                    >
                       {new Date(item.createdAt).toLocaleString()}
                     </td>
                     <td style={{ padding: '1rem 0.5rem', textAlign: 'right' }}>
@@ -220,7 +285,14 @@ const AdminForbiddenKeywords: React.FC = () => {
 
             {/* 分頁控制 */}
             {data.totalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '1.5rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  marginTop: '1.5rem'
+                }}
+              >
                 <Button
                   variant="secondary"
                   disabled={page === 0}
@@ -229,7 +301,13 @@ const AdminForbiddenKeywords: React.FC = () => {
                 >
                   上一頁
                 </Button>
-                <span style={{ alignSelf: 'center', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
+                <span
+                  style={{
+                    alignSelf: 'center',
+                    fontSize: '0.875rem',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
+                >
                   頁碼 {page + 1} / {data.totalPages}
                 </span>
                 <Button

@@ -263,7 +263,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
 
   if (error || !order) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-error)' }}>
         {error || '找不到訂單詳情'}
       </div>
     );
@@ -571,7 +571,10 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
             </div>
 
             {submitError && (
-              <div style={{ color: '#ef4444', fontSize: '0.875rem', fontWeight: '500' }}>
+              <div
+                data-testid="payment-submit-error"
+                style={{ color: 'var(--color-error)', fontSize: '0.875rem', fontWeight: '500' }}
+              >
                 {submitError}
               </div>
             )}
@@ -755,7 +758,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                 textAlign: 'center',
                 padding: '1rem',
                 backgroundColor: '#fef3c7',
-                color: '#d97706',
+                color: '#92400e',
                 borderRadius: 'var(--radius-sm)',
                 fontSize: '0.875rem',
                 fontWeight: '600'
@@ -772,7 +775,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
                 textAlign: 'center',
                 padding: '1rem',
                 backgroundColor: '#dcfce7',
-                color: '#16a34a',
+                color: '#047857',
                 borderRadius: 'var(--radius-sm)',
                 fontSize: '0.875rem',
                 fontWeight: '600'

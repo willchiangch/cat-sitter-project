@@ -87,7 +87,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
             padding: '1rem',
             borderRadius: '12px',
             backgroundColor: '#fef3c7',
-            color: '#d97706',
+            color: '#92400e',
             marginBottom: '1.5rem',
             fontSize: '0.875rem',
             fontWeight: '500'
@@ -131,7 +131,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
     if (visitStatus === 'IN_PROGRESS') {
       return {
         bg: '#fef3c7',
-        color: '#d97706',
+        color: '#92400e',
         text: '執行中'
       };
     }
@@ -151,7 +151,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
     }
     return {
       bg: '#ffedd5',
-      color: '#ea580c',
+      color: '#9a3412',
       text: '待送出日誌'
     };
   };
@@ -422,7 +422,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
             padding: '1rem',
             borderRadius: '12px',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            color: '#ef4444',
+            color: 'var(--color-error)',
             marginBottom: '1.5rem',
             fontSize: '0.875rem',
             fontWeight: '500'
@@ -481,7 +481,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
               padding: '1.25rem 3.5rem',
               borderRadius: '9999px',
               border: 'none',
-              backgroundColor: '#10b981',
+              backgroundColor: '#047857',
               color: 'white',
               fontSize: '1.25rem',
               fontWeight: '700',
@@ -820,7 +820,7 @@ const VisitReportManager: React.FC<VisitReportManagerProps> = ({ visitId }) => {
                   padding: '0.75rem 2rem',
                   borderRadius: '9999px',
                   border: 'none',
-                  backgroundColor: '#ef4444',
+                  backgroundColor: 'var(--color-error)',
                   color: 'white',
                   fontSize: '1rem',
                   fontWeight: '700',

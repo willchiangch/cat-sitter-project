@@ -20,7 +20,10 @@ const RefundProofImage: React.FC<RefundProofImageProps> = ({ orderId, alt, style
   }
   if (isError || !data) {
     return (
-      <div data-testid="refund-proof-error" style={{ fontSize: '0.8rem', color: '#ef4444' }}>
+      <div
+        data-testid="refund-proof-error"
+        style={{ fontSize: '0.8rem', color: 'var(--color-error)' }}
+      >
         退款憑證圖片無法載入，請重新整理頁面
       </div>
     );

@@ -157,7 +157,7 @@ const AdminKycList: React.FC = () => {
             </h3>
 
             {errorMsg && (
-              <div style={{ color: '#ef4444', marginBottom: '1rem', fontWeight: '500' }}>
+              <div style={{ color: 'var(--color-error)', marginBottom: '1rem', fontWeight: '500' }}>
                 {errorMsg}
               </div>
             )}
@@ -369,7 +369,7 @@ const AdminKycList: React.FC = () => {
                   style={{
                     fontSize: '0.85rem',
                     fontWeight: '500',
-                    color: controlMsg.type === 'success' ? SUCCESS_TEXT_COLOR : '#ef4444'
+                    color: controlMsg.type === 'success' ? SUCCESS_TEXT_COLOR : 'var(--color-error)'
                   }}
                 >
                   {controlMsg.text}
