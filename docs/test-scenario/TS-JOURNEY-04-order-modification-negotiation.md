@@ -30,7 +30,7 @@
 | 2 | UI：填新日期（2 天）送出 | 顯示「變更請求已送出」 | `POST /api/orders/{orderId}/modify` 200，`Order=MODIFYING` |
 | 3 | UI：保母 `/sitter/orders` 進行中分頁點「處理訂單變更協商」 | 導向 `/sitter/orders/{orderId}/quote`，表單已預填換算後總額 | 連結為本次新增；`GET /api/orders/{orderId}/modification` 200 |
 | 4 | UI：接受預填總額，送出報價 | 顯示「報價已送出」 | `POST .../modification/quote` 200，`ModificationRequest=QUOTED`，`diffAmount=+600` |
-| 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `$ -600` 也會通過，分不出補款/退款方向） |
+| 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `-$ 600` 也會通過，分不出補款/退款方向） |
 | 6 | UI：確認變更 | 顯示「變更已確認」；同意表單消失、只剩「前往補款」，**沒有退款區塊** | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT`；`confirm-submit-btn`、`refund-confirm-section`、`refund-confirm-btn` 數量為 0（C2） |
 | 6b | UI：保母直接打網址重新進入報價頁 | 唯讀摘要「應補款 $ 600」，無報價、拒絕、退款憑證區塊 | `quote-submit-btn`、`reject-mod-btn`、`refund-proof-section` 數量為 0（C2） |
 | 6c | API：飼主在補款階段查詢訂單並直接打撤單 `POST /api/orders/{id}/cancel {version}`（驗收 A3，fix-batch12） | 補款階段不可撤單，需走 PRD-016 協商 | `GET /api/orders/{id}` 的 `cancellableByOwner=false`；撤單回 **409**，`message` 含「補款階段」與「PRD-016」；訂單仍 `PENDING_PAYMENT`（`OwnerCancellationService` 的 `SupplementPaymentResolver` 排除，過去只有 JUnit） |
@@ -44,7 +44,7 @@
 | :--- | :--- | :--- | :--- |
 | 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單 2 天，改為 1 天 |
 | 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600`；報價表單消失，飼主同意前沒有退款憑證區塊 | `quote-submit-btn`、`refund-proof-section` 數量為 0（C2） |
-| 5-6 | 飼主確認，差額欄位顯示 `-$600` | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
+| 5-6 | 飼主確認，差額欄位顯示 `-$ 600 (負值為退款)`（`formatMoney` 負數格式，負號在幣別前；`$` 後為 U+00A0） | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
 | 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在；選擇退款截圖上傳（不再有手填網址欄位），送出後表單消失並顯示簽名網址預覽（`apiStep` 留遮簽名網址 JSON、不帶簽名 GET 斷言 403，驗收 S1/S3） | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof`（multipart）200；`refund-proof-preview` 的 `src` 為 `refund-proofs/` 簽名網址且 `naturalWidth>0`（C4） |
 | 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 檢視退款憑證預覽 → 點「確認已收到退款」 | 退款憑證以圖片顯示（簽名網址、無外部連結；同步驟 7 留 JSON 並斷言不帶簽名 403）；顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
 | 9 | 同補款分支步驟 9 | 兩頁皆無任何可操作按鈕 | 同上 |
@@ -90,3 +90,5 @@
 7. **協商頁沒有依狀態收斂按鈕（2026-10，驗收 P7 / Backlog 第 2 批 C2）**：前一輪驗收的退款分支截圖 13 看到「退款憑證已上傳」時報價表單仍可操作。兩個協商頁原本不看變更請求狀態，所有表單永遠同時渲染；補款分支也出現退款區塊；後端退款憑證端點沒有狀態防護。修法見 SD-016 §2.2（`orderStatus` + 階段表）、§2.5。本 journey 補款步驟 6/6b/9、退款步驟 3-4/5-6/7/8/9 都斷言「已完成的動作按鈕數量為 0」；後端由 `OrderControllerTest` 六支 C2 測試覆蓋。
 
 8. **退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：本 journey 退款步驟 7 過去填的是 `https://storage.googleapis.com/e2e-journey-test/refund-proof.jpg`——任何字串都會被接受、原樣回給飼主端。改為上傳圖片到私有物件 + 簽名網址（SD-016 §2.5/§2.5.1）；步驟 7 改用 `fixtures/report-photo.jpg` 上傳，步驟 7、8 以 `expectSignedRefundProof` 斷言雙方預覽都是 `refund-proofs/` 簽名網址且真的載入，飼主退款區塊內沒有 `<a>`。
+
+**退款差額的負數格式與 TS 不一致（2026-10-26，驗收 20261026-0007 退款 5-6 / fix-batch13）**：TS 寫 `-$600`，畫面 `formatMoney` 輸出 `$ -600`，舊斷言 `toContainText('-600')` 只比對子字串，沒有釘住格式（TS 與畫面不一致也看不出來）。統一為負號在幣別前 `-$ 600`（SD-FRONTEND-SPEC §6.4.1），前端 `formatMoney` 與本 TS 一起改；Journey D 5-6 與 mock `order-modification.spec.ts` 改為整段 `toHaveText('-$ 600 (負值為退款)')`（mock 另比對 code point）。

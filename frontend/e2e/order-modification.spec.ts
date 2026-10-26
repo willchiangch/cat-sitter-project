@@ -316,7 +316,12 @@ test.describe('Order Modification Flow', () => {
       await page.getByRole('button', { name: '切換為飼主' }).click();
       await page.getByRole('button', { name: '直接進入變更確認 (飼主端)' }).click();
       // 頁面已從真實 API 帶入保母報價差額
-      await expect(page.getByTestId('mod-confirm-diff-amount')).toContainText('-600');
+      // 負數格式為「-$ 600」（負號在幣別前、$ 後為 U+00A0），整段錨定
+      await expect(page.getByTestId('mod-confirm-diff-amount')).toHaveText('-$ 600 (負值為退款)');
+      const codePoints = await page
+        .getByTestId('mod-confirm-diff-amount')
+        .evaluate((el) => [...(el.textContent ?? '')].slice(0, 3).map((c) => c.codePointAt(0)));
+      expect(codePoints, '「-」「$」「U+00A0」').toEqual([0x2d, 0x24, 0xa0]);
       await expect(page.getByTestId('refund-confirm-section')).toHaveCount(0);
     });
 
