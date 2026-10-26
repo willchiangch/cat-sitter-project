@@ -19,6 +19,7 @@ import {
 import type { OrderDetailResponseDto } from '../../api/orderApi';
 import { useOrderVisitsQuery } from '../../hooks/useOrders';
 import { formatMoney } from '../../utils/money';
+import { INFO_BANNER_STYLE } from '../../components/ui/statusTone';
 
 interface OwnerOrderDetailProps {
   orderId: string;
@@ -659,22 +660,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
           {status === 'CANCELLED' && (
             // fix-batch12 U3：資訊橫幅樣式（白底、左側色條、靠左、role=status），不能跟「取消預約」鈕一樣是
             // 灰底置中粗體——過去撤單後看起來像一顆停用的按鈕（驗收截圖新問題 4）
-            <div
-              role="status"
-              style={{
-                textAlign: 'left',
-                padding: '0.875rem 1rem',
-                backgroundColor: 'var(--color-surface-lowest)',
-                color: 'var(--color-on-surface)',
-                border: '1px solid var(--color-surface-highest)',
-                borderLeft: '4px solid var(--color-on-surface-variant)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                cursor: 'default'
-              }}
-              data-testid="cancelled-status-banner"
-            >
+            <div role="status" style={INFO_BANNER_STYLE} data-testid="cancelled-status-banner">
               {cancelledBannerText(order.cancelledBy)}
               {/* fix-batch13 K1：保母婉拒的原因（PRD-006 D），過去飼主只看到「此預約已取消」 */}
               {order.cancelledBy === 'SITTER' && order.sitterRejectReason?.trim() && (

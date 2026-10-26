@@ -120,3 +120,5 @@
 **保母婉拒不通知飼主，確認框卻承諾會通知（2026-10-26，驗收 20261026-0007 截圖新問題 1 / fix-batch13 K1）**：`OrderEvalView` 婉拒確認框寫「拒絕後飼主將收到通知」，PRD-006 D 也要求通知飼主，但 `EvaluationService.rejectOrder` 只寫 `ORDER_REJECTED` 日誌、沒有發任何事件；飼主鈴鐺沒有未讀，詳情只寫「此預約已取消」，看不到原因（第 10 批另外發現就記錄過）。修法：婉拒寫 `cancelled_by='SITTER'`，發 `OrderRejectedBySitterEvent`，AFTER_COMMIT 通知飼主（`ORDER_AFFAIR`、含原因、連到訂單詳情）；詳情新增 `sitterRejectReason`，飼主端顯示「保母已婉拒此預約」與原因；確認框依是否填原因調整文案。迴歸：Scenario 10（`ts006_07` 在舊版因沒有通知、`cancelledBy` 為 null 而紅）。
 
 **撤單後評估頁「返回訂單列表」是原生按鈕樣式（2026-10-26，驗收 20261026-0007 截圖新問題 3 / fix-batch13 K4）**：U3 補的返回鈕用 `Button` 元件，元件輸出的 `.btn` class 在 `global.css` 從未定義，呈現金底、2px outset 黑框、直角、系統字。補 `.btn:not(.btn-primary)` 基底樣式（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` K4（量 border-style / radius / 字體 / 高度 / 對比，舊版紅）。
+
+**保母歷史訂單「飼主已取消預約」仍是灰色膠囊（2026-10-26，驗收 20261026-0007 截圖新問題 4 / fix-batch13 K5）**：fix-batch12 U3 只把飼主端橫幅改資訊樣式，保母端 `SitterOrders` 仍是 `--color-surface-high` 灰底粗體，看起來像停用按鈕。抽出共用 `INFO_BANNER_STYLE`（`statusTone.ts`），飼主端橫幅與保母端提示共用，保母端加 `role="status"`。迴歸：`owner-cancel-booking.spec.ts` 保母端案（舊版紅）。

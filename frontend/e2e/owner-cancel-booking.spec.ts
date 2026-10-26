@@ -250,6 +250,23 @@ test.describe('PRD-006 飼主付款前撤單（fix-batch10 H5）', () => {
         '飼主已取消預約'
       );
       await expect(page.getByTestId(`sitter-order-owner-cancelled-${rejectedId}`)).toHaveCount(0);
+      // fix-batch13 K5（驗收 BC 09）：過去是灰底膠囊（--color-surface-high，與停用按鈕同色），改資訊橫幅
+      const notice = page.getByTestId(`sitter-order-owner-cancelled-${orderId}`);
+      await expect(notice).toHaveAttribute('role', 'status');
+      const look = await notice.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          background: cs.backgroundColor,
+          textAlign: cs.textAlign,
+          borderLeftWidth: cs.borderLeftWidth,
+          borderRadius: cs.borderTopLeftRadius
+        };
+      });
+      expect(look.background, '白底，不是 --color-surface-high 灰底').toBe('rgb(255, 255, 255)');
+      expect(look.textAlign).toBe('left');
+      expect(look.borderLeftWidth).toBe('4px');
+      expect(look.borderRadius).not.toBe('9999px');
+      expect((await contrastOf(notice)).ratio).toBeGreaterThanOrEqual(4.5);
     });
 
     // 驗收 A4：在歷史訂單看到兩張單（列表已載入）後再切評估中，避免「還沒載入就 0 筆」的空轉

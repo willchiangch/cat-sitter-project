@@ -11,6 +11,7 @@ import {
   useRejectPaymentMutation
 } from '../../hooks/useOrders';
 import { formatMoney } from '../../utils/money';
+import { INFO_BANNER_STYLE } from '../../components/ui/statusTone';
 
 type TabType = 'evaluating' | 'ongoing' | 'history';
 
@@ -304,19 +305,13 @@ const SitterOrders: React.FC = () => {
                 </span>
               </div>
 
-              {/* 飼主付款前撤單（PRD-006 例外處理）：保母婉拒、訂單變更取消不顯示這行 */}
+              {/* 飼主付款前撤單（PRD-006 例外處理）：保母婉拒、訂單變更取消不顯示這行。
+                  fix-batch13 K5：過去是灰底膠囊（與停用按鈕同色），改共用資訊橫幅樣式（同飼主端 U3） */}
               {order.status === 'CANCELLED' && order.cancelledBy === 'OWNER' && (
                 <p
+                  role="status"
                   data-testid={`sitter-order-owner-cancelled-${order.id}`}
-                  style={{
-                    margin: '0 0 1rem',
-                    padding: '0.75rem 1rem',
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: 'var(--color-surface-high)',
-                    color: 'var(--color-on-surface-variant)',
-                    fontSize: '0.875rem',
-                    fontWeight: '600'
-                  }}
+                  style={{ ...INFO_BANNER_STYLE, margin: '0 0 1rem' }}
                 >
                   飼主已取消預約
                 </p>
