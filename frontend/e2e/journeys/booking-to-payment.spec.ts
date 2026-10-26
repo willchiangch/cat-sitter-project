@@ -632,8 +632,10 @@ test.describe('Journey B: 飼主下單到付款全流程 (TS-JOURNEY-02)', () =>
       async () => {
         await ownerPage.goto(`/owner/orders/${orderId}`);
         await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已取消');
-        await expect(ownerPage.getByTestId('cancelled-status-banner')).toContainText(
-          '保母已婉拒此預約'
+        // N6（fix-batch14）：橫幅整段錨定（標題 + 原因子元素），與 mock owner-cancel-booking 一致；
+        // 過去 toContainText 只要含標題就過，多出其他文字攔不到
+        await expect(ownerPage.getByTestId('cancelled-status-banner')).toHaveText(
+          `保母已婉拒此預約婉拒原因：${rejectReason}`
         );
         await expect(ownerPage.getByTestId('cancelled-reject-reason')).toHaveText(
           `婉拒原因：${rejectReason}`

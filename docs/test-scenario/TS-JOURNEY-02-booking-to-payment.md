@@ -73,7 +73,7 @@ PRD-006 例外處理「飼主在保母審核中嘗試取消」。用 `bootstrapP
 | BR-02 | UI：送出婉拒 → confirm | confirm「確定要拒絕此訂單嗎？拒絕後飼主將收到通知（含您填寫的原因）…」、alert「已拒絕此訂單」，導回 `/sitter/orders` | `expectDialog` 兩次；`Order=CANCELLED` |
 | BR-03 | API 證據 | 頁面實際發出的 `POST /api/orders/{id}/reject` 恰好一次、2xx、**query 不帶 `sitterId` / `ownerId`**；訂單 `CANCELLED`、`cancelledBy=SITTER`、`sitterRejectReason` 與輸入一致、`cancellableByOwner=false`（fix-batch13 K1） | `trackOrderActionCalls` + `expectSingleTokenOnlyCall`（`journeys/helpers.ts`） |
 | BR-03b | API：飼主 `GET /api/notifications?role=OWNER` | 「預約已婉拒」，內容「保母已婉拒您的預約（訂單 #前 8 碼），原因：{輸入的原因}」（fix-batch13 K1） | `awaitNotification` 輪詢（AFTER_COMMIT + @Async）；`ORDER_AFFAIR`、`linkUrl /owner/orders/{id}` |
-| BR-04 | UI：飼主 `/owner/orders/{id}` | 徽章「已取消」、橫幅「保母已婉拒此預約」、下方「婉拒原因：{輸入的原因}」，沒有取消預約與付款鈕 | `order-status-badge`、`cancelled-status-banner`、`cancelled-reject-reason` |
+| BR-04 | UI：飼主 `/owner/orders/{id}` | 徽章「已取消」、橫幅「保母已婉拒此預約」、下方「婉拒原因：{輸入的原因}」，沒有取消預約與付款鈕 | `order-status-badge`、`cancelled-status-banner` 整段 `toHaveText('保母已婉拒此預約婉拒原因：' + 原因)`（與 mock `owner-cancel-booking.spec.ts` 一致；fix-batch14 N6 前為 `toContainText('保母已婉拒此預約')`，多出其他文字攔不到）、`cancelled-reject-reason` |
 
 * **未涵蓋**：報價快照（`order_snapshots`）沒有對外 API，快照金額只由 JUnit `OrderEvaluationTest` 驗證；同一張單併發報價只成功一次（409）、飼主撤單 vs 保母接單 / 報價併發只成功一方，真後端無法用 E2E 穩定重現，仍只有 JUnit TS-006-05/06/08。
 
