@@ -122,3 +122,5 @@
 **撤單後評估頁「返回訂單列表」是原生按鈕樣式（2026-10-26，驗收 20261026-0007 截圖新問題 3 / fix-batch13 K4）**：U3 補的返回鈕用 `Button` 元件，元件輸出的 `.btn` class 在 `global.css` 從未定義，呈現金底、2px outset 黑框、直角、系統字。補 `.btn:not(.btn-primary)` 基底樣式（SD-FRONTEND-SPEC §2.4）。迴歸：`ui-layout-contrast.spec.ts` K4（量 border-style / radius / 字體 / 高度 / 對比，舊版紅）。
 
 **保母歷史訂單「飼主已取消預約」仍是灰色膠囊（2026-10-26，驗收 20261026-0007 截圖新問題 4 / fix-batch13 K5）**：fix-batch12 U3 只把飼主端橫幅改資訊樣式，保母端 `SitterOrders` 仍是 `--color-surface-high` 灰底粗體，看起來像停用按鈕。抽出共用 `INFO_BANNER_STYLE`（`statusTone.ts`），飼主端橫幅與保母端提示共用，保母端加 `role="status"`。迴歸：`owner-cancel-booking.spec.ts` 保母端案（舊版紅）。
+
+**婉拒面板按鈕是原生灰框、原因欄沒有標籤（2026-10-26，驗收 20261026-0007 截圖新問題 5 / fix-batch13 K6）**：「確定拒絕」「取消」用 `Button` 元件，但呼叫方傳的 `style` 整個取代了 variant 樣式，`danger-outline` / `secondary` 又引用未定義的 CSS 變數，結果是無框普通字與原生灰框；原因欄只有 placeholder，輸入後看不出欄位用途。修法：`Button` 合併 inline 樣式、改用已定義的設計標記（SD-FRONTEND-SPEC §2.4），原因欄加 `<label htmlFor>`「拒絕原因（選填，飼主看得到）」、框線改 `--color-surface-highest`（過去 15% 透明的 outline-variant 幾乎看不見）。迴歸：`ui-layout-contrast.spec.ts` K6（舊版紅）。

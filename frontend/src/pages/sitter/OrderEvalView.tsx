@@ -507,10 +507,18 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
               border: '1px solid var(--color-outline-variant)'
             }}
           >
+            {/* fix-batch13 K6（驗收 BR-01 02）：原因欄過去只有 placeholder，輸入後就看不出這欄是什麼 */}
+            <label
+              htmlFor="sitter-order-eval-reject-reason"
+              style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-on-surface)' }}
+            >
+              拒絕原因（選填，飼主看得到）
+            </label>
             <textarea
+              id="sitter-order-eval-reject-reason"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="請輸入拒絕原因 (選填，飼主會看到)"
+              placeholder="例如：當週檔期已滿"
               maxLength={500}
               style={{
                 width: '100%',
@@ -518,7 +526,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
                 height: '80px',
                 padding: '0.625rem',
                 borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--color-outline-variant)',
+                border: '1px solid var(--color-surface-highest)',
                 background: 'var(--color-surface-lowest)',
                 resize: 'none',
                 fontFamily: 'inherit'
@@ -543,6 +551,7 @@ const OrderEvalView: React.FC<OrderEvalViewProps> = ({ orderId }) => {
                   setRejectReason('');
                 }}
                 disabled={actionLoading}
+                data-testid="sitter-order-eval-btn-cancel-reject"
               >
                 取消
               </Button>

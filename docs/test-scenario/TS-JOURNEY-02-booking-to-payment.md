@@ -69,7 +69,7 @@ PRD-006 例外處理「飼主在保母審核中嘗試取消」。用 `bootstrapP
 | 步驟 | 操作 | 預期 | 技術校驗 |
 | :--- | :--- | :--- | :--- |
 | 前置 | API：`bootstrapPendingOrder` | PENDING $600 | `awaitOrderStatus` |
-| BR-01 | UI：保母 `/sitter/orders` → 評估頁 → 「拒絕」→ 填原因 | 婉拒面板展開，送出鈕可按 | `sitter-order-eval-btn-reject`、`sitter-order-eval-input-reject-reason` |
+| BR-01 | UI：保母 `/sitter/orders` → 評估頁 → 「拒絕」→ 填原因 | 婉拒面板展開（原因欄有標籤「拒絕原因（選填，飼主看得到）」，fix-batch13 K6），送出鈕可按 | `sitter-order-eval-btn-reject`、`sitter-order-eval-input-reject-reason` |
 | BR-02 | UI：送出婉拒 → confirm | confirm「確定要拒絕此訂單嗎？拒絕後飼主將收到通知（含您填寫的原因）…」、alert「已拒絕此訂單」，導回 `/sitter/orders` | `expectDialog` 兩次；`Order=CANCELLED` |
 | BR-03 | API 證據 | 頁面實際發出的 `POST /api/orders/{id}/reject` 恰好一次、2xx、**query 不帶 `sitterId` / `ownerId`**；訂單 `CANCELLED`、`cancelledBy=SITTER`、`sitterRejectReason` 與輸入一致、`cancellableByOwner=false`（fix-batch13 K1） | `trackOrderActionCalls` + `expectSingleTokenOnlyCall`（`journeys/helpers.ts`） |
 | BR-03b | API：飼主 `GET /api/notifications?role=OWNER` | 「預約已婉拒」，內容「保母已婉拒您的預約（訂單 #前 8 碼），原因：{輸入的原因}」（fix-batch13 K1） | `awaitNotification` 輪詢（AFTER_COMMIT + @Async）；`ORDER_AFFAIR`、`linkUrl /owner/orders/{id}` |

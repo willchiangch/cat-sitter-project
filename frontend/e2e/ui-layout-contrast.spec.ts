@@ -307,6 +307,66 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // fix-batch13 K6（驗收 20261026-0007 BR-01 02）：婉拒面板的按鈕是原生灰框、原因欄沒有標籤；
+  // Button 的 danger-outline / secondary 用了未定義的 var(--color-danger) / var(--color-text)
+  test('K6：婉拒面板原因欄有標籤，「確定拒絕」「取消」為專案按鈕樣式且對比 ≥ 4.5', async ({
+    page
+  }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route(`**/api/orders/${ORDER_ID}`, (route) =>
+      route.fulfill(
+        json({
+          id: ORDER_ID,
+          ownerName: '陳先生',
+          status: 'PENDING',
+          totalAmount: 600,
+          version: 0,
+          adjustmentAmount: 0,
+          items: []
+        })
+      )
+    );
+
+    await step('展開婉拒面板，量測標籤與兩顆按鈕', page, async () => {
+      await page.goto(`/sitter/eval/${ORDER_ID}`);
+      await page.getByTestId('sitter-order-eval-btn-reject').click();
+      // 標籤以 for/id 綁定到原因欄（getByLabel 找得到的就是那個 textarea）
+      const byLabel = page.getByLabel('拒絕原因（選填，飼主看得到）');
+      await expect(byLabel).toHaveAttribute('data-testid', 'sitter-order-eval-input-reject-reason');
+      await expect(byLabel).toBeVisible();
+
+      const submit = page.getByTestId('sitter-order-eval-btn-submit-reject');
+      const cancel = page.getByTestId('sitter-order-eval-btn-cancel-reject');
+      await expect(submit).toHaveText('確定拒絕');
+      await expect(cancel).toHaveText('取消');
+      const style = (el: Element) => {
+        const cs = getComputedStyle(el);
+        return {
+          borderStyle: cs.borderTopStyle,
+          borderColor: cs.borderTopColor,
+          color: cs.color,
+          radius: cs.borderTopLeftRadius,
+          fontFamily: cs.fontFamily
+        };
+      };
+      const s = await submit.evaluate(style);
+      const c = await cancel.evaluate(style);
+      expect(s.borderStyle, '確定拒絕：紅色細框').toBe('solid');
+      expect(s.borderColor).toBe('rgb(176, 37, 0)');
+      expect(s.color).toBe('rgb(176, 37, 0)');
+      expect(c.borderStyle, '取消：沒有原生 outset 框').toBe('none');
+      expect(c.color).toBe('rgb(45, 47, 46)');
+      for (const v of [s, c]) {
+        expect(v.radius).toBe('9999px');
+        expect(v.fontFamily).toContain('Plus Jakarta Sans');
+      }
+      expect((await contrastOf(submit)).ratio).toBeGreaterThanOrEqual(4.5);
+      expect((await contrastOf(cancel)).ratio).toBeGreaterThanOrEqual(4.5);
+      await expectNoOverlap(submit, cancel, '確定拒絕與取消');
+      await expectNoHorizontalOverflow(page);
+    });
+  });
+
   // fix-batch13 K8（驗收 20261026-0007 B-04 09）：日曆卡約 200px 寬，月份標題斷成「2026年10 / 月」
   test('K8：預約日曆月份標題單行，不與左右切換鈕重疊', async ({ page }) => {
     await mockDemoSession(page, 'client');
