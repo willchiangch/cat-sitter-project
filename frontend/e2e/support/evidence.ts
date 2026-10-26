@@ -8,6 +8,9 @@ import { test, expect, type Page, type Request } from '@playwright/test';
  *    Playwright 內建 screenshot:'on' 只會截 `page` fixture，browser.newContext() 開出來的
  *    ownerPage/sitterPage/anonPage 失敗時完全沒有截圖，這裡補上。
  * 2. 純 API 步驟用 apiStep()，回傳值會以 JSON 附進報告（token/password/secret 的非空值會遮蔽，null 保留）。
+ *    UI 步驟 step() 的 body 若回傳非 undefined 的值（例如量到的對比度、computed style、boundingBox），
+ *    同樣套用遮蔽規則以 JSON 附在該步驟截圖之後（fix-batch14 N4：過去 step() 丟掉回傳值，K9/K10 的 ratio 不進報告）。
+ *    無法序列化的回傳值（Locator、循環參照）不附，manifest 記一筆 note.unserializable。
  * 3. 步驟中間需要額外截圖時用 snap()，不要再直接 testInfo.attach(page.screenshot())。
  * 4. 頁面上的 window.alert/confirm 一律用 trackDialogs() 接手：原生對話框不會出現在截圖裡，
  *    本專案操作結果幾乎都用 alert() 呈現，不接手的話「操作後截圖」只會截到操作前的畫面。
@@ -148,7 +151,7 @@ const UNCLIP_CSS =
   'div:has(> main){height:auto!important;min-height:100vh;overflow:visible!important}' +
   'main{overflow:visible!important;flex:none!important}';
 
-type EvidenceKind = 'screenshot' | 'api' | 'dialog';
+type EvidenceKind = 'screenshot' | 'api' | 'dialog' | 'data';
 
 /** 落地成檔 + attach by path + 追加 manifest，回傳檔案路徑 */
 async function record(
@@ -157,7 +160,7 @@ async function record(
   ext: string,
   body: Buffer | string,
   page?: Page,
-  note?: ImageStatus
+  note?: ImageStatus | { unserializable: string }
 ) {
   const info = test.info();
   const idx = nextIndex();
@@ -208,8 +211,28 @@ export async function step<T>(label: string, page: Page, body: () => Promise<T>)
       throw err;
     }
     await snap(page, label);
+    if (result !== undefined) {
+      await recordStepResult(label, result, page);
+    }
     return result;
   });
+}
+
+/** step() 的回傳值：可序列化 → JSON 附件（kind=data）；不可序列化 → 只在 manifest 記原因 */
+async function recordStepResult(label: string, result: unknown, page: Page) {
+  let json: string;
+  try {
+    json = toEvidenceJson(result, true);
+    // 函式 / symbol 之類 JSON.stringify 直接回 undefined
+    if (json === undefined) throw new Error(`回傳值型別 ${typeof result} 無法轉成 JSON`);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await record('data', `${label}-回傳值`, 'txt', `無法序列化：${reason}`, page, {
+      unserializable: reason
+    });
+    return;
+  }
+  await record('data', `${label}-回傳值`, 'json', json, page);
 }
 
 const SENSITIVE_KEY = /token|password|secret|authorization/i;
@@ -232,6 +255,31 @@ function maskSensitive(value: unknown): unknown {
   return '***';
 }
 
+/**
+ * apiStep / step 共用的 JSON 序列化：敏感 key 遮蔽、字串內的 JWT 遮蔽。
+ * dataOnly（step 用）：Playwright 的 Locator / Page 等類別實例不是資料，直接丟錯（由 recordStepResult 略過），
+ * 避免把整個 frame 樹寫進報告；apiStep 維持原行為不檢查。
+ */
+function toEvidenceJson(value: unknown, dataOnly = false): string {
+  return JSON.stringify(
+    value,
+    (k, v) => {
+      if (dataOnly && v && typeof v === 'object' && !Array.isArray(v)) {
+        const ctor = (v as object).constructor?.name;
+        if (ctor && ctor !== 'Object') {
+          throw new Error(`回傳值含非資料物件 ${ctor}${k ? `（key: ${k}）` : ''}`);
+        }
+      }
+      return SENSITIVE_KEY.test(k)
+        ? maskSensitive(v)
+        : typeof v === 'string'
+          ? v.replace(JWT_LIKE, 'eyJ***')
+          : v;
+    },
+    2
+  );
+}
+
 export async function apiStep<T>(label: string, body: () => Promise<T>): Promise<T> {
   return test.step(label, async () => {
     let result: T;
@@ -245,17 +293,7 @@ export async function apiStep<T>(label: string, body: () => Promise<T>): Promise
       );
       throw err;
     }
-    const json = JSON.stringify(
-      result ?? null,
-      (k, v) =>
-        SENSITIVE_KEY.test(k)
-          ? maskSensitive(v)
-          : typeof v === 'string'
-            ? v.replace(JWT_LIKE, 'eyJ***')
-            : v,
-      2
-    );
-    await record('api', label, 'json', json);
+    await record('api', label, 'json', toEvidenceJson(result ?? null));
     return result;
   });
 }

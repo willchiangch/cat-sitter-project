@@ -8,6 +8,7 @@ import {
   serveFixtureImage
 } from './support/mockSession';
 import {
+  type ContrastResult,
   contrastOf,
   effectiveGradientContrastOf,
   expectInside,
@@ -306,6 +307,7 @@ test.describe('G5 版面溢出與對比度', () => {
       const c = await contrastOf(back);
       expect(c.backgroundImage).toBe('none');
       expect(c.ratio, `${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
+      return { look, contrast: c };
     });
   });
 
@@ -362,10 +364,16 @@ test.describe('G5 版面溢出與對比度', () => {
         expect(v.radius).toBe('9999px');
         expect(v.fontFamily).toContain('Plus Jakarta Sans');
       }
-      expect((await contrastOf(submit)).ratio).toBeGreaterThanOrEqual(4.5);
-      expect((await contrastOf(cancel)).ratio).toBeGreaterThanOrEqual(4.5);
+      const submitContrast = await contrastOf(submit);
+      const cancelContrast = await contrastOf(cancel);
+      expect(submitContrast.ratio).toBeGreaterThanOrEqual(4.5);
+      expect(cancelContrast.ratio).toBeGreaterThanOrEqual(4.5);
       await expectNoOverlap(submit, cancel, '確定拒絕與取消');
       await expectNoHorizontalOverflow(page);
+      return {
+        確定拒絕: { ...s, contrast: submitContrast },
+        取消: { ...c, contrast: cancelContrast }
+      };
     });
   });
 
@@ -376,7 +384,8 @@ test.describe('G5 版面溢出與對比度', () => {
     const c = await contrastOf(locator);
     expect(c.backgroundImage, `${label} 不應是漸層底`).toBe('none');
     expect(c.ratio, `${label} ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
-    return c.ratio;
+    // N4（fix-batch14）：整組量測值（color / backgroundColor / ratio）經 step() 回傳值寫進 JSON 證據
+    return c;
   };
 
   test('K10：保母 KYC 頁「被駁回」「已停權」說明標題對比 ≥ 4.5:1', async ({ page }) => {
@@ -399,7 +408,7 @@ test.describe('G5 版面溢出與對比度', () => {
       await page.goto('/sitter/kyc');
       const title = page.getByTestId('sitter-kyc-rejected-title');
       await expect(title).toHaveText('前次認證申請已被駁回：');
-      return { ratio: await expectAA(title, '駁回標題') };
+      return await expectAA(title, '駁回標題');
     });
 
     kycStatus = 'SUSPENDED';
@@ -407,7 +416,7 @@ test.describe('G5 版面溢出與對比度', () => {
       await page.goto('/sitter/kyc');
       const title = page.getByTestId('sitter-kyc-suspended-title');
       await expect(title).toHaveText('您的帳號已被管理員停權暫停接單資格。');
-      return { ratio: await expectAA(title, '停權標題') };
+      return await expectAA(title, '停權標題');
     });
   });
 
@@ -425,7 +434,7 @@ test.describe('G5 版面溢出與對比度', () => {
         await page.goto(`/owner/orders/${ORDER_ID}`);
         const banner = page.getByTestId(testId);
         await expect(banner).toContainText(text);
-        return { ratio: await expectAA(banner, `${status} 橫幅`) };
+        return await expectAA(banner, `${status} 橫幅`);
       });
     });
   }
@@ -440,7 +449,7 @@ test.describe('G5 版面溢出與對比度', () => {
       const err = page.getByTestId('payment-submit-error');
       await expect(err).toHaveText('必須勾選並同意線下交易免責聲明');
       await expect(err).toHaveCSS('color', 'rgb(176, 37, 0)');
-      return { ratio: await expectAA(err, '付款錯誤訊息') };
+      return await expectAA(err, '付款錯誤訊息');
     });
   });
 
@@ -454,7 +463,7 @@ test.describe('G5 版面溢出與對比度', () => {
       await page.goto('/sitter/ledger');
       const empty = page.getByTestId('ledger-empty');
       await expect(empty).toHaveText('本月尚無已結案訂單');
-      return { ratio: await expectAA(empty, '帳務空狀態') };
+      return await expectAA(empty, '帳務空狀態');
     });
   });
 
@@ -485,7 +494,7 @@ test.describe('G5 版面溢出與對比度', () => {
       await page.goto(`/visit-reports/manage/${visitId}`);
       const badge = page.getByTestId('sitter-report-status-badge');
       await expect(badge).toHaveText('執行中');
-      return { ratio: await expectAA(badge, '執行中徽章') };
+      return await expectAA(badge, '執行中徽章');
     });
   });
 
@@ -496,7 +505,7 @@ test.describe('G5 版面溢出與對比度', () => {
 
     await step('停權工具兩顆按鈕的對比度', page, async () => {
       await page.goto('/admin/kyc');
-      const ratios: Record<string, number> = {};
+      const measured: Record<string, ContrastResult> = {};
       for (const [id, label] of [
         ['admin-kyc-suspend-btn', '執行停權'],
         ['admin-kyc-unsuspend-btn', '解除停權']
@@ -507,9 +516,9 @@ test.describe('G5 版面溢出與對比度', () => {
         expect(c.backgroundImage).toBe('none');
         expect(c.color, `${label} 白字`).toBe('rgb(255, 255, 255)');
         expect(c.ratio, `${label} ${c.color} on ${c.backgroundColor}`).toBeGreaterThanOrEqual(4.5);
-        ratios[label] = c.ratio;
+        measured[label] = c;
       }
-      return ratios;
+      return measured;
     });
   });
 

@@ -131,6 +131,10 @@ frontend/
 
 **開發紀律**：在開發或修改 Component UI 的同時，必須同步檢視並維護對應的 `e2e/` 腳本，避免因 UI 重構導致測試大面積損壞。
 
+### 4.0 證據出口（`e2e/support/evidence.ts`）的回傳值（2026-10-26，fix-batch14 N4）
+
+`step(label, page, fn)` 的 `fn` 若回傳非 `undefined` 的值（量到的對比度、computed style、`boundingBox` 等），在該步驟截圖之後以 `NN-<label>-回傳值.json`（manifest `kind: "data"`）附進報告，遮蔽規則與 `apiStep()` 相同（`token|password|secret|authorization` key 的非空值 → `***`、null 保留、字串內 JWT 遮蔽）；回傳值本身原樣交還呼叫方。回傳 Locator / Page 等類別實例或無法轉成 JSON 時不附 JSON，改附一個 `.txt` 說明並在 manifest 記 `note.unserializable`。過去 `step()` 丟掉回傳值，`ui-layout-contrast` K9 / K10 的 `return { ratio }` 從未進報告（驗收 20261026-1517 N4）。選擇改 `step()` 而不是把這些測試改用 `apiStep()`：量測都依賴頁面狀態，需要 `step()` 的截圖與失敗截圖；`apiStep()` 沒有截圖。K4 / K6 / K9 / K10 / L2 的量測步驟一律回傳整組量測值（`ContrastResult` 含 color / backgroundColor / backgroundImage / ratio；按鈕外觀含 class / 字型 / 圓角 / 框線）。自我測試：`e2e/evidence-step-result.spec.ts`。`npm run e2e:lint` 規則不需調整（仍禁止 journey 直接 `testInfo.attach` / `test.step`）。
+
 ### 4.1 mock E2E 的隔離規範（2026-10，驗收 N9 / backlog 第 6 批）
 
 CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/api/**` 轉 Cloud Run）。漏 mock 的 API 過去會帶假 token 打到正式後端：401 → `/api/auth/refresh` 401/400 → token 被清 → 截圖停在錯誤畫面，斷言卻只看 URL 所以照樣綠（驗收 R1/R3），每次 CI 還在正式站製造假 401/400 噪音。規範：
