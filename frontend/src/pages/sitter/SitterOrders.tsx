@@ -235,10 +235,13 @@ const SitterOrders: React.FC = () => {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
+                {/* fix-batch13 K7（驗收 D1 18、21）：日期兩行時頭像被 flex 壓窄成橢圓，固定不縮 */}
                 <div
+                  data-testid={`sitter-order-owner-avatar-${order.id}`}
                   style={{
                     width: '48px',
                     height: '48px',
+                    flexShrink: 0,
                     backgroundColor: 'var(--color-surface-high)',
                     borderRadius: '50%',
                     display: 'flex',
@@ -253,7 +256,7 @@ const SitterOrders: React.FC = () => {
                 >
                   {order.ownerName[0]}
                 </div>
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <h3
                     style={{
                       margin: 0,
@@ -269,8 +272,10 @@ const SitterOrders: React.FC = () => {
                     style={{
                       margin: '0.25rem 0 0',
                       fontSize: '0.875rem',
-                      color: 'var(--color-on-surface-variant)'
+                      color: 'var(--color-on-surface-variant)',
+                      overflowWrap: 'anywhere'
                     }}
+                    data-testid={`sitter-order-dates-${order.id}`}
                   >
                     {order.scheduledDatesLabel}
                   </p>

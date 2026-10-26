@@ -367,6 +367,49 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // fix-batch13 K7（驗收 20261026-0007 D1 18、21）：日期換兩行時頭像被 flex 壓成橢圓
+  test('K7：保母訂單卡日期兩行時，飼主頭像仍是 48px 正圓', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/orders/sitter', (route) =>
+      route.fulfill(
+        json([
+          {
+            id: ORDER_ID,
+            ownerId: 'o-1',
+            ownerName: `Journey飼主d1-${LONG_ID}`,
+            sitterId: SITTER_ID,
+            sitterName: '測試保母',
+            status: 'PENDING',
+            totalAmount: 1200,
+            amountDue: 1200,
+            hasPaymentProof: false,
+            paymentProofLastFive: null,
+            scheduledDatesLabel: '2026-05-26 ~ 2026-05-27 (共 2 天)'
+          }
+        ])
+      )
+    );
+
+    await step('評估中卡片：日期換行、頭像寬高相等', page, async () => {
+      await page.goto('/sitter/orders');
+      const dates = page.getByTestId(`sitter-order-dates-${ORDER_ID}`);
+      await expect(dates).toHaveText('2026-05-26 ~ 2026-05-27 (共 2 天)');
+      // 前提：日期確實換成兩行以上（重現截圖情境），否則這支測不到東西。以文字 Range 的行框數計算
+      const lines = await dates.evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+      });
+      expect(lines, '日期行數').toBeGreaterThanOrEqual(2);
+      const avatar = (await page
+        .getByTestId(`sitter-order-owner-avatar-${ORDER_ID}`)
+        .boundingBox())!;
+      expect(Math.round(avatar.width), `頭像寬（高 ${avatar.height}）`).toBe(48);
+      expect(Math.round(avatar.height)).toBe(48);
+      await expectNoHorizontalOverflow(page);
+    });
+  });
+
   // fix-batch13 K8（驗收 20261026-0007 B-04 09）：日曆卡約 200px 寬，月份標題斷成「2026年10 / 月」
   test('K8：預約日曆月份標題單行，不與左右切換鈕重疊', async ({ page }) => {
     await mockDemoSession(page, 'client');
