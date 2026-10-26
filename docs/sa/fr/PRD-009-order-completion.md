@@ -38,6 +38,8 @@
    - 記錄日誌 `ORDER_COMPLETED`。
    - 發送結案通知給保母 (含 Email 與站內訊息)。
 
+4. **結案後 / 爭議中仍可回看日誌（2026-10-26 fix-batch13 K2）**：訂單成立後（`CONFIRMED`、`IN_PROGRESS`）以及服務後的狀態（`COMPLETED`、`DISPUTED`、訂單變更協商中 `MODIFYING` / `REFUND_VERIFY`、變更補款階段），飼主詳情頁都顯示行程清單，已送出日誌的行程可點「查看日誌」。爭議中正是最需要回頭看日誌的時候。「申請訂單變更」「確認結案」「申報爭議」等動作按鈕只在 `CONFIRMED` / `IN_PROGRESS` 顯示，服務後狀態不得出現。訂單成立前（`PENDING`、首次付款的 `PENDING_PAYMENT` / `PAID`）與 `CANCELLED` 不顯示行程清單。
+
 **B. 系統自動結案 (Auto-Completion)**
 1. 系統每日執行排程，檢查符合以下條件的訂單：
    - 狀態為 `CONFIRMED`。

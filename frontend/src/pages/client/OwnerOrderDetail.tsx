@@ -91,6 +91,21 @@ const cancelledBannerText = (cancelledBy?: string) => {
   return '此預約已取消';
 };
 
+/**
+ * 飼主可看行程與已送出日誌的訂單狀態（fix-batch13 K2）：服務期間與服務之後都要能回頭看日誌，
+ * 爭議中（DISPUTED）正是最需要看日誌的時候。過去只在 CONFIRMED / IN_PROGRESS 顯示，結案或申報爭議後行程區塊整個消失。
+ * MODIFYING / REFUND_VERIFY（變更協商中）與補款階段（isTopUp）的訂單也已成立過、可能已有日誌，一併顯示。
+ * 動作按鈕（申請變更、確認結案、申報爭議）仍只在 CONFIRMED / IN_PROGRESS 顯示。
+ */
+const VISIT_LIST_STATUSES = new Set([
+  'CONFIRMED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'DISPUTED',
+  'MODIFYING',
+  'REFUND_VERIFY'
+]);
+
 /** 行程已結束（打卡完工或逾期被系統關閉），與後端 CompletionService.manualComplete 的判斷一致 */
 const FINISHED_VISIT_STATUSES = new Set(['DONE', 'CLOSED_BY_SYSTEM']);
 
@@ -259,6 +274,7 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
   // 訂單變更補款：totalAmount 已是變更後新總額，飼主只需匯差額 (PRD-016 主流程 C.3)
   const isTopUp = isPaymentStage && amountDue !== totalAmount;
   const adjustment = order.adjustmentAmount ?? 0;
+  const showVisitList = VISIT_LIST_STATUSES.has(status) || isTopUp;
 
   return (
     <div
@@ -672,9 +688,10 @@ const OwnerOrderDetail: React.FC<OwnerOrderDetailProps> = ({ orderId }) => {
             </div>
           )}
 
+          {showVisitList && <OwnerOrderVisitList orderId={orderId} />}
+
           {(status === 'CONFIRMED' || status === 'IN_PROGRESS') && (
             <>
-              <OwnerOrderVisitList orderId={orderId} />
               <button
                 onClick={() => navigate(`/orders/${orderId}/modify`)}
                 disabled={loading}

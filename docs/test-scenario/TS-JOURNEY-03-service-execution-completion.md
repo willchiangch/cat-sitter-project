@@ -32,6 +32,7 @@
 | 6 | UI：點擊「送出報告」 | 報告正式送出 | `POST /visits/{visitId}/report/submit` 200，`report.status=SUBMITTED` |
 | 7 | UI：飼主 `/owner/orders/{orderId}` 點行程清單裡的「查看日誌」連結 | 導向 `/visit-reports/view/{visitId}`，看得到文字與照片 | 連結同樣來自 `GET /api/orders/{orderId}/visits` |
 | 8 | UI：飼主點擊「確認結案」 | 訂單正式結案；結案前徽章為「服務進行中」、結案後為「已結案」（中文，U5） | `POST /api/orders/{orderId}/complete` 200，`Order=COMPLETED`；**注意**：此按鈕同樣有 `window.confirm()` |
+| 9 | UI：結案後（reload）的飼主詳情 → 點「查看日誌」（fix-batch13 K2） | 行程區塊仍在、「查看日誌」可點，進入後看得到步驟 4 的日誌文字；沒有「申請訂單變更」「確認結案」「申報爭議」 | `owner-order-visit-item` 1 筆、`owner-order-visit-link`「查看日誌」；`btn-go-modification-wizard` / `complete-order-btn` / `dispute-order-btn` 數量 0 |
 
 ### 二-B、服務完成後飼主申報爭議（2026-10-25 fix-batch12 J6 新增，需 CI 驗證）
 
@@ -39,11 +40,12 @@
 
 | 步驟 | 操作 | 預期 | 技術校驗 |
 | :--- | :--- | :--- | :--- |
-| 前置 | API：`bootstrapConfirmedOrder`；保母對每個行程 `POST /api/visits/{id}/start`、`/end` | 行程全部 `DONE`、訂單 `IN_PROGRESS` | UI 打卡已由上方主流程覆蓋，這裡只兜前置 |
+| 前置 | API：`bootstrapConfirmedOrder`（明天、後天兩筆行程，fix-batch13 K2）；保母對每個行程 `POST /api/visits/{id}/start`、`/end`；第一筆 `PUT /report`（version 0）+ `POST /report/submit` | 行程全部 `DONE`、訂單 `IN_PROGRESS`；`reportSubmitted` 依序 `[true, false]` | UI 打卡已由上方主流程覆蓋，這裡只兜前置；`pollUntil` 等飼主端讀到 `reportSubmitted` |
 | CD-01 | UI：飼主 `/owner/orders/{id}` | 徽章「服務進行中」，「確認結案」與「申報爭議」都在 | `complete-order-btn`、`dispute-order-btn` |
 | CD-02 | UI：申報爭議 → 填描述 | 視窗開啟 | `dispute-modal`、`dispute-desc-textarea` |
 | CD-03 | UI：送出 | alert「爭議申報成功」；徽章「爭議處理中」、`disputed-status-banner` 出現，結案鈕與申報爭議鈕消失 | `expectDialog` |
 | CD-04 | API 證據 | 頁面實際發出的 `POST /api/orders/{id}/dispute` 恰好一次、2xx、**query 不帶 `ownerId` / `sitterId`**；`Order=DISPUTED` | `trackOrderActionCalls` + `expectSingleTokenOnlyCall` |
+| CD-05 | UI：reload 爭議中的飼主詳情 → 點「查看日誌」（fix-batch13 K2） | 徽章「爭議處理中」；行程兩筆，第一筆「查看日誌」、第二筆「日誌尚未送出」；進入後看得到前置送出的日誌文字；沒有「申請訂單變更」 | `owner-order-visit-item` 2 筆、`owner-order-visit-link` 1 筆、`owner-order-visit-report-pending`、`btn-go-modification-wizard` 數量 0 |
 
 ---
 
@@ -67,3 +69,4 @@
 
 **飼主訂單詳情徽章顯示英文 `IN_PROGRESS`（2026-10，驗收 P6 / Backlog 第 3 批 U5）**：步驟 8 結案前截圖的徽章是英文 `IN_PROGRESS`。`StatusBadge` 只對照 6 種訂單狀態，其他狀態落到 default 直接印狀態碼；行程清單「（DONE）」、評估頁提示也直接印英文。修法：集中到 `statusLabels.ts` 一份中文對照表（SD-FRONTEND-SPEC §6.4），所有狀態文字都從這裡取。迴歸：步驟 8 斷言結案前「服務進行中」、結案後「已結案」；mock `e2e/order-status-labels.spec.ts`。
 
+**結案、申報爭議後飼主進不去日誌（2026-10-26，驗收 20261026-0007 截圖新問題 2 / fix-batch13 K2）**：步驟 8 結案後、CD-03 申報爭議後的截圖都沒有行程區塊（`OwnerOrderDetail.tsx` 的 `isServiceStage` 只含 CONFIRMED / IN_PROGRESS）。修法見 TS-009 TS-009-12；本 journey 補步驟 9 與 CD-05，CD 前置改兩筆行程、第一筆送出日誌（需 CI 驗證）。

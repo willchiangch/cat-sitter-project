@@ -184,6 +184,107 @@ test.describe('訂單詳情依行程狀態控制操作入口', () => {
     });
   });
 
+  // fix-batch13 K2（驗收 20261026-0007 截圖新問題 2）：結案、爭議後行程區塊整個消失（isServiceStage 只含
+  // CONFIRMED / IN_PROGRESS，行程 API 根本不發），爭議中正是最需要回頭看日誌的時候。服務後狀態要看得到行程與
+  // 已送出日誌，但不能出現申請變更 / 確認結案 / 申報爭議等動作按鈕
+  const POST_SERVICE_VISITS: MockVisit[] = [
+    { id: 'v-done', status: 'DONE', scheduledAt: '2026-12-01T00:00:00Z', reportSubmitted: true },
+    { id: 'v-done-draft', status: 'DONE', scheduledAt: '2026-12-02T00:00:00Z' },
+    { id: 'v-closed_by_system', status: 'CLOSED_BY_SYSTEM', scheduledAt: '2026-12-03T00:00:00Z' }
+  ];
+  const postServiceCases: { status: string; banner: string | null; extra?: string }[] = [
+    { status: 'COMPLETED', banner: 'completed-status-banner' },
+    { status: 'DISPUTED', banner: 'disputed-status-banner' },
+    { status: 'MODIFYING', banner: null, extra: 'btn-go-modification-confirm' },
+    { status: 'REFUND_VERIFY', banner: null, extra: 'btn-go-modification-confirm' }
+  ];
+
+  for (const c of postServiceCases) {
+    test(`K2 飼主詳情 ${c.status}：行程區塊可見、可進入已送出日誌，沒有服務期間的動作按鈕`, async ({
+      page
+    }) => {
+      await mockDemoSession(page, 'client');
+      await mockOwnerOrderDetail(page, ORDER_ID, c.status, 600, POST_SERVICE_VISITS);
+      await page.route('**/api/visits/v-done/report', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              reportId: 'r-done',
+              visitId: 'v-done',
+              status: 'SUBMITTED',
+              content: `${c.status} 後仍可回看的照護日誌`,
+              submittedAt: '2026-12-01T08:00:00Z',
+              media: [],
+              isEditable: false,
+              version: 2,
+              visitStatus: 'DONE',
+              isPurged: false
+            }
+          })
+        })
+      );
+
+      await step(
+        `${c.status}：行程三筆、只有已送出那筆有「查看日誌」、沒有動作按鈕`,
+        page,
+        async () => {
+          await page.goto(`/owner/orders/${ORDER_ID}`);
+          await expect(page.getByTestId('order-status-badge')).toHaveAttribute(
+            'data-status',
+            c.status
+          );
+          await expect(page.getByTestId('owner-order-visit-item')).toHaveCount(3);
+          const rows = await visitRows(page, 'owner-order-visit-item', 'owner-order-visit-link');
+          expect(rows.map((r) => r.action)).toEqual(['查看日誌', null, null]);
+          for (const id of [
+            'btn-go-modification-wizard',
+            'complete-order-btn',
+            'complete-order-hint',
+            'dispute-order-btn',
+            'owner-cancel-booking-btn'
+          ]) {
+            await expect(page.getByTestId(id), `${c.status} 不應有 ${id}`).toHaveCount(0);
+          }
+          if (c.banner) await expect(page.getByTestId(c.banner)).toBeVisible();
+          if (c.extra) await expect(page.getByTestId(c.extra)).toBeVisible();
+        }
+      );
+
+      await step(`${c.status}：點「查看日誌」進入日誌檢視頁並看到內容`, page, async () => {
+        await page.getByTestId('owner-order-visit-link').click();
+        await expect(page).toHaveURL(/\/visit-reports\/view\/v-done$/);
+        await expect(page.getByTestId('client-report-text-card')).toContainText(
+          `${c.status} 後仍可回看的照護日誌`
+        );
+      });
+    });
+  }
+
+  for (const status of ['PENDING', 'CANCELLED']) {
+    test(`K2 飼主詳情 ${status}：訂單未成立，不顯示行程區塊`, async ({ page }) => {
+      await mockDemoSession(page, 'client');
+      await mockOwnerOrderDetail(page, ORDER_ID, status, 600, POST_SERVICE_VISITS);
+      const visitRequests: string[] = [];
+      page.on('request', (r) => {
+        if (new URL(r.url()).pathname === `/api/orders/${ORDER_ID}/visits`)
+          visitRequests.push(r.url());
+      });
+
+      await step(`${status}：詳情載入完成`, page, async () => {
+        await page.goto(`/owner/orders/${ORDER_ID}`);
+        await expect(page.getByTestId('order-status-badge')).toHaveAttribute('data-status', status);
+      });
+
+      // 上一步截圖前已等網路靜止：這時還沒發行程請求，就不是「還沒載入完」而是根本不抓
+      await step(`${status}：沒有發行程請求、沒有行程清單`, page, async () => {
+        expect(visitRequests).toEqual([]);
+        await expect(page.getByTestId('owner-order-visit-item')).toHaveCount(0);
+      });
+    });
+  }
+
   test('N11 保母訂單卡：依行程狀態顯示打卡 / 繼續回報 / 查看送出，系統結案與已取消不顯示', async ({
     page
   }) => {

@@ -8,6 +8,7 @@ import {
   awaitOrderStatus,
   awaitNotification,
   apiAuthed,
+  pollUntil,
   trackOrderActionCalls,
   expectSingleTokenOnlyCall
 } from './helpers';
@@ -123,6 +124,29 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
       await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('已結案');
     });
 
+    // fix-batch13 K2（驗收 20261026-0007 截圖新問題 2）：過去 COMPLETED 後行程區塊整個消失，進不去日誌
+    await step(
+      'C-09 結案後飼主詳情：行程區塊仍在、可進入已送出日誌，沒有申請變更 / 結案 / 申報爭議鈕',
+      ownerPage,
+      async () => {
+        await expect(ownerPage.getByTestId('owner-order-visit-item')).toHaveCount(1, {
+          timeout: 10000
+        });
+        await expect(ownerPage.getByTestId('owner-order-visit-link')).toHaveText('查看日誌');
+        await expect(ownerPage.getByTestId('btn-go-modification-wizard')).toHaveCount(0);
+        await expect(ownerPage.getByTestId('complete-order-btn')).toHaveCount(0);
+        await expect(ownerPage.getByTestId('dispute-order-btn')).toHaveCount(0);
+        await snap(ownerPage, 'C-09 結案後行程區塊');
+        await ownerPage.getByTestId('owner-order-visit-link').click();
+        await expect(ownerPage.getByTestId('client-report-text-card')).toContainText(
+          reportContent,
+          {
+            timeout: 10000
+          }
+        );
+      }
+    );
+
     await ownerContext.close();
   });
 
@@ -135,12 +159,22 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
     request,
     browser
   }) => {
-    const { sitter, owner, orderId } = await apiStep('前置：兜出一筆 CONFIRMED 訂單', async () => {
-      return bootstrapConfirmedOrder(request, 'cd', 'Journey爭議方案');
-    });
+    // fix-batch13 K2：兩天兩筆行程，第一筆送出日誌、第二筆完工未送出，爭議後要能回頭看已送出的那筆
+    const day = (offset: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().split('T')[0];
+    };
+    const disputeReportContent = `Journey C 爭議前已送出的日誌-${Date.now()}`;
+    const { sitter, owner, orderId } = await apiStep(
+      '前置：兜出一筆 CONFIRMED 訂單（兩天兩筆行程）',
+      async () => {
+        return bootstrapConfirmedOrder(request, 'cd', 'Journey爭議方案', [day(1), day(2)]);
+      }
+    );
 
     await apiStep(
-      '前置：保母以 API Check-in / Check-out，行程全部 DONE、訂單 IN_PROGRESS',
+      '前置：保母以 API Check-in / Check-out，行程全部 DONE、訂單 IN_PROGRESS；第一筆送出日誌',
       async () => {
         const visitsRes = await request.get(`/api/orders/${orderId}/visits`, {
           headers: apiAuthed(sitter)
@@ -156,11 +190,29 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
             expect(res.ok(), `${action} ${visit.id}: ${res.status()}`).toBeTruthy();
           }
         }
-        const after = await request.get(`/api/orders/${orderId}/visits`, {
-          headers: apiAuthed(owner)
+        expect(visits).toHaveLength(2);
+        const draftRes = await request.put(`/api/visits/${visits[0].id}/report`, {
+          headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() },
+          data: { content: disputeReportContent, version: 0 }
         });
-        const afterVisits: Array<{ status: string }> = await after.json();
-        expect(afterVisits.map((v) => v.status)).toEqual(afterVisits.map(() => 'DONE'));
+        expect(draftRes.ok(), `draft: ${draftRes.status()}`).toBeTruthy();
+        const submitRes = await request.post(`/api/visits/${visits[0].id}/report/submit`, {
+          headers: { ...apiAuthed(sitter), 'Idempotency-Key': randomUUID() }
+        });
+        expect(submitRes.ok(), `submit: ${submitRes.status()}`).toBeTruthy();
+        const afterVisits = (await pollUntil(
+          async () => {
+            const after = await request.get(`/api/orders/${orderId}/visits`, {
+              headers: apiAuthed(owner)
+            });
+            return after.ok()
+              ? ((await after.json()) as Array<{ status: string; reportSubmitted: boolean }>)
+              : null;
+          },
+          (list) => !!list && list[0]?.reportSubmitted === true
+        ))!;
+        expect(afterVisits.map((v) => v.status)).toEqual(['DONE', 'DONE']);
+        expect(afterVisits.map((v) => v.reportSubmitted)).toEqual([true, false]);
         const order = await awaitOrderStatus(request, owner, orderId, ['IN_PROGRESS']);
         return { visits: afterVisits, status: order.status };
       }
@@ -208,6 +260,30 @@ test.describe('Journey C: 服務執行到結案 (TS-JOURNEY-03)', () => {
         expectSingleTokenOnlyCall(disputeCalls, 'dispute');
         const order = await awaitOrderStatus(request, owner, orderId, ['DISPUTED']);
         return { disputeCalls, status: order.status };
+      }
+    );
+
+    // fix-batch13 K2：過去 DISPUTED 後行程區塊整個消失（isServiceStage 只含 CONFIRMED / IN_PROGRESS）
+    await step(
+      'CD-05 爭議中飼主詳情：行程區塊仍在、可進入已送出日誌，沒有申請變更鈕',
+      ownerPage,
+      async () => {
+        await ownerPage.reload();
+        await expect(ownerPage.getByTestId('order-status-badge')).toHaveText('爭議處理中');
+        await expect(ownerPage.getByTestId('owner-order-visit-item')).toHaveCount(2, {
+          timeout: 10000
+        });
+        await expect(ownerPage.getByTestId('owner-order-visit-link')).toHaveCount(1);
+        await expect(ownerPage.getByTestId('owner-order-visit-report-pending')).toHaveText(
+          '日誌尚未送出'
+        );
+        await expect(ownerPage.getByTestId('btn-go-modification-wizard')).toHaveCount(0);
+        await snap(ownerPage, 'CD-05 爭議中行程區塊');
+        await ownerPage.getByTestId('owner-order-visit-link').click();
+        await expect(ownerPage.getByTestId('client-report-text-card')).toContainText(
+          disputeReportContent,
+          { timeout: 10000 }
+        );
       }
     );
 

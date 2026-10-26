@@ -158,7 +158,7 @@ Idempotency-Key: <UUID> (必填)
 ]
 ```
 * `reportSubmitted`（2026-10-25 fix-batch12 U5）：該行程有 `status = SUBMITTED` 且未刪除的 `visit_service_reports`（`VisitServiceReportRepository.findSubmittedVisitIds`，一次查整張訂單，無 N+1）。
-* 前端 `SitterOrders.tsx`（CONFIRMED/IN_PROGRESS 卡片）與 `OwnerOrderDetail.tsx`（同狀態）依此清單渲染行程列表，導向 `/visit-reports/manage|view/{visitId}`。
+* 前端 `SitterOrders.tsx`（CONFIRMED/IN_PROGRESS 卡片）與 `OwnerOrderDetail.tsx` 依此清單渲染行程列表，導向 `/visit-reports/manage|view/{visitId}`。飼主端顯示行程清單的訂單狀態為 `VISIT_LIST_STATUSES`（`CONFIRMED` / `IN_PROGRESS` / `COMPLETED` / `DISPUTED` / `MODIFYING` / `REFUND_VERIFY`）或變更補款階段（`amountDue ≠ totalAmount`），PRD-009 A.4；2026-10-26 前只在 CONFIRMED / IN_PROGRESS 顯示，結案或申報爭議後行程區塊整個消失、進不去日誌（fix-batch13 K2）。動作按鈕（申請變更 / 確認結案 / 申報爭議）仍只在 CONFIRMED / IN_PROGRESS 顯示；確認結案用的行程查詢（`useOrderVisitsQuery(orderId, isServiceStage)`）不變。
 * **入口按鈕依行程狀態決定（2026-10-24，驗收 N11）**，文案集中在 `statusLabels.ts` 的 `sitterVisitActionLabel` / `ownerVisitActionLabel`：
 
   | 行程狀態 | 保母（→ manage） | 飼主（→ view） |

@@ -22,13 +22,14 @@
 | TS-009-09 | 手動結案前置條件（行程未完成 / 零行程） | 1. 訂單 `CONFIRMED` 且行程 `PENDING`，或訂單沒有任何行程<br>2. 飼主呼叫 `/complete`；飼主開訂單詳情 | 後端拋 `IllegalStateException`，訂單維持原狀態、`completed_at`/`payout_at` 為空；前端不顯示 `complete-order-btn`，顯示 `complete-order-hint`。行程全部 `DONE`/`CLOSED_BY_SYSTEM` 才顯示按鈕 |
 | TS-009-10 | 手動結案狀態白名單 | 1. 訂單行程全部 `DONE`，訂單狀態為 `PENDING` / `PENDING_PAYMENT` / `PAID` / `MODIFYING` / `REFUND_VERIFY` / `DISPUTED` / `CANCELLED` / `REJECTED` / `COMPLETED`<br>2. 飼主呼叫 `/complete` | 一律 409 `STATE_CONFLICT`，訂單狀態不變；非 COMPLETED 者 `completed_at`/`payout_at` 仍為空；COMPLETED 重複呼叫 `completed_at`/`payout_at` 與呼叫前相同。只有 `CONFIRMED` / `IN_PROGRESS` 可結案 |
 | TS-009-11 | 自動結案略過零行程訂單 | 1. `IN_PROGRESS` 訂單沒有任何行程，同批另有一張行程 DONE 已過 48 小時的訂單<br>2. 執行自動結案排程 | 零行程訂單維持 `IN_PROGRESS`、`completed_at`/`payout_at` 為空、無 `AUTO_COMPLETED` 日誌，log 出現 `has no visits, skipped auto-completion`；另一張照常 `COMPLETED` |
+| TS-009-12 | 結案 / 爭議後飼主仍可回看日誌（fix-batch13 K2，PRD-009 A.4） | 1. 訂單狀態 `COMPLETED` / `DISPUTED` / `MODIFYING` / `REFUND_VERIFY`，行程三筆（DONE 已送出、DONE 未送出、系統結案）<br>2. 飼主開訂單詳情，點「查看日誌」<br>3. 對照：`PENDING` / `CANCELLED` | 2：行程清單三筆，只有已送出那筆有「查看日誌」，點進去看到日誌內容；沒有 `btn-go-modification-wizard`、`complete-order-btn`、`complete-order-hint`、`dispute-order-btn`、`owner-cancel-booking-btn`；COMPLETED / DISPUTED 橫幅、協商中的「查看並確認訂單變更」仍在。3：不發 `GET /visits`、沒有行程清單 |
 | TS-009-08 | 保母帳務總覽依月份查詢 | 1. 保母名下有跨越 2 個月份的已結案訂單<br>2. 呼叫 `GET /api/orders/sitter/ledger?month=2026-07` | 僅回傳 `completed_at` 落在 2026-07 的訂單，`totalRevenue` 為該月加總 |
 
 ## 4. 自動化追溯 (Automation Trace)
 - **單元測試**: `CompletionService.java`
 - **整合測試**: `CompletionServiceTest.java`（涵蓋 TS-009-01~06、TS-009-09 後端：`should_RejectManualComplete_When_OrderHasNoVisits` / `_When_VisitStillPending`、`should_ManualComplete_When_AllVisitsDone`；TS-009-10：`should_RejectManualComplete_When_StatusNotCompletable`（8 個狀態參數化）、`_When_Negotiating`、`should_RejectManualComplete_And_KeepPayoutDate_When_AlreadyCompleted`、`should_ManualComplete_When_ConfirmedAndAllVisitsFinished`，HTTP 層 `OrderControllerTest.should_Return409_And_KeepPayoutAt_When_CompletingCompletedOrder`；TS-009-11：`should_SkipAutoCompletion_When_OrderHasNoVisits`；**TS-009-07/08 目前僅有 E2E 覆蓋，無對應後端單元測試，為已知待補項目**）
 - **安全迴歸（真 JWT + 真 SecurityConfig）**: `OrderIdentityFromTokenSecurityTest.complete_*` / `dispute_*`（TS-009-05）
-- **E2E 對應**: `dispute-and-completion.spec.ts`（TS-009-03 前端：行程全部 DONE 才結案、TS-009-04/06/07；TS-009-05 前端：`/complete`、`/dispute` 請求的 `searchParams` 為空、爭議 body 只有 `category` / `description`）、`order-visit-gating.spec.ts` N10（TS-009-09 前端：待執行 / 部分執行中 / 零行程不顯示按鈕，全部 DONE+CLOSED_BY_SYSTEM 顯示）、`sitter-ledger.spec.ts`（TS-009-08）
+- **E2E 對應**: `dispute-and-completion.spec.ts`（TS-009-03 前端：行程全部 DONE 才結案、TS-009-04/06/07；TS-009-05 前端：`/complete`、`/dispute` 請求的 `searchParams` 為空、爭議 body 只有 `category` / `description`）、`order-visit-gating.spec.ts` N10（TS-009-09 前端：待執行 / 部分執行中 / 零行程不顯示按鈕，全部 DONE+CLOSED_BY_SYSTEM 顯示）與 K2（TS-009-12）；真後端 Journey C C-09 / CD-05（TS-009-12，需 CI 驗證）、`sitter-ledger.spec.ts`（TS-009-08）
 - **測試指令**: `mvn test -Dtest=CompletionServiceTest,OrderIdentityFromTokenSecurityTest`
 
 ## 5. 技術校驗 (DB/NFR)
@@ -51,3 +52,5 @@
 **保母可冒充飼主結案 / 申報爭議（2026-10-25，fix-batch11 I1，安全 / BOLA）**：`POST /api/orders/{id}/complete`、`/dispute` 以 `@RequestParam ownerId` 當呼叫者身分且沒有 `@PreAuthorize`。訂單的保母本來就看得到 `ownerId`（訂單詳情回應），等於保母自己就能「代替飼主確認結案」，提前觸發 D+3 撥款排程；任何知道 UUID 的人也能替飼主申報爭議、把訂單卡進 `DISPUTED`。過去 TS-009-05 只驗 service 層「參數 ownerId ≠ 訂單飼主」，沒驗「參數是誰傳的」，所以一直綠。修法：兩支改 `@PreAuthorize("hasRole('OWNER')")` + `TokenContext.getUserId()`，service 越權改拋 `AccessDeniedException` → 403（SD-009 §2.1 / §2.2、SD-GLOBAL-SPEC §3.4）。迴歸：TS-009-05 改寫為真 JWT 測試（舊版 controller 下全紅）。
 
 **零行程訂單提示「所有行程完工後即可確認結案」，飼主永遠卡住（2026-10-25，驗收截圖新問題 5 / fix-batch12 U4）**：N10 後零行程訂單不顯示結案鈕是對的，但提示文字讓飼主以為等行程完工就好，實際上永遠不會有行程完工。零行程改提示「此訂單沒有任何行程，無法確認結案，請聯繫保母或平台管理員協助處理」（PRD-009 B.3）。迴歸：`order-visit-gating.spec.ts` N10「沒有任何行程」案（舊版紅）。
+
+**結案、申報爭議後飼主詳情的行程區塊整個消失，進不去日誌（2026-10-26，驗收 20261026-0007 截圖新問題 2 / fix-batch13 K2）**：C-08 結案後（COMPLETED）、CD-03 申報爭議後（DISPUTED）的截圖都沒有行程區塊。`OwnerOrderDetail.tsx` 的 `isServiceStage` 只含 CONFIRMED / IN_PROGRESS，行程清單又包在同一個區塊裡跟動作按鈕一起顯示，其他狀態連 `GET /visits` 都不發。爭議中正是最需要回頭看日誌的時候。修法：行程清單改依 `VISIT_LIST_STATUSES`（加上 COMPLETED / DISPUTED / MODIFYING / REFUND_VERIFY 與補款階段）獨立顯示，動作按鈕維持只在 CONFIRMED / IN_PROGRESS（PRD-009 A.4）。迴歸：TS-009-12（`order-visit-gating.spec.ts` K2 四個狀態，舊版 4 支紅）、Journey C C-09 / CD-05。
