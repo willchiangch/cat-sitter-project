@@ -262,6 +262,104 @@ test.describe('G5 版面溢出與對比度', () => {
     });
   });
 
+  // fix-batch13 K8（驗收 20261026-0007 B-04 09）：日曆卡約 200px 寬，月份標題斷成「2026年10 / 月」
+  test('K8：預約日曆月份標題單行，不與左右切換鈕重疊', async ({ page }) => {
+    await mockDemoSession(page, 'client');
+    await mockLongNameBookingPage(page);
+
+    await step('選方案後日曆月份標題為單行', page, async () => {
+      await page.goto(`/booking/${SITTER_ID}`);
+      await page.getByTestId('client-booking-plan-card-0').click();
+      await expect(page.getByRole('heading', { name: '排程配置' })).toBeVisible();
+      const label = page.getByTestId('client-booking-calendar-month-label').first();
+      const now = new Date();
+      await expect(label).toHaveText(`${now.getFullYear()} 年 ${now.getMonth() + 1} 月`);
+      const { height, fontSize, overflow } = await label.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        fontSize: parseFloat(getComputedStyle(el).fontSize),
+        overflow: el.scrollWidth > el.clientWidth
+      }));
+      expect(height, `月份標題單行（${height}px）`).toBeLessThan(fontSize * 1.8);
+      expect(overflow).toBe(false);
+      await expectNoOverlap(
+        label,
+        page.getByTestId('client-booking-calendar-prev-month').first(),
+        '月份標題與上個月鈕'
+      );
+      await expectNoOverlap(
+        label,
+        page.getByTestId('client-booking-calendar-next-month').first(),
+        '月份標題與下個月鈕'
+      );
+      // 切換鈕維持 32px 正圓，沒有被標題擠扁
+      const prev = (await page
+        .getByTestId('client-booking-calendar-prev-month')
+        .first()
+        .boundingBox())!;
+      expect(Math.round(prev.width)).toBe(32);
+      await expectNoHorizontalOverflow(page);
+    });
+  });
+
+  // fix-batch13 K8（驗收 20261026-0007 B-08 27）：排序鈕一欄 + 「移除」預留 2.5rem，內容欄只剩約 130px
+  test('K8：記事本管理頁條目的標題 / 內容欄吃滿條目寬度，長內容不被斷成窄欄', async ({ page }) => {
+    await mockDemoSession(page, 'sitter');
+    await page.route('**/api/care-notes/templates', (route) => route.fulfill(json({ data: [] })));
+    const content = `Journey B 記事本測試內容-${LONG_ID}77`;
+    await page.route(
+      (url) => url.pathname === '/api/care-notes/s-1/o-1',
+      (route) =>
+        route.fulfill(
+          json({
+            data: {
+              careNoteId: 'c-1',
+              sitterId: 's-1',
+              ownerId: 'o-1',
+              sections: {
+                OTHER: [
+                  { id: 'i-1', sectionType: 'OTHER', title: '注意事項', content, sortOrder: 0 }
+                ]
+              }
+            }
+          })
+        )
+    );
+    await page.route(
+      (url) => url.pathname === '/api/care-media/s-1/o-1',
+      (route) => route.fulfill(json({ data: [] }))
+    );
+
+    await step('條目輸入欄寬度 ≥ 200px、≥ 條目內容區 95%，「移除」不壓到輸入欄', page, async () => {
+      await page.goto('/care-notes/manage/s-1/o-1');
+      const contentBox = page.getByTestId('sitter-carenote-item-content');
+      await expect(contentBox).toHaveValue(content);
+      const measure = await contentBox.evaluate((el) => {
+        const item = el.closest('[data-testid="sitter-carenote-item"]')!;
+        const cs = getComputedStyle(item);
+        const inner =
+          item.getBoundingClientRect().width -
+          parseFloat(cs.paddingLeft) -
+          parseFloat(cs.paddingRight);
+        return { width: el.getBoundingClientRect().width, inner };
+      });
+      expect(measure.width, `內容欄寬（過去約 130px）`).toBeGreaterThanOrEqual(200);
+      expect(measure.width / measure.inner, '內容欄佔條目內容區比例').toBeGreaterThanOrEqual(0.95);
+      const titleBox = (await page.getByTestId('sitter-carenote-item-title').boundingBox())!;
+      expect(titleBox.width).toBeGreaterThanOrEqual(200);
+      await expectNoOverlap(
+        page.getByTestId('sitter-carenote-item-remove'),
+        page.getByTestId('sitter-carenote-item-title'),
+        '「移除」與標題輸入框'
+      );
+      await expectNoOverlap(
+        page.getByTestId('sitter-carenote-item-remove'),
+        contentBox,
+        '「移除」與內容輸入框'
+      );
+      await expectNoHorizontalOverflow(page);
+    });
+  });
+
   test('N17：標準頁面（方案設定）的內容左右內縮是 48px，作為 KYC 詳情 / 記事本管理頁的對照', async ({
     page
   }) => {

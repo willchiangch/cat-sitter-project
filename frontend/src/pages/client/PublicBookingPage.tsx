@@ -43,7 +43,11 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
   sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda'
 }) => {
   const { data: plans = [], isLoading, error } = useSitterActivePlansQuery(sitterId);
-  const { data: profile, isLoading: isProfileLoading, error: profileError } = usePublicProfileQuery(sitterId);
+  const {
+    data: profile,
+    isLoading: isProfileLoading,
+    error: profileError
+  } = usePublicProfileQuery(sitterId);
   const { data: questions = [] } = useActiveQuestionsQuery(sitterId);
   const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({});
 
@@ -752,6 +756,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                             onClick={handlePrevMonth}
                             data-testid="client-booking-calendar-prev-month"
                             style={{
+                              flexShrink: 0,
                               background: 'var(--color-surface-low)',
                               border: '1px solid var(--color-outline-variant)',
                               color: 'var(--color-on-surface)',
@@ -775,12 +780,16 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                           >
                             <ChevronLeft size={16} />
                           </button>
+                          {/* fix-batch13 K8（驗收 B-04 09）：日曆卡在 390px 下只有約 200px 寬，月份標題被斷成
+                              「2026年10 / 月」。標題不換行，左右切換鈕不被壓縮 */}
                           <span
+                            data-testid="client-booking-calendar-month-label"
                             style={{
                               fontWeight: '800',
                               fontSize: '1.05rem',
                               color: 'var(--color-on-surface)',
-                              fontFamily: 'var(--font-display)'
+                              fontFamily: 'var(--font-display)',
+                              whiteSpace: 'nowrap'
                             }}
                           >
                             {currentYear} 年 {currentMonth + 1} 月
@@ -790,6 +799,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                             onClick={handleNextMonth}
                             data-testid="client-booking-calendar-next-month"
                             style={{
+                              flexShrink: 0,
                               background: 'var(--color-surface-low)',
                               border: '1px solid var(--color-outline-variant)',
                               color: 'var(--color-on-surface)',
@@ -1377,7 +1387,8 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                       }}
                     >
                       <div style={{ fontWeight: '800', fontSize: '0.875rem', marginBottom: '4px' }}>
-                        {plan?.name} (每次 {plan?.durationMinutes ?? 60} 分鐘 / 每天 {schedule.timesPerDay} 次)
+                        {plan?.name} (每次 {plan?.durationMinutes ?? 60} 分鐘 / 每天{' '}
+                        {schedule.timesPerDay} 次)
                       </div>
                       <div
                         style={{
@@ -1448,7 +1459,14 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
             >
               保母的事前問卷
             </label>
-            <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div
+              style={{
+                marginTop: '0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem'
+              }}
+            >
               {questions.map((q) => (
                 <div key={q.id} data-testid={`booking-question-${q.id}`}>
                   <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
@@ -1456,10 +1474,18 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                     {q.required && <span style={{ color: '#dc2626' }}> *</span>}
                   </div>
 
-                  {(q.answerType === 'RADIO') && (
+                  {q.answerType === 'RADIO' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                       {q.options.map((option) => (
-                        <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                        <label
+                          key={option}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            fontSize: '0.85rem'
+                          }}
+                        >
                           <input
                             type="radio"
                             name={`question-${q.id}`}
@@ -1476,7 +1502,15 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                   {q.answerType === 'CHECKBOX' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                       {q.options.map((option) => (
-                        <label key={option} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                        <label
+                          key={option}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            fontSize: '0.85rem'
+                          }}
+                        >
                           <input
                             type="checkbox"
                             checked={(questionAnswers[q.id!] || []).includes(option)}
@@ -1562,7 +1596,9 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
             disabled={profile?.gated || !profile?.isOpen || isSubmitting}
             data-testid="client-booking-btn-submit"
           >
-            {isSubmitting ? '送出中...' : (
+            {isSubmitting ? (
+              '送出中...'
+            ) : (
               <>
                 確認並送出 <CheckCircle2 size={18} style={{ marginLeft: '8px' }} />
               </>
@@ -1601,7 +1637,9 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
               animation: 'spin 0.8s linear infinite'
             }}
           />
-          <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>預約送出中，請稍候...</span>
+          <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>
+            預約送出中，請稍候...
+          </span>
         </div>
       )}
 
@@ -1764,7 +1802,7 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
                 {isBioExpanded ? '收合' : '顯示更多'}
               </button>
             )}
-            
+
             {/* 標籤 */}
             {profile?.tags && profile.tags.length > 0 && (
               <div
@@ -1825,7 +1863,6 @@ const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
         }}
       >
         <div style={{ display: 'flex', gap: '8px' }}>
-
           {[1, 2].map((s) => (
             <div
               key={s}

@@ -479,6 +479,7 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                       {sectionItems.map(({ item, idx }, pos) => (
                         <div
                           key={idx}
+                          data-testid="sitter-carenote-item"
                           style={{
                             background: 'var(--color-surface-low)',
                             padding: '1rem',
@@ -489,36 +490,18 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                             position: 'relative'
                           }}
                         >
-                          {/* Remove button */}
-                          <button
-                            onClick={() => handleRemoveItem(idx)}
-                            data-testid="sitter-carenote-item-remove"
-                            style={{
-                              position: 'absolute',
-                              top: '12px',
-                              right: '12px',
-                              border: 'none',
-                              background: 'none',
-                              color: 'var(--color-error)',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem'
-                            }}
-                          >
-                            移除
-                          </button>
-
+                          {/* fix-batch13 K8（驗收 B-08 27）：排序鈕與「移除」改放在條目上方一列，輸入欄吃滿整列寬度。
+                              過去排序鈕一欄 + 「移除」絕對定位預留 2.5rem，390px 下內容欄只剩約 130px，
+                              內容被斷成「…17929437438 / 77」 */}
                           <div
+                            data-testid="sitter-carenote-item-toolbar"
                             style={{
                               display: 'flex',
-                              gap: '1rem',
-                              alignItems: 'flex-start',
-                              paddingRight: '2.5rem'
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
                             }}
                           >
-                            {/* Sort buttons */}
-                            <div
-                              style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}
-                            >
+                            <div style={{ display: 'flex', gap: '0.25rem' }}>
                               <button
                                 onClick={() => moveItem(idx, 'up')}
                                 disabled={pos === 0}
@@ -547,49 +530,64 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
                                 ▼
                               </button>
                             </div>
-
-                            {/* minWidth 0 + input width 100%：input 的預設固有寬度（size=20）會撐破 flex 欄位，
-                                右緣壓進給「移除」留的 paddingRight（驗收附帶觀察，.e2e-runs/20261024-1939） */}
-                            <div
+                            <button
+                              onClick={() => handleRemoveItem(idx)}
+                              data-testid="sitter-carenote-item-remove"
                               style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '0.5rem',
-                                flex: 1,
-                                minWidth: 0
+                                border: 'none',
+                                background: 'none',
+                                color: 'var(--color-error)',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem'
                               }}
                             >
-                              <input
-                                type="text"
-                                value={item.title}
-                                onChange={(e) => handleItemChange(idx, 'title', e.target.value)}
-                                data-testid="sitter-carenote-item-title"
-                                placeholder="例如：早晨餵罐頭"
-                                style={{
-                                  padding: '0.5rem',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: '1px solid var(--color-surface-high)',
-                                  fontSize: '0.95rem',
-                                  width: '100%',
-                                  minWidth: 0
-                                }}
-                              />
-                              <textarea
-                                value={item.content}
-                                onChange={(e) => handleItemChange(idx, 'content', e.target.value)}
-                                data-testid="sitter-carenote-item-content"
-                                placeholder="寫下具體指示或照護細節..."
-                                rows={2}
-                                style={{
-                                  padding: '0.5rem',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: '1px solid var(--color-surface-high)',
-                                  fontSize: '0.9rem',
-                                  fontFamily: 'inherit',
-                                  resize: 'vertical'
-                                }}
-                              />
-                            </div>
+                              移除
+                            </button>
+                          </div>
+
+                          {/* input / textarea width 100%：預設固有寬度（input size=20、textarea cols=20）
+                                不會跟著欄寬伸縮（驗收附帶觀察，.e2e-runs/20261024-1939；fix-batch13 K8） */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem',
+                              flex: 1,
+                              minWidth: 0
+                            }}
+                          >
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => handleItemChange(idx, 'title', e.target.value)}
+                              data-testid="sitter-carenote-item-title"
+                              placeholder="例如：早晨餵罐頭"
+                              style={{
+                                padding: '0.5rem',
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid var(--color-surface-high)',
+                                fontSize: '0.95rem',
+                                width: '100%',
+                                minWidth: 0
+                              }}
+                            />
+                            <textarea
+                              value={item.content}
+                              onChange={(e) => handleItemChange(idx, 'content', e.target.value)}
+                              data-testid="sitter-carenote-item-content"
+                              placeholder="寫下具體指示或照護細節..."
+                              rows={2}
+                              style={{
+                                padding: '0.5rem',
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid var(--color-surface-high)',
+                                fontSize: '0.9rem',
+                                fontFamily: 'inherit',
+                                resize: 'vertical',
+                                width: '100%',
+                                minWidth: 0
+                              }}
+                            />
                           </div>
                         </div>
                       ))}

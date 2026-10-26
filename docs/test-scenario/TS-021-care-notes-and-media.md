@@ -296,3 +296,5 @@
 **保母可以對任意飼主建立記事本、上傳媒體（2026-10-25，第 11 批另外發現 #2 / fix-batch12 J1，安全）**：`PUT /api/care-notes/{sitterId}/{ownerId}`、`POST /api/care-media/{sitterId}/{ownerId}`、套用模板只檢查 `sitterId == Token.userId`，`ownerId` 任填都能寫入，被填的飼主讀取時就會看到陌生保母的內容（騷擾 / 釣魚載體）。產品決定以「雙方有過任何狀態的訂單」作為配對關係前提，讀取同規則。新增 `CareRelationshipGuard`（Controller 層，先於 Idempotency 與 GCS），`OrderRepository.existsOrderBetween` 排除軟刪除。迴歸：`CareRelationshipSecurityTest`（真 JWT + 真 SecurityConfig，7 cases，Scenario 8d）；既有 `CareNoteControllerTest` / `CareMediaControllerTest` 的合法讀寫案例補上雙方訂單前置資料。
 
 **飼主記事本檢視頁左右留白比其他頁窄（2026-10-25，驗收 A5 / N17 漏網）**：`CareNoteView` 頁面容器 `padding: '1rem 0'`，內容邊界 469–810（其他頁 493–787）。改用 `PAGE_PADDING`。迴歸：`ui-layout-contrast.spec.ts`「N17：記事本檢視 / 帳號設定 / 通知中心」（舊版紅）。
+
+**記事本管理頁條目內容欄只有約 130px（2026-10-26，驗收 20261026-0007 B-08 27 / fix-batch13 K8）**：條目是「▲▼ 排序鈕欄 + 輸入欄 + 右側為絕對定位『移除』預留 2.5rem」三者並排，390px 下輸入欄只剩約 130px，`Journey B 記事本測試內容-…77` 被斷成三行；`<textarea>` 也沒有 `width: 100%`。改為排序鈕與「移除」放在條目上方一列（`sitter-carenote-item-toolbar`），標題與內容輸入欄寬度 100%。迴歸：`ui-layout-contrast.spec.ts`「K8：記事本管理頁條目…」（內容欄 ≥ 200px、≥ 條目內容區 95%、「移除」不壓標題 / 內容；舊版紅），既有 N4 仍綠。
