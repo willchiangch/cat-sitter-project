@@ -5,7 +5,7 @@
 | 模組編號 | SD-016 |
 | 對應 PRD | PRD-016 |
 | 核心技術 | Bidirectional Snapshot Recalculation, Refund Proof Verification, Optimistic Locking |
-| 狀態 | **Approved with Consultant Feedback** |
+| 狀態 | Superseded（2026-11-22 由 [SD-ORDER](SD-ORDER.md) 取代，僅供對照，不得作為實作依據） |
 
 ---
 

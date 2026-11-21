@@ -5,7 +5,7 @@
 | 對應需求 | [PRD-007-offline-payment.md](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sa/fr/PRD-007-offline-payment.md) |
 | 負責 SD | AI (Antigravity) |
 | 建立日期 | 2026-06-01 |
-| 狀態 | Draft |
+| 狀態 | Superseded（2026-11-22 由 [SD-ORDER](SD-ORDER.md) 取代，僅供對照，不得作為實作依據） |
 | DB 表 | `orders`, `profiles`, `order_logs` |
 | 相依共用設計 | [全域架構與開發規範](file:///Users/will_chiang/Widget_home/cat-sitter-project/docs/sd/SD-GLOBAL-SPEC.md) |
 

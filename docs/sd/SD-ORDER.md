@@ -2,7 +2,8 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
+| 核准 | 使用者，2026-11-22（依發布策略 B：與 SD-FULFILL 一起實作、一起發布；全域 multipart 上限 20 MB 確認） |
 | 建立日期 | 2026-11-22 |
 | 涵蓋 PRD | PRD-005、PRD-006、PRD-007、PRD-016、PRD-023、PRD-024、PRD-026、PRD-027（全部 Approved 2026-11-22；對應表見 `00-SD-PLAN.md` §0） |
 | 擁有的 Table | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`、`idempotency_records`（只有本 SD 能寫；其他 SD 走本 SD 的 Service） |
@@ -2180,6 +2181,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 建立第一階段：§1 AC 對應（156 條）、§2 模組邊界、§3 狀態機與共用機制、§5 資料模型、§8 排程與外部服務、§11 技術決策、§12 待釐清 | 全面重建第 2 步（baseline 第 2 版與 8 張訂單 PRD 核准後） |
 | 2026-11-22 | 第二階段：§2.4 跨模組介面簽名、§4 序列圖、§6 API 契約（31 + 10 端點、錯誤碼總表 36 項）、§7 副作用、§8.3 部署清單、§9 前端、§10 測試設計；遷移合併為單一 `V20261122_01__order_rebuild.sql`（破壞性，不做雙階段）；CQ-1~9 已決、技術決策 1–5 已採用；新增 CQ-10；狀態改 In Review | 使用者 2026-11-22 決定（全部採建議、遷移併成一支） |
 | 2026-11-22 | 第 1 輪審查修正（`docs/reviews/SD-ORDER.data.review.md` 19 項、`SD-ORDER.api.review.md` 20 項，全數處理）。資料面：#1 冪等 `claim_token` 與 E11 刪物件條件（§3.6.2、§5.1.1、§3.6.6、§7.3）；#2 發布範圍 → 新增 §8.4 同發布範圍與過渡改寫清單；#3 鎖後 refresh、先鎖 orders 的鎖順序、55P03 / 40P01 → `ORDER_BUSY`（§2.3.1、§3.6.1、§6.4）；#4 C7 候選唯讀 JOIN orders（§2.4.2、§8.1）；#5 `scheduled_at DROP NOT NULL`、`VisitSpec.planTitle`、`completedAt`↔`finished_at`；#6 測試金鑰放 test resources（§8.3 D1、D2）；#7 遷移清空 `profiles.bank_account_info`；#8 cleanup FK 順序（§10.4）；#9 SYSTEM 變更列欄位（§3.3 T9）；#10 C11 job 與 SD-NOTIFY 遷移（§8.3 D5、D6）；#11 新增 4 個查詢方法（§2.3.5、§2.4.1）；#12 `ck_orders_quote_parts` 處理 NULL、`ck_payments_snapshot_key`；#13 C8 改 `:threshold`；#14 Hikari（D8）；#15 遷移 `lock_timeout 10s` 與 forward fix；#16 DROP `is_deleted`；#17 C9 兼清舊 `idempotency_keys`；#18 `OrderAggregateArchTest`；#19 E31 permitAll、runner SA 權限（D7、D9）。API 面：B1 G4a 當事人錯角色 → `ROLE_MISMATCH`；I1 `SecurityConfig` 三項（D7）、G1 拋出位置；I2 全域 / 訂單專屬 advice 拆分、程式錯誤改自訂例外；I3 body caching filter 與 JSON 正規化；I4 DTO 型別規則、`accept-float-as-int=false`、進方法前 400 的對映；I5 E15 角色統一；I6 §9.1 改用 PRD testid、補保母退款上傳 testid；I7 E21 註記；I8 provision 擴充（`sitter-setup` / `owner-setup` / `shift-time` / 行程造資料）；S1 null 欄位不輸出；S2 `getApiError`；S3 E11 措辭；S4 / S5 測試補強；S6 `sortOrder`；S7 補款快照為空 → 500；S8 刪除 / 改語意 API 表（§8.4.3）；S9 `max-swallow-size`；S10 伺服器資料相依 400 鎖內重驗；S11 O10 一律另寫一列。CQ-20~23、CQ-40~42 依使用者決定（CQ-21 = B，其餘採建議）改已決；新增 §11.3 GLOBAL 回寫清單；錯誤碼總表 37 項、測試類別 46 個；狀態改回 In Review | 第 1 輪審查（Needs Clarification）與使用者 2026-11-22 決定 |

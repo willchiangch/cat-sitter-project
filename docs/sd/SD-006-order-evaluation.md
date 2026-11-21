@@ -5,7 +5,7 @@
 | 模組編號 | SD-006 |
 | 對應 PRD | PRD-004, PRD-006, PRD-012, PRD-013 |
 | 核心技術 | Optimistic Locking (@Version), SaaS Plan Gating, Full-Contract Snapshotting, Zero-Trust Pricing |
-| 狀態 | **Approved with Consultant Feedback** |
+| 狀態 | Superseded（2026-11-22 由 [SD-ORDER](SD-ORDER.md) 取代，僅供對照，不得作為實作依據） |
 
 ---
 

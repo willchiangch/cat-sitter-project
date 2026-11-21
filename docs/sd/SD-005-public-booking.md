@@ -5,7 +5,7 @@
 | 模組編號 | SD-005 |
 | 對應 PRD | PRD-005 |
 | 核心技術 | Zero-Trust Pricing, DB-Level Idempotency |
-| 狀態 | **Approved (Marketplace Model)** |
+| 狀態 | Superseded（2026-11-22 由 [SD-ORDER](SD-ORDER.md) 取代，僅供對照，不得作為實作依據） |
 
 ---
 
