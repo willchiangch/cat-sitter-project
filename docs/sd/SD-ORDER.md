@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Needs Clarification |
 | 建立日期 | 2026-11-22 |
 | 涵蓋 PRD | PRD-005、PRD-006、PRD-007、PRD-016、PRD-023、PRD-024、PRD-026、PRD-027（全部 Approved 2026-11-22；對應表見 `00-SD-PLAN.md` §0） |
 | 擁有的 Table | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`、`idempotency_records`（只有本 SD 能寫；其他 SD 走本 SD 的 Service） |
@@ -2009,6 +2009,13 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | CQ-8 | 帳務總覽收入的月份歸屬 | 依 `completed_at` / `cancelled_at`（Asia/Taipei 自然月）；寫入 §6.3 E30、`ix_orders_sitter_terminal` | 已決（使用者 2026-11-22） |
 | CQ-9 | O13 是否通知 ADMIN | 不通知，只出現在待辦清單；寫入 §7.2 | 已決（使用者 2026-11-22） |
 | CQ-10 | PRD-016、PRD-023、PRD-024 的 §9 沒有定義任何 testid，變更精靈、協商頁、補款 / 退款區塊、申報爭議無法依「以 PRD 為準」掛 testid | 由主流程在 PRD-016 / 023 / 024 §9 補定義（不退回 Approved 狀態，屬補充畫面識別）。建議名（依 SD-FRONTEND-SPEC §4）：`order-modify-type-{type}`、`order-modify-visit-checkbox-{visitId}`、`order-modify-add-item-{index}`、`order-modify-input-reason`、`order-modify-btn-submit`、`modification-detail-diff`、`modification-detail-expires-at`、`modification-btn-quote`、`modification-btn-reject`、`modification-btn-withdraw`、`modification-btn-accept`、`modification-input-reject-reason`、`modification-history-item-{modificationId}`、`modification-history-empty`、`modification-btn-payment-dispute`、`payment-dispute-input-description`、`payment-dispute-btn-submit`、`payment-dispute-available-at` | 已決（主流程 2026-11-22）：已補進三張 PRD §9 |
+| CQ-40 | 混合角色端點（E2、E10–E15、E17–E19、E21、E22、E24）中，呼叫者是訂單當事人但 `currentRole` 不是其當事人角色時，在哪一步回 `ROLE_MISMATCH`？（PRD-007 AC-2.5、PRD-016 AC-1.7 要求 `ROLE_MISMATCH`；需先載入訂單才能判斷）（審查 `SD-ORDER.api.review.md` #B1） | 建議：G4（404）之後、G5 之前新增一步——當事人錯角色 → 403 `ROLE_MISMATCH`；非當事人 → 403 `FORBIDDEN`；不存在 → 404；ADMIN 呼叫寫入端點仍由 `@PreAuthorize` 在 G3 擋 | 待使用者回答 |
+| CQ-41 | SITTER 對 OWNER 發起的 `QUOTED` 變更呼叫 E21 拒絕：PRD-016 AC-2.6 要 409 `MODIFICATION_STATE_CONFLICT`，PRD-023 §3 / EX-2 寫 403 `ROLE_MISMATCH`，以哪個為準？（審查 #I7） | 建議：409 `MODIFICATION_STATE_CONFLICT`（PRD-016 AC-2.6）；主流程把 PRD-023 §3 / EX-2 的 `ROLE_MISMATCH` 限縮為同意端點 E23 | 待使用者回答 |
+| CQ-42 | `GlobalExceptionHandler` 新對映與 §6.1 錯誤格式要全域生效，還是只套訂單 controller？（全域會改變其他模組的 `@PreAuthorize` 拒絕碼、樂觀鎖碼與上傳超限碼）（審查 #I2） | 建議：`ROLE_MISMATCH`、401 `UNAUTHENTICATED`、§6.1 錯誤格式全域採用並在 §8.3 列出受影響的其他模組測試；`ORDER_BUSY`（`@Version`）、`PROOF_FILE_TOO_LARGE`、`STORAGE_UNAVAILABLE`、約束名對映只套訂單 controller（獨立 advice、`basePackageClasses`、最高優先序），multipart 上限由 E11 自行檢查 | 待使用者回答 |
+| CQ-20 | 既有 `profiles.bank_account_info` 是以 repo 內公開的預設金鑰加密（prod 從未注入 `APP_CRYPTO_KEY`）；D1 換金鑰後舊密文解不開，O2 `getSnapshot` 會 500，舊密文怎麼處理？（資料面審查 #7） | 建議：一次性重新加密，新增 `/api/internal/maintenance/payout-accounts/re-encrypt`（`X-Internal-Secret`、預設 dryRun），用 `APP_CRYPTO_KEY_PREVIOUS` 解密、新金鑰加密，部署後立即執行，完成後移除端點與舊金鑰；替代方案：Beta 期清空收款帳號並通知保母重設 | 待使用者回答 |
+| CQ-21 | 依賴的 SD-FULFILL `VisitCommandService` / `VisitQueryService` 尚不存在，未重建模組（`VisitReportService`、`PetService`、`CompletionService`、`NotificationListener` 等）依賴舊 schema，發布方式？（資料面審查 #2） | 建議：本 SD 發布先行實作兩個 Service 的最小版（依 §2.4.2 簽名，放 fulfill 套件），並依審查清單改寫未重建模組呼叫點，新增 §8.4「同發布過渡改寫清單」；SD-FULFILL 撰寫時接手。替代方案：等 SD-FULFILL 核准後同一次發布 | 待使用者回答 |
+| CQ-22 | C7 候選需排除 `PENDING_PAYMENT` 等非目標訂單，但 `findOrderIdsWithZombieVisits(maxServiceDate, limit)` 無訂單狀態條件，SD-FULFILL 又不擁有 `orders`；候選查詢放哪？（資料面審查 #4） | 建議：簽名改為 `findOrderIdsWithZombieVisits(maxServiceDate, Set<OrderStatus> orderStatuses, limit)`，允許 SD-FULFILL 以唯讀 JOIN `orders` 過濾（明訂「排程候選唯讀 JOIN」為表擁有權例外，寫入仍走 Service） | 待使用者回答 |
+| CQ-23 | `visits.scheduled_at`（V1 NOT NULL）與 entity 上 `plan_id` / `snapshot_plan_title`（nullable=false）在新設計中怎麼處理？`VisitSpec` 未提供這些值（資料面審查 #5） | 建議：§5.1.1 第 13 段加 `ALTER COLUMN scheduled_at DROP NOT NULL`；`createVisits` 過渡期仍寫 `scheduled_at = service_date 00:00 Asia/Taipei` 與 `snapshot_plan_title = 方案當下名稱`；SD-FULFILL 重建時決定是否刪欄 | 待使用者回答 |
 
 依賴（非本 SD 可決定，列出供排程）：SD-FULFILL 須提供 `IN_PROGRESS` 行程逾時出口（baseline §6），否則 O11 / O12 / O15 可能永久卡住；SD-BILLING 重寫時移除 `subscriptions.monthly_order_count`；`orders.media_expiry_warned` 由 SD-CARE 寫入，SD-CARE 重寫時改由本 SD 的 Service 寫或搬到媒體表；PRD-009（O11–O13 文案與畫面）與 PRD-020（ADMIN 待辦 / 調解畫面）改寫時對齊 §6.3 E25–E30。
 
