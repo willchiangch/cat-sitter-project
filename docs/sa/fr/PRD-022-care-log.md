@@ -119,7 +119,7 @@
 
 1. **保母**：任何狀態都可讀自己的日誌。`DRAFT` 且已過 `completed_at + CARE_LOG_EDIT_HOURS` → 畫面標示「已逾期，未送出」（`sitter-care-log-status`），只顯示已暫存的標題、文字與已上傳媒體，無任何輸入與按鈕（BR-5）。
 2. **逾期是時間判斷的衍生結果**：資料庫只存 `DRAFT` / `SUBMITTED`，不寫 `EXPIRED`，不建排程（沿用原 PRD-022 B.2）；API 回應以衍生欄位標示是否逾期與期限時間。
-3. **飼主**：訂單詳情的行程清單中，日誌為 `SUBMITTED` 的行程顯示「查看日誌」（`owner-visit-btn-view-log-{visitId}`），開啟後（`owner-care-log-view`）顯示標題、文字、媒體與說明文字、送出時間（Asia/Taipei `YYYY-MM-DD HH:mm`）。`DRAFT`（含逾期草稿）一律不顯示入口，API 回 404（BR-16）。訂單 `IN_PROGRESS`、`DISPUTED`、`COMPLETED` 皆可查看（沿用原 PRD-009 A.4）。
+3. **飼主**：訂單詳情的行程清單中，日誌為 `SUBMITTED` 的行程顯示「查看日誌」（`owner-order-detail-btn-view-log-{visitId}`），開啟後（`owner-care-log-view`）顯示標題、文字、媒體與說明文字、送出時間（Asia/Taipei `YYYY-MM-DD HH:mm`）。`DRAFT`（含逾期草稿）一律不顯示入口，API 回 404（BR-16）。訂單 `IN_PROGRESS`、`DISPUTED`、`COMPLETED` 皆可查看（沿用原 PRD-009 A.4）。
 4. 媒體檔以授權後產生的短效簽名網址讀取（BR-18）；保留期限與到期後「檔案已逾期移除」提示依 PRD-013。
 5. **ADMIN**：可讀訂單範圍內唯讀查看 `SUBMITTED` 日誌與媒體，無編輯入口。
 
@@ -152,7 +152,7 @@ stateDiagram-v2
 | BR-1 | 照護日誌狀態只持久化 `DRAFT`、`SUBMITTED`；「逾期」為時間衍生，不寫入、不建排程 | 沿用原 PRD-022 B.2、B.3 |
 | BR-2 | 一個行程最多一份日誌（唯一）；首次暫存或首次上傳時建立 `DRAFT`；同時送達只建 1 份 | baseline §6「照護日誌」；沿用原 PRD-022 A.1 |
 | BR-3 | 可編輯的行程狀態：`IN_PROGRESS`，或 `DONE` 且未逾期；`PENDING`（BR 舊稱 `SCHEDULED`，baseline §6 改名）、`CLOSED_BY_SYSTEM`、`CANCELLED` 不可建立 / 編輯 → 409 `VISIT_STATE_CONFLICT`（payload `currentVisitStatus`）。送出只限行程 `DONE`（不論完成來源為保母或 `SYSTEM`，BR-27），`IN_PROGRESS` 送出 → 409 `VISIT_STATE_CONFLICT` | 沿用原 PRD-022 A.2；baseline §6（行程定義定案，CQ-78）、CQ-40；呼叫方交辦主流程定案 2026-11-22；錯誤碼為 baseline §3.7 跨模組碼（CQ-80） |
-| BR-4 | 可編輯的訂單狀態：`IN_PROGRESS`、`DISPUTED`（爭議期間行程照常）；其餘（含 ADMIN 調解後的 `COMPLETED` / `CANCELLED`）→ 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。O11 要求日誌已送出、O12 晚於編輯期限，故一般流程下結案時不會有可編輯的草稿；唯一例外是 O15 調解結案：結案後即使 `DONE` 行程仍在 24h 內，草稿立即鎖定（ADMIN 結案前的「尚有日誌未送出」提示屬 PRD-009） | baseline §3.2 O11、O12、O15、CQ-48、CQ-57；沿用原 PRD-022 例外表「訂單已結案拒絕」；使用者決定 2026-11-22（CQ-16） |
+| BR-4 | 可編輯的訂單狀態：`IN_PROGRESS`、`DISPUTED`（爭議期間行程照常），以及**由 O11 / O12 進入的 `COMPLETED`**（結案不縮短編輯期，仍依 `CARE_LOG_EDIT_HOURS` 判斷，與 PRD-009 BR-25 一致）。由 ADMIN 調解結案（O15 → `COMPLETED`、O17 → `CANCELLED`）或其他原因 `CANCELLED` 的訂單 → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`），即使 `DONE` 行程仍在 24h 內也立即鎖定。ADMIN 調解前「尚有日誌未送出」的提示屬 PRD-020 | baseline §3.2 O11、O12、O15、O17、CQ-48、CQ-57；PRD-009 BR-25（CQ-6）；使用者決定 2026-11-22（CQ-16） |
 | BR-5 | 編輯期限 = `completed_at + CARE_LOG_EDIT_HOURS`（24h）。以伺服器收到請求的時間 `receivedAt` 判斷：`receivedAt ≥ 期限` → 409 `DEADLINE_PASSED`（payload `deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt=<期限>`），適用暫存、上傳、刪除、送出；之後 `DRAFT` 對保母唯讀、對飼主永不可見、不發通知。期限只看 `receivedAt`（上傳耗時不影響）；訂單 / 行程 / 日誌狀態則以交易內鎖後重驗結果為準（例：GCS 上傳期間訂單被 O15 結案 → 409 `ORDER_STATE_CONFLICT`） | baseline §5 `CARE_LOG_EDIT_HOURS`（伺服器收到請求時間判斷）、§3.2「期限一律以時間判斷」、§3.7 期限名稱 `CARE_LOG_EDIT_ENDS_AT` 與 payload（CQ-80）；沿用原 PRD-022 B.2；使用者決定 2026-11-22（CQ-2、CQ-9，已寫入 baseline） |
 | BR-6 | 標題選填，去前後空白後 1–30 字，空白存 null；null 時顯示「{行程日期} 行程」 | BR §5.2「可編輯日誌名稱」；長度與預設顯示：使用者決定 2026-11-22（CQ-4） |
 | BR-7 | 文字日誌最多 1000 字（超過 → 400 `VALIDATION_FAILED`），前端顯示「目前字數 / 1000」且達上限禁止輸入；媒體說明文字選填、最多 100 字 | 沿用原 PRD-022 A.3 |
@@ -252,7 +252,7 @@ stateDiagram-v2
 | 面向 | 內容 |
 |------|------|
 | 資料 | 照護日誌（`visit_service_reports`）：行程（唯一）、標題、文字、狀態 `DRAFT` / `SUBMITTED`、`submitted_at`、`created_by` / `updated_by`、時間戳、`@Version`（最後防線）。日誌媒體（`service_report_media`）：日誌、類型 `IMAGE` / `VIDEO`、GCS 物件鍵、大小、影片時長、說明文字、上傳者、上傳時間；保留到期欄位由 PRD-013 定義。讀取：行程 `status` / `completed_at`（PRD-008）、訂單狀態與媒體額度快照（SD-ORDER）。寫入 `order_logs`（`MEDIA_UPLOADED`、`MEDIA_DELETED`、`CARE_LOG_SUBMITTED`）、`idempotency_keys`。DDL 在 SD-FULFILL |
-| 畫面 | 保母：行程詳情（服務執行面板）的照護日誌區塊。飼主：訂單詳情行程清單的「查看日誌」與日誌檢視。ADMIN：可讀訂單內唯讀檢視。testid：`sitter-care-log-input-title`、`sitter-care-log-input-text`、`sitter-care-log-text-counter`、`sitter-care-log-btn-save`、`sitter-care-log-btn-submit`、`sitter-care-log-deadline`、`sitter-care-log-status`、`sitter-care-log-quota`、`sitter-care-log-btn-upload`、`sitter-care-log-input-file`、`sitter-care-log-input-caption`、`sitter-care-log-media-item-{mediaId}`、`sitter-care-log-btn-delete-media-{mediaId}`、`owner-visit-btn-view-log-{visitId}`、`owner-care-log-view`（命名依 SD-FRONTEND-SPEC §4） |
+| 畫面 | 保母：行程詳情（服務執行面板）的照護日誌區塊。飼主：訂單詳情行程清單的「查看日誌」與日誌檢視。ADMIN：可讀訂單內唯讀檢視。testid：`sitter-care-log-input-title`、`sitter-care-log-input-text`、`sitter-care-log-text-counter`、`sitter-care-log-btn-save`、`sitter-care-log-btn-submit`、`sitter-care-log-deadline`、`sitter-care-log-status`、`sitter-care-log-quota`、`sitter-care-log-btn-upload`、`sitter-care-log-input-file`、`sitter-care-log-input-caption`、`sitter-care-log-media-item-{mediaId}`、`sitter-care-log-btn-delete-media-{mediaId}`、`owner-order-detail-btn-view-log-{visitId}`、`owner-care-log-view`（命名依 SD-FRONTEND-SPEC §4） |
 | 通知 | 日誌送出 → OWNER → 站內（PRD-014「訂單事務」，可關閉）；經 `notifications` outbox 同交易寫入 |
 | 排程 | 無（逾期為時間衍生）。孤兒檔清除排程沿用 baseline §3.6 共用機制；媒體保留排程屬 PRD-013 |
 | 外部服務 | GCS（私有物件；授權、驗證、額度預檢通過後才上傳；交易外；簽名網址 15 分鐘）。影片時長由後端讀取容器 metadata 驗證，檢測方式由 SD-FULFILL 決定 |
@@ -285,6 +285,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | BR-4：O11 / O12 結案不鎖日誌（依編輯期判斷），只有調解結案與取消鎖定；ADMIN 提示歸 PRD-020；「查看日誌」testid 統一為 `owner-order-detail-btn-view-log-{visitId}`（與 PRD-009 一致） | 主流程（跨卡一致性） |
 | 2026-11-22 | CQ-1~17 全部已決（採建議預設值），逐條寫入正文：§3 判斷順序（`VISIT_STATE_CONFLICT` 改標 baseline §3.7 跨模組碼；`CARE_LOG_STATE_CONFLICT` / `CARE_LOG_MEDIA_QUOTA_EXCEEDED` / `CARE_LOG_CONTENT_EMPTY` 維持 SD-FULFILL 模組碼）、§4.3-3（前端 WebP < 1MB、後端仍驗證）、§4.4-3、BR-3~BR-6、BR-9~BR-16、BR-18~BR-21、BR-25、EX-7、EX-8；CQ-2 / CQ-3 / CQ-9 / CQ-10 / CQ-15 改引用 baseline §1.2 / §3.6 / §3.7 / §5（CQ-80、CQ-81）。新增系統逾時轉 `DONE` 情境：§1、§4.2-5、BR-27、EX-27、AC-1.6 併入（AC 數不變，24 條）。表頭引用基準更新為 baseline 第 3 版修訂。狀態維持 In Review | 使用者決定 2026-11-22；baseline 第 3 版修訂 CQ-78、CQ-80、CQ-81 |
 | 2026-11-22 | 依新範本與 DOMAIN-BASELINE 第 2 版全文重寫；三子模組 24 條可觀察 AC；新增日誌標題（BR §5.2）、錯誤判斷順序、訂單狀態條件、`order_logs`、鎖與額度併發、ADMIN 唯讀、送出時建立日誌；效能預算與業務 log 格式移交 NFR；歸屬 SD 改為 SD-FULFILL；狀態 Approved → In Review | 全面重建；呼叫方交辦主流程定案 2026-11-22（行程 `DONE` 先於日誌，baseline CQ-27、CQ-40） |
 | 2026-11-22 | 第 1 輪 #69（狀態）：修改規格內容，狀態退回 In Review | `docs/reviews/00-DOMAIN-BASELINE.prd.review.md` 第 1 輪 |
