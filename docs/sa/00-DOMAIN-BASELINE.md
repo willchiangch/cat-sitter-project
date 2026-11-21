@@ -298,6 +298,7 @@ stateDiagram-v2
   - 需要讀取當下資料才能判斷的上限檢查（例：依目前題目判斷答案字數、後端重算後的 `base_amount` / `total_amount` 上限）雖回 400 `VALIDATION_FAILED`，判斷時點歸在第 12 步。
   - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
 - **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
+- 非業務錯誤：未預期的程式錯誤一律 500 `INTERNAL_ERROR`（不列入判斷順序，回應不含內部細節，帶 `traceId`）。
 - 需要 `Idempotency-Key` 的端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。
 
 模組專屬錯誤碼（例如媒體額度超過、檔案格式）由各模組 SD 定義，命名不得與本表衝突。
