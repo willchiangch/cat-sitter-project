@@ -51,18 +51,24 @@
 
 ## 訂單生命週期 (Order Lifecycle)
 
-8. **`PRD-005-public-booking.md`**: 飼主預約申請 (階段 1: 送出)
-   - 多日/跳日選擇、金額試算、**檔期競爭規則 (允許重疊送單 / 系統不做容量控管，接不接由保母決定)**。
-9. **`PRD-006-order-evaluation.md`**: 保母評估與報價 (階段 2: 報價)
-   - **問卷動態指派 (依保母決策)**、**單價快照鎖定**、**手動調價 (含原因說明)**、移除執行契約 SOP。
-10. **`PRD-007-offline-payment.md`**: 線下憑證上傳與確認 (MVP)
-    - 銀行資訊顯示、**強制線下交易免責聲明**、憑證上傳、狀態轉換 (`PENDING_PAYMENT` -> `PAID` -> `CONFIRMED`)。
+> 2026-11-21 重建：以下訂單交易相關 PRD 依 `docs/sa/00-DOMAIN-BASELINE.md` 重寫，歸屬 SD-ORDER（收款帳號歸 SD-SUPPLY）。
+
+8. **`PRD-005-public-booking.md`**: 公開預約頁與送出預約（O1）
+   - 可預約判斷與門禁、日期群組 / 方案 / 後端試算、月接單上限、緊急單評估期限、自我預約禁止。
+8.1 **`PRD-026-owner-withdraw-booking.md`**: 飼主撤回預約（付款前，O3 OWNER / O6）
+9. **`PRD-006-order-evaluation.md`**: 保母評估、事前問卷與報價（O2）
+   - 問卷子狀態與熟客免填、原價 / PRO+ 手動調價、報價時快照、建立首次收款 payment。
+9.1 **`PRD-027-order-decline-expiry-cancel.md`**: 保母婉拒、評估逾期與付款前保母取消（O3 SITTER / O4 / O7）
+10. **`PRD-007-offline-payment.md`**: 線下付款憑證上傳與核對
+    - payment / submission 共通行為、首次付款期限與提醒、待核對升級、O5 / O8 / O16。
+10.1 **`PRD-025-sitter-payout-account.md`**: 保母收款帳號設定（歸 SD-SUPPLY）
 11. **`PRD-008-service-execution.md`**: 服務執行與多媒體日誌 (階段 4: 執行)
     - **移除簽到簽退 (改以日誌送出完成)**、**影片規格限制 (720p/50MB)**、方案卡控日誌數量、移除 SOP 勾選。
 12. **`PRD-009-order-completion.md`**: 訂單結案與帳務總覽 (階段 5: 結案)
     - 48hr 自動結案、**異常行程自動關閉 (72hr)**、**爭議期撥款凍結/解除機制**、帳務統計。
-13. **`PRD-016-order-modification-cancellation.md`**: 訂單變更與取消退款機制
-    - 雙向發起變更、**依據快照單價計算差額**、行程連動刪除。
+13. **`PRD-016-order-modification-cancellation.md`**: 訂單變更：發起、報價與協商期限
+13.2 **`PRD-023-order-modification-settlement.md`**: 訂單變更：飼主回應、補款、退款與結清（含 O10）
+13.3 **`PRD-024-order-modification-dispute.md`**: 訂單變更：款項爭議（O14）與協商期間的訂單限制
 13.1 **`PRD-022-care-log.md`**: 行程照護日誌與多媒體回報
     - **照護日誌狀態機 (DRAFT -> SUBMITTED)**、**SaaS 四級媒體上傳限制**、**通知與保留策略連動**。
 
