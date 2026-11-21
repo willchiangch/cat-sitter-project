@@ -54,7 +54,7 @@ Apply these 6 professional mindsets during the analysis and writing process:
 - Check existing `schema.sql` or domain models to ensure technical accuracy.
 
 ### Step 3: Document Writing
-- Use the template located at `references/template.md`.
+- Use the template located at `docs/sa/fr/_TEMPLATE.md`（NFR 用 `docs/sa/nfr/_TEMPLATE.md`）.
 - **User Stories**: Write in the format: "As a [Role], I want [Behavior], so that [Purpose]."
 - **State Diagrams**: Use Mermaid syntax to visualize complex state transitions.
 - **Exception Table**: Map error scenarios to specific behaviors and status codes.
@@ -64,7 +64,7 @@ Apply these 6 professional mindsets during the analysis and writing process:
 - Ensure all technical rules (Timezone, Precision, Audit Trail) are addressed.
 
 ## Document Template
-The skill uses the standard template provided in `references/template.md`. Always maintain the structure while filling in the analyzed content.
+The skill uses the standard template provided in `docs/sa/fr/_TEMPLATE.md`（NFR 用 `docs/sa/nfr/_TEMPLATE.md`）. Always maintain the structure while filling in the analyzed content.
 
 ## Example Mermaid State Machine
 ```mermaid

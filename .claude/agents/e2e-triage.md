@@ -25,7 +25,7 @@ model: opus
 
 | 類別 | 判定依據 | 交給誰 |
 | --- | --- | --- |
-| `PRODUCT_BUG` | 規格（docs/prd、docs/sd、docs/test-scenario）說應該 A，系統做了 B | e2e-fixer 改產品碼 |
+| `PRODUCT_BUG` | 規格（docs/sa/fr、docs/sd、docs/test-scenario）說應該 A，系統做了 B | e2e-fixer 改產品碼 |
 | `TEST_BUG` | 系統行為符合規格，是測試 selector/時序/斷言寫錯 | e2e-fixer 改測試 |
 | `CONSISTENCY_WINDOW` | 跨身份讀寫在幾秒內不一致（見 helpers.ts `pollUntil` 註解）；需證明：重查後資料正確 | e2e-fixer 補 poll，不准加 sleep |
 | `ENV` | 部署未完成、冷啟動、Supabase 連線池滿（UAT pool ≤ 2）、外部服務（Resend 測試模式只能寄 entersoal@gmail.com） | 不修 code，回報人 |

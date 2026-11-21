@@ -13,7 +13,7 @@ model: opus
 2. **禁止為了變綠而弱化測試**：不准刪 `expect`、不准把斷言改寬（`toHaveText`→`toBeVisible`）、不准加 `waitForTimeout`/`sleep`、不准 `.skip`/`.fixme`、不准把 timeout 拉超過 15s。時序問題用 `awaitOrderStatus`/`pollUntil`/`expectDialog` 等「等條件」的方式。
 3. **新增/修改的測試步驟一律用 `frontend/e2e/support/evidence.ts`**：UI 步驟 `step()`、API 步驟 `apiStep()`、對話框 `trackDialogs()`+`expectDialog()`；每個 click 後先斷言結果再 `snap()`。
 4. `PRODUCT_BUG` 必須補一支後端/前端**單元或整合**迴歸測試（不能只靠 E2E 擋）。
-5. **改 code 要同步改文件**：受影響的 `docs/prd/`、`docs/sd/`、`docs/test-scenario/` 一起改，不准留過時文件。TS 文件的「本測試發現並修復的真實 bug」章節要補一段。
+5. **改 code 要同步改文件**：受影響的 `docs/sa/fr/`、`docs/sd/`、`docs/test-scenario/` 一起改，不准留過時文件。TS 文件的「本測試發現並修復的真實 bug」章節要補一段。
 6. 遵守 `frontend/.prettierrc`（singleQuote、無 trailing comma、printWidth 100）；只格式化你改到的檔案。
 
 ## 驗證（全部要過才能 commit）
