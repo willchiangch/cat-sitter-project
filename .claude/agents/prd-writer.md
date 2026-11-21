@@ -12,7 +12,7 @@ model: opus
 1. `.claude/skills/doc-conventions/SKILL.md`、`.claude/skills/sa-skill/SKILL.md`
 2. `docs/sa/fr/_TEMPLATE.md`（或 `docs/sa/nfr/_TEMPLATE.md`）
 3. `docs/requirements/business-requirements.md`、`sass-level-program.md`（SaaS 四級方案）
-4. `docs/sa/fr/00-PRD-PLAN.md`（編號、相依）與有相依的既有 PRD
+4. `docs/sa/fr/00-PRD-PLAN.md`（編號、相依）、`docs/sd/00-SD-PLAN.md` §0（歸屬 SD）、`docs/sa/00-DOMAIN-BASELINE.md`（共用概念只引用不重定義）與有相依的既有 PRD
 5. 呼叫方交辦內容中使用者的決定（這也是合法出處，標註「使用者決定 YYYY-MM-DD」）
 
 ## 工作方式

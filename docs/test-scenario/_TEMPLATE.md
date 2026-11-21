@@ -1,48 +1,65 @@
-# TS-XXX: [情境名稱]
+# TS-NNN: [情境名稱]
 
 | 項目 | 內容 |
-| :--- | :--- |
-| **對應需求** | PRD-XXX / NFR-XXX |
-| **測試類型** | ⬜ 功能 (Functional) / ✅ 非功能 (Performance/Security/Resilience) |
-| **自動化狀態** | ⬜ 未自動化 / ✅ 已自動化 |
-| **自動化路徑** | `tests/e2e/xxx.spec.ts` |
+|------|------|
+| 狀態 | Draft |
+| 對應 PRD | PRD-NNN（旅程 TS 列出所有涉及的 PRD） |
+| 對應 SD | SD-XXX（取 API、錯誤碼、testid） |
+| 類型 | 模組（mock 後端）/ 旅程（打真後端） |
+| 自動化路徑 | `frontend/e2e/xxx.spec.ts` 或 `frontend/e2e/journeys/xxx.spec.ts` |
+| 自動化狀態 | ⬜ 未自動化 / ✅ 已自動化 |
+
+> TS 只依 PRD 與 SD 撰寫，**不得參考程式碼**——照程式寫出的 TS 只會把 bug 驗證成規格。
+> 類型選擇：要驗證狀態轉移、權限、冪等、跨角色互動 → 旅程（真後端）；只驗證單一畫面行為與版面 → 模組（mock，且必須 `assertNoUnmockedApi`）。
 
 ---
 
-## 一、 測試邏輯定義 (Given / When / Then)
+## 1. 前置資料
 
-**思維：定義測試發生的背景與預期契約。**
+> 不寫死 UUID。每個 test 自己建資料、可獨立重跑。
 
-* **Given (前置背景)：** * [例如：系統處於 2,000 VUs 的 Constant Load 壓力下]
-    * [例如：DB 已存在該租戶的 1,000 萬筆檢索紀錄]
-* **When (觸發事件)：** * [例如：使用者在 1 秒內連續點擊 3 次「送出檢索」]
-* **Then (預期行為)：** * [例如：系統僅執行 1 次檢索，其餘請求回傳「處理中」，且 API 延遲 < 500ms]
+| 代號 | 角色 | 建立方式 | 狀態 |
+|------|------|---------|------|
+| `owner` | OWNER | `provision-account`（`@e2e-journey.test`） | — |
+| `sitter` | SITTER | `provision-account`，方案 PRO，KYC VERIFIED，已設收款帳號 | — |
+| `order` | — | `owner` 向 `sitter` 預約 → `sitter` 報價 | `PENDING_PAYMENT` |
 
----
+清除：`cleanup-e2e-journeys`（新的資料型態清不掉時列在 §5）。
 
-## 二、 測試步驟與多維度驗證
+## 2. 測試步驟
 
-**思維：除了 UI，更要驗證 DB 狀態、Log 軌跡與性能指標。**
+> 步驟 ID 用 `{前綴}-NN`，e2e spec 的 `step()` / `apiStep()` 標籤必須以同一 ID 開頭，e2e-acceptance 靠它對證據。
+> 「API 斷言」寫具體值（HTTP 狀態、錯誤碼、欄位值），不寫「回應成功」。
 
-| 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術驗證指標 (Then - NFR) |
-| :--- | :--- | :--- | :--- |
-| 1 | [動作描述] | [UI 呈現或業務流程結果] | [API Latency / Status Code / DB State] |
-| 2 | [重複/併發觸發] | [防重機制提示或特定 Error] | [**冪等性驗證**：DB 僅產生單筆變動] |
-| 3 | [模擬相依服務中斷] | [觸發優雅降級或 Fallback 介面] | [Circuit Breaker 紀錄 / Correlation-ID 追蹤] |
+| 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
+|------|----|------|------|---------|---------------|------|
+| P-01 | AC-1.1 | owner | 開啟 `/owner/orders/{order}`，點 `owner-order-btn-upload-proof` | 顯示免責勾選框、後五碼欄位 | — | 截圖 |
+| P-02 | AC-1.1 | owner | 勾免責、填 `12345`、選圖、送出 | 狀態徽章 `owner-order-status-badge` 顯示「待核對」 | `GET /api/orders/{order}` → `status=PAID`、`hasPaymentProof=true` | 截圖 + API JSON |
+| P-03 | EX-2 | owner | 以同一 `Idempotency-Key` 重送 | — | 200、回應與 P-02 相同；`order_logs` 只有 1 筆 `PAYMENT_PROOF_SUBMITTED` | API JSON |
 
----
+## 3. 權限與例外
 
-## 三、 邊界條件 / 例外場景 (Edge Cases)
+> 每個 PRD EX-n 至少一列；越權一律用另一個真實帳號打 API。
 
-**思維：針對極端狀況與安全性進行破壞性測試。**
+| 步驟 | EX / AC | 操作 | 預期 |
+|------|---------|------|------|
+| P-E1 | EX-1 | 另一個 owner 對 `order` 上傳憑證 | 403 `FORBIDDEN`，`order.status` 不變 |
 
-* **併發陷阱：** 模擬不同使用者同時更新同一筆資料，驗證樂觀鎖 (Optimistic Locking) 機制。
-* **資料污染：** 傳入包含 SQL Injection 或 XSS 標籤的 Payload，驗證防禦攔截。
-* **資源極限：** 當 GCP Cloud Run 到達 Auto-scaling 上限時，驗證系統是否仍能回傳正確的 429 或 503 錯誤而非直接掛掉。
+## 4. 不在 E2E 覆蓋的項目
 
----
+| AC / EX | 原因 | 由誰覆蓋 |
+|---------|------|---------|
+| EX-3（GCS 失敗） | 正式站無法注入故障 | 後端整合測試 `XxxIntegrationTest#gcsFailure` |
+| （真實 Email 內容） | Resend 測試模式只寄專案擁有者 | 手動驗證 |
 
-## 四、 附註 / 復原步驟
+## 5. 已知限制 / 待補
 
-* **資料清理：** 測試完成後需清理 Redis/Valkey 緩存或刪除測試資料夾中的 Dummy Data。
-* **環境相依：** 確保 GCP IAM 權限與 Production 環境一致，避免環境差異造成的無效測試。
+## 6. 本測試發現並修復的真實 bug
+
+| 日期 | 步驟 | 現象 | 修正 commit |
+|------|------|------|------------|
+
+## 7. 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|

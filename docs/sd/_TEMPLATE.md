@@ -1,146 +1,156 @@
-# SD-XXX: [功能名稱] 設計文件
+# SD-XXX: [模組名稱] 設計文件
 
 | 項目 | 內容 |
 |------|------|
-| 對應需求 | PRD-XXX |
-| 負責 SD | |
-| 建立日期 | YYYY-MM-DD |
 | 狀態 | Draft |
-| DB 表 | （主要涉及的 table，如 `tb_member`, `cfg_role_func`） |
-| 相依共用設計 | [錯誤回應](shared/error-response.md), [RBAC 權限](shared/permission-rbac.md), [多租戶稽核](shared/audit-tenancy.md), [功能表設計](shared/menu-function.md), [代碼表](shared/code-table.md), [檔案上傳](shared/file-upload.md), [排程設計](shared/cronjob.md), [系統配置](shared/config-system.md), [索引](shared/00-index.md) |
+| 建立日期 | YYYY-MM-DD |
+| 涵蓋 PRD | PRD-NNN、PRD-NNN（每張有效 PRD 恰好屬於一份 SD，對應表見 `00-SD-PLAN.md`） |
+| 擁有的 Table | `xxx`、`yyy`（只有本 SD 能寫；其他 SD 要用就走本 SD 的 Service） |
+| 依賴的 SD | SD-XXX（用到它的哪個 Service / API） |
+| 遵守 | `SD-GLOBAL-SPEC.md`、`SD-FRONTEND-SPEC.md`、`docs/sa/00-DOMAIN-BASELINE.md` |
+
+> SD 依**業務模組**撰寫，一份涵蓋同一個聚合 / 狀態機的多張 PRD。
+> **禁止貼實作程式碼**（Entity、Converter、Listener 全文）。只寫契約、規則、邊界；程式碼以 repo 為準。需要說明時寫類別名 + 一句責任。
 
 ---
 
-## 序列圖
+## 1. AC 對應實作
+
+> 涵蓋 PRD 的每一條 AC 都要出現。
+
+| PRD | AC | API / 畫面 | Table / 欄位 | 鎖 / 交易 | 測試 |
+|-----|----|-----------|-------------|----------|------|
+| PRD-NNN | AC-1.1 | `POST /api/xxx` | `orders.status` | `FOR UPDATE` | `XxxIntegrationTest` |
+
+## 2. 模組邊界
+
+- **負責**：（本模組做什麼）
+- **不負責**：（容易被誤塞進來、但屬於別的 SD 的東西）
+- **對外提供**：（其他 SD 會呼叫的 Service 方法 / 事件）
+
+## 3. 狀態機
+
+> 本模組擁有的實體有狀態時必畫。訂單狀態機的權威版本在 DOMAIN-BASELINE，這裡只畫本模組負責的轉移並標出鎖。
+
+```mermaid
+stateDiagram-v2
+    [*] --> A
+    A --> B: 觸發者 / 動作（前置條件）
+```
+
+| 轉移 | API | 鎖 | 不符時 |
+|------|-----|----|-------|
+| A → B | `POST /api/xxx` | `findByIdForUpdate` | 409 `XXX_STATE_CONFLICT` |
+
+## 4. 流程
+
+> 跨層、呼叫外部服務或有非同步處理的才畫序列圖；單純 CRUD 不畫。必須標出交易邊界，**外部 I/O（GCS、Resend、第三方）不得在 DB 交易內**。
 
 ```mermaid
 sequenceDiagram
     participant FE as 前端
-    participant BE as Spring Boot API
+    participant API as Controller
+    participant SVC as Service
+    participant EXT as GCS
     participant DB as PostgreSQL
-
-    FE->>BE: POST /api/xxx （帶 JWT）
-    BE->>DB: 查詢 / 寫入
-    DB-->>BE: 結果
-    BE-->>FE: ApiResponse<T>
+    FE->>API: POST /api/xxx（JWT, Idempotency-Key）
+    API->>SVC: 角色 / 方案已檢查
+    SVC->>EXT: 上傳（交易外）
+    Note over SVC,DB: @Transactional 開始
+    SVC->>DB: SELECT ... FOR UPDATE
+    SVC->>DB: 更新 + order_logs（同交易）
+    Note over SVC,DB: commit
+    SVC-->>FE: 200
+    Note over SVC: AFTER_COMMIT → 通知
 ```
 
----
+## 5. 資料模型
 
-## 資料模型變更
+### 5.1 遷移
 
-### 新增 / 修改 Table
-
-（無變更請寫「無」）
+- 檔名：`V{現有最大號 + 1}__{snake_case}.sql`
+- 只寫 DDL（CREATE / ALTER / INDEX / CONSTRAINT），附每個索引與約束的理由。
 
 ```sql
--- 新增欄位範例
-ALTER TABLE tb_xxx ADD COLUMN xxx varchar(50) NOT NULL DEFAULT '';
-
--- 新增 table 範例
-CREATE TABLE tb_xxx (
-    org_code    varchar(50) NOT NULL,
-    ...
-    PRIMARY KEY (org_code, ...)
-);
+ALTER TABLE xxx ADD COLUMN yyy INT NOT NULL DEFAULT 0;  -- 金額一律 INT（TWD）
+CREATE UNIQUE INDEX ux_xxx ON xxx (a) WHERE b IS NOT NULL;  -- 理由：
 ```
 
-### log_user_action — 操作日誌寫入規格
-
-> 參考 [多租戶稽核設計 §四](shared/audit-tenancy.md)
-
-每次寫入操作成功後，Service 層需寫入一筆 `log_user_action`：
-
-| 欄位 | 值 |
-|------|----|
-| `func_code` | `（填入對應功能代碼，如 SYS_SET_USER_MGT）` |
-| `action_type` | 首次建立 → `CREATE`；更新既有 → `UPDATE` |
-| `action_result` | `SUCCESS` / `FAIL` |
-| `target_id` | 主鍵值 |
-| `target_table` | 對應 table 名稱 |
-| `client_ip` | 由 `IpContext` 取得 |
-
-### ER Diagram（如有變更）
+### 5.2 ER（有新增 table 或關聯時）
 
 ```mermaid
 erDiagram
-    TB_XXX {
-        varchar org_code
-        integer id PK
-    }
+    ORDERS ||--o{ ORDER_LOGS : has
 ```
 
----
+## 6. API 契約
 
-## API 設計
+### 6.1 總表
 
-> 對應 [docs/api/openapi.yaml](../api/openapi.yaml)
+| Method | Path | 角色 | 方案 | 歸屬檢查 | 冪等 |
+|--------|------|------|------|---------|------|
+| POST | `/api/xxx/{id}/yyy` | OWNER | — | `order.owner == token` | `Idempotency-Key` 必填，重送回放第一次結果 |
 
-| Method | Path | 說明 | 權限（funcCode） |
-|--------|------|------|-----------------|
-| GET | /api/xxx | 查詢 | `FUNC_CODE:CRUD` |
-| POST | /api/xxx | 新增 | `FUNC_CODE:CRUD` |
+### 6.2 `POST /api/xxx/{id}/yyy`
 
-### Request Body
+**Request**
+
+| 欄位 | 型別 | 必填 | 規則 |
+|------|------|------|------|
+| | | | |
+
+**Response 200**
 
 ```json
-{
-  "field1": "string",
-  "field2": 0
-}
+{}
 ```
 
-### Response
+### 6.3 錯誤碼
 
-```json
-{
-  "code": 200,
-  "message": "OK",
-  "data": { }
-}
-```
+| HTTP | code | 情境（對應 PRD EX-n） | 拋出位置 |
+|------|------|----------------------|---------|
+| 400 | `VALIDATION_FAILED` | | `XxxException` |
+| 403 | `FORBIDDEN` | 非本人 | Service 歸屬檢查 |
+| 404 | `NOT_FOUND` | 資源不存在 | |
+| 409 | `XXX_STATE_CONFLICT` | 狀態不允許 | |
 
----
+## 7. 副作用
 
-## 權限設計
+| 觸發 | 稽核（`order_logs` action / payload，與主交易同交易） | 事件（AFTER_COMMIT） | 通知（收件者 / 管道 / 文案） | 失敗處理 |
+|------|------------------------------------------------------|--------------------|---------------------------|---------|
+| | | | | 通知失敗不影響主流程，記 log |
 
-> 參考 [RBAC 權限設計](shared/permission-rbac.md)
+## 8. 外部服務與設定
 
-| 角色 | 功能代碼 | 授權動作 |
-|------|---------|---------|
-| SYS_OP | `FUNC_CODE` | CRUD |
+| 服務 | 用途 | Mock 開關 | 失敗處理 | 設定 / Secret |
+|------|------|----------|---------|--------------|
+| GCS | | `app.storage.mock` | | Secret 不得有預設值 |
 
----
+## 9. 前端
 
-## UX 設計
+| 路由 | 角色 | 狀態（載入 / 空 / 錯誤 / 無權限） | 主要 testid |
+|------|------|--------------------------------|------------|
+| | | | `[role]-[screen]-[element]` |
 
-（說明操作流程、裁切框計算公式、例外顯示規則等行為規格）
+## 10. 測試設計
 
-### 視覺設計
+| 層 | 必測 |
+|----|------|
+| 整合測試 | 每條 AC；越權（真 JWT filter chain）；狀態不允許；冪等重送；併發轉移（兩條執行緒真打）；交易失敗時 `order_logs` 不存在 |
+| E2E | 見 TS-NNN |
+| TS 需要的後端支援 | provision 參數、internal test-data 端點、cleanup |
 
-（待補充截圖或 Figma 連結）
+## 11. 技術決策
 
----
+| 決策 | 選擇 | 捨棄方案與理由 |
+|------|------|---------------|
 
-## 備註
+## 12. 待釐清事項
 
-- **Response message 使用 DataMessageEnum**（參考 [錯誤回應設計](shared/error-response.md)）：
-  - 新增成功 → `DataMessageEnum.MSG_DATA_S11`
-  - 修改成功 → `DataMessageEnum.MSG_DATA_S12`
-  - 查無資料 → `DataMessageEnum.MSG_DATA_F11`
-  - （依實際需求補充其他 enum 值）
-- **tb_func / cfg_role_func 設定**（參考 [功能表設計](shared/menu-function.md)）：
-  - 說明功能代碼是否已存在、是否需新增 `tb_func` 記錄或 `cfg_role_func` 授權初始化
-- **list_code 使用範圍**（參考 [代碼表設計](shared/code-table.md)）：
-  - 後端查詢條件使用常數，不從 `list_code` 動態讀取判斷值
-  - 若前端需顯示類型名稱，說明建議補充哪些 `list_code` 記錄
-- **檔案上傳**（若有，參考 [檔案上傳設計](shared/file-upload.md)）：
-  - 說明使用的 `cfg_upload` 群組（uploadGroupType / uploadSubType）
-  - 若需 PNG 轉檔請確認 `upload_process_type = UPLOAD_IMG`
-  - 若需去背請確認 `upload_setting` 含 `TRANSPARENT=TRUE`
-  - 若需後端圖片加工（如重寫 DPI metadata）說明為何不走 FileController、改用何種方式
-- **排程工作**（若有，參考 [排程設計](shared/cronjob.md)）：
-  - 說明 Job 類別名稱（= `cfg_cronjob.job_proc_name` 首字大寫）
-  - 說明 cron 表達式（5 欄位，最小單位：分鐘）與超時設定
-  - 確認 `cfg_cronjob` INSERT 腳本已納入部署初始化
-- （其他：技術決策原因、已知限制、後續優化方向）
+| CQ | 問題 | 建議預設值 | 狀態 |
+|----|------|-----------|------|
+
+## 13. 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|

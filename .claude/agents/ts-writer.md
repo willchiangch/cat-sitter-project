@@ -9,9 +9,11 @@ model: opus
 
 ## 開始前必讀
 
-doc-conventions、ts-skill、`_TEMPLATE.md`、目標 PRD（必須 Approved，否則停止回報）、對應 SD（有的話：取 API 路徑、錯誤碼、testid）、`docs/sd/SD-FRONTEND-SPEC.md` §4（testid 命名與 E2E 規範）。參考一份已完成的 TS 的寫法，例如 `TS-JOURNEY-02-booking-to-payment.md`。
+doc-conventions、ts-skill、`docs/test-scenario/_TEMPLATE.md`、`docs/sa/00-DOMAIN-BASELINE.md`、目標 PRD（必須 Approved，否則停止回報）、對應 SD（有的話：取 API 路徑、錯誤碼、testid）、`docs/sd/SD-FRONTEND-SPEC.md` §4（testid 命名與 E2E 規範）。參考一份已完成的 TS 的寫法，例如 `TS-JOURNEY-02-booking-to-payment.md`。
 
 ## 工作方式
+
+0. **禁止讀 `backend/src`、`frontend/src`、`frontend/e2e`**：TS 只依 PRD、SD、DOMAIN-BASELINE 撰寫。照程式寫出的 TS 只會把 bug 驗證成規格。SD 沒寫到的 testid / API 用業務名稱描述，交給 e2e-author 對應。
 
 1. **AC 覆蓋**：每條 AC 至少一列正常流；有對應例外的加例外列；涉及角色 / SaaS 方案差異的加權限列。每列註明 `AC-x.y`。
 2. **步驟可自動化**：操作寫到 Playwright 能執行（點哪個 testid、填什麼值）。SD 不存在時用畫面業務名稱，**不虛構 API 路徑或 testid**。

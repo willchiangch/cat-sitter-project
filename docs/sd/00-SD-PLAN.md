@@ -1,5 +1,26 @@
 # 貓咪保母 PWA - SD 設計路徑與計畫
 
+## 0. 模組與 PRD 對應（2026-11-21 起，重建版）
+
+SD 改為依業務模組撰寫，一份涵蓋同一聚合 / 狀態機的多張 PRD（規則見 `.claude/skills/doc-conventions/SKILL.md`）。共用概念（角色、SaaS 額度、訂單狀態機、時間規則）的唯一定義在 `docs/sa/00-DOMAIN-BASELINE.md`。舊 `SD-NNN-*.md` 在對應模組 SD 核准前只作現況參考，核准後改 `Superseded`。
+
+| 模組 SD | 檔案 | 涵蓋 PRD | 擁有的主要 Table | 取代舊 SD | 重建順序 | 狀態 |
+|---------|------|---------|-----------------|----------|---------|------|
+| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016 | `orders`、`order_items`、`order_snapshot`、`modification_requests`、`order_logs`、`idempotency_keys` | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | 未開始 |
+| SD-FULFILL 服務履約 | `SD-FULFILL.md` | PRD-008、009、022 | `visits`、`visit_service_reports`、`service_report_media`、爭議相關 | SD-008、009、022 | 2 | 未開始 |
+| SD-IDENTITY 帳號身分 | `SD-IDENTITY.md` | PRD-000、001 | `users`、`refresh_tokens`、WebAuthn、OTP | SD-000、001 | 3 | 未開始 |
+| SD-TRUST 信任風控 | `SD-TRUST.md` | PRD-010、017、020 | 信任圈、轉介、KYC、信用分數 | SD-010、017、020 | 4 | 未開始 |
+| SD-CARE 照護資料 | `SD-CARE.md` | PRD-002、021、013 | `pets`、照護記事、照護媒體、媒體保存 | SD-002、021、013 | 5 | 未開始 |
+| SD-SUPPLY 保母供給 | `SD-SUPPLY.md` | PRD-003、004、018、019 | `service_plans`、問卷、公開檔案、收款帳號（自 SD-007 移入）、我的最愛 | SD-003、004、007（收款帳號設定）、018、019 | 6 | 未開始 |
+| SD-NOTIFY 通知 | `SD-NOTIFY.md` | PRD-014 | `notifications`、通知偏好 | SD-014 | 7 | 未開始 |
+| SD-BILLING 收費 | `SD-BILLING.md` | PRD-012、015 | `payments`、`payout_records`、訂閱 | SD-015 | 8（延後） | 未開始 |
+| — | — | PRD-011 | — | — | 跳過（使用者決定） | — |
+
+- Table 名稱以重建時實際 schema 為準，本表只示意歸屬；同一 table 不得出現在兩列。
+- 重建順序理由：SD-ORDER 是所有交易資料的匯聚點，鎖、稽核、冪等、交易邊界的共通問題（`reports/rereview/00-sample-SD-007.md` #2–#6）在此一次解決，其餘模組沿用。
+- 以下 §1 之後為舊版規劃，訂單狀態機（§4）將移入 DOMAIN-BASELINE 後刪除。
+
+
 ## 1. 設計戰略：核心向外擴散 (Heart-to-Shell)
 為了極小化架構重工風險，本專案的系統設計 (SD) 並非按照 PRD 編號順序進行，而是優先攻克具備「高併發鎖定」、「複雜狀態機」與「多方資料匯聚」的核心模組。
 

@@ -1,6 +1,6 @@
 ---
 name: sd-architect
-description: 依 Approved 的 PRD 撰寫或修訂模組 SD（docs/sd/SD-NNN），或修訂全域設計（SD-GLOBAL-SPEC / SD-FRONTEND-SPEC / SD-ERD）。由 /sd skill 呼叫。
+description: 依 Approved 的 PRD 與 DOMAIN-BASELINE 撰寫或修訂模組 SD（docs/sd/SD-{MODULE}.md，一份涵蓋多張 PRD），或修訂全域設計（SD-GLOBAL-SPEC / SD-FRONTEND-SPEC / SD-ERD）。由 /sd skill 呼叫。
 tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
 model: opus
 ---
@@ -9,7 +9,7 @@ model: opus
 
 ## 開始前必讀
 
-doc-conventions、sd-skill、`docs/sd/SD-GLOBAL-SPEC.md`、`docs/sd/SD-ERD.md`、目標 PRD（必須 Approved）、對應 TS（有的話）。前端相關再讀 `SD-FRONTEND-SPEC.md`。
+doc-conventions、sd-skill、`docs/sd/_TEMPLATE.md`、`docs/sa/00-DOMAIN-BASELINE.md`、`docs/sd/00-SD-PLAN.md` §0、`docs/sd/SD-GLOBAL-SPEC.md`、`docs/sd/SD-ERD.md`、該模組涵蓋的全部 PRD（必須 Approved）、對應 TS（有的話）、被取代的舊 SD（只當現況參考）。前端相關再讀 `SD-FRONTEND-SPEC.md`。
 
 **不要讀完所有 SD**：用 Grep 查 table 名、API 路徑前綴在哪些 SD 出現，只讀有相依的。實際現況以程式碼為準：`backend/src/main/resources/db/migration/`（最新 V 號）、`backend/src/main/java/com/petsitter/interfaces/controller/`、`docs/api/openapi.json`。
 
@@ -25,8 +25,10 @@ doc-conventions、sd-skill、`docs/sd/SD-GLOBAL-SPEC.md`、`docs/sd/SD-ERD.md`�
 8. **API 契約寫完整**：method、路徑、request / response 欄位、所有錯誤碼（對應 PRD 例外表；寫明由哪個 `application/exception/*Exception` 拋出、`GlobalExceptionHandler` 轉成什麼狀態碼），讓前後端能平行開發。
 9. **前端**：新頁面列路由、狀態（載入 / 空 / 錯誤 / 無權限）、`data-testid`（命名依 FRONTEND-SPEC §4）。
 10. **AC 對應實作表必填**：PRD 每條 AC 一列。
-11. **圖**：跨層或非同步流程畫序列圖；有狀態的實體畫 `stateDiagram-v2`；不畫類圖、不畫 Controller→Service→Repository 分層。
-12. **Cloud Run 限制**：無常駐背景執行緒可依賴；排程走 Cloud Scheduler → `/api/internal/cron/*`（`X-Internal-Secret`）；DB 連線池小（Hikari ≤ 2），避免一個請求內長交易或 N+1。
+11. **禁止貼實作程式碼**：只寫契約、規則、邊界與類別責任；Entity / Converter / Listener 全文不進 SD。
+12. **不重新定義共用概念**：角色、SaaS 額度、訂單狀態、時間起算點引用 DOMAIN-BASELINE；baseline 不夠用時列入待釐清，不在 SD 內自訂。
+13. **圖**：跨層或非同步流程畫序列圖；有狀態的實體畫 `stateDiagram-v2`；不畫類圖、不畫 Controller→Service→Repository 分層。
+14. **Cloud Run 限制**：無常駐背景執行緒可依賴；排程走 Cloud Scheduler → `/api/internal/cron/*`（`X-Internal-Secret`）；DB 連線池小（Hikari ≤ 2），避免一個請求內長交易或 N+1。
 
 ## 共通
 

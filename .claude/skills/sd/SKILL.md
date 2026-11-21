@@ -1,7 +1,7 @@
 ---
 name: sd
-description: 依 Approved 的 PRD 撰寫或修訂模組 SD、修訂全域設計，或做技術 PoC。用法：/sd <SD-NNN> | /sd global <主題> | /sd poc <主題>
-argument-hint: "<SD-NNN> | global <主題> | poc <主題>"
+description: 依 Approved 的 PRD 撰寫或修訂模組 SD、修訂全域設計，或做技術 PoC。用法：/sd <SD-MODULE> | /sd global <主題> | /sd poc <主題>
+argument-hint: "<SD-MODULE> | global <主題> | poc <主題>"
 disable-model-invocation: true
 ---
 
@@ -9,10 +9,11 @@ disable-model-invocation: true
 
 參數：`$ARGUMENTS`
 
-- **`/sd <SD-NNN>`**：
-  1. 關卡：對應 PRD 必須 Approved。TS 不存在時提醒（建議先 `/ts`，TS 會暴露 SD 該補的 testid 與 provision 需求），問使用者是否仍要繼續。
-  2. 派 sd-architect，輸出 `docs/sd/SD-NNN-{slug}.md`，同步更新 `SD-ERD.md`、`00-SD-PLAN.md`。
-  3. 回報：摘要、新增 table / API / 遷移檔、AC 覆蓋數、需要使用者決策的技術選擇（附推薦）。下一步：`/sd-review SD-NNN`。
+- **`/sd <SD-MODULE>`**（例 `/sd SD-ORDER`）：
+  1. 關卡：`docs/sa/00-DOMAIN-BASELINE.md` 必須 Approved；`00-SD-PLAN.md` §0 列出的該模組 PRD 必須全部 Approved（未 Approved 的列給使用者，不得納入）。TS 不存在時提醒，問是否仍要繼續。
+  2. 派 sd-architect，輸出 `docs/sd/SD-{MODULE}.md`；舊 `SD-NNN-*.md` 只當現況參考，不得整段照搬。同步更新 `SD-ERD.md`。
+  3. 回報：摘要、AC 覆蓋數 / 總數、新增 table / API / 遷移檔、從舊 SD 刻意捨棄的設計與理由、需要使用者決策的技術選擇（附推薦）。下一步：`/sd-review SD-{MODULE}`。
+  4. 新 SD 核准後，由主流程把被取代的舊 `SD-NNN-*.md` 狀態改 `Superseded`（註明取代者），並更新各 PRD 表頭「歸屬 SD」。
 
 - **`/sd global <主題>`**：修訂 `SD-GLOBAL-SPEC.md` / `SD-FRONTEND-SPEC.md` / `SD-ERD.md` 中的共用規則（例：金流 webhook 簽章、冪等鍵、通知管道）。派 sd-architect，回報受影響的既有 SD 清單（用 Grep 找引用處）。
 

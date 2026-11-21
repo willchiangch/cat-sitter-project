@@ -12,7 +12,9 @@ user-invocable: false
 |------|------|----|------|
 | 功能需求 | `docs/sa/fr/PRD-NNN-{kebab-slug}.md` | `PRD-NNN` | `docs/sa/fr/_TEMPLATE.md`、`sa-skill` |
 | 非功能需求 | `docs/sa/nfr/NN-{TOPIC}.md` | `NFR-NN` | `docs/sa/nfr/_TEMPLATE.md`、`sa-nfr-skill` |
-| 模組設計 | `docs/sd/SD-NNN-{kebab-slug}.md` | `SD-NNN` | `docs/sd/_TEMPLATE.md`、`sd-skill` |
+| 模組設計 | `docs/sd/SD-{MODULE}.md`（例 `SD-ORDER.md`） | `SD-{MODULE}` | `docs/sd/_TEMPLATE.md`、`sd-skill` |
+| 舊版模組設計 | `docs/sd/SD-NNN-{slug}.md` | `SD-NNN` | 重建期間僅作參考；新模組 SD 核准後狀態改 `Superseded` 並註明取代者 |
+| 領域基準 | `docs/sa/00-DOMAIN-BASELINE.md` | `BASELINE` | 角色矩陣、SaaS 額度、訂單狀態機、金流、時間規則的唯一定義 |
 | 全域設計 | `docs/sd/SD-GLOBAL-SPEC.md`、`SD-FRONTEND-SPEC.md`、`SD-ERD.md` | — | 取代 LEDA 的 `shared/*`，新的共用規則寫進這三份 |
 | 測試情境 | `docs/test-scenario/TS-NNN-{kebab-slug}.md` | `TS-NNN` | `docs/test-scenario/_TEMPLATE.md`、`ts-skill` |
 | 跨模組旅程 | `docs/test-scenario/TS-JOURNEY-NN-{slug}.md` | `TS-JOURNEY-NN` | 同上，自動化路徑 `frontend/e2e/journeys/*.spec.ts` |
@@ -21,7 +23,9 @@ user-invocable: false
 | 實作審查報告 | `reports/code-review/{yyyyMMdd-HHmm}-sd-nnn.md` | — | code-reviewer 輸出 |
 | E2E 執行紀錄 | `.e2e-runs/{yyyyMMdd-HHmm}/` | — | e2e-runner / triage / fixer / acceptance |
 
-- **PRD / SD / TS 同號 1:1**：`PRD-022` ↔ `SD-022` ↔ `TS-022`。例外寫在 PRD 表頭「對應 SD」（例：PRD-020 主流程 B/C/D 分屬 SD-017/SD-009；PRD-011、PRD-012 無 SD）。
+- **PRD ↔ TS 同號 1:1**：`PRD-022` ↔ `TS-022`。跨模組旅程另用 `TS-JOURNEY-NN`。
+- **SD 依業務模組撰寫，一份涵蓋多張 PRD**：每張有效 PRD 恰好屬於一份 SD，對應表以 `docs/sd/00-SD-PLAN.md` §0「模組與 PRD 對應」為準；PRD 表頭「歸屬 SD」須與之一致。一張 PRD 的子流程分屬不同模組時，拆 PRD 而不是讓兩份 SD 共用一張 PRD。
+- 模組 SD 擁有自己的 table（表頭「擁有的 Table」），其他 SD 只能透過它的 Service / API 存取。
 - 新編號 = 現有最大號 + 1；廢棄編號不重用。
 - 表頭是 Markdown 表格（`| 狀態 | ... |`），不是 YAML front matter。
 
@@ -50,7 +54,7 @@ Draft → In Review → Needs Clarification ⇄ In Review → Approved → Super
 ## 追溯規則
 
 - PRD 每條 AC → TS「二、測試步驟」至少一列（列的說明欄註明 `AC-x.y`）。
-- PRD 每條 AC → SD 對應段落（API / 資料表 / 狀態機）；SD 新寫或大改時加「AC 對應實作」表：`| AC | API / 頁面 | Table | 備註 |`。
+- PRD 每條 AC → 所屬模組 SD 的「AC 對應實作」表（必填，範本 §1）。
 - AC → 後端測試：新測試 `@DisplayName` 以 `PRD-NNN AC-x.y` 開頭。舊測試不強制改名。
 - TS → spec：TS 表頭「自動化路徑」必須指向存在的 `frontend/e2e/**/*.spec.ts`；spec 的 `step()` 標籤以 TS 步驟編號開頭（例 `B-06`），供 e2e-acceptance 對應。
 - **改 code 同步改文件**：牽動 AC、API 契約、資料表、狀態機的變更，同一個 commit 更新對應 PRD / SD / TS。刻意偏離原設計時把決策理由寫進 SD。
