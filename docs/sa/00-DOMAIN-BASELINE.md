@@ -3,12 +3,12 @@
 | 項目 | 內容 |
 |------|------|
 | 狀態 | In Review |
-| 前次核准 | 使用者，2026-11-21（第 2 版修訂中：依訂單 PRD 重寫回饋補充，見 §7 CQ-58~66） |
+| 前次核准 | 使用者，2026-11-21（第 2 版修訂中：依訂單 PRD 重寫回饋補充，見 §7 CQ-58~67） |
 | 建立日期 | 2026-11-21 |
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
 | 適用 | 所有 PRD / SD / TS。本文件定義的概念，其他文件只能引用、不得重新定義；要改就改這份並走核准 |
 
-> §7 CQ-1~66 已全部由使用者決定（2026-11-21）。第 1 版已核准；CQ-58~66 為 PRD 重寫時發現的缺口，補充後待使用者再次核准。
+> §7 CQ-1~67 已全部由使用者決定（2026-11-21）。第 1 版已核准；CQ-58~67 為 PRD 重寫時發現的缺口，補充後待使用者再次核准。
 > 「現況」欄是 2026-11-21 程式碼的實際行為，只當證據，不代表正確。
 > 標「提案值」的參數（`URGENT_WINDOW_HOURS` 2h、排程頻率 15 分鐘、CLOSED_BY_SYSTEM 計價）已隨核准確認。
 
@@ -34,7 +34,7 @@
 
 | 資源 | 可讀 | 可寫 |
 |------|------|------|
-| 訂單 | 該訂單的 owner 與 sitter；ADMIN 唯讀 `DISPUTED` 訂單與有逾期待辦的訂單（CQ-18） | 依 §3 轉移表的觸發者 |
+| 訂單 | 該訂單的 owner 與 sitter；ADMIN 唯讀 `DISPUTED` 訂單與有 OPEN 待辦的訂單（CQ-18） | 依 §3 轉移表的觸發者 |
 | 毛孩 | owner；與該 owner 有過任何狀態訂單的 sitter | owner（照護備註依 PRD-021 協作規則） |
 | 保母方案、問卷、公開檔案 | 公開資訊匿名可讀 | 該 sitter |
 | 保母收款帳號 | 該 sitter；收款帳號在 payment 建立時快照，該 payment 的付款方可讀快照（CQ-23）；ADMIN 於可讀訂單範圍內唯讀快照（CQ-66） | 該 sitter |
@@ -122,7 +122,7 @@ stateDiagram-v2
 | O8 | `PENDING_PAYMENT` → `CANCELLED` | SYSTEM | `now ≥ due_at` 且 payment 為 `UNPAID` | payment → VOID；通知雙方 | — |
 | O16 | `PENDING_PAYMENT` → `CANCELLED` | ADMIN（作廢） | 首次收款 payment 為 `SUBMITTED` 且有 OPEN 的付款待核對 ADMIN 待辦。**ADMIN 不能代為確認收款**（CQ-43） | payment → VOID；待辦 RESOLVED；通知雙方：款項由雙方自行處理 | 409 `PAYMENT_STATE_CONFLICT`（鎖定後重驗失敗）；待辦已關閉 → 403 `FORBIDDEN` |
 | O9 | `CONFIRMED` → `IN_PROGRESS` | SITTER（開始行程）/ SYSTEM（殭屍清理） | 任一行程 `PENDING → IN_PROGRESS` 或 `PENDING → CLOSED_BY_SYSTEM`，同一交易（CQ-28）；因變更而 `CANCELLED` 不觸發（CQ-56） | — | — |
-| O10 | `CONFIRMED` → `CANCELLED` | SYSTEM | 變更請求結束（SETTLED，或補款 EXPIRED 後系統退款 SETTLED）後，訂單已無有效行程（CQ-41） | — | — |
+| O10 | `CONFIRMED` → `CANCELLED` | SYSTEM | 變更請求結束（SETTLED；補款 EXPIRED 且不需系統退款；或補款 EXPIRED 後系統退款 SETTLED）後，訂單已無有效行程（CQ-41） | — | — |
 | O11 | `IN_PROGRESS` → `COMPLETED` | OWNER（確認結案） | 所有行程為 `DONE`（日誌已送出）或 `CLOSED_BY_SYSTEM`（CQ-27）；無未結束變更 | — | 409 `VISITS_NOT_FINISHED` / `MODIFICATION_IN_PROGRESS` |
 | O12 | `IN_PROGRESS` → `COMPLETED` | SYSTEM（自動結案） | 所有行程為 `DONE` 或 `CLOSED_BY_SYSTEM`（**不看日誌**，CQ-40）；無未結束變更；`now ≥ completion_basis_at + AUTO_COMPLETE_HOURS` | — | — |
 | O13 | `IN_PROGRESS` → `DISPUTED` | OWNER（回報問題） | 同 O12 的行程條件；無未結束變更（CQ-17）；`now < completion_basis_at + DISPUTE_WINDOW_HOURS` | 暫停自動結案；ADMIN 待辦 | 409 |
@@ -227,12 +227,13 @@ stateDiagram-v2
 
 | 情境 | `questionnaire_status` | 送單時 |
 |------|----------------------|-------|
-| 飼主是熟客（與該保母有過 `COMPLETED` 訂單，CQ-6） | `NOT_REQUIRED` | 不顯示問卷 |
-| 保母沒有啟用中的題目 | `NOT_REQUIRED` | 不顯示問卷 |
+| 飼主是熟客（與該保母有過 `COMPLETED` 訂單，CQ-6） | `NOT_REQUIRED`，`questionnaire_exempt_reason = REGULAR_OWNER` | 不顯示問卷 |
+| 保母沒有啟用中的題目 | `NOT_REQUIRED`，`questionnaire_exempt_reason = NO_ACTIVE_QUESTIONS` | 不顯示問卷 |
 | 其他 | `COMPLETED` | 必須作答全部必填題，答案連同題目文字與題型快照到訂單 |
 
 - 沒有「保母事後要求問卷」的流程，也沒有保母自訂的永久免填名單（CQ-59）。
 - 之後保母修改題目不影響既有訂單的答案快照。
+- 兩種免填同時成立時記 `REGULAR_OWNER`；作答時 `questionnaire_exempt_reason` 為 null（CQ-67）。
 
 ### 3.6 轉移規則（所有模組共用）
 
@@ -336,7 +337,7 @@ stateDiagram-v2
 
 ## 7. 決定紀錄
 
-全部由使用者於 2026-11-21 決定。CQ-58~66 來自訂單 PRD 重寫（PRD-005/006/007/016/023~027）。CQ-1~8 為初稿提出；CQ-9~28、CQ-40~49 來自 prd 審查，CQ-29~36、CQ-50~57 來自 sd 審查（`docs/reviews/00-DOMAIN-BASELINE.{prd,sd}.review.md` 第 1、2 輪）。
+全部由使用者於 2026-11-21 決定。CQ-58~67 來自訂單 PRD 重寫（PRD-005/006/007/016/023~027）。CQ-1~8 為初稿提出；CQ-9~28、CQ-40~49 來自 prd 審查，CQ-29~36、CQ-50~57 來自 sd 審查（`docs/reviews/00-DOMAIN-BASELINE.{prd,sd}.review.md` 第 1、2 輪）。
 
 | CQ | 問題 | 決定 | 落在 |
 |----|------|------|------|
@@ -402,6 +403,7 @@ stateDiagram-v2
 | CQ-63 | 未設收款帳號能否報價 | 不能，422 `PAYOUT_ACCOUNT_REQUIRED` | O2、§3.7 |
 | CQ-64 | 補款待核對 72h 起算點 | 目前這筆 submission 的上傳時間；駁回後重傳重新起算 | O14 |
 | CQ-65 | 取消時行程與 payment | 同交易轉 `CANCELLED` / `VOID` | §3.2 |
+| CQ-67 | 免填原因無從分辨（PRD-006 CQ-10） | 送單時寫入 `questionnaire_exempt_reason` | §3.5 |
 | CQ-66 | 鎖定期間變更計價；ADMIN 讀收款帳號快照；O14 / O16 / 方向不符錯誤碼 | 依 FREE 規則計價；ADMIN 可唯讀；錯誤碼見 O14、O16、§3.7 | §1.2、§3.2、§3.7 |
 
 ---
@@ -410,7 +412,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
-| 2026-11-21 | 第 2 版修訂：§3.5 改為送單時填問卷；O1 綁定毛孩與問卷；O2 加月額度與收款帳號檢查；O14 / O16 錯誤碼；取消類操作的期限例外；取消共同附帶動作；鎖定期間計價；§3.7 增刪錯誤碼；狀態退回 In Review | 訂單 PRD 重寫回饋 + 使用者決定（CQ-58~66） |
+| 2026-11-21 | 第 2 版修訂：§3.5 改為送單時填問卷；O1 綁定毛孩與問卷；O2 加月額度與收款帳號檢查；O14 / O16 錯誤碼；取消類操作的期限例外；取消共同附帶動作；鎖定期間計價；§3.7 增刪錯誤碼；狀態退回 In Review | 訂單 PRD 重寫回饋 + 使用者決定（CQ-58~66）；CQ-67 免填原因、O10 補款逾時無退款路徑、ADMIN 可讀範圍用詞統一為「OPEN 待辦」 |
 | 2026-11-21 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 依 CQ-40~57 改寫 §3–§5：新增 O16（ADMIN 作廢）、O17（爭議無服務 → CANCELLED）、O14 擴及 CONFIRMED、有效行程定義、期限以時間判斷、DISPUTED 凍結、補款逾時重算（CQ-53）、`escalate_at` / `completion_basis_at` / `expires_at`、`admin_tasks`、outbox = notifications、錯誤碼補至 24 個；狀態改 In Review | 第 2 輪 prd / sd 審查 + 使用者決定（CQ-43、CQ-54 修改建議，CQ-53 選定，其餘採建議） |
 | 2026-11-21 | 依 CQ-9~36 決定改寫 §1–§6：主狀態轉移表 O1–O15、payments / submissions 模型、變更子流程含撤回 / 逾時 / 退款爭議、緊急單期限公式、跨模組錯誤碼表、轉移共用規則（鎖、版本、outbox、冪等細則、排程）；狀態改 In Review | 第 1 輪 prd / sd 審查 + 使用者決定（CQ-10、CQ-27 修改建議，其餘採建議） |
