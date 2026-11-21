@@ -62,15 +62,13 @@
 10. **`PRD-007-offline-payment.md`**: 線下付款憑證上傳與核對
     - payment / submission 共通行為、首次付款期限與提醒、待核對升級、O5 / O8 / O16。
 10.1 **`PRD-025-sitter-payout-account.md`**: 保母收款帳號設定（歸 SD-SUPPLY）
-11. **`PRD-008-service-execution.md`**: 服務執行與多媒體日誌 (階段 4: 執行)
-    - **移除簽到簽退 (改以日誌送出完成)**、**影片規格限制 (720p/50MB)**、方案卡控日誌數量、移除 SOP 勾選。
-12. **`PRD-009-order-completion.md`**: 訂單結案與帳務總覽 (階段 5: 結案)
-    - 48hr 自動結案、**異常行程自動關閉 (72hr)**、**爭議期撥款凍結/解除機制**、帳務統計。
+11. **`PRD-008-service-execution.md`**: 行程生命週期：開始、結束、系統關閉與行程檢視（歸 SD-FULFILL）
+11.1 **`PRD-028-visit-sop-checklist.md`**: 行程單日 SOP 檢核項（歸 SD-FULFILL）
+12. **`PRD-009-order-completion.md`**: 結案、服務爭議與保母帳務總覽（歸 SD-FULFILL；O11–O13 API 由 SD-ORDER 提供）
 13. **`PRD-016-order-modification-cancellation.md`**: 訂單變更：發起、報價與協商期限
 13.2 **`PRD-023-order-modification-settlement.md`**: 訂單變更：飼主回應、補款、退款與結清（含 O10）
 13.3 **`PRD-024-order-modification-dispute.md`**: 訂單變更：款項爭議（O14）與協商期間的訂單限制
-13.1 **`PRD-022-care-log.md`**: 行程照護日誌與多媒體回報
-    - **照護日誌狀態機 (DRAFT -> SUBMITTED)**、**SaaS 四級媒體上傳限制**、**通知與保留策略連動**。
+13.1 **`PRD-022-care-log.md`**: 照護日誌與多媒體（歸 SD-FULFILL；結束行程後 24h 內送出、媒體額度依報價快照）
 
 ## 進階系統與平台模組 (Advanced)
 
