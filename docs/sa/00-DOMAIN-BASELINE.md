@@ -112,7 +112,7 @@ stateDiagram-v2
 
 | # | 從 → 到 | 觸發者 | 前置條件 | 附帶動作 | 不符時 |
 |---|---------|-------|---------|---------|-------|
-| O1 | → `PENDING` | OWNER | 方案在可預約區間（CQ-68）；最後一個行程日期 ≤ 今天 + 365 天、`base_amount` ≤ 999,999（CQ-74）；非自己的保母頁（CQ-25）；保母未鎖定、未達月上限；首個行程日期 ≥ 今天（Asia/Taipei）；每個日期群組至少綁定 1 隻本人的毛孩（CQ-60）；需填問卷時已全部作答（§3.5） | 建立行程；寫 `review_expires_at`（§5）、`questionnaire_status` 與答案快照（§3.5） | 422 `SELF_BOOKING_NOT_ALLOWED` / `MONTHLY_QUOTA_REACHED` / `INVALID_VISIT_DATE`；403 `SUBSCRIPTION_LOCKED` |
+| O1 | → `PENDING` | OWNER | 方案在可預約區間（CQ-68）；最後一個行程日期 ≤ 今天 + 365 天、`base_amount` ≤ 999,999（CQ-74）；非自己的保母頁（CQ-25）；保母未鎖定、未達月上限；首個行程日期 ≥ 今天（Asia/Taipei）；每個日期群組至少綁定 1 隻本人的毛孩（CQ-60）；需填問卷時已全部作答（§3.5） | 建立行程；寫 `review_expires_at`（§5）、`questionnaire_status` 與答案快照（§3.5） | 422 `SELF_BOOKING_NOT_ALLOWED` / `MONTHLY_QUOTA_REACHED` / `INVALID_VISIT_DATE`；403 `SUBSCRIPTION_LOCKED`；模組碼見 PRD-005 §5 |
 | O2 | `PENDING` → `PENDING_PAYMENT` | SITTER | `now < review_expires_at`；首個行程日期 ≥ 今天（CQ-45）；`total_amount ≥ 1`（CQ-26）；FREE / BASIC 無調整；保母未鎖定；未達月上限（CQ-62）；已設定收款帳號（CQ-63） | 快照（§2.2）；建立首次收款 payment（UNPAID，寫 `due_at`、`escalate_at`、收款帳號快照）；已過提醒點時隨報價通知一併提醒 | 409 `DEADLINE_PASSED` / `FIRST_VISIT_DATE_PASSED`；422 `INVALID_QUOTE_AMOUNT` / `MONTHLY_QUOTA_REACHED` / `PAYOUT_ACCOUNT_REQUIRED`；403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED` |
 | O3 | `PENDING` → `CANCELLED` | SITTER（婉拒，需原因）/ OWNER（撤回） | — | 可附轉介（PRD-010） | — |
 | O4 | `PENDING` → `CANCELLED` | SYSTEM | `now ≥ review_expires_at`（CQ-12） | 通知雙方 | — |
@@ -243,7 +243,7 @@ stateDiagram-v2
 | 鎖 | 改變訂單主狀態、payment、變更請求、行程狀態的操作，先 `SELECT ... FOR NO KEY UPDATE` 鎖訂單列，`SET LOCAL lock_timeout = '3s'`；逾時 → 409 `ORDER_BUSY` + `Retry-After: 1`（CQ-50）。子實體一律透過鎖父訂單序列化；其他模組（例如 SD-FULFILL 改行程）必須呼叫 SD-ORDER 提供的鎖入口 |
 | 版本 | 實體保留 `@Version` 作為最後防線；不接受客戶端傳入 version。畫面過期時以關鍵值比對（例：客戶端帶 `expectedAmount`，與目前值不符 → 409 `PRICE_CHANGED`）（CQ-35） |
 | 稽核 | 每次轉移寫一筆 `order_logs`（action、操作者、payload），**與狀態變更同一交易**（不使用 `REQUIRES_NEW`） |
-| 通知 | **不可關閉的類別**：付款提醒、付款逾期取消、憑證駁回、ADMIN 作廢、收款帳號變更（帳號安全）；其餘依 PRD-014 偏好（CQ-73）。outbox = `notifications` 表（歸 SD-NOTIFY）：轉移交易內呼叫 `NotificationService.enqueue()`（`MANDATORY` 交易傳播）寫入站內通知與投遞欄位；Email 由排程搶單寄送，Resend 帶 `Idempotency-Key = notification.id`，最多 5 次指數退避，4xx 直接判失敗（CQ-33、CQ-52） |
+| 通知 | **不可關閉的類別**：付款提醒（含併入報價通知的提醒）、付款逾期取消、憑證駁回、ADMIN 作廢、收款帳號變更（帳號安全）；其餘依 PRD-014 偏好（CQ-73）。outbox = `notifications` 表（歸 SD-NOTIFY）：轉移交易內呼叫 `NotificationService.enqueue()`（`MANDATORY` 交易傳播）寫入站內通知與投遞欄位；Email 由排程搶單寄送，Resend 帶 `Idempotency-Key = notification.id`，最多 5 次指數退避，4xx 直接判失敗（CQ-33、CQ-52） |
 | 冪等 | 會被重試的寫入操作帶 `Idempotency-Key`，範圍 = （使用者, HTTP method + 路由樣板, key）。保存 request hash（multipart = 各欄位值 + 檔案 SHA-256）。同 key 同 hash 重送 → 回放第一次的狀態碼與 body（2xx 與 409 / 422 業務錯誤會記錄；5xx 與 `ORDER_BUSY` 不記錄，可重試；body 不含簽名網址等時效性資料）；同 key 不同 hash → 422 `IDEMPOTENCY_KEY_REUSED`；處理中（`locked_until = now + 30s` 未過）→ 409 `IDEMPOTENCY_IN_PROGRESS`，過期可被接手（CQ-51）；有效期 `IDEMPOTENCY_KEY_TTL_HOURS`，以 `expires_at > now()` 判斷 |
 | 外部 I/O | GCS 上傳、寄信、第三方呼叫不得在持有訂單鎖的交易內；上傳先於交易，交易失敗時刪除已上傳物件，另有孤兒檔清除排程 |
 | 排程 | Cloud Scheduler → `/api/internal/cron/*`；先唯讀查出候選，再逐筆以獨立交易處理（鎖住後重驗條件，`SKIP LOCKED`），一筆失敗不影響其他筆；可重跑 |
@@ -295,6 +295,7 @@ stateDiagram-v2
   11. 409 `VISIT_ALREADY_STARTED`、`PRICE_CHANGED`
   12. 422 業務規則（含模組碼）
   13. 403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED`
+  - 需要讀取當下資料才能判斷的上限檢查（例：依目前題目判斷答案字數、後端重算後的 `base_amount` / `total_amount` 上限）雖回 400 `VALIDATION_FAILED`，判斷時點歸在第 12 步。
   - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
 - **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
 - 需要 `Idempotency-Key` 的端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。
@@ -429,7 +430,7 @@ stateDiagram-v2
 | CQ-70 | 多錯誤同時成立的判斷順序 | 見 §3.7 判斷順序 | §3.7 |
 | CQ-71 | `DEADLINE_PASSED` payload 三卡三種寫法 | `deadline` = 期限名稱，`deadlineAt` = 時間值 | §3.7 |
 | CQ-72 | 收款帳號快照未要求加密 | 與即時帳號同樣加密，金鑰無預設值 | §3.3 |
-| CQ-73 | 哪些通知不可關閉 | 付款提醒、逾期取消、駁回、作廢、收款帳號變更 | §3.6 |
+| CQ-73 | 哪些通知不可關閉 | 付款提醒（含併入報價通知的提醒）、**付款**逾期取消、憑證駁回、ADMIN 作廢、收款帳號變更；評估逾期（O4）等其他通知依偏好 | §3.6 |
 | CQ-74 | 預約日期與金額上限 | 最遠今天 + 365 天；單筆 ≤ 999,999 | O1、§4 |
 | CQ-75 | 修改收款帳號是否重新驗證身分 | MVP 不要求，改後立即發不可關閉的通知 | §3.6（PRD-025） |
 | CQ-76 | 判斷順序修正：冪等回放須在認證後；權限類 403 應先於狀態類 409；`MODIFICATION_*` 內部順序與 `VISIT_ALREADY_STARTED` 位置（PRD-016 CQ-11） | 見 §3.7 判斷順序 | §3.7 |
