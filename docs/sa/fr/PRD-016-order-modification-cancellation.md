@@ -225,6 +225,21 @@
 | 排程 | 有：變更逾時（每 15 分鐘，`now ≥ expires_at`，鎖住後重驗，BASELINE §3.6、§5） |
 | API | 飼主發起、保母發起、保母報價、保母拒絕、撤回、查詢變更（含歷史，`created_at` 倒序）；契約在 SD-ORDER |
 
+
+**E2E 選擇器（testid，2026-11-22 補充，SD-ORDER CQ-10）**
+
+| 元素 | testid |
+|------|--------|
+| 變更類型選擇（CHANGE / CANCEL_ALL） | `order-modify-type-{type}` |
+| 要減少的行程勾選 | `order-modify-visit-checkbox-{visitId}` |
+| 新增行程列 | `order-modify-add-item-{index}` |
+| 原因輸入 | `order-modify-input-reason` |
+| 送出變更 | `order-modify-btn-submit` |
+| 協商頁差額 / 期限 | `modification-detail-diff`、`modification-detail-expires-at` |
+| 保母報價 / 拒絕 / 拒絕原因 | `modification-btn-quote`、`modification-btn-reject`、`modification-input-reject-reason` |
+| 撤回 | `modification-btn-withdraw` |
+| 變更歷史列 / 空狀態 | `modification-history-item-{modificationId}`、`modification-history-empty` |
+
 ## 10. 待釐清事項
 
 | CQ | 問題 | 建議預設值 | 狀態 |
@@ -279,3 +294,4 @@
 | 2026-11-21 | 審查第 1 輪 #14：變更歷史依 `created_at` 倒序、無變更時顯示「尚無變更紀錄」（§4.6、§9、AC-3.5） | 審查第 1 輪 #14 |
 | 2026-11-21 | BASELINE CQ-69：BR-2 補「至少 1 個 `PENDING` 行程」，否則 409 `MODIFICATION_NOT_ALLOWED`（T1、EX-23、AC-1.4）；原 AC-1.2「`CANCEL_ALL` 已無 `PENDING` → 422」改為 409 `MODIFICATION_NOT_ALLOWED`；BR-24 `MODIFICATION_EMPTY` 限空 `CHANGE` 與報價時的 `CANCEL_ALL`；CQ-2 說明同步 | BASELINE 第 2 版 §3.4、CQ-69 |
 | 2026-11-21 | 待釐清 CQ-8~10 已決並寫入正文；新增 CQ-11（判斷順序同層先後）Open；狀態 Needs Clarification → In Review | 使用者決定 2026-11-21；審查第 1 輪 |
+| 2026-11-22 | §9 補 E2E testid（SD-ORDER CQ-10，屬畫面識別補充，不改規格） | 主流程 |

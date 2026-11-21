@@ -57,7 +57,7 @@ erDiagram
 
 ### 2.2 訂單交易（SD-ORDER，2026-11-22 重建，DDL 以 `SD-ORDER.md` §5 為準）
 
-> 狀態機與共用概念以 `docs/sa/00-DOMAIN-BASELINE.md` §3 為準。舊的 `settlement_status`、`paid_at`、`payout_at`、`adjustment_reason`、`is_disputed`、訂單層付款憑證欄位已移除（遷移 `V20261122_01` / `_02`）。
+> 狀態機與共用概念以 `docs/sa/00-DOMAIN-BASELINE.md` §3 為準。舊的 `settlement_status`、`paid_at`、`payout_at`、`adjustment_reason`、`is_disputed`、訂單層付款憑證欄位已移除（遷移 `V20261122_01__order_rebuild.sql`，一支到位）。
 - **ORDER**（`orders`）
   - `status`: VARCHAR（`PENDING` / `PENDING_PAYMENT` / `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` / `COMPLETED` / `CANCELLED`，baseline §3.1）
   - 金額（INT，TWD）：`base_amount`（後端重算）、`surcharge_amount`、`discount_amount`、`pricing_notes`、`total_amount`（報價前 NULL；目前生效的合約總額，只在報價、變更 SETTLED、補款逾時重算時改）

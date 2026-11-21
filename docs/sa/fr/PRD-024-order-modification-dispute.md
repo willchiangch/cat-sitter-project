@@ -176,6 +176,15 @@
 | 通知 | O14 → 另一方（站內 + Email）；ADMIN 只經待辦清單（`type=MODIFICATION_PAYMENT_DISPUTE`）得知，不寄 Email（BR-4）；調解作廢 `SUBMITTED` 補款 → 雙方「此筆補款由雙方自行處理」 |
 | 排程 | 無新增；既有自動結案排程（PRD-009）需判斷「有未結束變更」與 `completion_basis_at`（§4.5） |
 
+
+**E2E 選擇器（testid，2026-11-22 補充，SD-ORDER CQ-10）**
+
+| 元素 | testid |
+|------|--------|
+| 申報款項爭議入口 | `modification-btn-payment-dispute` |
+| 爭議說明輸入 / 送出 | `payment-dispute-input-description`、`payment-dispute-btn-submit` |
+| 可申報時間提示（未滿 72h） | `payment-dispute-available-at` |
+
 ## 10. 待釐清事項
 
 | CQ | 問題 | 建議預設值 | 狀態 |
@@ -190,6 +199,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | §9 補 E2E testid（SD-ORDER CQ-10，屬畫面識別補充，不改規格） | 主流程 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 建立：由原 PRD-016 拆出款項爭議、DISPUTED 凍結、協商期間結案限制、訂閱鎖定不擋變更 | 原 PRD-016 依 DOMAIN-BASELINE 重寫並拆卡（子模組 > 3） |
 | 2026-11-21 | 第 1 輪 #53、第 2 輪 PRD 衝突 #5：原 PRD-016 備註「飼主長時間未確認可發起爭議」改為 O14——OWNER / SITTER 任一方、`CONFIRMED` / `IN_PROGRESS`、`AWAITING_REFUND` 或補款 `SUBMITTED` 72h 未核對（子模組 1） | 第 1 輪 #53、第 2 輪 #5、CQ-30、CQ-41、CQ-42 |

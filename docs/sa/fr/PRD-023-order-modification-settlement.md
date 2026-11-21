@@ -210,6 +210,15 @@
 | 通知 | 同意（三分支）→ SITTER，補款分支另通知 OWNER 金額與期限（`due_at` 前不另發提醒，BR-20）；拒絕 → SITTER；補款確認 → 雙方「補款已確認，變更已生效」；補款逾時 → 雙方，系統退款 → SITTER；退款確認 → 雙方；O10 → 雙方。管道：站內 + Email（outbox，BASELINE §3.6；範本見 PRD-014） |
 | 排程 | 有：補款逾時（每 15 分鐘，`payments.due_at`、`purpose=SUPPLEMENT`、`UNPAID`，`now ≥ due_at`，鎖住後重驗） |
 
+
+**E2E 選擇器（testid，2026-11-22 補充，SD-ORDER CQ-10）**
+
+| 元素 | testid |
+|------|--------|
+| 飼主同意 / 拒絕 | `modification-btn-accept`、`modification-btn-reject` |
+| 協商頁差額 | `modification-detail-diff` |
+| 補款 / 退款憑證區塊 | 沿用 PRD-007 §9 的付款區塊 testid |
+
 ## 10. 待釐清事項
 
 | CQ | 問題 | 建議預設值 | 狀態 |
@@ -223,6 +232,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | §9 補 E2E testid（SD-ORDER CQ-10，屬畫面識別補充，不改規格） | 主流程 |
 | 2026-11-22 | BR-21 例句改為 403 `FORBIDDEN`，與 EX-15 / AC-3.6 及 baseline CQ-76 一致（核准後修訂，SD-ORDER CQ-1） | 使用者核准 2026-11-22 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 建立：由原 PRD-016 拆出飼主同意 / 拒絕、補款、退款、結清後主狀態 | 原 PRD-016 依 DOMAIN-BASELINE 重寫並拆卡（子模組 > 3）；處理 `docs/reviews/00-DOMAIN-BASELINE.prd.review.md` 第 1 輪 #45–#49、#51 中屬於結清的部分 |

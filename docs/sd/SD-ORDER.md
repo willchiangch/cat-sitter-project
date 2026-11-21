@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft（第一階段：核心設計；API 契約細節、副作用文案、前端、測試設計於第二階段補齊後改 In Review） |
+| 狀態 | In Review |
 | 建立日期 | 2026-11-22 |
 | 涵蓋 PRD | PRD-005、PRD-006、PRD-007、PRD-016、PRD-023、PRD-024、PRD-026、PRD-027（全部 Approved 2026-11-22；對應表見 `00-SD-PLAN.md` §0） |
 | 擁有的 Table | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`、`idempotency_records`（只有本 SD 能寫；其他 SD 走本 SD 的 Service） |
@@ -12,13 +12,12 @@
 
 > 共用概念（角色、SaaS 額度、訂單主狀態 O1–O17、付款 / 變更子流程、時間起算點、錯誤碼與判斷順序）一律引用 DOMAIN-BASELINE（下稱 baseline），本文件不重新定義。
 > 禁止貼實作程式碼；類別只寫名稱與一句責任。DDL 為契約的一部分，照寫。
-> 本文件的「第二階段」標記代表該段落尚未完成，不得據以實作。
 
 ---
 
 ## 1. AC 對應實作
 
-> 8 張 PRD 共 **156 條 AC**（PRD-005 24、PRD-006 20、PRD-007 24、PRD-016 24、PRD-023 22、PRD-024 16、PRD-026 8、PRD-027 18）。API 欄以 §2.3 端點代號（E*、C*）與路徑表示，request / response 細節於第二階段 §6 補齊。「訂單鎖」= §3.6.1 `OrderLockService.lockForTransition`（`FOR NO KEY UPDATE` + `lock_timeout 3s`）；「排程鎖」= `tryLockForCron`（`SKIP LOCKED`）；「三段式」= §3.6.2 冪等流程。測試欄的整合測試類別為第二階段要建立的新測試，`@DisplayName` 以 `PRD-NNN AC-x.y` 開頭。
+> 8 張 PRD 共 **156 條 AC**（PRD-005 24、PRD-006 20、PRD-007 24、PRD-016 24、PRD-023 22、PRD-024 16、PRD-026 8、PRD-027 18）。API 欄以 §2.3 端點代號（E*、C*）與路徑表示，request / response 與錯誤碼見 §6。「訂單鎖」= §3.6.1 `OrderLockService.lockForTransition`（`FOR NO KEY UPDATE` + `lock_timeout 3s`）；「排程鎖」= `tryLockForCron`（`SKIP LOCKED`）；「三段式」= §3.6.2 冪等流程。測試欄的整合測試類別為新建測試（§10.3），`@DisplayName` 以 `PRD-NNN AC-x.y` 開頭。
 
 ### 1.1 PRD-005 公開預約頁與送出預約
 
@@ -29,8 +28,8 @@
 | PRD-005 | AC-1.3 隱藏與全域黑名單同文案 | E31 `bookability=UNAVAILABLE`；E1 403 `SITTER_NOT_BOOKABLE`（`reason=UNAVAILABLE`，回應欄位一致） | 讀 SD-SUPPLY 公開狀態、SD-IDENTITY 門禁、SD-BILLING 等級 | 無 | `BookingIntegrationTest` |
 | PRD-005 | AC-1.4 方案黑 / 白名單依等級生效 | E31 方案清單依門禁與當下等級過濾；E1 422 `PLAN_NOT_BOOKABLE` | 同上 | 無 | `BookingContextIntegrationTest`、`BookingIntegrationTest` |
 | PRD-005 | AC-1.5 全域白名單 | E31 / E1 同 AC-1.3 | 同上 | 無 | `BookingIntegrationTest` |
-| PRD-005 | AC-1.6 訂閱鎖定與 ADMIN 停權 | E31 `bookability=LOCKED`；E1 403 `SUBSCRIPTION_LOCKED`（判斷順序第 13 步） | 讀 SD-BILLING / SD-TRUST | 無 | `BookingIntegrationTest` |
-| PRD-005 | AC-1.7 每月接單上限 | E31 `bookability=QUOTA_REACHED`；E1 422 `MONTHLY_QUOTA_REACHED` | `orders.confirmed_at`（`ix_orders_sitter_confirmed`，Asia/Taipei 自然月） | 無（不做容量鎖，送單不佔額度） | `BookingIntegrationTest` |
+| PRD-005 | AC-1.6 訂閱鎖定與 ADMIN 停權 | E31 `bookability=PAUSED`；E1 403 `SUBSCRIPTION_LOCKED`（判斷順序第 13 步） | 讀 SD-BILLING / SD-TRUST | 無 | `BookingIntegrationTest` |
+| PRD-005 | AC-1.7 每月接單上限 | E31 `bookability=PAUSED`（不揭露原因）；E1 422 `MONTHLY_QUOTA_REACHED` | `orders.confirmed_at`（`ix_orders_sitter_confirmed`，Asia/Taipei 自然月） | 無（不做容量鎖，送單不佔額度） | `BookingIntegrationTest` |
 | PRD-005 | AC-1.8 角色不符與預約自己 | E31 `bookability=SELF`；E1 403 `ROLE_MISMATCH` / 422 `SELF_BOOKING_NOT_ALLOWED` | — | 無 | `BookingIntegrationTest`、`OrderIdentitySecurityTest` |
 | PRD-005 | AC-2.1 日期群組組合與試算 | 前端試算；E1 後端重算 `base_amount` | `orders.base_amount`、`order_items` | 交易 B | `BookingIntegrationTest`；TS-005 |
 | PRD-005 | AC-2.2 日期上下限 | E1 422 `INVALID_VISIT_DATE`（payload 日期）；畫面日期停用 | `order_items.service_dates` | 無 | `BookingIntegrationTest` |
@@ -47,7 +46,7 @@
 | PRD-005 | AC-3.5 新客戶填寫問卷 | E1 201 `questionnaireStatus=COMPLETED` | `order_answers`（題目文字、題型、答案快照） | 交易 B | `BookingQuestionnaireIntegrationTest` |
 | PRD-005 | AC-3.6 問卷畫面過期與格式 | E1 409 `QUESTIONNAIRE_CHANGED` / 400 `questionId` | `order_answers` | 無 | `BookingQuestionnaireIntegrationTest` |
 | PRD-005 | AC-3.7 熟客與無題目免填 | E1 `NOT_REQUIRED` + `questionnaire_exempt_reason` | `orders.questionnaire_exempt_reason`（`ix_orders_owner_sitter_completed`） | 無 | `BookingQuestionnaireIntegrationTest` |
-| PRD-005 | AC-3.8 送單附帶：我的最愛與通知 | E1；`NotificationService.enqueue()`；AFTER_COMMIT 呼叫 SD-SUPPLY `FavoriteSitterService.addIfAbsent` | `notifications`（SD-NOTIFY） | enqueue 同交易；我的最愛 commit 後獨立短交易 | `BookingSideEffectIntegrationTest` |
+| PRD-005 | AC-3.8 送單附帶：我的最愛與通知 | E1；`NotificationService.enqueue()`；commit 後由協調者呼叫 SD-SUPPLY `FavoriteSitterService.addIfAbsent` | `notifications`（SD-NOTIFY） | enqueue 同交易；我的最愛 commit 後獨立短交易 | `BookingSideEffectIntegrationTest` |
 
 ### 1.2 PRD-006 保母訂單評估與報價
 
@@ -256,7 +255,7 @@
 | `OrderLifecycleService` | `onVisitFinished(order)`：行程轉 `DONE` / `CLOSED_BY_SYSTEM` 後重算 `completion_basis_at`（§3.1.3） | `MANDATORY`，須已持有訂單鎖 |
 | `OrderQueryService` | `getParticipants(orderId)`、`hasAnyOrderBetween(sitterId, ownerId)`、`getMediaQuota(orderId)`（快照額度與保留天數） | 唯讀 |
 
-SD-FULFILL 必須提供給本 SD（依賴，第二階段與 SD-FULFILL 對齊簽名）：`VisitCommandService.createVisits(order, items)`、`cancelPendingVisits(orderId)`、`cancelVisits(orderId, visitIds)`、`closeZombieVisits(orderId, now)`；`VisitQueryService.listEffectiveVisits(orderId)`（狀態、`service_date`、`plan_id`、`completed_at`、`closed_at`、日誌是否已送出）。以上寫入方法皆 `MANDATORY`，由本 SD 在持有訂單鎖的交易內呼叫。
+SD-FULFILL 必須提供給本 SD：`VisitCommandService`（`createVisits`、`cancelPendingVisits`、`cancelVisits`、`closeZombieVisits`）與 `VisitQueryService`（`listVisits`、`findOrderIdsWithZombieVisits`），簽名見 §2.4.2。以上寫入方法皆 `MANDATORY`，由本 SD 在持有訂單鎖的交易內呼叫。
 
 #### 2.3.2 給 SD-SUPPLY：收款帳號查詢依賴（本 SD 呼叫，SD-SUPPLY 實作）
 
@@ -267,14 +266,14 @@ SD-FULFILL 必須提供給本 SD（依賴，第二階段與 SD-FULFILL 對齊簽
 
 #### 2.3.3 給 SD-NOTIFY：`NotificationService.enqueue()` 依賴（本 SD 呼叫，SD-NOTIFY 實作）
 
-- 簽名（第二階段與 SD-NOTIFY 對齊）：`enqueue(NotificationCommand)`，欄位 = 收件者 userId、收件角色、通知類型代碼、是否不可關閉（`mandatory`）、連結（訂單 / 變更詳情）、範本參數。
+- 簽名見 §2.4.2：`enqueue(NotificationCommand)`，欄位 = 收件者 userId、收件角色、通知類型代碼（§7.2）、是否不可關閉（`mandatory`）、連結、範本參數。
 - 傳播 `MANDATORY`：必須在本 SD 的轉移交易內呼叫；轉移回滾則通知一併回滾。
 - `mandatory=true` 的類別（baseline §3.6、CQ-73）：付款提醒（含併入報價通知的提醒）、付款逾期取消（O8）、憑證駁回、ADMIN 作廢（O16）。其餘依 PRD-014 偏好，由 SD-NOTIFY 判斷是否排 Email。
 - Email 寄送、Resend `Idempotency-Key = notification.id`、最多 5 次指數退避、4xx 直接失敗：全歸 SD-NOTIFY 排程（§8.1 C11 只列依賴）。
 
 #### 2.3.4 給 PRD-009 / PRD-020 畫面（及其他畫面）呼叫的端點清單
 
-> 端點代號供 §1、§3、§8 引用；request / response / 錯誤碼完整契約於第二階段 §6 補齊。
+> 端點代號供 §1、§3、§8 引用；request / response / 錯誤碼完整契約見 §6。
 
 | 代號 | Method | Path | 角色 | 轉移 / 用途 | 呼叫畫面 |
 |------|--------|------|------|------------|---------|
@@ -320,6 +319,52 @@ SD-FULFILL 必須提供給本 SD（依賴，第二階段與 SD-FULFILL 對齊簽
 | `OrderSnapshotService` | `extendMediaRetention(orderId, days)`：PRD-013 升級展延（規則由 SD-CARE 判斷，本 SD 只寫值） | SD-CARE |
 | `OrderQueryService` | `hasActiveOrder(userId)`（非 `COMPLETED` / `CANCELLED`） | SD-IDENTITY（註銷）、SD-CARE（毛孩刪除） |
 
+### 2.4 跨模組介面簽名
+
+> 只寫契約（方法、參數、回傳、交易傳播、例外）；型別名稱為介面的一部分，實作以 repo 為準。`MANDATORY` = 呼叫端必須已在交易中，否則拋 `IllegalTransactionStateException`（程式錯誤，500）。
+
+#### 2.4.1 本 SD 實作、其他 SD 呼叫
+
+| 介面 / 方法 | 參數 | 回傳 | 傳播 | 例外 |
+|------------|------|------|------|------|
+| `OrderLockService.lockForTransition` | `UUID orderId` | `LockedOrder`（唯讀檢視：`orderId`、`status`、`ownerId`、`sitterId`；不暴露 Entity，其他模組無法直接改訂單） | `MANDATORY` | `OrderException(NOT_FOUND)`；`OrderBusyException`（`lock_timeout` 3s 逾時，SQLSTATE 55P03） |
+| `OrderLockService.tryLockForCron` | `UUID orderId` | `Optional<LockedOrder>`（`SKIP LOCKED` 鎖不到或不存在 → 空） | `MANDATORY` | 無 |
+| `OrderLifecycleService.onVisitLeftPending` | `LockedOrder order`、`UUID visitId`、`VisitExitCause cause`（`STARTED` / `CLOSED_BY_SYSTEM`）、`Actor actor`（`role`、`userId`，SYSTEM 時 `userId=null`） | `OrderStatus`（呼叫後的主狀態） | `MANDATORY`；`order` 必須是同一交易內由 `OrderLockService` 發出的檢視，否則 `IllegalStateException` | 無業務例外（主狀態非 `CONFIRMED` 時不轉移） |
+| `OrderLifecycleService.onVisitFinished` | `LockedOrder order` | 無 | 同上 | 無 |
+| `OrderQueryService.getParticipants` | `UUID orderId` | `OrderParticipants`（`ownerId`、`sitterId`、`status`） | `SUPPORTS`（唯讀） | `OrderException(NOT_FOUND)` |
+| `OrderQueryService.hasAnyOrderBetween` | `UUID sitterId`、`UUID ownerId` | `boolean`（任何狀態） | `SUPPORTS` | 無 |
+| `OrderQueryService.hasActiveOrder` | `UUID userId` | `boolean`（非 `COMPLETED` / `CANCELLED`） | `SUPPORTS` | 無 |
+| `OrderQueryService.isDeclinedBySitter` | `UUID orderId`、`UUID sitterId` | `boolean` | `SUPPORTS` | 無 |
+| `OrderQueryService.isRegularOwner` | `UUID ownerId`、`UUID sitterId` | `boolean` | `SUPPORTS` | 無 |
+| `OrderQueryService.countConfirmedInMonth` | `UUID sitterId`、`YearMonth monthTaipei` | `int` | `SUPPORTS` | 無 |
+| `OrderQueryService.getNetPaid` | `UUID orderId` | `int` | `SUPPORTS` | `OrderException(NOT_FOUND)` |
+| `OrderQueryService.getMediaQuota` | `UUID orderId` | `Optional<MediaQuotaSnapshot>`（`planTier`、`maxPhotos`、`maxVideos`、`mediaRetentionDays`；報價前為空） | `SUPPORTS` | 無 |
+| `OrderSnapshotService.extendMediaRetention` | `UUID orderId`、`int newRetentionDays`（-1 = 永久） | 無 | `REQUIRED` | `OrderException(NOT_FOUND)`；只延長不縮短，較短值忽略 |
+
+#### 2.4.2 其他 SD 實作、本 SD 呼叫
+
+| 實作 SD | 介面 / 方法 | 參數 | 回傳 | 傳播 | 例外 |
+|--------|------------|------|------|------|------|
+| SD-FULFILL | `VisitCommandService.createVisits` | `LockedOrder order`、`List<VisitSpec> specs`（`orderItemId`、`planId`、`serviceDate`、`sequenceInDay` 1–3） | `List<UUID>` 新行程 id（狀態 `PENDING`） | `MANDATORY` | 無業務例外 |
+| SD-FULFILL | `VisitCommandService.cancelPendingVisits` | `LockedOrder order`、`OffsetDateTime now` | `List<UUID>` 被取消的行程 | `MANDATORY` | 無 |
+| SD-FULFILL | `VisitCommandService.cancelVisits` | `LockedOrder order`、`Set<UUID> visitIds`、`OffsetDateTime now` | 無 | `MANDATORY` | `VisitNotPendingException(Set<UUID> visitIds)`：任一非 `PENDING`，整批不改；本 SD 轉為 409 `VISIT_ALREADY_STARTED`（payload `visitIds`） |
+| SD-FULFILL | `VisitCommandService.closeZombieVisits` | `LockedOrder order`、`OffsetDateTime now`、`Duration zombieAfter` | `List<UUID>` 被關閉的行程（`CLOSED_BY_SYSTEM`，寫 `closed_at`） | `MANDATORY` | 無 |
+| SD-FULFILL | `VisitQueryService.listVisits` | `UUID orderId` | `List<VisitView>`（`visitId`、`orderItemId`、`planId`、`serviceDate`、`status`、`completedAt`、`closedAt`、`careLogSubmitted`） | `SUPPORTS` | 無 |
+| SD-FULFILL | `VisitQueryService.findOrderIdsWithZombieVisits` | `LocalDate maxServiceDate`（= `(now − VISIT_ZOMBIE_HOURS)` 換算 Asia/Taipei 的日期）、`int limit` | `List<UUID>` 訂單 id | `SUPPORTS` | 無 |
+| SD-SUPPLY | `PayoutAccountQuery.isConfigured` | `UUID sitterId` | `boolean` | `SUPPORTS` | 無 |
+| SD-SUPPLY | `PayoutAccountQuery.getSnapshot` | `UUID sitterId` | `Optional<PayoutAccountSnapshot>`（`bankCode`、`branch`、`accountNumber`、`accountName`；單次讀同一筆紀錄；`toString` 遮罩） | `SUPPORTS`，不取鎖 | 無 |
+| SD-SUPPLY | `ServicePlanQuery.findForBooking` | `UUID sitterId`、`Set<UUID> planIds` | `List<PlanView>`（`planId`、`sitterId`、`title`、`unitPrice`、`active`、`deleted`、`bookableFrom`、`bookableTo`、`petTypes`） | `SUPPORTS` | 無 |
+| SD-SUPPLY | `SitterQuestionQuery.listActive` | `UUID sitterId` | `List<QuestionView>`（`questionId`、`text`、`type`、`options`、`required`、`sortOrder`） | `SUPPORTS` | 無 |
+| SD-SUPPLY | `PublicProfileQuery.isVisible` | `UUID sitterId` | `boolean` | `SUPPORTS` | 無 |
+| SD-SUPPLY | `FavoriteSitterService.addIfAbsent` | `UUID ownerId`、`UUID sitterId` | `boolean`（是否新增；已存在或已達 50 位上限回 false） | `REQUIRED`（由本 SD 協調者在主交易 commit 後另開短交易呼叫） | 任何例外由本 SD 吞掉只記 log |
+| SD-NOTIFY | `NotificationService.enqueue` | `NotificationCommand`（`recipientUserId`、`recipientRole` OWNER / SITTER、`type`（§7.2 類型代碼）、`mandatory`、`linkPath`、`params` Map） | `UUID` notification id | `MANDATORY` | 無業務例外；DB 例外使主交易回滾 |
+| SD-BILLING | `SubscriptionQuery.current` | `UUID sitterId` | `SubscriptionStatus`（`tier`、`locked`：訂閱逾期或停權） | `SUPPORTS` | 無 |
+| SD-TRUST | `SitterStandingQuery.get` | `UUID sitterId` | `SitterStanding`（`kycStatus`、`suspended`） | `SUPPORTS` | 無 |
+| SD-IDENTITY | `GatekeeperQuery.evaluate` | `UUID sitterId`、`UUID viewerId`（匿名為 null）、`PlanTier tier` | `GatekeeperResult`（`globallyBlocked`、`hiddenPlanIds`）；名單依 PRD-005 BR-6 / BR-7 只在對應等級生效 | `SUPPORTS` | 無 |
+| SD-CARE | `PetQuery.findForBooking` | `Set<UUID> petIds` | `List<PetView>`（`petId`、`ownerId`、`deleted`、`type`） | `SUPPORTS` | 無 |
+
+- `PlanPolicy`（本 SD，`application/service/order`）：包裝 `SubscriptionQuery`，提供 `requireAdjustmentAllowed(sitterId)`（FREE / BASIC 或鎖定 → `OrderException(PLAN_REQUIRED)`）、`modificationPricingMode(sitterId)`（`SYSTEM_ONLY` / `CUSTOM_ALLOWED`）、`requireNotLocked(sitterId)`（→ `SUBSCRIPTION_LOCKED`）、`quotaLimit(sitterId)`。只在判斷順序第 13 步（或業務規則步驟中需要的位置）由 Service 呼叫。
+
 ---
 
 ## 3. 狀態機
@@ -349,7 +394,7 @@ stateDiagram-v2
 
 #### 3.1.1 轉移表
 
-例外類別（`application/exception/`）：`OrderException`（帶 `OrderErrorCode`，`GlobalExceptionHandler` 依 code 對映 HTTP 狀態與 payload）、`OrderBusyException`（409 `ORDER_BUSY` + `Retry-After: 1`）、`IdempotencyException`（422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`）、`StorageUnavailableException`（503 `STORAGE_UNAVAILABLE`）。角色不符由 `@PreAuthorize` 擋下後 `GlobalExceptionHandler` 回 403 `ROLE_MISMATCH`；非當事人由 Service 拋 `AccessDeniedException` → 403 `FORBIDDEN`。下表「不符時」只列狀態 / 業務類錯誤碼，401 / 403 / 404 / 400 / 冪等類各端點共通，依 baseline §3.7 判斷順序。
+例外類別（`application/exception/`）：`OrderException`（帶 `OrderErrorCode`，`GlobalExceptionHandler` 依 code 對映 HTTP 狀態與 payload）、`OrderBusyException`（409 `ORDER_BUSY` + `Retry-After: 1`）、`IdempotencyException`（422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`）、`StorageUnavailableException`（503 `STORAGE_UNAVAILABLE`）。角色不符由 `@PreAuthorize` 擋下後 `GlobalExceptionHandler` 回 403 `ROLE_MISMATCH`；非當事人由 Service 拋 `OrderException(FORBIDDEN)` → 403 `FORBIDDEN`（§6.1）。下表「不符時」只列狀態 / 業務類錯誤碼，401 / 403 / 404 / 400 / 冪等類各端點共通，依 baseline §3.7 判斷順序。
 
 | # | 轉移 | 觸發 | 鎖 | 同交易附帶 | 不符時（依判斷順序） |
 |---|------|------|----|-----------|---------------------|
@@ -364,11 +409,11 @@ stateDiagram-v2
 | O16 | `PENDING_PAYMENT → CANCELLED` | E16（ADMIN，原因 1–200 字） | 鎖前授權（payment 為 INITIAL 且有 OPEN 待辦，否則 403 `FORBIDDEN`）；訂單鎖後重驗 | payment `SUBMITTED → VOID`（submission 維持 `SUBMITTED`）；取消共同附帶動作；待辦 RESOLVED（`ADMIN_VOIDED`）；`PAYMENT_VOIDED_BY_ADMIN`；enqueue 雙方（`mandatory`） | 403 `FORBIDDEN`（鎖前）→ 409 `PAYMENT_STATE_CONFLICT`（鎖後重驗失敗） |
 | O9 | `CONFIRMED → IN_PROGRESS` | SD-FULFILL 開始行程 / C7 殭屍清理 → `onVisitLeftPending` | 訂單鎖（由 SD-FULFILL 或 C7 取得） | `ORDER_STARTED`（payload 帶觸發行程與 cause）；因變更而 `CANCELLED` 不觸發 | 不適用（訂單非 `CONFIRMED` 時只更新行程） |
 | O10 | `CONFIRMED → CANCELLED` | 隨 E23（差額 0）/ E14（T7、T10）/ C6（補款逾時且不需系統退款） | 沿用觸發者已持有的訂單鎖 | 取消共同附帶動作；`cancelled_by=SYSTEM`、`cancel_reason_code=MODIFICATION`；另寫一列 `ORDER_CANCELLED_BY_MODIFICATION`（payload `modificationId`、`initiatedBy`）；enqueue 雙方 | 不適用（條件不成立即維持 `CONFIRMED`） |
-| O11 | `IN_PROGRESS → COMPLETED` | E25（OWNER） | 訂單鎖 | `completed_by=OWNER`、`completed_at`；`ORDER_COMPLETED` | 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_IN_PROGRESS` → 409 `VISITS_NOT_FINISHED`（順序見 §12 CQ-6） |
+| O11 | `IN_PROGRESS → COMPLETED` | E25（OWNER） | 訂單鎖 | `completed_by=OWNER`、`completed_at`；`ORDER_COMPLETED` | 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_IN_PROGRESS` → 409 `VISITS_NOT_FINISHED`（CQ-6 已決） |
 | O12 | `IN_PROGRESS → COMPLETED` | C8（SYSTEM） | 排程鎖 | `completed_by=SYSTEM`；`ORDER_COMPLETED` | 重驗不符 → 略過 |
-| O13 | `IN_PROGRESS → DISPUTED` | E26（OWNER） | 訂單鎖 | `disputed_at`；建 `SERVICE_DISPUTE` 待辦（§12 CQ-5）；`SERVICE_DISPUTE_OPENED` | 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_IN_PROGRESS` → 409 `VISITS_NOT_FINISHED` → 409 `DEADLINE_PASSED`（視窗已過，期限名稱見 §12 CQ-5） |
+| O13 | `IN_PROGRESS → DISPUTED` | E26（OWNER） | 訂單鎖 | `disputed_at`；建 `SERVICE_DISPUTE` 待辦（CQ-5 已決）；`SERVICE_DISPUTE_OPENED` | 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_IN_PROGRESS` → 409 `VISITS_NOT_FINISHED` → 409 `DEADLINE_PASSED`（`deadline=DISPUTE_WINDOW_ENDS_AT`） |
 | O14 | `CONFIRMED` / `IN_PROGRESS → DISPUTED` | E24（OWNER / SITTER，說明 1–500 字） | 訂單鎖 | `disputed_at`；建 `MODIFICATION_PAYMENT_DISPUTE` 待辦（`payment_id` = 退款或補款 payment）；`PAYMENT_DISPUTE_OPENED`（payload 含說明）；enqueue 另一方；不通知 ADMIN | 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_STATE_CONFLICT`（無 `AWAITING_*`）→ 409 `PAYMENT_STATE_CONFLICT`（補款非 `SUBMITTED`；未滿 72h 帶 `disputeAvailableAt`） |
-| O15 | `DISPUTED → COMPLETED` | E29（ADMIN） | 訂單鎖 | 剩餘 `PENDING` 行程取消；未結束變更 → `REJECTED` + `ended_at`；`UNPAID` payment → `VOID`；`SUBMITTED` 退款依 `exported` → `VOID`（+ 等額 `ADMIN_ADJUSTMENT`）；`SUBMITTED` 補款 → `VOID`；可登記一筆手動 `ADMIN_ADJUSTMENT`（≤ 已收淨額，附依據）；所有 OPEN 待辦 RESOLVED（`ADMIN_MEDIATED`）；`completed_by=ADMIN`；`ORDER_MEDIATED` | 409 `ORDER_STATE_CONFLICT` → 409 `VISITS_NOT_FINISHED`（有 `IN_PROGRESS` 行程，§12 CQ-7）→ 400（`SUBMITTED` 退款未標 `exported`）→ 422（調解金額超過已收淨額，§12 CQ-7） |
+| O15 | `DISPUTED → COMPLETED` | E29（ADMIN） | 訂單鎖 | 剩餘 `PENDING` 行程取消；未結束變更 → `REJECTED` + `ended_at`；`UNPAID` payment → `VOID`；`SUBMITTED` 退款依 `exported` → `VOID`（+ 等額 `ADMIN_ADJUSTMENT`）；`SUBMITTED` 補款 → `VOID`；可登記一筆手動 `ADMIN_ADJUSTMENT`（≤ 已收淨額，附依據）；所有 OPEN 待辦 RESOLVED（`ADMIN_MEDIATED`）；`completed_by=ADMIN`；`ORDER_MEDIATED` | 409 `ORDER_STATE_CONFLICT` → 409 `VISITS_NOT_FINISHED`（有 `IN_PROGRESS` 行程，CQ-7 已決）→ 400（`SUBMITTED` 退款未標 `exported`）→ 422 `INVALID_ADJUSTMENT_AMOUNT`（CQ-7 已決） |
 | O17 | `DISPUTED → CANCELLED` | E29（ADMIN） | 訂單鎖 | 同 O15；`cancelled_by=ADMIN`、`cancel_reason_code=ADMIN_MEDIATED` | 同 O15 |
 
 - **O15 / O17 的終態由系統判斷**（baseline O15 / O17、CQ-57）：有任何 `DONE` / `CLOSED_BY_SYSTEM` 行程 → O15，否則 O17；E29 不收「要結成哪個狀態」的參數。
@@ -463,7 +508,7 @@ stateDiagram-v2
 | T3 | `REQUESTED → QUOTED` | E20（SITTER） | 訂單鎖 | `expires_at` 重設；`MODIFICATION_QUOTED`；enqueue OWNER | 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT` → `DEADLINE_PASSED`（`MODIFICATION_EXPIRES_AT`）→ `VISIT_ALREADY_STARTED` → 422 `INVALID_VISIT_DATE` / `MODIFICATION_EMPTY` / `PLAN_NOT_IN_ORDER` / `INVALID_MODIFICATION_AMOUNT` → 403 `PLAN_REQUIRED` |
 | T4（SITTER） | `REQUESTED → REJECTED` | E21（SITTER，原因 1–200 字） | 訂單鎖 | `ended_at`、`reject_reason`；`MODIFICATION_REJECTED`；enqueue OWNER（含原因） | 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT`（含 SITTER 對 `QUOTED` 呼叫）→ `DEADLINE_PASSED` |
 | T4（OWNER） | `QUOTED → REJECTED` | E21（OWNER） | 訂單鎖 | `ended_at`；`MODIFICATION_REJECTED`；enqueue SITTER | 同上 |
-| T5 | `REQUESTED` / `QUOTED → WITHDRAWN` | E22（發起者） | 訂單鎖 | `ended_at`；`MODIFICATION_WITHDRAWN`；enqueue 對方 | 403 `FORBIDDEN`（非發起者，含 `initiated_by=SYSTEM`，§12 CQ-1）→ 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT` → `DEADLINE_PASSED` |
+| T5 | `REQUESTED` / `QUOTED → WITHDRAWN` | E22（發起者） | 訂單鎖 | `ended_at`；`MODIFICATION_WITHDRAWN`；enqueue 對方 | 403 `FORBIDDEN`（非發起者，含 `initiated_by=SYSTEM`，CQ-1 已決）→ 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT` → `DEADLINE_PASSED` |
 | T6 | `REQUESTED` / `QUOTED → EXPIRED` | C5 | 排程鎖 | `ended_at`；`MODIFICATION_EXPIRED`；enqueue 雙方 | 重驗不符 → 略過 |
 | 同意 | `QUOTED → SETTLED / AWAITING_SUPPLEMENT / AWAITING_REFUND` | E23（OWNER） | 訂單鎖 | 減少目標 → SD-FULFILL `cancelVisits`（不觸發 O9）；重算已收淨額寫 `agreed_net_paid` / `agreed_diff`；差額 0 → `SETTLED`（建 MODIFICATION `order_items` 與行程、`total_amount = new_total_amount`、重算 `completion_basis_at`、檢查 O10）；> 0 → 建 SUPPLEMENT payment；< 0 → 建 MODIFICATION_REFUND payment；`MODIFICATION_ACCEPTED`；不重驗方案 | 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT` → `DEADLINE_PASSED` → `VISIT_ALREADY_STARTED`（整筆不生效） |
 | T7 | `AWAITING_SUPPLEMENT → SETTLED` | E14（SUPPLEMENT 確認） | 訂單鎖 | 建新增行程（日期已過仍建）、`total_amount`、`ended_at`、重算基準、檢查 O10 | 見 P2 |
@@ -483,7 +528,7 @@ stateDiagram-v2
 | 保母沒有啟用中題目 | `NOT_REQUIRED` | `NO_ACTIVE_QUESTIONS` | 不寫 |
 | 其他 | `COMPLETED` | `NULL` | 每題一列：送單當下題目文字、題型、答案（非必填未答存 JSON `null`） |
 
-- O1 之後無任何轉移；`ck_orders_questionnaire` 保證組合合法（§5.1.2）。
+- O1 之後無任何轉移；`ck_orders_questionnaire` 保證組合合法（§5.1.1 第 1 段）。
 - 判斷所需的題目定義於 O1 交易內向 SD-SUPPLY 讀取一次，驗證（PRD-005 BR-22、BR-24）與快照使用同一份資料。
 
 ### 3.5 ADMIN 待辦（`admin_tasks`）
@@ -500,7 +545,7 @@ stateDiagram-v2
 |------|------|---------------------|
 | `INITIAL_PAYMENT_UNVERIFIED` | C4（A1） | E14 O5（`SITTER_VERIFIED`）；E15 駁回（`SITTER_REJECTED`）；E16 O16（`ADMIN_VOIDED`） |
 | `MODIFICATION_PAYMENT_DISPUTE` | E24（O14） | E29（`ADMIN_MEDIATED`） |
-| `SERVICE_DISPUTE` | E26（O13，名稱待確認 §12 CQ-5） | E29（`ADMIN_MEDIATED`） |
+| `SERVICE_DISPUTE` | E26（O13，CQ-5 已決） | E29（`ADMIN_MEDIATED`） |
 
 建立與關閉都與觸發轉移同交易（CQ-55）；`(type, order_id) WHERE status='OPEN'` 唯一。ADMIN 可讀範圍（baseline §1.2、CQ-18）= 訂單 `DISPUTED` 或該訂單有任一 OPEN 待辦，判斷由 `AdminOrderAccessPolicy` 統一提供給 E10、E12、E13、E16、E18、E19、E27。
 
@@ -515,7 +560,7 @@ stateDiagram-v2
 | 逾時 | PostgreSQL SQLSTATE `55P03`（lock_not_available）→ `OrderBusyException` → 409 `ORDER_BUSY` + `Retry-After: 1`；冪等紀錄刪除（可重試，baseline §3.6） |
 | 範圍 | 所有改變訂單主狀態、payment、submission、變更、行程狀態的操作；SD-FULFILL 開始 / 完成行程也必須先呼叫 |
 | 排程 | `tryLockForCron` 用 `SKIP LOCKED`，鎖不到計入 `skipped`，不等待 |
-| `@Version` | `orders`、`payments`、`payment_submissions`、`modification_requests`、`admin_tasks` 保留 `version` 欄與 `@Version` 作最後防線；不接受客戶端 version；畫面過期以關鍵值比對（`expectedAmount`、`expectedStatus`、`submissionId`，CQ-35）。觸發時的錯誤碼見 §12 CQ-2 |
+| `@Version` | `orders`、`payments`、`payment_submissions`、`modification_requests`、`admin_tasks` 保留 `version` 欄與 `@Version` 作最後防線；不接受客戶端 version；畫面過期以關鍵值比對（`expectedAmount`、`expectedStatus`、`submissionId`，CQ-35）。觸發時回 409 `ORDER_BUSY` + `Retry-After: 1`（baseline §3.7、CQ-2 已決） |
 | Transaction Pooler | `SET LOCAL`、`FOR NO KEY UPDATE`、`pg_advisory_xact_lock` 在交易內可用；不使用 session 級 `SET` / `pg_advisory_lock` |
 | 不做 | 容量 / 檔期鎖、月額度鎖（月額度只在 O5 隱含 +1，O1 / O2 只讀計數，baseline §2.2） |
 
@@ -581,7 +626,7 @@ sequenceDiagram
 | 寫入者 | `OrderLogWriter`，傳播 `MANDATORY`，與狀態變更同交易；不得使用 `REQUIRES_NEW`（抽樣缺陷 #2）。舊 `AuditLogService.writeOrderLog` 不再用於訂單 |
 | 粒度 | **一個操作一列**；同一操作造成的附帶轉移（payment VOID、行程取消、待辦關閉、O5 等）列在該列 payload 的 `transitions[]`（PRD-026 §5、PRD-007 AC-2.1 的「一筆紀錄」）。例外：同交易內**操作者不同**的主狀態轉移另寫一列 —— O10（SYSTEM，觸發者為 OWNER / SITTER）與 O9（由 C7 觸發時為 SYSTEM） |
 | 欄位 | `order_id`、`action_type`、`operator_role`（OWNER / SITTER / ADMIN / SYSTEM）、`operator_user_id`（SYSTEM 為 NULL）、`payload`（JSONB）、`created_at` |
-| payload 共通 | `transitions[]`（`entity`、`id`、`from`、`to`）、`idempotencyKey`（有則記）；各 action 的專屬欄位於第二階段 §7 列表 |
+| payload 共通 | `transitions[]`（`entity`、`id`、`from`、`to`）、`idempotencyKey`（有則記）；各 action 的專屬欄位見 §7.1 |
 | action_type | `ORDER_CREATED`、`ORDER_QUOTED`、`ORDER_REJECTED`、`ORDER_WITHDRAWN`、`ORDER_REVIEW_EXPIRED`、`ORDER_CANCELLED_BY_SITTER`、`PAYMENT_PROOF_SUBMITTED`、`PAYMENT_VERIFIED`、`PAYMENT_REJECTED`、`PAYMENT_EXPIRED`、`PAYMENT_ESCALATED`、`PAYMENT_VOIDED_BY_ADMIN`、`MODIFICATION_REQUESTED`、`MODIFICATION_PROPOSED`、`MODIFICATION_QUOTED`、`MODIFICATION_REJECTED`、`MODIFICATION_WITHDRAWN`、`MODIFICATION_EXPIRED`、`MODIFICATION_ACCEPTED`、`SUPPLEMENT_EXPIRED`、`ORDER_CANCELLED_BY_MODIFICATION`、`ORDER_STARTED`、`VISITS_CLOSED_BY_SYSTEM`、`ORDER_COMPLETED`、`SERVICE_DISPUTE_OPENED`、`PAYMENT_DISPUTE_OPENED`、`ORDER_MEDIATED` |
 | 不寫 | 付款提醒（只寫 `reminded_at`，不是轉移）；排程重驗不符而略過者 |
 | 失敗語意 | 主交易回滾 → log 一併不存在（整合測試必測） |
@@ -590,7 +635,7 @@ sequenceDiagram
 
 - 轉移交易內呼叫 `NotificationService.enqueue()`（§2.3.3）；本 SD 不直接呼叫 Resend、不註冊 `AFTER_COMMIT` 寄信 listener。
 - Email 失敗的補送由 SD-NOTIFY 排程負責；狀態轉移已提交，不回滾（各 PRD「Resend 失敗」例外）。
-- 唯一使用 `AFTER_COMMIT` 的副作用：O1 後的我的最愛 `addIfAbsent`（PRD-005 BR-14），在 commit 後獨立短交易執行，失敗只記 log，不重試（重新送單時會再嘗試）。
+- 唯一在主交易外的寫入副作用：O1 後的我的最愛 `addIfAbsent`（PRD-005 BR-14），由非交易的協調者在交易 B commit 後另開短交易呼叫（不用 `AFTER_COMMIT` listener，§4.1），失敗只記 log，不重試。
 
 #### 3.6.5 `admin_tasks`
 
@@ -612,7 +657,177 @@ sequenceDiagram
 
 ## 4. 流程
 
-> 第二階段補齊：O1 送單、O2 報價、E23 同意（三分支）、C6 補款逾時（含 T9 與 O10）、E29 調解的序列圖。上傳憑證的三段式序列圖見 §3.6.2。
+> 所有寫入端點共通前段（§3.6.2）：`JwtAuthenticationFilter`（401）→ `IdempotencyInterceptor`（回放）→ `@PreAuthorize`（403 `ROLE_MISMATCH`）。下圖從 Service 開始畫；每張圖標出交易邊界，外部 I/O（GCS）一律在交易外。上傳憑證（E11）的三段式見 §3.6.2。
+
+### 4.1 O1 送出預約（E1）
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant ORC as BookingOrchestrator
+    participant EXT as 其他模組 Query
+    participant FUL as SD-FULFILL
+    participant NOT as SD-NOTIFY
+    participant SUP as SD-SUPPLY Favorite
+    participant DB as PostgreSQL
+    FE->>ORC: POST /api/orders（JWT OWNER, Idempotency-Key）
+    Note over ORC,DB: 交易 A（短）
+    ORC->>EXT: 保母存在？毛孩存在 / 歸屬（404 / 403）
+    ORC->>ORC: 格式與數量檢查（400，含缺 key）
+    ORC->>DB: INSERT idempotency_records PROCESSING（422 / 409）
+    Note over ORC,DB: commit A
+    Note over ORC,DB: 交易 B
+    ORC->>EXT: KYC / 公開 / 門禁 / 等級 / 方案 / 題目（唯讀）
+    ORC->>DB: COUNT confirmed_at 當月（月額度，不鎖）
+    ORC->>ORC: 業務規則依序（422 / 403 / 409 / 400），最後 SUBSCRIPTION_LOCKED
+    ORC->>DB: INSERT orders、order_items、order_item_pets、order_answers
+    ORC->>FUL: createVisits（MANDATORY）
+    ORC->>DB: INSERT order_logs ORDER_CREATED
+    ORC->>NOT: enqueue 保母 NEW_BOOKING_REQUEST
+    ORC->>DB: UPDATE idempotency_records COMPLETED（201 body）
+    Note over ORC,DB: commit B
+    ORC->>SUP: addIfAbsent（另開短交易，失敗只記 log）
+    ORC-->>FE: 201 orderId、baseAmount、reviewExpiresAt
+    alt 交易 B 拋 409 / 422 業務錯誤
+        Note over ORC,DB: 交易 C：紀錄改 COMPLETED 並存錯誤回應
+        ORC-->>FE: 409 / 422
+    end
+```
+
+- 我的最愛不在 `AFTER_COMMIT` listener 內做：afterCommit 階段主交易的連線尚未釋放，listener 再開交易會同時佔 2 條連線（抽樣缺陷 #3）。改由非交易的協調者在交易 B 返回後依序呼叫。
+
+### 4.2 O2 報價（E6）
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant SVC as QuoteService
+    participant EXT as 其他模組 Query
+    participant NOT as SD-NOTIFY
+    participant DB as PostgreSQL
+    FE->>SVC: POST /quote（JWT SITTER, Idempotency-Key, expectedAmount, 調整）
+    Note over SVC,DB: 交易 A（短）
+    SVC->>DB: 讀訂單（404）、sitter 比對（403）
+    SVC->>SVC: 欄位檢查（400）
+    SVC->>DB: 認領冪等紀錄（422 / 409）
+    Note over SVC,DB: commit A
+    Note over SVC,DB: 交易 B
+    SVC->>DB: SET LOCAL lock_timeout 3s；SELECT orders FOR NO KEY UPDATE（逾時 ORDER_BUSY）
+    SVC->>SVC: PENDING？（409）now 小於 review_expires_at？（409 DEADLINE_PASSED）
+    SVC->>SVC: 首日 ≥ 今天（409）；月額度（422）
+    SVC->>EXT: PayoutAccountQuery.isConfigured（422）
+    SVC->>EXT: 方案當下單價重算（409 PRICE_CHANGED、422 / 400 金額）
+    SVC->>EXT: PlanPolicy（403 PLAN_REQUIRED / SUBSCRIPTION_LOCKED）
+    SVC->>EXT: PayoutAccountQuery.getSnapshot
+    SVC->>DB: UPDATE orders 金額、quoted_at、status
+    SVC->>DB: INSERT order_plan_snapshots、order_snapshots
+    SVC->>DB: INSERT payments INITIAL（due_at、escalate_at、remind_at、加密快照）
+    SVC->>DB: INSERT order_logs ORDER_QUOTED
+    SVC->>NOT: enqueue 飼主 QUOTE_SENT（已過提醒點時 mandatory）
+    SVC->>DB: 冪等紀錄 COMPLETED
+    Note over SVC,DB: commit B
+    SVC-->>FE: 200
+```
+
+### 4.3 E23 飼主同意變更（三分支）
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant SVC as ModificationSettlementService
+    participant FUL as SD-FULFILL
+    participant SUP as PayoutAccountQuery
+    participant NOT as SD-NOTIFY
+    participant DB as PostgreSQL
+    FE->>SVC: POST /modifications/{id}/accept（JWT OWNER, Idempotency-Key）
+    Note over SVC,DB: 交易 A：404 / 403 / 400 / 認領
+    Note over SVC,DB: 交易 B
+    SVC->>DB: 鎖訂單 FOR NO KEY UPDATE
+    SVC->>SVC: 訂單 CONFIRMED / IN_PROGRESS？變更 QUOTED？now 小於 expires_at？
+    SVC->>FUL: cancelVisits（減少目標；非 PENDING → VISIT_ALREADY_STARTED 整筆回滾）
+    SVC->>DB: 重算已收淨額；寫 agreed_net_paid、agreed_diff、agreed_at
+    alt 差額 = 0
+        SVC->>DB: 變更 SETTLED、ended_at；INSERT order_items MODIFICATION
+        SVC->>FUL: createVisits（新增行程）
+        SVC->>DB: orders.total_amount = new_total；重算 completion_basis_at
+        opt CONFIRMED 且無有效行程
+            SVC->>DB: O10 取消共同附帶動作；另寫 ORDER_CANCELLED_BY_MODIFICATION
+        end
+    else 差額大於 0
+        SVC->>SUP: getSnapshot
+        SVC->>DB: 變更 AWAITING_SUPPLEMENT；INSERT payments SUPPLEMENT（due_at = now + 72h）
+    else 差額小於 0
+        SVC->>DB: 變更 AWAITING_REFUND；INSERT payments MODIFICATION_REFUND
+    end
+    SVC->>DB: INSERT order_logs MODIFICATION_ACCEPTED
+    SVC->>NOT: enqueue（分支文案見 §7.2）
+    SVC->>DB: 冪等紀錄 COMPLETED
+    Note over SVC,DB: commit B
+    SVC-->>FE: 200
+```
+
+### 4.4 C6 補款逾時（T8 / T9 / O10）
+
+```mermaid
+sequenceDiagram
+    participant SCH as Cloud Scheduler
+    participant JOB as SupplementExpiryJob
+    participant ITEM as SupplementExpiryItemProcessor
+    participant NOT as SD-NOTIFY
+    participant DB as PostgreSQL
+    SCH->>JOB: POST /api/internal/cron/modifications/supplement-expiry（X-Internal-Secret）
+    JOB->>DB: 唯讀候選 payments SUPPLEMENT UNPAID due_at ≤ now LIMIT 200
+    loop 每筆（時間預算 50s 內）
+        Note over ITEM,DB: 每筆獨立交易
+        ITEM->>DB: SELECT orders FOR NO KEY UPDATE SKIP LOCKED（鎖不到 → skipped）
+        ITEM->>ITEM: 重驗 payment UNPAID、變更 AWAITING_SUPPLEMENT、訂單非 DISPUTED、now ≥ due_at
+        ITEM->>DB: payment VOID；變更 EXPIRED、ended_at；flush
+        ITEM->>DB: total_amount = max(0, total − Σ 本變更減少目標快照單價)
+        alt 已收淨額 大於 新 total_amount
+            ITEM->>DB: INSERT 變更 SYSTEM AWAITING_REFUND（source_modification_id）
+            ITEM->>DB: INSERT payments MODIFICATION_REFUND UNPAID
+        else 不需退款
+            opt CONFIRMED 且無有效行程
+                ITEM->>DB: O10；另寫 ORDER_CANCELLED_BY_MODIFICATION
+            end
+        end
+        ITEM->>DB: INSERT order_logs SUPPLEMENT_EXPIRED
+        ITEM->>NOT: enqueue 雙方 SUPPLEMENT_EXPIRED；需退款時 SITTER SYSTEM_REFUND_REQUIRED
+        Note over ITEM,DB: commit（失敗整筆回滾 → failed）
+    end
+    JOB-->>SCH: 200 processed / skipped / failed
+```
+
+### 4.5 E29 ADMIN 調解（O15 / O17）
+
+```mermaid
+sequenceDiagram
+    participant FE as ADMIN 後台
+    participant SVC as MediationService
+    participant FUL as SD-FULFILL
+    participant NOT as SD-NOTIFY
+    participant DB as PostgreSQL
+    FE->>SVC: POST /api/admin/orders/{id}/mediation（JWT ADMIN, Idempotency-Key）
+    Note over SVC,DB: 交易 A：404；可讀範圍（403）；欄位（400）；認領
+    Note over SVC,DB: 交易 B
+    SVC->>DB: 鎖訂單 FOR NO KEY UPDATE
+    SVC->>SVC: DISPUTED？（409）
+    SVC->>FUL: listVisits；有 IN_PROGRESS → 409 VISITS_NOT_FINISHED
+    SVC->>SVC: 每筆 SUBMITTED 退款都有 exported？（400）
+    SVC->>SVC: 手動調解金額 ≤ 已收淨額 − 本次自動補登（422 INVALID_ADJUSTMENT_AMOUNT）
+    SVC->>FUL: cancelPendingVisits
+    SVC->>DB: 未結束變更 REJECTED、ended_at
+    SVC->>DB: UNPAID / SUBMITTED payment VOID；flush
+    SVC->>DB: exported=true 的退款：INSERT ADMIN_ADJUSTMENT VERIFIED（source_payment_id）
+    SVC->>DB: 手動調解：INSERT ADMIN_ADJUSTMENT VERIFIED（adjustment_basis）
+    SVC->>DB: 有 DONE / CLOSED_BY_SYSTEM 行程 → COMPLETED（completed_by=ADMIN），否則 CANCELLED（ADMIN_MEDIATED）
+    SVC->>DB: 所有 OPEN admin_tasks → RESOLVED ADMIN_MEDIATED
+    SVC->>DB: INSERT order_logs ORDER_MEDIATED
+    SVC->>NOT: enqueue 雙方 ORDER_MEDIATED；作廢 SUBMITTED 補款時另發 SUPPLEMENT_VOIDED_BY_ADMIN
+    SVC->>DB: 冪等紀錄 COMPLETED
+    Note over SVC,DB: commit B
+    SVC-->>FE: 200
+```
 
 ---
 
@@ -620,44 +835,46 @@ sequenceDiagram
 
 ### 5.1 遷移
 
-本專案未上線，依 baseline CQ-36 清空交易資料、不做狀態對映。為相容 Cloud Run 滾動部署（新 revision 啟動跑 Flyway 時舊 revision 仍在服務），拆成兩支、分兩次發布：
-
-| 檔名 | 隨哪次發布 | 內容 | 對前一版程式的相容性 |
-|------|-----------|------|---------------------|
-| `V20261122_01__order_rebuild_expand.sql` | 發布 1（新後端，接著新前端） | 清空交易資料；建新表；舊表加新欄位（皆可為 NULL / 有預設）；放寬新程式不再寫入的舊 NOT NULL；建 partial unique / 索引；新表的 CHECK | 舊 revision 讀寫的欄位全部仍在；舊欄位的 NOT NULL 只放寬不新增；新 CHECK 只加在舊程式不碰的新表 |
-| `V20261122_02__order_rebuild_contract.sql` | 發布 2（發布 1 的前後端都上線、確認無舊 revision 後才加入 repo） | DROP 舊欄位 / 舊索引；對舊表補 NOT NULL 與 CHECK | 發布 1 的程式已不映射被 DROP 的欄位 |
-
-- 現有最大版號 `V20261025_01`；兩支接續。`_02` 的檔名日期在加入 repo 時可改為實際日期，只要版號大於 `_01`。
-- 既有遷移檔一律不改。
+- 檔名：`V20261122_01__order_rebuild.sql`（現有最大版號 `V20261025_01`）。既有遷移檔一律不改。
+- **一支到位、允許破壞性變更**（使用者決定 2026-11-22）：本專案未上線，baseline CQ-36 交易資料全清，不做雙階段部署。部署策略為「後端與前端連續部署，接受短暫空窗」（§11 技術決策 2）：新 revision 啟動跑 Flyway 後，仍在服務的舊 revision 與舊前端呼叫訂單 API 會失敗，直到切換完成。
+- 順序：清空 → DROP 舊索引 / 舊欄位 → 加新欄位（表已空，直接 NOT NULL）→ 建新表 → CHECK / partial unique / 索引。
 - 表內所有時間 `TIMESTAMPTZ`、所有金額 `INT`（TWD）。
+- 舊 `idempotency_keys` 不動（KYC、照護記事 / 媒體、照護日誌仍使用，§11 技術決策 1）。
 
-#### 5.1.1 `V20261122_01__order_rebuild_expand.sql`
+#### 5.1.1 `V20261122_01__order_rebuild.sql`
 
 ```sql
 -- ============================================================
 -- 0. 清空交易資料（baseline CQ-36）。明列所有表、不用 CASCADE：
 --    若有遺漏的 FK 參照表，TRUNCATE 直接失敗，不會靜默連帶清空。
---    referral_logs 以 FK 參照 orders，必須一起清（§12 CQ-3）。
+--    referral_logs 以 FK 參照 orders，一併清空（CQ-3 已決）。
 -- ============================================================
 TRUNCATE TABLE service_report_media, visit_service_reports, visits,
                referral_logs, modification_requests, order_logs,
                order_snapshots, orders;
--- 指向已清空訂單的通知（§12 CQ-3，待確認後保留或移除此行）
-DELETE FROM notifications WHERE category IN ('ORDER_AFFAIR', 'SERVICE_RECORD');
+DELETE FROM notifications WHERE category IN ('ORDER_AFFAIR', 'SERVICE_RECORD');   -- CQ-3 已決
 
 -- ============================================================
--- 1. orders：新增欄位（全部可為 NULL，舊 revision 寫入不受影響）
+-- 1. orders：DROP 舊欄位（相依的 idx_orders_payment_idempotency、idempotency_key UNIQUE 隨欄位刪除）
 -- ============================================================
 ALTER TABLE orders
-    ADD COLUMN base_amount                 INT,
+    DROP COLUMN items, DROP COLUMN adjustment_amount, DROP COLUMN adjustment_reason,
+    DROP COLUMN paid_at, DROP COLUMN payout_at, DROP COLUMN waiting_for_owner_action,
+    DROP COLUMN is_disputed, DROP COLUMN idempotency_key, DROP COLUMN plan_id,
+    DROP COLUMN payment_proof_url, DROP COLUMN payment_proof_last_five,
+    DROP COLUMN disclaimer_agreed, DROP COLUMN disclaimer_agreed_at,
+    DROP COLUMN payment_idempotency_key, DROP COLUMN questionnaire_answers;
+
+ALTER TABLE orders
+    ADD COLUMN base_amount                 INT NOT NULL,
     ADD COLUMN surcharge_amount            INT,
     ADD COLUMN discount_amount             INT,
     ADD COLUMN pricing_notes               VARCHAR(200),
     ADD COLUMN quoted_at                   TIMESTAMPTZ,
-    ADD COLUMN confirmed_at                TIMESTAMPTZ,   -- O5；取代 paid_at；月額度計數依據
-    ADD COLUMN review_expires_at           TIMESTAMPTZ,
-    ADD COLUMN first_service_date          DATE,          -- 首日（Asia/Taipei 日期），O1 寫入後不變
-    ADD COLUMN questionnaire_status        VARCHAR(16),
+    ADD COLUMN confirmed_at                TIMESTAMPTZ,      -- O5；月接單額度計數依據
+    ADD COLUMN review_expires_at           TIMESTAMPTZ NOT NULL,
+    ADD COLUMN first_service_date          DATE NOT NULL,    -- 首日（Asia/Taipei 日期），O1 寫入後不變
+    ADD COLUMN questionnaire_status        VARCHAR(16) NOT NULL,
     ADD COLUMN questionnaire_exempt_reason VARCHAR(24),
     ADD COLUMN cancelled_at                TIMESTAMPTZ,
     ADD COLUMN cancel_reason_code          VARCHAR(24),
@@ -665,10 +882,34 @@ ALTER TABLE orders
     ADD COLUMN completed_by                VARCHAR(8),
     ADD COLUMN completion_basis_at         TIMESTAMPTZ,
     ADD COLUMN disputed_at                 TIMESTAMPTZ;
--- 新程式不再寫 items（改存 order_items）；total_amount 報價前為 NULL
-ALTER TABLE orders ALTER COLUMN items DROP NOT NULL;
-ALTER TABLE orders ALTER COLUMN total_amount DROP NOT NULL,
+ALTER TABLE orders ALTER COLUMN total_amount DROP NOT NULL,   -- 報價前為 NULL
                    ALTER COLUMN total_amount DROP DEFAULT;
+
+ALTER TABLE orders
+    ADD CONSTRAINT ck_orders_status CHECK (status IN
+        ('PENDING','PENDING_PAYMENT','CONFIRMED','IN_PROGRESS','DISPUTED','COMPLETED','CANCELLED')),
+    ADD CONSTRAINT ck_orders_base_amount CHECK (base_amount BETWEEN 0 AND 999999),
+    ADD CONSTRAINT ck_orders_quote CHECK ((quoted_at IS NULL) = (total_amount IS NULL)),
+    ADD CONSTRAINT ck_orders_total CHECK (total_amount IS NULL OR total_amount BETWEEN 0 AND 999999),
+    ADD CONSTRAINT ck_orders_quote_parts CHECK (quoted_at IS NULL OR
+        (surcharge_amount BETWEEN 0 AND 999999 AND discount_amount BETWEEN 0 AND 999999)),
+    ADD CONSTRAINT ck_orders_pricing_notes CHECK (
+        COALESCE(surcharge_amount, 0) + COALESCE(discount_amount, 0) = 0 OR pricing_notes IS NOT NULL),
+    ADD CONSTRAINT ck_orders_questionnaire CHECK (
+        (questionnaire_status = 'COMPLETED' AND questionnaire_exempt_reason IS NULL)
+     OR (questionnaire_status = 'NOT_REQUIRED' AND questionnaire_exempt_reason IN ('REGULAR_OWNER','NO_ACTIVE_QUESTIONS'))),
+    ADD CONSTRAINT ck_orders_cancelled CHECK (
+        (status = 'CANCELLED') = (cancelled_by IS NOT NULL AND cancelled_at IS NOT NULL AND cancel_reason_code IS NOT NULL)),
+    ADD CONSTRAINT ck_orders_cancelled_by CHECK (cancelled_by IS NULL OR cancelled_by IN ('OWNER','SITTER','SYSTEM','ADMIN')),
+    ADD CONSTRAINT ck_orders_cancel_code CHECK (cancel_reason_code IS NULL OR cancel_reason_code IN
+        ('OWNER_WITHDRAWN','SITTER_DECLINED','REVIEW_EXPIRED','SITTER_CANCELLED','PAYMENT_EXPIRED',
+         'ADMIN_VOIDED','MODIFICATION','ADMIN_MEDIATED')),
+    ADD CONSTRAINT ck_orders_completed CHECK (
+        (status = 'COMPLETED') = (completed_at IS NOT NULL AND completed_by IS NOT NULL)),
+    ADD CONSTRAINT ck_orders_completed_by CHECK (completed_by IS NULL OR completed_by IN ('OWNER','SYSTEM','ADMIN')),
+    ADD CONSTRAINT ck_orders_confirmed CHECK (
+        status NOT IN ('CONFIRMED','IN_PROGRESS','DISPUTED','COMPLETED') OR confirmed_at IS NOT NULL),
+    ADD CONSTRAINT ck_orders_disputed CHECK (status <> 'DISPUTED' OR disputed_at IS NOT NULL);
 
 -- O4 候選
 CREATE INDEX ix_orders_review_expiry ON orders (review_expires_at) WHERE status = 'PENDING';
@@ -676,17 +917,80 @@ CREATE INDEX ix_orders_review_expiry ON orders (review_expires_at) WHERE status 
 CREATE INDEX ix_orders_auto_complete ON orders (completion_basis_at)
     WHERE status = 'IN_PROGRESS' AND completion_basis_at IS NOT NULL;
 -- 月額度：保母當月進入 CONFIRMED 的筆數（取消不返還，confirmed_at 保留）
-CREATE INDEX ix_orders_sitter_confirmed ON orders (sitter_id, confirmed_at)
-    WHERE confirmed_at IS NOT NULL;
+CREATE INDEX ix_orders_sitter_confirmed ON orders (sitter_id, confirmed_at) WHERE confirmed_at IS NOT NULL;
 -- 熟客判斷
-CREATE INDEX ix_orders_owner_sitter_completed ON orders (owner_id, sitter_id)
-    WHERE status = 'COMPLETED';
+CREATE INDEX ix_orders_owner_sitter_completed ON orders (owner_id, sitter_id) WHERE status = 'COMPLETED';
 -- 列表（雙方依狀態分頁、建立時間倒序）
 CREATE INDEX ix_orders_owner_list  ON orders (owner_id, status, created_at DESC);
 CREATE INDEX ix_orders_sitter_list ON orders (sitter_id, status, created_at DESC);
+-- 帳務總覽（終態時間歸屬月份，CQ-8 已決）
+CREATE INDEX ix_orders_sitter_terminal ON orders (sitter_id, COALESCE(completed_at, cancelled_at))
+    WHERE status IN ('COMPLETED','CANCELLED');
 
 -- ============================================================
--- 2. order_items：預約群組（BOOKING）與變更新增項目（MODIFICATION），建立後不改
+-- 2. modification_requests：DROP 舊欄位與舊索引，加新欄位（order_items、payments 會參照本表，先改）
+-- ============================================================
+DROP INDEX uk_active_modification;
+DROP INDEX idx_mod_req_supplement_idempotency;
+ALTER TABLE modification_requests
+    DROP COLUMN previous_status, DROP COLUMN refund_proof_url, DROP COLUMN supplement_proof_key,
+    DROP COLUMN supplement_proof_last_five, DROP COLUMN supplement_idempotency_key,
+    DROP COLUMN supplement_submitted_at, DROP COLUMN supplement_verified_at,
+    DROP COLUMN dates, DROP COLUMN payload, DROP COLUMN diff_amount, DROP COLUMN requested_by;
+ALTER TABLE modification_requests ALTER COLUMN status DROP DEFAULT;
+ALTER TABLE modification_requests
+    ADD COLUMN type                   VARCHAR(16) NOT NULL,
+    ADD COLUMN initiated_by           VARCHAR(8)  NOT NULL,
+    ADD COLUMN initiated_by_user_id   UUID REFERENCES users(id),
+    ADD COLUMN reason                 VARCHAR(200) NOT NULL,
+    ADD COLUMN requested_content      JSONB,       -- OWNER 期望內容
+    ADD COLUMN quoted_content         JSONB,       -- SITTER 報價內容
+    ADD COLUMN system_amount          INT,
+    ADD COLUMN surcharge_amount       INT,
+    ADD COLUMN discount_amount        INT,
+    ADD COLUMN adjustment_reason      VARCHAR(200),
+    -- new_total_amount 已存在（V20260717_01）
+    ADD COLUMN quoted_net_paid        INT,
+    ADD COLUMN quoted_diff            INT,
+    ADD COLUMN agreed_net_paid        INT,
+    ADD COLUMN agreed_diff            INT,
+    ADD COLUMN quoted_at              TIMESTAMPTZ,
+    ADD COLUMN agreed_at              TIMESTAMPTZ,
+    ADD COLUMN expires_at             TIMESTAMPTZ,
+    ADD COLUMN ended_at               TIMESTAMPTZ,
+    ADD COLUMN reject_reason          VARCHAR(200),
+    ADD COLUMN source_modification_id UUID REFERENCES modification_requests(id);
+ALTER TABLE modification_requests
+    ADD CONSTRAINT ck_modreq_status CHECK (status IN ('REQUESTED','QUOTED','AWAITING_SUPPLEMENT',
+        'AWAITING_REFUND','SETTLED','REJECTED','WITHDRAWN','EXPIRED')),
+    ADD CONSTRAINT ck_modreq_type CHECK (type IN ('CHANGE','CANCEL_ALL')),
+    ADD CONSTRAINT ck_modreq_initiated_by CHECK (initiated_by IN ('OWNER','SITTER','SYSTEM')),
+    ADD CONSTRAINT ck_modreq_system_user CHECK ((initiated_by = 'SYSTEM') = (initiated_by_user_id IS NULL)),
+    ADD CONSTRAINT ck_modreq_system_source CHECK ((initiated_by = 'SYSTEM') = (source_modification_id IS NOT NULL)),
+    ADD CONSTRAINT ck_modreq_expires CHECK (status NOT IN ('REQUESTED','QUOTED') OR expires_at IS NOT NULL),
+    ADD CONSTRAINT ck_modreq_ended CHECK (
+        (status IN ('SETTLED','REJECTED','WITHDRAWN','EXPIRED')) = (ended_at IS NOT NULL)),
+    ADD CONSTRAINT ck_modreq_quoted CHECK (
+        status = 'REQUESTED'
+        OR (initiated_by = 'OWNER' AND status IN ('REJECTED','WITHDRAWN','EXPIRED'))
+        OR new_total_amount IS NOT NULL),   -- 進入 QUOTED 之後必有新總額
+    ADD CONSTRAINT ck_modreq_amounts CHECK (
+        (new_total_amount IS NULL OR new_total_amount BETWEEN 0 AND 999999)
+        AND (surcharge_amount IS NULL OR surcharge_amount BETWEEN 0 AND 999999)
+        AND (discount_amount IS NULL OR discount_amount BETWEEN 0 AND 999999)
+        AND (system_amount IS NULL OR system_amount >= 0)),
+    ADD CONSTRAINT ck_modreq_adjustment_reason CHECK (
+        COALESCE(surcharge_amount, 0) + COALESCE(discount_amount, 0) = 0 OR adjustment_reason IS NOT NULL);
+-- 同訂單最多一筆未結束變更（baseline §3.4 可發起時機）
+CREATE UNIQUE INDEX ux_modreq_open_per_order ON modification_requests (order_id)
+    WHERE status IN ('REQUESTED', 'QUOTED', 'AWAITING_SUPPLEMENT', 'AWAITING_REFUND');
+-- C5 候選
+CREATE INDEX ix_modreq_expiry ON modification_requests (expires_at) WHERE status IN ('REQUESTED', 'QUOTED');
+-- 歷史列表（created_at 倒序）
+CREATE INDEX ix_modreq_order ON modification_requests (order_id, created_at DESC);
+
+-- ============================================================
+-- 3. order_items：預約群組（BOOKING）與變更新增項目（MODIFICATION），建立後不改
 -- ============================================================
 CREATE TABLE order_items (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -707,11 +1011,10 @@ CREATE TABLE order_items (
     CONSTRAINT ck_order_items_price CHECK (booked_unit_price BETWEEN 0 AND 999999)
 );
 CREATE INDEX ix_order_items_order ON order_items (order_id);
-CREATE UNIQUE INDEX ux_order_items_group ON order_items (order_id, group_index)
-    WHERE source = 'BOOKING';   -- 群組序不重複
+CREATE UNIQUE INDEX ux_order_items_group ON order_items (order_id, group_index) WHERE source = 'BOOKING';
 
 -- ============================================================
--- 3. order_item_pets：群組 × 毛孩綁定（CQ-60）
+-- 4. order_item_pets：群組 × 毛孩綁定（CQ-60）
 -- ============================================================
 CREATE TABLE order_item_pets (
     order_item_id UUID NOT NULL REFERENCES order_items(id),
@@ -720,7 +1023,7 @@ CREATE TABLE order_item_pets (
 );
 
 -- ============================================================
--- 4. order_answers：問卷答案快照（O1 寫入後不變）
+-- 5. order_answers：問卷答案快照（O1 寫入後不變）
 -- ============================================================
 CREATE TABLE order_answers (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -735,7 +1038,7 @@ CREATE TABLE order_answers (
 );
 
 -- ============================================================
--- 5. order_plan_snapshots：報價時各方案單價與名稱快照（CQ-20）
+-- 6. order_plan_snapshots：報價時各方案單價與名稱快照（CQ-20）
 -- ============================================================
 CREATE TABLE order_plan_snapshots (
     order_id       UUID NOT NULL REFERENCES orders(id),
@@ -748,54 +1051,12 @@ CREATE TABLE order_plan_snapshots (
 );
 
 -- ============================================================
--- 6. order_snapshots：保留訂單層媒體額度快照（plan_tier、max_photos、max_videos、
---    media_retention_days，-1 = 永久，沿用 SD-CARE 語意）；舊欄位放寬，contract 時 DROP
+-- 7. order_snapshots：只留訂單層媒體額度快照（plan_tier、max_photos、max_videos、
+--    media_retention_days，-1 = 永久，沿用 SD-CARE 語意）
 -- ============================================================
-ALTER TABLE order_snapshots ALTER COLUMN snapshot_original_total DROP NOT NULL,
-                            ALTER COLUMN adjustment_amount       DROP NOT NULL,
-                            ALTER COLUMN snapshot_data           DROP NOT NULL,
-                            ALTER COLUMN max_video_seconds       DROP NOT NULL,
-                            ALTER COLUMN snapshot_unit_price     DROP NOT NULL,
-                            ALTER COLUMN snapshot_plan_title     DROP NOT NULL;
-
--- ============================================================
--- 7. modification_requests：新增欄位；舊欄位放寬，contract 時 DROP
--- ============================================================
-ALTER TABLE modification_requests
-    ADD COLUMN type                   VARCHAR(16),
-    ADD COLUMN initiated_by           VARCHAR(8),
-    ADD COLUMN initiated_by_user_id   UUID REFERENCES users(id),
-    ADD COLUMN reason                 VARCHAR(200),
-    ADD COLUMN requested_content      JSONB,
-    ADD COLUMN quoted_content         JSONB,
-    ADD COLUMN system_amount          INT,
-    ADD COLUMN surcharge_amount       INT,
-    ADD COLUMN discount_amount        INT,
-    ADD COLUMN adjustment_reason      VARCHAR(200),
-    -- new_total_amount 已存在（V20260717_01）
-    ADD COLUMN quoted_net_paid        INT,
-    ADD COLUMN quoted_diff            INT,
-    ADD COLUMN agreed_net_paid        INT,
-    ADD COLUMN agreed_diff            INT,
-    ADD COLUMN quoted_at              TIMESTAMPTZ,
-    ADD COLUMN agreed_at              TIMESTAMPTZ,
-    ADD COLUMN expires_at             TIMESTAMPTZ,
-    ADD COLUMN ended_at               TIMESTAMPTZ,
-    ADD COLUMN reject_reason          VARCHAR(200),
-    ADD COLUMN source_modification_id UUID REFERENCES modification_requests(id);
-ALTER TABLE modification_requests ALTER COLUMN requested_by DROP NOT NULL,
-                                  ALTER COLUMN status DROP DEFAULT;
-DROP INDEX uk_active_modification;                 -- 只涵蓋舊狀態 PENDING_REVIEW
-DROP INDEX idx_mod_req_supplement_idempotency;     -- 冪等改由 idempotency_records
-
--- 同訂單最多一筆未結束變更（baseline §3.4 可發起時機）
-CREATE UNIQUE INDEX ux_modreq_open_per_order ON modification_requests (order_id)
-    WHERE status IN ('REQUESTED', 'QUOTED', 'AWAITING_SUPPLEMENT', 'AWAITING_REFUND');
--- C5 候選
-CREATE INDEX ix_modreq_expiry ON modification_requests (expires_at)
-    WHERE status IN ('REQUESTED', 'QUOTED');
--- 歷史列表（created_at 倒序）
-CREATE INDEX ix_modreq_order ON modification_requests (order_id, created_at DESC);
+ALTER TABLE order_snapshots
+    DROP COLUMN snapshot_original_total, DROP COLUMN adjustment_amount, DROP COLUMN snapshot_data,
+    DROP COLUMN max_video_seconds, DROP COLUMN snapshot_unit_price, DROP COLUMN snapshot_plan_title;
 
 -- ============================================================
 -- 8. payments
@@ -851,8 +1112,7 @@ CREATE TABLE payments (
 );
 -- 同訂單同時最多一筆未結 payment：首次付款只在 PENDING_PAYMENT、補款 / 退款只在變更期間，
 -- 而變更同時只有一筆且只能在 CONFIRMED 後發起；也涵蓋「每筆變更同時一筆」
-CREATE UNIQUE INDEX ux_payments_open_per_order ON payments (order_id)
-    WHERE status IN ('UNPAID', 'SUBMITTED');
+CREATE UNIQUE INDEX ux_payments_open_per_order ON payments (order_id) WHERE status IN ('UNPAID', 'SUBMITTED');
 -- 每張訂單一生最多一筆首次付款（訂單取消不重開）
 CREATE UNIQUE INDEX ux_payments_initial ON payments (order_id) WHERE purpose = 'INITIAL';
 -- 每筆變更一生最多一筆差額 payment（系統退款是新的變更列，不衝突）
@@ -862,16 +1122,13 @@ CREATE UNIQUE INDEX ux_payments_per_modreq ON payments (modification_request_id)
 CREATE UNIQUE INDEX ux_payments_adjustment_manual ON payments (order_id)
     WHERE purpose = 'ADMIN_ADJUSTMENT' AND source_payment_id IS NULL;
 -- 每筆被作廢的已匯出退款最多補登一筆（PRD-024 BR-14）
-CREATE UNIQUE INDEX ux_payments_adjustment_source ON payments (source_payment_id)
-    WHERE source_payment_id IS NOT NULL;
+CREATE UNIQUE INDEX ux_payments_adjustment_source ON payments (source_payment_id) WHERE source_payment_id IS NOT NULL;
 -- C3 / C6 候選（due_at 只存在於 INITIAL / SUPPLEMENT）
 CREATE INDEX ix_payments_due ON payments (due_at) WHERE status = 'UNPAID';
 -- C2 候選
-CREATE INDEX ix_payments_remind ON payments (remind_at)
-    WHERE status = 'UNPAID' AND reminded_at IS NULL;
+CREATE INDEX ix_payments_remind ON payments (remind_at) WHERE status = 'UNPAID' AND reminded_at IS NULL;
 -- C4 候選
-CREATE INDEX ix_payments_escalate ON payments (escalate_at)
-    WHERE status = 'SUBMITTED' AND escalated_at IS NULL;
+CREATE INDEX ix_payments_escalate ON payments (escalate_at) WHERE status = 'SUBMITTED' AND escalated_at IS NULL;
 CREATE INDEX ix_payments_order ON payments (order_id, created_at);
 
 -- ============================================================
@@ -907,10 +1164,13 @@ CREATE UNIQUE INDEX ux_submissions_open ON payment_submissions (payment_id) WHER
 CREATE INDEX ix_submissions_payment ON payment_submissions (payment_id, submitted_at);
 
 -- ============================================================
--- 10. order_logs：新操作者欄位；舊 operator_id 於 contract DROP
+-- 10. order_logs：以 operator_role + operator_user_id 取代 operator_id
 -- ============================================================
-ALTER TABLE order_logs ADD COLUMN operator_role    VARCHAR(8),
+ALTER TABLE order_logs DROP COLUMN operator_id;
+ALTER TABLE order_logs ADD COLUMN operator_role    VARCHAR(8) NOT NULL,
                        ADD COLUMN operator_user_id UUID;
+ALTER TABLE order_logs ADD CONSTRAINT ck_order_logs_role
+    CHECK (operator_role IN ('OWNER','SITTER','ADMIN','SYSTEM'));
 CREATE INDEX ix_order_logs_order ON order_logs (order_id, created_at);
 -- PRD-010 轉介前置條件查詢（ORDER_REJECTED）
 CREATE INDEX ix_order_logs_action ON order_logs (order_id, action_type);
@@ -945,7 +1205,7 @@ CREATE INDEX ix_admin_tasks_open_list ON admin_tasks (created_at) WHERE status =
 CREATE INDEX ix_admin_tasks_order ON admin_tasks (order_id) WHERE status = 'OPEN';  -- ADMIN 可讀範圍判斷
 
 -- ============================================================
--- 12. idempotency_records（§3.6.2；舊 idempotency_keys 留給尚未改寫的模組，§11）
+-- 12. idempotency_records（§3.6.2）
 -- ============================================================
 CREATE TABLE idempotency_records (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -967,114 +1227,18 @@ CREATE TABLE idempotency_records (
 CREATE INDEX ix_idempotency_expires ON idempotency_records (expires_at);
 
 -- ============================================================
--- 13. visits：本 SD 需要的欄位（定義權屬 SD-FULFILL，§11 待使用者決策；
---     若決定由 SD-FULFILL 自行遷移，本段移出）
+-- 13. visits：本 SD 需要的欄位（技術決策 3 已採用：放在本遷移，定義權屬 SD-FULFILL，
+--     SD-FULFILL 撰寫時接手並可修改；scheduled_at 由 SD-FULFILL 決定是否移除）
 -- ============================================================
-ALTER TABLE visits ADD COLUMN service_date  DATE,   -- Asia/Taipei 日期，取代以 UTC 午夜存的 scheduled_at
-                   ADD COLUMN order_item_id UUID REFERENCES order_items(id),
+ALTER TABLE visits ADD COLUMN service_date  DATE NOT NULL,   -- Asia/Taipei 日期
+                   ADD COLUMN order_item_id UUID NOT NULL REFERENCES order_items(id),
                    ADD COLUMN cancelled_at  TIMESTAMPTZ,
                    ADD COLUMN closed_at     TIMESTAMPTZ;
 CREATE INDEX ix_visits_order_status ON visits (order_id, status);
 CREATE INDEX ix_visits_zombie ON visits (service_date) WHERE status = 'PENDING';
 ```
 
-#### 5.1.2 `V20261122_02__order_rebuild_contract.sql`
-
-```sql
--- 發布 1 的空窗期若有舊 revision 寫入的舊格式列，直接失敗、人工處理（未上線，預期 0 列）
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM orders WHERE base_amount IS NULL OR status NOT IN
-        ('PENDING','PENDING_PAYMENT','CONFIRMED','IN_PROGRESS','DISPUTED','COMPLETED','CANCELLED'))
-    OR EXISTS (SELECT 1 FROM modification_requests WHERE type IS NULL) THEN
-        RAISE EXCEPTION 'legacy order rows found; clean up before contract migration';
-    END IF;
-END $$;
-
--- orders：DROP 舊欄位（相依的 idx_orders_payment_idempotency、idempotency_key UNIQUE 隨欄位刪除）
-ALTER TABLE orders
-    DROP COLUMN items, DROP COLUMN adjustment_amount, DROP COLUMN adjustment_reason,
-    DROP COLUMN paid_at, DROP COLUMN payout_at, DROP COLUMN waiting_for_owner_action,
-    DROP COLUMN is_disputed, DROP COLUMN idempotency_key, DROP COLUMN plan_id,
-    DROP COLUMN payment_proof_url, DROP COLUMN payment_proof_last_five,
-    DROP COLUMN disclaimer_agreed, DROP COLUMN disclaimer_agreed_at,
-    DROP COLUMN payment_idempotency_key, DROP COLUMN questionnaire_answers;
-ALTER TABLE orders
-    ALTER COLUMN base_amount SET NOT NULL,
-    ALTER COLUMN review_expires_at SET NOT NULL,
-    ALTER COLUMN first_service_date SET NOT NULL,
-    ALTER COLUMN questionnaire_status SET NOT NULL;
-ALTER TABLE orders
-    ADD CONSTRAINT ck_orders_status CHECK (status IN
-        ('PENDING','PENDING_PAYMENT','CONFIRMED','IN_PROGRESS','DISPUTED','COMPLETED','CANCELLED')),
-    ADD CONSTRAINT ck_orders_base_amount CHECK (base_amount BETWEEN 0 AND 999999),
-    ADD CONSTRAINT ck_orders_quote CHECK ((quoted_at IS NULL) = (total_amount IS NULL)),
-    ADD CONSTRAINT ck_orders_total CHECK (total_amount IS NULL OR total_amount BETWEEN 0 AND 999999),
-    ADD CONSTRAINT ck_orders_quote_parts CHECK (quoted_at IS NULL OR
-        (surcharge_amount BETWEEN 0 AND 999999 AND discount_amount BETWEEN 0 AND 999999)),
-    ADD CONSTRAINT ck_orders_pricing_notes CHECK (
-        COALESCE(surcharge_amount, 0) + COALESCE(discount_amount, 0) = 0 OR pricing_notes IS NOT NULL),
-    ADD CONSTRAINT ck_orders_questionnaire CHECK (
-        (questionnaire_status = 'COMPLETED' AND questionnaire_exempt_reason IS NULL)
-     OR (questionnaire_status = 'NOT_REQUIRED' AND questionnaire_exempt_reason IN ('REGULAR_OWNER','NO_ACTIVE_QUESTIONS'))),
-    ADD CONSTRAINT ck_orders_cancelled CHECK (
-        (status = 'CANCELLED') = (cancelled_by IS NOT NULL AND cancelled_at IS NOT NULL AND cancel_reason_code IS NOT NULL)),
-    ADD CONSTRAINT ck_orders_cancelled_by CHECK (cancelled_by IS NULL OR cancelled_by IN ('OWNER','SITTER','SYSTEM','ADMIN')),
-    ADD CONSTRAINT ck_orders_cancel_code CHECK (cancel_reason_code IS NULL OR cancel_reason_code IN
-        ('OWNER_WITHDRAWN','SITTER_DECLINED','REVIEW_EXPIRED','SITTER_CANCELLED','PAYMENT_EXPIRED',
-         'ADMIN_VOIDED','MODIFICATION','ADMIN_MEDIATED')),
-    ADD CONSTRAINT ck_orders_completed CHECK (
-        (status = 'COMPLETED') = (completed_at IS NOT NULL AND completed_by IS NOT NULL)),
-    ADD CONSTRAINT ck_orders_completed_by CHECK (completed_by IS NULL OR completed_by IN ('OWNER','SYSTEM','ADMIN')),
-    ADD CONSTRAINT ck_orders_confirmed CHECK (
-        status NOT IN ('CONFIRMED','IN_PROGRESS','DISPUTED','COMPLETED') OR confirmed_at IS NOT NULL),
-    ADD CONSTRAINT ck_orders_disputed CHECK (status <> 'DISPUTED' OR disputed_at IS NOT NULL);
-
--- order_snapshots：只留媒體額度快照
-ALTER TABLE order_snapshots
-    DROP COLUMN snapshot_original_total, DROP COLUMN adjustment_amount, DROP COLUMN snapshot_data,
-    DROP COLUMN max_video_seconds, DROP COLUMN snapshot_unit_price, DROP COLUMN snapshot_plan_title;
-
--- modification_requests：DROP 舊欄位、補約束
-ALTER TABLE modification_requests
-    DROP COLUMN previous_status, DROP COLUMN refund_proof_url, DROP COLUMN supplement_proof_key,
-    DROP COLUMN supplement_proof_last_five, DROP COLUMN supplement_idempotency_key,
-    DROP COLUMN supplement_submitted_at, DROP COLUMN supplement_verified_at,
-    DROP COLUMN dates, DROP COLUMN payload, DROP COLUMN diff_amount, DROP COLUMN requested_by;
-ALTER TABLE modification_requests
-    ALTER COLUMN type SET NOT NULL,
-    ALTER COLUMN initiated_by SET NOT NULL,
-    ALTER COLUMN reason SET NOT NULL;
-ALTER TABLE modification_requests
-    ADD CONSTRAINT ck_modreq_status CHECK (status IN ('REQUESTED','QUOTED','AWAITING_SUPPLEMENT',
-        'AWAITING_REFUND','SETTLED','REJECTED','WITHDRAWN','EXPIRED')),
-    ADD CONSTRAINT ck_modreq_type CHECK (type IN ('CHANGE','CANCEL_ALL')),
-    ADD CONSTRAINT ck_modreq_initiated_by CHECK (initiated_by IN ('OWNER','SITTER','SYSTEM')),
-    ADD CONSTRAINT ck_modreq_system_user CHECK ((initiated_by = 'SYSTEM') = (initiated_by_user_id IS NULL)),
-    ADD CONSTRAINT ck_modreq_system_source CHECK ((initiated_by = 'SYSTEM') = (source_modification_id IS NOT NULL)),
-    ADD CONSTRAINT ck_modreq_expires CHECK (status NOT IN ('REQUESTED','QUOTED') OR expires_at IS NOT NULL),
-    ADD CONSTRAINT ck_modreq_ended CHECK (
-        (status IN ('SETTLED','REJECTED','WITHDRAWN','EXPIRED')) = (ended_at IS NOT NULL)),
-    ADD CONSTRAINT ck_modreq_quoted CHECK (
-        status = 'REQUESTED'
-        OR (initiated_by = 'OWNER' AND status IN ('REJECTED','WITHDRAWN','EXPIRED'))
-        OR new_total_amount IS NOT NULL),   -- 進入 QUOTED 之後必有新總額
-    ADD CONSTRAINT ck_modreq_amounts CHECK (
-        (new_total_amount IS NULL OR new_total_amount BETWEEN 0 AND 999999)
-        AND (surcharge_amount IS NULL OR surcharge_amount BETWEEN 0 AND 999999)
-        AND (discount_amount IS NULL OR discount_amount BETWEEN 0 AND 999999)
-        AND (system_amount IS NULL OR system_amount >= 0)),
-    ADD CONSTRAINT ck_modreq_adjustment_reason CHECK (
-        COALESCE(surcharge_amount, 0) + COALESCE(discount_amount, 0) = 0 OR adjustment_reason IS NOT NULL);
-
--- order_logs
-ALTER TABLE order_logs DROP COLUMN operator_id;
-ALTER TABLE order_logs ALTER COLUMN operator_role SET NOT NULL;
-ALTER TABLE order_logs ADD CONSTRAINT ck_order_logs_role
-    CHECK (operator_role IN ('OWNER','SITTER','ADMIN','SYSTEM'));
-```
-
-#### 5.1.3 約束與索引理由摘要
+#### 5.1.2 約束與索引理由摘要
 
 | 約束 / 索引 | 保護的規則 | 出處 |
 |------------|-----------|------|
@@ -1088,11 +1252,11 @@ ALTER TABLE order_logs ADD CONSTRAINT ck_order_logs_role
 | `ux_idempotency_scope` | 冪等範圍唯一；認領以 `ON CONFLICT` 取代先查再寫（抽樣缺陷 #5 的競態） | baseline §3.6 |
 | `ck_orders_questionnaire` | 問卷狀態與免填原因組合 | baseline §3.5、CQ-67 |
 | `ck_orders_cancelled` / `_completed` / `_confirmed` / `_disputed` | 終態與時間欄位一致 | baseline §3.1 |
+| `ck_modreq_*` | 變更狀態、發起者、SYSTEM 列必有來源變更、終態必有 `ended_at` | baseline §3.4、PRD-023 BR-9、BR-15 |
 | 「退款合計 ≤ 已收淨額」、`total_amount ≥ 1`（報價時） | 無法以 CHECK 表達（跨列 / 只在特定時點），於訂單鎖內由 Service 檢查 | baseline §4、CQ-26、CQ-53 |
-| `ix_*`（部分索引） | 每支排程的候選查詢與月額度、熟客、列表查詢 | §8.1 |
+| `ix_*`（部分索引） | 每支排程的候選查詢與月額度、熟客、列表、帳務查詢 | §8.1 |
 
 - **Hibernate flush 順序**：同一交易「先把舊列改成終態、再建新列」時（T8 → T9、O15 作廢後建 `ADMIN_ADJUSTMENT` 前），必須在 UPDATE 後明確 flush 再 INSERT；Hibernate 預設 INSERT 先於 UPDATE，會撞 partial unique。整合測試必測。
-
 ### 5.2 ER
 
 ```mermaid
@@ -1121,11 +1285,11 @@ erDiagram
 
 ### 5.3 刪除 / 改名總表
 
-| 表 | 刪除（contract） | 新增 / 取代 |
+| 表 | 刪除 | 新增 / 取代 |
 |----|-----------------|------------|
 | `orders` | `items`、`adjustment_amount`、`adjustment_reason`、`paid_at`、`payout_at`、`waiting_for_owner_action`、`is_disputed`、`idempotency_key`、`plan_id`、`payment_proof_url`、`payment_proof_last_five`、`disclaimer_agreed`、`disclaimer_agreed_at`、`payment_idempotency_key`、`questionnaire_answers` | `base_amount`、`surcharge_amount`、`discount_amount`、`pricing_notes`、`quoted_at`、`confirmed_at`（取代 `paid_at`）、`review_expires_at`、`first_service_date`、`questionnaire_status`、`questionnaire_exempt_reason`、`cancelled_at`、`cancel_reason_code`、`cancel_reason`、`completed_by`、`completion_basis_at`、`disputed_at`；保留 `total_amount`（改可 NULL）、`cancelled_by`、`completed_at`、`media_expiry_warned`（SD-CARE 使用，搬遷另議） |
 | `order_snapshots` | `snapshot_original_total`、`adjustment_amount`、`snapshot_data`、`max_video_seconds`、`snapshot_unit_price`、`snapshot_plan_title` | 單價與方案名稱移到 `order_plan_snapshots` |
-| `modification_requests` | `previous_status`、`refund_proof_url`、`supplement_*`（5 欄）、`dates`、`payload`、`diff_amount`、`requested_by`；索引 `uk_active_modification`、`idx_mod_req_supplement_idempotency` | §5.1.1 第 7 段新欄位；憑證移到 `payment_submissions` |
+| `modification_requests` | `previous_status`、`refund_proof_url`、`supplement_*`（5 欄）、`dates`、`payload`、`diff_amount`、`requested_by`；索引 `uk_active_modification`、`idx_mod_req_supplement_idempotency` | §5.1.1 第 2 段新欄位；憑證移到 `payment_submissions` |
 | `order_logs` | `operator_id`（VARCHAR） | `operator_role`、`operator_user_id` |
 | 新表 | — | `order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`payments`、`payment_submissions`、`admin_tasks`、`idempotency_records` |
 | 不動 | `idempotency_keys`（KYC、照護記事 / 媒體、照護日誌仍使用；改寫後由各自 SD 移除依賴，§11） | — |
@@ -1134,13 +1298,448 @@ erDiagram
 
 ## 6. API 契約
 
-> 第二階段補齊。端點清單與代號見 §2.3.4；每支端點的 request / response 欄位、`@PreAuthorize` 角色、方案判斷位置、歸屬檢查、冪等、完整錯誤碼表（含拋出例外與 `GlobalExceptionHandler` 對映）在此段落撰寫。
+### 6.1 共通規則
+
+| 項目 | 規則 |
+|------|------|
+| 身分 | 一律取自 token（`TokenContext.getUserId()`）；body / query 不收代表呼叫者的 `ownerId` / `sitterId`。E1 的 `sitterId` 與 E31 路徑的 `sitterId` 是「操作對象」（SD-GLOBAL-SPEC §3.4 允許的例外） |
+| 角色 | `@PreAuthorize("hasRole(...)")` 標在 Controller；被拒時 Spring Security 拋 `AuthorizationDeniedException`，`GlobalExceptionHandler` 對映 403 `ROLE_MISMATCH`。歸屬不符由 Service 拋 `OrderException(FORBIDDEN)` → 403 `FORBIDDEN`（不用 `AccessDeniedException`，以免與角色不符混淆；其他模組沿用 `AccessDeniedException` → 403 `FORBIDDEN` 不受影響） |
+| 方案 | 不用 `@RequirePlan`；`PlanPolicy` 由 Service 在判斷順序第 13 步呼叫（§11 技術決策 5） |
+| 欄位驗證 | Request DTO **不掛** `@Valid`、`Idempotency-Key` 以 `@RequestHeader(required = false)` 讀取：Bean Validation 與必填 header 會在進入方法前回 400，早於 404 / 403，違反判斷順序。改由 `OrderRequestValidator` 在第 6 步檢查並拋 `OrderException(VALIDATION_FAILED)`。例外：JSON 無法解析（`HttpMessageNotReadableException`）與 multipart 解析失敗只能在進入前回 400 `VALIDATION_FAILED`，可接受 |
+| 冪等 | 帶 `Idempotency-Key`（1–128 個可見 ASCII 字元）的端點見 §6.2「冪等」欄；三段式見 §3.6.2 |
+| 時間 / 金額 | ISO-8601（UTC，`Z` 結尾）；日期 `YYYY-MM-DD`（Asia/Taipei）；金額為整數 TWD |
+| 分頁 | `page`（0 起）、`size`（預設 20，上限 50）；回應 `{ "content": [], "page", "size", "totalElements" }` |
+| 錯誤回應 | `{ "code": "<錯誤碼>", "message": "<中文訊息>", "payload": { ... }, "traceId", "timestamp" }`；`payload` 欄位見 §6.5；比對「回應一致」時不含 `traceId` / `timestamp`（PRD-005 EX-5） |
+| `ORDER_BUSY` | 另帶標頭 `Retry-After: 1` |
+| multipart 上限 | `spring.servlet.multipart.max-file-size=6MB`、`max-request-size=7MB`，讓 5–6 MB 的檔案能走到 422 `PROOF_FILE_TOO_LARGE`；超過 6 MB 由 `MaxUploadSizeExceededException` 直接回 422 `PROOF_FILE_TOO_LARGE`（早於 404 / 403，可接受） |
+
+**判斷順序代號**（baseline §3.7；以下各端點只寫 G6 之後的專屬檢查）：
+
+| 代號 | 檢查 | 拋出位置 |
+|------|------|---------|
+| G1 | 401 `UNAUTHENTICATED` | `JwtAuthenticationFilter` / `TokenContext` |
+| G2 | 冪等回放 | `IdempotencyInterceptor` |
+| G3 | 403 `ROLE_MISMATCH` | `@PreAuthorize` |
+| G4 | 404 `NOT_FOUND`（訂單、路徑子資源；子資源不屬路徑訂單也是 404） | Service，`OrderException(NOT_FOUND)` |
+| G5 | 403 `FORBIDDEN`（非當事人；ADMIN 不在可讀範圍；當事人但非此動作的操作方） | Service，`OrderException(FORBIDDEN)` |
+| G6 | 400 `VALIDATION_FAILED`（含缺 `Idempotency-Key`） | `OrderRequestValidator` |
+| G7 | 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` | `IdempotencyService.claim`，`IdempotencyException` |
+| L | 取訂單鎖；逾時 409 `ORDER_BUSY` | `OrderLockService`，`OrderBusyException` |
+
+### 6.2 總表
+
+| 代號 | Method | Path | `@PreAuthorize` | 方案 | 歸屬檢查 | 冪等 |
+|------|--------|------|----------------|------|---------|------|
+| E1 | POST | `/api/orders` | OWNER | 第 13 步 `SUBSCRIPTION_LOCKED` | 毛孩 `ownerId == token` | 必填 |
+| E2 | GET | `/api/orders/{orderId}` | OWNER, SITTER | — | `order.owner == token`（OWNER）/ `order.sitter == token`（SITTER） | — |
+| E3 | GET | `/api/orders/owner` | OWNER | — | 只查 `owner_id = token` | — |
+| E4 | GET | `/api/orders/sitter` | SITTER | — | 只查 `sitter_id = token` | — |
+| E5 | GET | `/api/orders/{orderId}/evaluation` | SITTER | 讀取不擋 | `order.sitter == token` | — |
+| E6 | POST | `/api/orders/{orderId}/quote` | SITTER | 第 13 步 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED` | `order.sitter == token` | 必填 |
+| E7 | POST | `/api/orders/{orderId}/decline` | SITTER | 不擋 | `order.sitter == token` | 必填 |
+| E8 | POST | `/api/orders/{orderId}/withdraw` | OWNER | 不擋 | `order.owner == token` | 必填 |
+| E9 | POST | `/api/orders/{orderId}/sitter-cancel` | SITTER | 不擋 | `order.sitter == token` | 必填 |
+| E10 | GET | `/api/orders/{orderId}/payments` | OWNER, SITTER, ADMIN | — | 當事人；ADMIN 依 `AdminOrderAccessPolicy` | — |
+| E11 | POST | `/api/orders/{orderId}/payments/{paymentId}/submissions` | OWNER, SITTER | 不擋 | 當事人且為該 payment 付款方 | 必填（multipart hash） |
+| E12 | GET | `/api/orders/{orderId}/payments/{paymentId}/submissions` | OWNER, SITTER, ADMIN | — | 同 E10 | — |
+| E13 | GET | `/api/orders/{orderId}/payments/{paymentId}/submissions/{submissionId}/proof-url` | OWNER, SITTER, ADMIN | — | 同 E10 | — |
+| E14 | POST | `/api/orders/{orderId}/payments/{paymentId}/verify` | OWNER, SITTER | 不擋 | 當事人且為該 payment 收款方 | 必填 |
+| E15 | POST | `/api/orders/{orderId}/payments/{paymentId}/reject` | OWNER, SITTER | 不擋 | 當事人；僅 CHARGE 的收款方（SITTER） | 必填 |
+| E16 | POST | `/api/admin/orders/{orderId}/payments/{paymentId}/void` | ADMIN | — | payment 為 INITIAL 且該訂單有 OPEN `INITIAL_PAYMENT_UNVERIFIED` 待辦 | 必填 |
+| E17 | POST | `/api/orders/{orderId}/modifications` | OWNER, SITTER | SITTER 第 13 步 `PLAN_REQUIRED`（鎖定依 FREE） | 當事人 | 必填 |
+| E18 | GET | `/api/orders/{orderId}/modifications` | OWNER, SITTER, ADMIN | — | 同 E10 | — |
+| E19 | GET | `/api/orders/{orderId}/modifications/{modificationId}` | OWNER, SITTER, ADMIN | — | 同 E10 | — |
+| E20 | POST | `/api/orders/{orderId}/modifications/{modificationId}/quote` | SITTER | 第 13 步 `PLAN_REQUIRED` | `order.sitter == token` | 必填 |
+| E21 | POST | `/api/orders/{orderId}/modifications/{modificationId}/reject` | OWNER, SITTER | 不擋 | 當事人 | 必填 |
+| E22 | POST | `/api/orders/{orderId}/modifications/{modificationId}/withdraw` | OWNER, SITTER | 不擋 | 當事人且為發起者 | 必填 |
+| E23 | POST | `/api/orders/{orderId}/modifications/{modificationId}/accept` | OWNER | 不重驗 | `order.owner == token` | 必填 |
+| E24 | POST | `/api/orders/{orderId}/payment-disputes` | OWNER, SITTER | 不擋 | 當事人 | 必填 |
+| E25 | POST | `/api/orders/{orderId}/complete` | OWNER | — | `order.owner == token` | 必填 |
+| E26 | POST | `/api/orders/{orderId}/service-disputes` | OWNER | — | `order.owner == token` | 必填 |
+| E27 | GET | `/api/admin/orders/{orderId}` | ADMIN | — | `AdminOrderAccessPolicy` | — |
+| E28 | GET | `/api/admin/tasks` | ADMIN | — | — | — |
+| E29 | POST | `/api/admin/orders/{orderId}/mediation` | ADMIN | — | 訂單 `DISPUTED`（可讀範圍） | 必填 |
+| E30 | GET | `/api/orders/sitter/ledger` | SITTER | — | 只查 `sitter_id = token` | — |
+| E31 | GET | `/api/sitters/{sitterId}/booking-context` | 匿名可（Optional JWT） | — | — | — |
+| C1–C10 | POST | `/api/internal/cron/...`（§8.1） | `ROLE_INTERNAL`（`InternalSecretFilter`） | — | — | 不適用（以重驗保證可重跑） |
+
+共 **31 支使用者端點 + 10 支排程端點**。
+
+### 6.3 端點契約
+
+> 各端點的「錯誤」欄依判斷順序列 G6 之後的專屬項；G1–G7 依 §6.1 適用於所有寫入端點（GET 只有 G1、G3、G4、G5 與查詢參數 400）。錯誤碼 payload 見 §6.5。
+
+#### E1 `POST /api/orders`（O1）
+
+| 欄位 | 型別 | 必填 | 規則 |
+|------|------|------|------|
+| `sitterId` | UUID | ✓ | 預約對象 |
+| `groups[]` | array | ✓ | 1–10 組（PRD-005 BR-18） |
+| `groups[].planId` | UUID | ✓ | |
+| `groups[].dates[]` | date[] | ✓ | 1 筆以上；全部群組日期合計 ≤ 60；同方案同日只能出現在一組 |
+| `groups[].dailyCount` | int | ✓ | 1–3 |
+| `groups[].petIds[]` | UUID[] | ✓ | ≥ 1（payload `groupIndex`） |
+| `answers[]` | array | | 每題 `questionId` + `value`（字串或字串陣列）；同一 `questionId` 不得重複 |
+| `expectedAmount` | int | ✓ | 畫面試算值 |
+
+Response 201：`{ "orderId", "status": "PENDING", "baseAmount", "reviewExpiresAt", "questionnaireStatus" }`
+
+錯誤（G4 起）：404 保母不存在 → 404 任一毛孩不存在或已刪除 → 403 毛孩非本人 → 400（`Idempotency-Key`、群組 / 日期 / `petIds` 空、`dailyCount`、群組數、日期總數、同方案同日、`questionId` 重複、日期格式）→ G7 → 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE`（`reason` = `NOT_VERIFIED` / `UNAVAILABLE`）→ 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE`（`dates`、`reason`）→ 409 `QUESTIONNAIRE_CHANGED`（`questions`）→ 400 答案長度（`questionId`）→ 400 `field=baseAmount`、`max=999999` → 409 `PRICE_CHANGED`（`baseAmount`）→ 403 `SUBSCRIPTION_LOCKED`。不取訂單鎖（新建）。
+
+#### E2 `GET /api/orders/{orderId}`
+
+Response 200：`{ "orderId", "status", "role": "OWNER|SITTER", "counterpart": { "userId", "displayName" }, "firstServiceDate", "reviewExpiresAt", "baseAmount", "quote": { "surchargeAmount", "discountAmount", "pricingNotes", "totalAmount", "quotedAt" } | null, "groups": [ { "orderItemId", "source", "planId", "planTitle", "unitPrice", "dates", "dailyCount", "pets": [ { "petId", "name", "type", "deleted" } ] } ], "visits": [ { "visitId", "serviceDate", "planId", "status" } ], "questionnaireStatus", "questionnaireExemptReason", "payments": [ 摘要同 E10 但不含帳號快照 ], "openModification": { "modificationId", "status", "initiatedBy" } | null, "cancellation": { "cancelledBy", "reasonCode", "reason", "cancelledAt" } | null, "completedAt", "netPaid", "allowedActions": [ "WITHDRAW", "DECLINE", "QUOTE", "SITTER_CANCEL", "REQUEST_MODIFICATION", "COMPLETE", "REPORT_SERVICE_ISSUE", "PAYMENT_DISPUTE" ] }`
+
+- `allowedActions` 只是畫面提示，由同一套前置條件計算；後端每個寫入端點仍各自檢查。錯誤：G1、G3（ADMIN → `ROLE_MISMATCH`，ADMIN 走 E27）、G4、G5。
+
+#### E3 `GET /api/orders/owner`、E4 `GET /api/orders/sitter`
+
+Query：`tab` = `EVALUATING`（`PENDING`、`PENDING_PAYMENT`）/ `ACTIVE`（`CONFIRMED`、`IN_PROGRESS`、`DISPUTED`）/ `HISTORY`（`COMPLETED`、`CANCELLED`），對應 baseline §3.1；`page`、`size`。
+
+Response 200（分頁）：`content[]` = `{ "orderId", "status", "counterpartName", "firstServiceDate", "baseAmount", "totalAmount", "hasOpenModification", "initialPaymentStatus", "createdAt" }`，`created_at` 倒序。錯誤：G1、G3、400（`tab` / 分頁參數）。
+
+#### E5 `GET /api/orders/{orderId}/evaluation`
+
+Response 200：`{ "orderId", "status", "reviewExpiresAt", "baseAmount", "owner": { "displayName" }, "isRegularOwner", "groups": [ 同 E2，含毛孩與 deleted ], "questionnaire": { "status", "exemptReason", "answers": [ { "questionId", "questionText", "questionType", "answer" } ] }, "precheck": { "subscriptionLocked", "quotaReached", "payoutAccountMissing", "planAllowsAdjustment" } }`
+
+錯誤：G1、G3、G4、G5。`precheck` 只供畫面停用按鈕（PRD-006 AC-1.5），報價時仍強制檢查。
+
+#### E6 `POST /api/orders/{orderId}/quote`（O2）
+
+| 欄位 | 型別 | 必填 | 規則 |
+|------|------|------|------|
+| `expectedAmount` | int | ✓ | 畫面上的原始試算 |
+| `surchargeAmount` | int | | 0–999,999，預設 0 |
+| `discountAmount` | int | | 0–999,999，預設 0 |
+| `pricingNotes` | string | 調整 > 0 時必填 | 去前後空白 1–200 字 |
+
+Response 200：`{ "orderId", "status": "PENDING_PAYMENT", "baseAmount", "surchargeAmount", "discountAmount", "totalAmount", "quotedAt", "payment": { "paymentId", "amount", "dueAt", "escalateAt" } }`
+
+錯誤：G6（`expectedAmount` 缺、調整範圍、原因）→ G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `DEADLINE_PASSED`（`REVIEW_EXPIRES_AT`）→ 409 `FIRST_VISIT_DATE_PASSED` → 422 `MONTHLY_QUOTA_REACHED` → 422 `PAYOUT_ACCOUNT_REQUIRED` → 409 `PRICE_CHANGED`（`baseAmount`、`totalAmount`）→ 422 `INVALID_QUOTE_AMOUNT` / 400 `field=totalAmount` → 403 `PLAN_REQUIRED`（帶調整且 FREE / BASIC）→ 403 `SUBSCRIPTION_LOCKED`。
+
+#### E7 `POST /api/orders/{orderId}/decline`（O3 SITTER）
+
+Request：`reason` string 必填，去前後空白 1–200 字。Response 200：`{ "orderId", "status": "CANCELLED", "cancelledBy": "SITTER" }`
+
+錯誤：G6（`reason`）→ G7 → L → 409 `ORDER_STATE_CONFLICT`（非 `PENDING`）。不檢查期限、鎖定、額度。
+
+#### E8 `POST /api/orders/{orderId}/withdraw`（O3 OWNER / O6）
+
+Request：`expectedStatus`（`PENDING` / `PENDING_PAYMENT`，必填）；`reason`（選填，去空白後 ≤ 200 字，空 → null）。Response 200：`{ "orderId", "status": "CANCELLED", "cancelledBy": "OWNER" }`
+
+錯誤：G6（`expectedStatus`、`reason`）→ G7 → L → 409 `ORDER_STATE_CONFLICT`（非 `PENDING` / `PENDING_PAYMENT`，或 ≠ `expectedStatus`）→ 409 `PAYMENT_ALREADY_SUBMITTED`。不檢查期限。
+
+#### E9 `POST /api/orders/{orderId}/sitter-cancel`（O7）
+
+Request：`reason` 必填 1–200 字。Response 200：`{ "orderId", "status": "CANCELLED", "cancelledBy": "SITTER" }`
+
+錯誤：G6 → G7 → L → 409 `ORDER_STATE_CONFLICT`（非 `PENDING_PAYMENT`）→ 409 `PAYMENT_ALREADY_SUBMITTED`。
+
+#### E10 `GET /api/orders/{orderId}/payments`
+
+Response 200：`[ { "paymentId", "direction", "purpose", "method", "amount", "status", "dueAt", "escalateAt", "accountSnapshot": { "bankCode", "branch", "accountNumber", "accountName" } | null, "currentSubmissionId", "createdAt", "allowedActions": [ "UPLOAD", "VERIFY", "REJECT" ] } ]`，`created_at` 由舊到新。
+
+- `accountSnapshot` 只在 CHARGE 且呼叫者為付款方、收款方或可讀範圍 ADMIN 時解密回傳；REFUND 一律 null，畫面顯示「退款帳號請與飼主自行聯繫」。
+- 錯誤：G1、G3、G4、G5（ADMIN 不在可讀範圍 → 403）。
+
+#### E11 `POST /api/orders/{orderId}/payments/{paymentId}/submissions`（P1，multipart）
+
+| part | 型別 | 必填 | 規則 |
+|------|------|------|------|
+| `disclaimerAgreed` | boolean | ✓ | 必須 `true` |
+| `lastFive` | string | ✓ | `^[0-9]{5}$` |
+| `file` | file | ✓ | 恰好 1 個；JPEG / PNG / WebP（magic bytes）；≤ 5 MB |
+
+Response 201：`{ "submissionId", "paymentId", "paymentStatus": "SUBMITTED", "submittedAt" }`（不含簽名網址）
+
+錯誤：G5（非當事人；非付款方，例：保母上傳 CHARGE。payment 為 `ADMIN_ADJUSTMENT` 時不做方向檢查，直接回 409 `PAYMENT_STATE_CONFLICT`，PRD-007 §3）→ G6（免責、後五碼、檔案數）→ G7 → 預檢（不取鎖）：409 `ORDER_STATE_CONFLICT`（`DISPUTED`）→ 409 `PAYMENT_STATE_CONFLICT`（非 `UNPAID`、`ADMIN_ADJUSTMENT`）→ 409 `DEADLINE_PASSED`（`PAYMENT_DUE_AT`，`receivedAt ≥ due_at`）→ 422 `PROOF_FILE_TYPE_UNSUPPORTED` / `PROOF_FILE_TOO_LARGE` → GCS 失敗 503 `STORAGE_UNAVAILABLE` → L → 鎖後重驗失敗 409 `ORDER_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT`（期限仍以 `receivedAt` 判斷）。
+
+#### E12 `GET .../submissions`
+
+Response 200：`[ { "submissionId", "status", "lastFive", "submittedAt", "disclaimerAgreedAt", "rejectReason", "voided" } ]`，`submitted_at` 倒序；`voided` = payment `VOID` 且 submission 仍 `SUBMITTED`（PRD-007 BR-24）。錯誤：G1、G3、G4（submission / payment 不屬路徑訂單 → 404）、G5。
+
+#### E13 `GET .../submissions/{submissionId}/proof-url`
+
+Response 200：`{ "url", "expiresAt" }`（V4 簽名網址，TTL 5 分鐘，每次重新產生）。錯誤：G1、G3、G4、G5；簽名失敗 503 `STORAGE_UNAVAILABLE`。
+
+#### E14 `POST .../payments/{paymentId}/verify`（P2）
+
+Request：`submissionId` UUID 必填。Response 200：`{ "paymentId", "paymentStatus": "VERIFIED", "orderStatus", "modification": { "modificationId", "status" } | null }`
+
+錯誤：G5（非收款方；保母確認退款、飼主確認 CHARGE；`ADMIN_ADJUSTMENT` 不做方向檢查）→ G6 → G7 → L → 409 `ORDER_STATE_CONFLICT`（`DISPUTED`）→ 409 `PAYMENT_STATE_CONFLICT`（非 `SUBMITTED`、`submissionId` 非目前那筆、`ADMIN_ADJUSTMENT`）。不檢查日期、方案、鎖定。
+
+#### E15 `POST .../payments/{paymentId}/reject`（P3）
+
+Request：`submissionId` 必填；`reason` 必填 1–200 字。Response 200：`{ "paymentId", "paymentStatus": "UNPAID", "submissionId", "submissionStatus": "REJECTED" }`
+
+錯誤：G5（REFUND 不可駁回、非收款方；先於凍結檢查）→ G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `PAYMENT_STATE_CONFLICT`。
+
+#### E16 `POST /api/admin/orders/{orderId}/payments/{paymentId}/void`（O16）
+
+Request：`reason` 必填 1–200 字。Response 200：`{ "orderId", "status": "CANCELLED", "cancelledBy": "ADMIN", "paymentStatus": "VOID" }`
+
+錯誤：G4 → G5（payment 非 INITIAL、待辦非 OPEN；取鎖前）→ G6 → G7 → L → 409 `PAYMENT_STATE_CONFLICT`（鎖後 payment 非 `SUBMITTED` 或待辦已非 OPEN）。
+
+#### E17 `POST /api/orders/{orderId}/modifications`（T1 OWNER / T2 SITTER）
+
+| 欄位 | 型別 | 必填 | 規則 |
+|------|------|------|------|
+| `type` | `CHANGE` / `CANCEL_ALL` | ✓ | |
+| `reason` | string | ✓ | 1–200 字 |
+| `removeVisitIds[]` | UUID[] | | `CHANGE` 用；必須屬本訂單（否則 400） |
+| `addItems[]` | array | | `CHANGE` 用；每筆 `date`、`planId`、`dailyCount` 1–3、`petIds[]` ≥ 1 且在本訂單毛孩範圍 |
+| `surchargeAmount` / `discountAmount` / `adjustmentReason` | int / int / string | | 只有 SITTER 適用（OWNER 送出時忽略）；0–999,999；任一 > 0 時原因 1–200 字 |
+
+Response 201：`{ "modificationId", "status": "REQUESTED|QUOTED", "initiatedBy", "expiresAt", "systemAmount", "newTotalAmount", "netPaid", "diff" }`（OWNER 發起時金額欄為 null）
+
+錯誤：G6（含同方案同日合計 > 3、變更後日期總數 > 60、加減範圍、新總額 > 999,999）→ G7 → L → 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_IN_PROGRESS` → `MODIFICATION_NOT_ALLOWED` → 409 `VISIT_ALREADY_STARTED`（`visitIds`）→ 422 `INVALID_VISIT_DATE`（`reason=PLAN_NOT_IN_RANGE` 時表方案區間）/ `MODIFICATION_EMPTY` / `PLAN_NOT_IN_ORDER` / `INVALID_MODIFICATION_AMOUNT` → 403 `PLAN_REQUIRED`（SITTER 帶加減且 FREE / BASIC / 鎖定）。
+
+#### E18 `GET /api/orders/{orderId}/modifications`
+
+Response 200：`[ { "modificationId", "type", "status", "initiatedBy", "reason", "newTotalAmount", "createdAt", "endedAt" } ]`，`created_at` 倒序；無變更回 `[]`。錯誤：G1、G3、G4、G5。
+
+#### E19 `GET /api/orders/{orderId}/modifications/{modificationId}`
+
+Response 200：`{ "modificationId", "type", "status", "initiatedBy", "reason", "requestedContent", "quotedContent", "systemAmount", "surchargeAmount", "discountAmount", "adjustmentReason", "newTotalAmount", "netPaid", "diff", "expiresAt", "endedAt", "rejectReason", "sourceModificationId", "payment": { "paymentId", "direction", "purpose", "amount", "status", "dueAt" } | null, "disputeAvailableAt", "allowedActions": [ "QUOTE", "REJECT", "WITHDRAW", "ACCEPT", "PAYMENT_DISPUTE" ] }`
+
+- `netPaid` / `diff`：`QUOTED` 前為報價時值，同意後為 `agreed_*`；`allowedActions` 依 PRD-016 §4.6 表與 `now ≥ expires_at`（全部隱藏）計算。錯誤：G1、G3、G4、G5。
+
+#### E20 `POST .../modifications/{modificationId}/quote`（T3）
+
+Request：同 E17 的 `removeVisitIds`、`addItems`、`surchargeAmount`、`discountAmount`、`adjustmentReason`（`CANCEL_ALL` 忽略 `removeVisitIds`，固定為當下所有 `PENDING` 行程）。Response 200：`{ "modificationId", "status": "QUOTED", "systemAmount", "newTotalAmount", "netPaid", "diff", "expiresAt" }`
+
+錯誤：G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT` → `DEADLINE_PASSED`（`MODIFICATION_EXPIRES_AT`）→ `VISIT_ALREADY_STARTED` → 422 `INVALID_VISIT_DATE` / `MODIFICATION_EMPTY` / `PLAN_NOT_IN_ORDER` / `INVALID_MODIFICATION_AMOUNT` → 403 `PLAN_REQUIRED`。
+
+#### E21 `POST .../modifications/{modificationId}/reject`
+
+Request：`reason`（SITTER 必填 1–200 字；OWNER 不需要，送出則忽略）。Response 200：`{ "modificationId", "status": "REJECTED", "endedAt" }`
+
+錯誤：G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_STATE_CONFLICT`（SITTER 只能拒絕 `REQUESTED`，OWNER 只能拒絕 `QUOTED`）→ 409 `DEADLINE_PASSED`。
+
+#### E22 `POST .../modifications/{modificationId}/withdraw`（T5）
+
+Request：無 body。Response 200：`{ "modificationId", "status": "WITHDRAWN", "endedAt" }`
+
+錯誤：G5（非發起者，含 `initiated_by=SYSTEM`；CQ-1 已決）→ G6（缺 key）→ G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_STATE_CONFLICT`（`AWAITING_*`、終態）→ 409 `DEADLINE_PASSED`。
+
+#### E23 `POST .../modifications/{modificationId}/accept`
+
+Request：無 body。Response 200：`{ "modificationId", "status": "SETTLED|AWAITING_SUPPLEMENT|AWAITING_REFUND", "netPaid", "diff", "payment": { "paymentId", "direction", "purpose", "amount", "dueAt" } | null, "orderStatus", "totalAmount" }`
+
+錯誤：G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT` → `DEADLINE_PASSED` → `VISIT_ALREADY_STARTED`（整筆不生效）。不重驗方案與新增日期（PRD-023 BR-1、BR-12）。
+
+#### E24 `POST /api/orders/{orderId}/payment-disputes`（O14）
+
+Request：`description` 必填 1–500 字；不接受附件。Response 200：`{ "orderId", "status": "DISPUTED", "adminTaskId" }`
+
+錯誤：G6 → G7 → L → 409 `ORDER_STATE_CONFLICT`（非 `CONFIRMED` / `IN_PROGRESS`）→ 409 `MODIFICATION_STATE_CONFLICT`（無 `AWAITING_*`）→ 409 `PAYMENT_STATE_CONFLICT`（補款 `UNPAID`；或 `SUBMITTED` 未滿 72h，payload `disputeAvailableAt`）。
+
+#### E25 `POST /api/orders/{orderId}/complete`（O11）
+
+Request：無 body。Response 200：`{ "orderId", "status": "COMPLETED", "completedAt" }`
+
+錯誤：G6（缺 key）→ G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_IN_PROGRESS` → 409 `VISITS_NOT_FINISHED`（有效行程非全為 `DONE`〔日誌已送出〕/ `CLOSED_BY_SYSTEM`）（CQ-6 已決）。
+
+#### E26 `POST /api/orders/{orderId}/service-disputes`（O13）
+
+Request：`description` 必填 1–500 字、不附圖（CQ-5 已決）。Response 200：`{ "orderId", "status": "DISPUTED", "adminTaskId" }`
+
+錯誤：G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_IN_PROGRESS` → 409 `VISITS_NOT_FINISHED`（行程條件同 O12）→ 409 `DEADLINE_PASSED`（`deadline=DISPUTE_WINDOW_ENDS_AT`、`deadlineAt = completion_basis_at + 48h`）。
+
+#### E27 `GET /api/admin/orders/{orderId}`
+
+Response 200：E2 的全部欄位（`role`=`ADMIN`、`allowedActions` 只含 `VOID_INITIAL_PAYMENT` / `MEDIATE`）＋ `payments`（含 `accountSnapshot`）＋ `modifications`（同 E18）＋ `adminTasks[]`（`taskId`、`type`、`status`、`resolution`、`createdAt`）＋ `logs[]`（`actionType`、`operatorRole`、`operatorUserId`、`payload`、`createdAt`，時間正序）。錯誤：G1、G3、G4、G5（非 `DISPUTED` 且無 OPEN 待辦）。
+
+#### E28 `GET /api/admin/tasks`
+
+Query：`status`（預設 `OPEN`）、`type`（選填）、`page`、`size`。Response 200（分頁）：`content[]` = `{ "taskId", "type", "orderId", "paymentId", "status", "createdAt" }`，`created_at` 由舊到新。錯誤：G1、G3、400。
+
+#### E29 `POST /api/admin/orders/{orderId}/mediation`（O15 / O17）
+
+| 欄位 | 型別 | 必填 | 規則 |
+|------|------|------|------|
+| `refundDecisions[]` | array | 有 `SUBMITTED` 退款時必填 | 每筆 `paymentId` + `exported` boolean；必須涵蓋所有 `SUBMITTED` 退款（缺 → 400，payload `paymentIds`） |
+| `adjustment` | object | | `amount` 1–999,999、`basis` 1–500 字（CQ-7 已決） |
+
+Response 200：`{ "orderId", "status": "COMPLETED|CANCELLED", "adjustmentPaymentIds": [] }`
+
+錯誤：G4 → G5（非可讀範圍）→ G6（`refundDecisions` 缺漏、`adjustment` 範圍）→ G7 → L → 409 `ORDER_STATE_CONFLICT`（非 `DISPUTED`）→ 409 `VISITS_NOT_FINISHED`（有 `IN_PROGRESS` 行程）→ 422 `INVALID_ADJUSTMENT_AMOUNT`（手動金額 > 已收淨額 − 本次自動補登）。終態由系統依行程判斷（CQ-57），不收參數。
+
+#### E30 `GET /api/orders/sitter/ledger`
+
+Query：`month`（`YYYY-MM`，Asia/Taipei，必填）。Response 200：`{ "month", "totalIncome", "orders": [ { "orderId", "status", "terminalAt", "netPaid" } ] }`；收入 = 該月進入 `COMPLETED` / `CANCELLED` 的訂單的已收淨額（baseline §4、CQ-8 已決），由 payments 加總，不讀 `total_amount`。錯誤：G1、G3、400（`month`）。
+
+#### E31 `GET /api/sitters/{sitterId}/booking-context`
+
+Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAILABLE|PAUSED", "plans": [ { "planId", "title", "unitPrice", "petTypes", "bookableFrom", "bookableTo" } ], "questionnaire": { "required", "exemptReason", "questions": [ { "questionId", "text", "type", "options", "required", "sortOrder" } ] } | null }`
+
+- 判斷順序同 PRD-005 §4.1：`SELF` → `NOT_VERIFIED`（不回方案）→ `UNAVAILABLE`（隱藏、全域黑名單、全域白名單不在名單；不回方案，三者回應相同）→ `PAUSED`（月額度已滿、訂閱鎖定、停權共用一值，不揭露原因）→ `BOOKABLE`。
+- `plans` 依門禁與當下等級過濾；`bookableFrom` / `bookableTo` 只在 PRO / ULTIMATE 且未鎖定時回傳，否則 null。
+- `questionnaire` 只在 token 為 OWNER 時回傳（熟客或無題目 → `required=false`）。
+- 錯誤：404 保母不存在。
+
+#### C1–C10 排程端點
+
+| 項目 | 契約 |
+|------|------|
+| Request | `POST`，無 body；標頭 `X-Internal-Secret` |
+| Response 200 | `{ "job": "<端點名>", "processed": int, "skipped": int, "failed": int, "startedAt", "finishedAt" }` |
+| 驗證失敗 | 標頭缺漏或不符 → 403 `FORBIDDEN`（`InternalSecretFilter` 直接回錯誤回應，不處理任何資料；比對用常數時間比較；不得 log 標頭值） |
+| 一般使用者 token | 同上 403（`/api/internal/**` 只認 `ROLE_INTERNAL`） |
+
+### 6.4 例外類別與 `GlobalExceptionHandler` 對映
+
+| 例外（`application/exception/`） | 帶的資料 | 對映 |
+|------|---------|------|
+| `OrderException` | `OrderErrorCode code`、`Map payload` | 依 `code` 對映 HTTP 狀態（§6.5）；body 依 §6.1 格式 |
+| `OrderBusyException` | — | 409 `ORDER_BUSY` + `Retry-After: 1` |
+| `IdempotencyException` | `REUSED` / `IN_PROGRESS` | 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` |
+| `StorageUnavailableException` | — | 503 `STORAGE_UNAVAILABLE` |
+| `VisitNotPendingException`（SD-FULFILL 拋，本 SD 轉換） | `visitIds` | 由本 SD 包成 `OrderException(VISIT_ALREADY_STARTED)` |
+| `AuthorizationDeniedException`（`@PreAuthorize`） | — | 403 `ROLE_MISMATCH`（未登入時 401 `UNAUTHENTICATED`） |
+| `AuthenticationCredentialsNotFoundException` | — | 401 `UNAUTHENTICATED`（沿用 GLOBAL §3.4） |
+| `ObjectOptimisticLockingFailureException`（`@Version`） | — | 409 `ORDER_BUSY` + `Retry-After: 1`（baseline §3.7、CQ-2 已決） |
+| `PessimisticLockingFailureException` / SQLSTATE 55P03 | — | 由 `OrderLockService` 轉為 `OrderBusyException` |
+| `HttpMessageNotReadableException`、`MultipartException` | — | 400 `VALIDATION_FAILED` |
+| `MaxUploadSizeExceededException` | — | 422 `PROOF_FILE_TOO_LARGE` |
+| 本 SD 的 `DataIntegrityViolationException`（partial unique 被撞，屬防線） | 約束名 | `ux_modreq_open_per_order` → 409 `MODIFICATION_IN_PROGRESS`；`ux_admin_tasks_open` → 409 `ORDER_STATE_CONFLICT`；其他 → 409 `ORDER_BUSY`（可重試，重試時重驗會回正確錯誤）。舊的 `idx_orders_payment_idempotency` 等對映移除 |
+
+### 6.5 錯誤碼總表（本 SD 使用，共 36 項）
+
+| # | HTTP | code | 來源 | payload | 使用端點 |
+|---|------|------|------|---------|---------|
+| 1 | 400 | `VALIDATION_FAILED` | baseline | `field`；依情境 `groupIndex` / `questionId` / `max` / `paymentIds` | 全部寫入端點、查詢參數 |
+| 2 | 401 | `UNAUTHENTICATED` | baseline | — | 全部（E31 除外） |
+| 3 | 403 | `FORBIDDEN` | baseline | — | 全部（E31 除外）；C1–C10 驗證失敗 |
+| 4 | 403 | `ROLE_MISMATCH` | baseline | — | 全部（E31 除外） |
+| 5 | 403 | `SUBSCRIPTION_LOCKED` | baseline | — | E1、E6 |
+| 6 | 403 | `PLAN_REQUIRED` | baseline | — | E6、E17、E20 |
+| 7 | 404 | `NOT_FOUND` | baseline | — | 全部 |
+| 8 | 409 | `ORDER_STATE_CONFLICT` | baseline | `currentStatus` | E6–E9、E11、E14–E17、E20–E26、E29 |
+| 9 | 409 | `PAYMENT_STATE_CONFLICT` | baseline | `currentStatus`；O14 未滿 72h 帶 `disputeAvailableAt` | E11、E14–E16、E24 |
+| 10 | 409 | `MODIFICATION_IN_PROGRESS` | baseline | — | E17、E25、E26 |
+| 11 | 409 | `MODIFICATION_STATE_CONFLICT` | baseline | `currentStatus` | E20–E24 |
+| 12 | 409 | `MODIFICATION_NOT_ALLOWED` | baseline | — | E17 |
+| 13 | 409 | `VISITS_NOT_FINISHED` | baseline | `visitIds` | E25、E26、E29 |
+| 14 | 409 | `VISIT_ALREADY_STARTED` | baseline | `visitIds` | E17、E20、E23 |
+| 15 | 409 | `PAYMENT_ALREADY_SUBMITTED` | baseline | — | E8、E9 |
+| 16 | 409 | `DEADLINE_PASSED` | baseline | `deadline`（`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT`）、`deadlineAt` | E6、E11、E20–E23、E26 |
+| 17 | 409 | `FIRST_VISIT_DATE_PASSED` | baseline | — | E6 |
+| 18 | 409 | `PRICE_CHANGED` | baseline | E1 `baseAmount`；E6 `baseAmount`、`totalAmount` | E1、E6 |
+| 19 | 409 | `ORDER_BUSY` | baseline | —（標頭 `Retry-After: 1`） | 所有取訂單鎖的端點 |
+| 20 | 409 | `IDEMPOTENCY_IN_PROGRESS` | baseline | — | 所有冪等端點 |
+| 21 | 422 | `IDEMPOTENCY_KEY_REUSED` | baseline | — | 所有冪等端點 |
+| 22 | 422 | `SELF_BOOKING_NOT_ALLOWED` | baseline | — | E1 |
+| 23 | 422 | `MONTHLY_QUOTA_REACHED` | baseline | — | E1、E6 |
+| 24 | 422 | `INVALID_QUOTE_AMOUNT` | baseline | — | E6 |
+| 25 | 422 | `INVALID_VISIT_DATE` | baseline | `dates`；變更時 `reason=PLAN_NOT_IN_RANGE` | E1、E17、E20 |
+| 26 | 422 | `PAYOUT_ACCOUNT_REQUIRED` | baseline | — | E6 |
+| 27 | 403 | `SITTER_NOT_BOOKABLE` | 模組（PRD-005） | `reason` = `NOT_VERIFIED` / `UNAVAILABLE` | E1 |
+| 28 | 422 | `PLAN_NOT_BOOKABLE` | 模組（PRD-005） | — | E1 |
+| 29 | 409 | `QUESTIONNAIRE_CHANGED` | 模組（PRD-005）：送出的答案與送單當下的問卷不符（含題目沒改、直接呼叫 API 缺答） | `questions[]`（`questionId`、`text`、`type`、`options`、`required`） | E1 |
+| 30 | 422 | `PROOF_FILE_TYPE_UNSUPPORTED` | 模組（PRD-007） | — | E11 |
+| 31 | 422 | `PROOF_FILE_TOO_LARGE` | 模組（PRD-007） | `maxBytes` | E11 |
+| 32 | 503 | `STORAGE_UNAVAILABLE` | 模組（PRD-007） | — | E11、E13 |
+| 33 | 422 | `MODIFICATION_EMPTY` | 模組（PRD-016） | — | E17、E20 |
+| 34 | 422 | `PLAN_NOT_IN_ORDER` | 模組（PRD-016） | `planId` | E17、E20 |
+| 35 | 422 | `INVALID_MODIFICATION_AMOUNT` | 模組（PRD-016） | — | E17、E20 |
+| 36 | 422 | `INVALID_ADJUSTMENT_AMOUNT` | 模組（本 SD CQ-7） | `maxAmount` | E29 |
+
+- 冪等回放只記錄 2xx 與 409 / 422 業務錯誤；`ORDER_BUSY`、`IDEMPOTENCY_IN_PROGRESS`、5xx 不記錄（baseline §3.6）。
 
 ---
 
 ## 7. 副作用
 
-> 第二階段補齊：每個轉移的 `order_logs` payload 專屬欄位、通知收件者 / 類型代碼 / `mandatory` / 文案（文案取自各 PRD）、失敗處理。
+> 所有副作用與觸發轉移同一交易（`order_logs` 用 `OrderLogWriter`、通知用 `enqueue()`，皆 `MANDATORY`）。交易回滾 → log 與通知一併不存在。Email 寄送失敗不影響轉移，由 SD-NOTIFY 排程重試最多 5 次（4xx 直接失敗）。唯一在交易外的副作用：O1 後的我的最愛（§4.1）與 E11 失敗時刪 GCS 物件。
+
+### 7.1 `order_logs` action 與 payload
+
+共通 payload：`transitions[]`（`entity` = `ORDER` / `PAYMENT` / `SUBMISSION` / `MODIFICATION` / `VISIT` / `ADMIN_TASK`，`id`，`from`，`to`）、`idempotencyKey`（有則記）。下表只列專屬欄位。
+
+| action_type | 觸發 | operator_role | 專屬 payload |
+|-------------|------|---------------|-------------|
+| `ORDER_CREATED` | O1（E1） | OWNER | `baseAmount`、`groupCount`、`visitCount`、`questionnaireStatus`、`questionnaireExemptReason`、`reviewExpiresAt` |
+| `ORDER_QUOTED` | O2（E6） | SITTER | `baseAmount`、`surchargeAmount`、`discountAmount`、`totalAmount`、`pricingNotes`、`paymentId`、`dueAt`、`escalateAt`、`reminderMerged`（是否併入付款提醒） |
+| `ORDER_REJECTED` | O3（E7） | SITTER | `reason` |
+| `ORDER_WITHDRAWN` | O3 / O6（E8） | OWNER | `fromStatus`、`reason`（可為 null） |
+| `ORDER_REVIEW_EXPIRED` | O4（C1） | SYSTEM | `reviewExpiresAt` |
+| `ORDER_CANCELLED_BY_SITTER` | O7（E9） | SITTER | `reason`、`paymentId` |
+| `PAYMENT_PROOF_SUBMITTED` | P1（E11） | 付款方 | `paymentId`、`purpose`、`submissionId`、`lastFive`、`receivedAt` |
+| `PAYMENT_VERIFIED` | P2（E14） | 收款方 | `paymentId`、`purpose`、`submissionId`、`amount`；INITIAL 另帶 `confirmedAt`；SUPPLEMENT / REFUND 另帶 `modificationId`、`newTotalAmount` |
+| `PAYMENT_REJECTED` | P3（E15） | SITTER | `paymentId`、`purpose`、`submissionId`、`reason`、`afterDueAt`（是否已過 `due_at`） |
+| `PAYMENT_EXPIRED` | O8（C3） | SYSTEM | `paymentId`、`dueAt` |
+| `PAYMENT_ESCALATED` | A1（C4） | SYSTEM | `paymentId`、`adminTaskId`、`escalateAt` |
+| `PAYMENT_VOIDED_BY_ADMIN` | O16（E16） | ADMIN | `paymentId`、`submissionId`、`reason`、`adminTaskId` |
+| `MODIFICATION_REQUESTED` | T1（E17） | OWNER | `modificationId`、`type`、`reason`、`requestedContent`、`expiresAt` |
+| `MODIFICATION_PROPOSED` | T2（E17） | SITTER | `modificationId`、`type`、`reason`、`quotedContent`、`systemAmount`、`surchargeAmount`、`discountAmount`、`adjustmentReason`、`newTotalAmount`、`netPaid`、`diff`、`pricingMode`、`expiresAt` |
+| `MODIFICATION_QUOTED` | T3（E20） | SITTER | 同 `MODIFICATION_PROPOSED`（不含 `reason`） |
+| `MODIFICATION_REJECTED` | T4（E21） | SITTER / OWNER | `modificationId`、`reason`（SITTER） |
+| `MODIFICATION_WITHDRAWN` | T5（E22） | 發起者 | `modificationId`、`fromStatus` |
+| `MODIFICATION_EXPIRED` | T6（C5） | SYSTEM | `modificationId`、`fromStatus`、`expiresAt` |
+| `MODIFICATION_ACCEPTED` | E23 | OWNER | `modificationId`、`branch`（`SETTLED` / `AWAITING_SUPPLEMENT` / `AWAITING_REFUND`）、`agreedNetPaid`、`agreedDiff`、`cancelledVisitIds`、`createdVisitIds`、`paymentId`、`newTotalAmount` |
+| `SUPPLEMENT_EXPIRED` | T8（C6） | SYSTEM | `modificationId`、`paymentId`、`totalAmountBefore`、`totalAmountAfter`、`systemRefundModificationId`、`systemRefundPaymentId`、`refundAmount` |
+| `ORDER_CANCELLED_BY_MODIFICATION` | O10 | SYSTEM | `modificationId`、`initiatedBy`（該變更的發起者，PRD-023 AC-3.3） |
+| `ORDER_STARTED` | O9 | SITTER（開始行程）/ SYSTEM（C7） | `visitId`、`cause` |
+| `VISITS_CLOSED_BY_SYSTEM` | C7 | SYSTEM | `visitIds`、`completionBasisAt` |
+| `ORDER_COMPLETED` | O11（E25）/ O12（C8） | OWNER / SYSTEM | `completedBy`、`completionBasisAt` |
+| `SERVICE_DISPUTE_OPENED` | O13（E26） | OWNER | `description`、`adminTaskId` |
+| `PAYMENT_DISPUTE_OPENED` | O14（E24） | OWNER / SITTER | `description`、`modificationId`、`paymentId`、`adminTaskId` |
+| `ORDER_MEDIATED` | O15 / O17（E29） | ADMIN | `outcome`（`COMPLETED` / `CANCELLED`）、`refundDecisions[]`（`paymentId`、`exported`）、`adjustmentPaymentIds`、`adjustmentAmount`、`basis`、`rejectedModificationIds`、`cancelledVisitIds`、`resolvedAdminTaskIds` |
+
+### 7.2 通知（`NotificationService.enqueue()`）
+
+`mandatory=true` 即 baseline CQ-73 不可關閉類別（站內與 Email 一律排入）；其餘依 PRD-014「訂單事務」偏好由 SD-NOTIFY 決定是否排 Email，站內一律寫。類型代碼由本 SD 定義，範本由 SD-NOTIFY 管理；「文案」欄寫 PRD 已給的字面，PRD 未給字面者標「範本由 SD-NOTIFY 擬定」。
+
+| 觸發 | type | 收件者 | mandatory | 文案出處 |
+|------|------|--------|-----------|---------|
+| O1 | `NEW_BOOKING_REQUEST` | SITTER | ✗ | 「新預約申請」（PRD-005 §4.4、BR-16） |
+| O2 | `QUOTE_SENT` | OWNER | ✗ | 「保母已報價 NT${total}，請於 {due_at} 前完成付款」（PRD-006 BR-11） |
+| O2（`quoted_at ≥ 首日 − 48h`） | `QUOTE_SENT_WITH_PAYMENT_REMINDER` | OWNER | ✓ | 同上並附付款提醒（PRD-006 BR-11、AC-2.5） |
+| O3 SITTER | `BOOKING_DECLINED` / `BOOKING_DECLINED_SELF` | OWNER / SITTER | ✗ | 「預約已婉拒」（含原因）/「您已婉拒 {飼主顯示名稱} 的預約」（PRD-027 BR-2） |
+| O3 OWNER、O6 | `BOOKING_WITHDRAWN` / `BOOKING_WITHDRAWN_SELF` | SITTER / OWNER | ✗ | 「飼主已撤回預約（{首個行程日期}）」（有原因附「原因：…」）/「您已撤回預約」（PRD-026 BR-6） |
+| O4 | `REVIEW_EXPIRED_OWNER` / `REVIEW_EXPIRED_SITTER` | OWNER / SITTER | ✗ | 「保母未於期限內回覆，預約已自動取消」/「預約已逾期自動取消」（PRD-027 BR-2） |
+| O7 | `SITTER_CANCELLED` / `SITTER_CANCELLED_SELF` | OWNER / SITTER | ✗ | 「保母已取消訂單」（含原因）/「您已取消訂單」（PRD-027 BR-2） |
+| P1 | `PAYMENT_PROOF_SUBMITTED` | 收款方 | ✗ | 範本由 SD-NOTIFY 擬定（PRD-007 §9） |
+| P2 INITIAL（O5） | `ORDER_ACTIVATED` | 雙方 | ✗ | 「訂單啟動成功」（PRD-007 BR-9） |
+| P2 SUPPLEMENT（T7） | `SUPPLEMENT_VERIFIED` | 雙方 | ✗ | 「補款已確認，變更已生效」（PRD-023 §4.3） |
+| P2 MODIFICATION_REFUND（T10） | `REFUND_VERIFIED` | 雙方 | ✗ | 「退款已確認，變更已完成」（PRD-023 §4.4） |
+| P3 | `PAYMENT_REJECTED` | 付款方 | ✓ | 含駁回原因（PRD-007 §4.2、BR-26） |
+| C2 | `PAYMENT_REMINDER` | OWNER | ✓ | 範本由 SD-NOTIFY 擬定（PRD-007 BR-13） |
+| O8 | `PAYMENT_EXPIRED` | 雙方 | ✓ | 範本由 SD-NOTIFY 擬定（PRD-007 BR-26） |
+| A1 | `PAYMENT_ESCALATED` | 雙方 | ✗ | 範本由 SD-NOTIFY 擬定（PRD-007 BR-15） |
+| O16 | `PAYMENT_VOIDED_BY_ADMIN` | 雙方 | ✓ | 「平台已作廢此筆付款，款項請由雙方自行處理」（PRD-007 §4.4） |
+| T1 | `MODIFICATION_REQUESTED` | SITTER | ✗ | 「飼主提出訂單變更」（PRD-016 AC-1.1） |
+| T2 | `MODIFICATION_PROPOSED` | OWNER | ✗ | 範本由 SD-NOTIFY 擬定（PRD-016 §4.2） |
+| T3 | `MODIFICATION_QUOTED` | OWNER | ✗ | 「保母已回覆變更報價」（PRD-016 AC-2.1） |
+| T4 SITTER | `MODIFICATION_REJECTED_BY_SITTER` | OWNER | ✗ | 含拒絕原因（PRD-016 §4.3、AC-2.6） |
+| T4 OWNER | `MODIFICATION_REJECTED_BY_OWNER` | SITTER | ✗ | 「飼主已拒絕變更」（PRD-023 AC-1.6） |
+| T5 | `MODIFICATION_WITHDRAWN` | 對方 | ✗ | 飼主撤回：「飼主已撤回變更請求」（PRD-016 AC-3.1）；保母撤回：範本由 SD-NOTIFY 擬定 |
+| T6 | `MODIFICATION_EXPIRED` | 雙方 | ✗ | 「變更請求已逾期」（PRD-016 AC-3.3） |
+| E23 差額 0 | `MODIFICATION_SETTLED` | 雙方 | ✗ | 「變更已生效」（PRD-023 AC-1.1） |
+| E23 差額 > 0 | `MODIFICATION_ACCEPTED_SUPPLEMENT` / `SUPPLEMENT_REQUIRED` | SITTER / OWNER | ✗ | OWNER：含補款金額 NT$X 與「請於 YYYY-MM-DD HH:mm 前完成」（PRD-023 §4.1、BR-20）；SITTER：範本由 SD-NOTIFY 擬定 |
+| E23 差額 < 0 | `REFUND_REQUIRED` | SITTER | ✗ | 「請退還 NT$X 並上傳退款憑證」（PRD-023 AC-1.3） |
+| T8 | `SUPPLEMENT_EXPIRED` | 雙方 | ✗ | 「補款逾期，新增行程未生效」（PRD-023 §4.3） |
+| T9 | `SYSTEM_REFUND_REQUIRED` | SITTER | ✗ | 「請退還 NT$X」（PRD-023 §4.3） |
+| O10 | `ORDER_CANCELLED_BY_MODIFICATION` | 雙方 | ✗ | 「訂單已取消」（PRD-023 §4.5） |
+| O14 | `PAYMENT_DISPUTE_OPENED` | 另一方 | ✗ | 「訂單已進入爭議處理」（PRD-024 §4.1）；ADMIN 不通知 |
+| O13 | `SERVICE_DISPUTE_OPENED` | SITTER | ✗ | 範本由 SD-NOTIFY 擬定（PRD-009 改寫時定義）；ADMIN 不通知（CQ-9 已決） |
+| O15 / O17 | `ORDER_MEDIATED` | 雙方 | ✗ | 範本由 SD-NOTIFY 擬定（PRD-020 改寫時定義） |
+| O15 / O17 作廢 `SUBMITTED` 補款 | `SUPPLEMENT_VOIDED_BY_ADMIN` | 雙方 | ✗ | 「此筆補款由雙方自行處理」（PRD-024 BR-15） |
+| O9、O11、O12 | 不通知 | — | — | PRD-009 改寫時若要求，再新增 type |
+
+- 連結：OWNER 收件 `/owner/orders/{orderId}`，SITTER 收件 `/sitter/orders/{orderId}`；變更類加 `/orders/{orderId}/modifications/{modificationId}`。
+- 通知內容不得含收款帳號完整值（只在付款頁顯示）。
+
+### 7.3 失敗處理
+
+| 情境 | 處理 |
+|------|------|
+| Resend 失敗 | 轉移已提交；SD-NOTIFY 排程重試 5 次後標記失敗 |
+| GCS 上傳失敗 | 503，刪冪等紀錄，payment 不變 |
+| 交易 B 失敗（E11） | best-effort 刪物件；刪不掉由 C10 清除 |
+| 我的最愛加入失敗 | 只記 log（含 `orderId`），訂單不受影響，不重試 |
+| 排程單筆失敗 | 該筆回滾、記含 id 的錯誤 log、計 `failed`，下一輪重試 |
 
 ---
 
@@ -1152,7 +1751,7 @@ erDiagram
 
 | 項目 | 規則 |
 |------|------|
-| 觸發 | Cloud Scheduler → `POST /api/internal/cron/*`，標頭 `X-Internal-Secret`；不符 → 403 `FORBIDDEN`、不處理任何資料（PRD-027 EX-20；現行 `InternalSecretFilter` 回 401，需改） |
+| 觸發 | Cloud Scheduler → `POST /api/internal/cron/*`，標頭 `X-Internal-Secret`；不符 → 403 `FORBIDDEN`、不處理任何資料（PRD-027 EX-20；現行 `InternalSecretFilter` 回 401，依 §8.3 D3 修改） |
 | 頻率 | 狀態類每 15 分鐘（baseline §5）；清除類每日 |
 | 候選 | 唯讀查詢、`LIMIT 200`、以注入 `Clock` 的 `:now` 比對（不用 DB `now()`，方便測試注入時間） |
 | 逐筆 | 協調者本身不開交易；每筆呼叫另一個 bean 的 `@Transactional`（`REQUIRED`）方法 → `tryLockForCron` → 鎖不到計 `skipped` → 鎖後重驗條件（含訂單非 `DISPUTED` 防線）→ 不符計 `skipped`、不寫 log、不發通知 → 符合則轉移 + `order_logs` + `enqueue` → commit 計 `processed`；例外 → 該筆回滾、記含 id 的錯誤 log、計 `failed`，繼續下一筆 |
@@ -1177,7 +1776,7 @@ erDiagram
 
 - 舊排程處置：`CleanIdempotencyKeysJob`（`@Scheduled`，Cloud Run 縮到 0 時不可靠）只清舊 `idempotency_keys`，保留給尚未改寫的模組；`LocalCronSimulator` 於 local profile 依序呼叫 C1–C10。
 - 行程 `IN_PROGRESS` 逾時出口（baseline §6）歸 SD-FULFILL；在其提供前，O11 / O12 / O15 可能被未完成的行程卡住（§12 依賴說明）。
-- Cloud Scheduler job 建立（10 支）與 `INTERNAL_CRON_SECRET` 注入屬部署工作，第二階段列入部署清單。
+- Cloud Scheduler job 建立（10 支）與 Secret 注入見 §8.3。
 
 ### 8.2 外部服務與設定
 
@@ -1202,17 +1801,143 @@ erDiagram
 | `cron.batch-size` / `cron.time-budget` | 200 / PT50S | 技術決策 §11 |
 | `max-amount` | 999999 | baseline §4、CQ-74 |
 
+### 8.3 部署清單（只列，不在本文件執行）
+
+| # | 項目 | 內容 | 驗證 |
+|---|------|------|------|
+| D1 | `APP_CRYPTO_KEY` | 移除 `application.yml` 的預設值（`${APP_CRYPTO_KEY}`，無 `:` 後備值）；Secret Manager 建立 `APP_CRYPTO_KEY`；`deploy.yml` 的 `--set-secrets` 加 `APP_CRYPTO_KEY=APP_CRYPTO_KEY:latest`；local profile 在 `application-local.yml` 提供本機用金鑰 | prod 缺值時應用程式啟動失敗；`gcloud run services describe` 的 env 清單出現 `APP_CRYPTO_KEY`（只看名稱） |
+| D2 | `INTERNAL_CRON_SECRET` | 移除 `application.yml` 的 `local-secret-123` 預設值，只在 `application-local.yml` 提供；prod 由現有 `--set-secrets` 注入 | prod 缺值時啟動失敗 |
+| D3 | `InternalSecretFilter` | 驗證失敗回 403 `FORBIDDEN`（§6.5 格式），不再回 401；移除 debug log 中的 header 值，失敗只記路徑；改用常數時間比較 | `InternalCronSecurityTest`：缺 / 錯 secret、一般使用者 token → 403，且 log 不含 secret |
+| D4 | multipart 上限 | `spring.servlet.multipart.max-file-size=6MB`、`max-request-size=7MB` | E11 傳 5.5 MB → 422 `PROOF_FILE_TOO_LARGE` |
+| D5 | Cloud Scheduler | 建立下表 10 支 job：HTTP POST 到 `https://{Cloud Run 網址}{path}`、標頭 `X-Internal-Secret`（值取 Secret Manager）、時區 `Asia/Taipei`、`attempt-deadline` 60s、重試 0 次（下一輪自然補） | 每支手動觸發一次回 200 與計數 |
+| D6 | 部署順序 | 後端（含 `V20261122_01`）→ 前端，連續執行；接受短暫空窗（§11 技術決策 2） | 部署後 E2E journey 全綠 |
+
+| Job 名稱 | Path | Cron（Asia/Taipei） |
+|---------|------|--------------------|
+| `order-review-expiry` | `/api/internal/cron/orders/review-expiry` | `*/15 * * * *` |
+| `payment-reminder` | `/api/internal/cron/payments/reminder` | `*/15 * * * *` |
+| `payment-initial-expiry` | `/api/internal/cron/payments/initial-expiry` | `*/15 * * * *` |
+| `payment-escalation` | `/api/internal/cron/payments/escalation` | `*/15 * * * *` |
+| `modification-expiry` | `/api/internal/cron/modifications/expiry` | `*/15 * * * *` |
+| `modification-supplement-expiry` | `/api/internal/cron/modifications/supplement-expiry` | `*/15 * * * *` |
+| `visit-zombie` | `/api/internal/cron/visits/zombie` | `*/15 * * * *` |
+| `order-auto-complete` | `/api/internal/cron/orders/auto-complete` | `*/15 * * * *`（取代現行同路徑 job 的排程設定） |
+| `idempotency-cleanup` | `/api/internal/cron/idempotency/cleanup` | `30 3 * * *` |
+| `payment-proof-orphans` | `/api/internal/cron/storage/payment-proof-orphans` | `0 4 * * *` |
+
 ---
 
 ## 9. 前端
 
-> 第二階段補齊：路由、載入 / 空 / 錯誤 / 無權限狀態、testid（依各 PRD §9 與 SD-FRONTEND-SPEC §4）。
+### 9.1 路由
+
+> 沿用現有路由檔 `frontend/src/routes.tsx` 的路徑；新增者標「新」。testid 一律採各 PRD §9 已定義的名稱，不另取名；PRD 未定義者見 §12 CQ-10。
+
+| 路由 | 角色 | 呼叫端點 | 載入 | 空 | 錯誤 | 無權限 | 主要 testid（出處） |
+|------|------|---------|------|----|------|-------|-------------------|
+| `/booking/:sitterId` | 匿名 / OWNER | E31、E1 | 方案區骨架 | 無方案：`public-booking-unavailable-message` 顯示 E31 對應文案 | 404「找不到此保母」；送出錯誤依 §6.5 對應 PRD-005 §7 文案 | 非 OWNER 角色送單：「請切換為飼主身分後再預約」；未登入送單導向登入並保留內容 | `public-booking-unavailable-message`、`public-booking-plan-card-{planId}`、`public-booking-group-{index}`、`public-booking-group-{index}-pet-checkbox-{petId}`、`public-booking-no-pet-message`、`public-booking-pet-type-warning`、`public-booking-estimate-amount`、`public-booking-amount-limit-message`、`public-booking-question-{questionId}`、`public-booking-review-expires-at`、`public-booking-urgent-hint`、`public-booking-btn-submit`（PRD-005 §9） |
+| `/owner/orders` | OWNER | E3 | 列表骨架 | 各分頁「尚無訂單」 | 重試按鈕 | 角色不符導向角色切換 | 沿用現有列表 testid（SD-FRONTEND-SPEC §4 範例格式） |
+| `/owner/orders/:orderId` | OWNER | E2、E10、E12、E13、E8、E11、E14、E25、E26 | 詳情骨架 | 尚無 payment 時不顯示付款區塊（PRD-007 AC-1.1） | 404「找不到此訂單」；`ORDER_BUSY` 自動重試一次後「系統忙碌，請稍後再試」 | 403「無權限操作此訂單」 | `owner-order-detail-quote-breakdown`（PRD-006）；`owner-order-detail-btn-withdraw`、`owner-order-withdraw-input-reason`、`owner-order-withdraw-btn-confirm`、`owner-order-detail-withdraw-blocked-message`（PRD-026）；`owner-order-detail-cancel-result`（PRD-027）；`payment-amount`、`payment-account-snapshot`、`payment-due-at`、`proof-disclaimer-checkbox`、`proof-last5-input`、`proof-file-input`、`proof-submit-btn`、`submission-history`、`btn-verify-payment`（退款確認）（PRD-007）；頁面不得出現 `order-total-amount` |
+| `/sitter/orders` | SITTER | E4 | 列表骨架 | 各分頁「尚無訂單」 | 重試 | 角色不符導向角色切換 | 沿用現有 |
+| `/sitter/orders/:orderId`（新；`/sitter/eval/:orderId` 轉址至此） | SITTER | E2、E5、E6、E7、E9、E10、E12–E15 | 詳情骨架 | 同上 | 同上 | 同上 | `sitter-order-eval-review-expires-at`、`sitter-order-eval-pet-{petId}`、`sitter-order-eval-pet-deleted-label-{petId}`、`sitter-order-eval-regular-badge`、`sitter-order-eval-questionnaire-answers`、`sitter-order-eval-questionnaire-exempt-label`、`sitter-order-eval-precheck-banner`、`sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-input-surcharge`、`sitter-order-eval-input-discount`、`sitter-order-eval-input-pricing-notes`、`sitter-order-eval-btn-quote-submit`（PRD-006）；`sitter-order-eval-btn-decline`、`sitter-order-decline-input-reason`、`sitter-order-decline-btn-quick-reason-{n}`、`sitter-order-decline-btn-confirm`、`sitter-order-decline-btn-referral`、`sitter-order-detail-btn-cancel`、`sitter-order-cancel-input-reason`、`sitter-order-cancel-btn-quick-reason-{n}`、`sitter-order-cancel-btn-confirm`、`sitter-order-cancel-blocked-message`（PRD-027）；`btn-verify-payment`、`btn-reject-payment`、`reject-reason-input`、`submission-history`、`payment-amount`（PRD-007） |
+| `/orders/:orderId/modify` | OWNER / SITTER | E2、E17 | 骨架 | 無 `PENDING` 行程時不顯示入口（PRD-016 §9） | 依 §6.5 對應 PRD-016 §7 文案 | 403 | PRD-016 未定義（CQ-10） |
+| `/orders/:orderId/modifications/:modificationId`（新；取代 `/sitter/orders/:orderId/quote`、`/owner/orders/:orderId/modification-confirm`） | OWNER / SITTER | E19、E20–E24、E10、E11、E14 | 骨架 | — | 逾期：隱藏動作、顯示「此變更請求已逾期」 | 403 | PRD-016 / 023 / 024 未定義（CQ-10） |
+| 變更歷史（訂單詳情內區塊） | OWNER / SITTER | E18 | 骨架 | 「尚無變更紀錄」（PRD-016 §4.6） | 重試 | — | PRD-016 未定義（CQ-10） |
+| `/sitter/ledger` | SITTER | E30 | 骨架 | 該月無收入「本月尚無收入」（文案待 PRD-009） | 重試 | 角色不符 | PRD-009 改寫時定義 |
+| `/admin/tasks`（新） | ADMIN | E28 | 骨架 | 「目前沒有待辦」（文案待 PRD-020） | 重試 | 非 ADMIN 不顯示選單 | PRD-020 改寫時定義 |
+| `/admin/orders/:orderId`（新；取代 `/admin/resolve/:orderId`） | ADMIN | E27、E10、E12、E13、E16、E29 | 骨架 | — | 403「無權限檢視此訂單」 | 同左 | `btn-admin-void`、`payment-account-snapshot`、`submission-history`（PRD-007）；其餘 PRD-020 改寫時定義 |
+
+### 9.2 共通行為
+
+- `ORDER_BUSY`：以相同 `Idempotency-Key` 自動重試一次（依 `Retry-After`），仍失敗才提示。
+- `IDEMPOTENCY_IN_PROGRESS`：同 key 自動重試，不提示（PRD-005 EX-13）。
+- `Idempotency-Key` 由前端在使用者按下送出時產生（UUID），同一次送出的重試沿用同一把；使用者修改內容後重新送出產生新 key。
+- 錯誤碼一律讀回應的 `code`；`DEADLINE_PASSED` 依 `deadline` 選文案；`ORDER_STATE_CONFLICT` 依 `currentStatus` 選文案（PRD-026 EX-5、PRD-027 EX-7）。
+- 時間顯示一律 Asia/Taipei `YYYY-MM-DD HH:mm`；金額顯示依 SD-FRONTEND-SPEC §6.4.1。
+- 付款頁只顯示 `amount`，不顯示訂單總額（PRD-007 BR-1）。
 
 ---
 
 ## 10. 測試設計
 
-> 第二階段補齊。第一階段已確定的必測項：每條 AC 的整合測試（§1）；越權以真 JWT filter chain；狀態不允許；冪等重送與同 key 併發；跨角色併發兩條執行緒真打（訂單鎖序列化）；鎖逾時 `ORDER_BUSY`；交易失敗時 `order_logs` 與通知不存在；T8 → T9 與 O15 的 flush 順序；排程重跑與 `SKIP LOCKED`。
+### 10.1 測試基礎設施（所有整合測試共用）
+
+| 項目 | 規則 |
+|------|------|
+| 資料庫 | Testcontainers PostgreSQL（與 prod 同大版本），跑真 Flyway；不用 H2（`FOR NO KEY UPDATE`、`SKIP LOCKED`、partial unique、`DATE[]` 都要真 PostgreSQL） |
+| 身分 | 真 JWT + 真 `SecurityConfig` filter chain（`MockMvc` 帶 Bearer token），不用 `@WithMockUser` |
+| 時間 | 測試替換 `Clock` bean 為可設定時間的實作；所有期限案例以固定時間驗證邊界（剛好等於期限、差 1 秒） |
+| 併發 | 兩條執行緒以 `CountDownLatch` 同時起跑、各自獨立交易真打 API；斷言恰一方成功、另一方得預期錯誤碼、`order_logs` 只有成功那筆 |
+| 鎖逾時 | 測試執行緒先以獨立連線開交易鎖住訂單列超過 3 秒，再呼叫 API，斷言 409 `ORDER_BUSY` + `Retry-After: 1` 且資料不變 |
+| 交易失敗 | 以測試替身讓交易 B 在寫完 `order_logs` 後拋例外，斷言主資料、`order_logs`、`notifications` 都不存在 |
+| GCS | `LocalMediaStorageServiceImpl` + 可注入失敗的測試替身（上傳失敗、刪除失敗） |
+| 通知 | 真 `NotificationService.enqueue()`，斷言 `notifications` 列數、`mandatory`、收件者；Resend 以 mock 驗證不在本 SD 交易內呼叫 |
+| `@DisplayName` | 以 `PRD-NNN AC-x.y` 開頭 |
+
+### 10.2 冪等共通必測（每支冪等端點至少一個代表案例，§1 已標）
+
+同 key 同內容 → 回放相同狀態碼與 body、資料列數不變、通知不重複；同 key 不同內容 → 422；第一次處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`；`locked_until` 過期後同 key → 接手成功；缺 key → 400 `field=Idempotency-Key`；換 key 重做已完成動作 → 依當下狀態 409；業務錯誤 409 / 422 被記錄並回放；`ORDER_BUSY` 不記錄、同 key 重試可成功；同 key 用在兩張訂單（路徑變數不同）→ 422。
+
+### 10.3 整合測試類別
+
+| 類別 | 涵蓋 AC | 必測情境 |
+|------|---------|---------|
+| `OrderIdentitySecurityTest` | PRD-005 AC-1.8；PRD-006 AC-1.4、AC-3.1；PRD-007 AC-1.3、AC-2.5；PRD-016 AC-1.7；PRD-024 AC-1.5；PRD-026 AC-1.6 | 每支 E 端點：未登入 401、錯角色 403 `ROLE_MISMATCH`、他人 403 `FORBIDDEN`、不存在 404、子資源不屬路徑訂單 404、本人成功（多帶亂填的身分欄位被忽略） |
+| `InternalCronSecurityTest` | PRD-027 AC-2.4 | C1–C10 缺 / 錯 secret、一般使用者 token → 403；log 不含 secret |
+| `BookingContextIntegrationTest` | PRD-005 AC-1.1、AC-1.4 | 匿名 / OWNER / SITTER 檢視；五種 `bookability`；門禁依等級過濾；`UNAVAILABLE` 三情境回應相同 |
+| `BookingIntegrationTest` | PRD-005 AC-1.2–1.8、AC-2.1–2.3、AC-2.5–2.8、AC-3.1–3.3 | 業務規則逐條與先後順序；毛孩 403 先於 400；訂單、群組、毛孩綁定、行程、`ORDER_CREATED` 一次建立；`review_expires_at` 一般 / 緊急單；`PRICE_CHANGED`；金額上限邊界 999,999 |
+| `BookingIdempotencyIntegrationTest` | PRD-005 AC-3.4 | §10.2 全部 |
+| `BookingQuestionnaireIntegrationTest` | PRD-005 AC-3.5–3.7 | 快照內容；`QUESTIONNAIRE_CHANGED` 各情境；字數邊界；熟客 / 無題目 / 兩者並存的免填原因；舊 `NO_QUESTIONNAIRE` 規則無效 |
+| `BookingSideEffectIntegrationTest` | PRD-005 AC-3.8 | 通知與偏好；我的最愛自動加入、已存在、50 位上限略過；加入失敗不回滾訂單 |
+| `EvaluationQueryIntegrationTest` | PRD-006 AC-1.1–1.3、AC-1.5 | 已刪除毛孩標示；答案快照不受題目修改影響；熟客標記即時判定；預檢三種 |
+| `QuoteIntegrationTest` | PRD-006 AC-2.1–2.5、AC-2.7、AC-3.2–3.8；PRD-007 AC-3.1 | 金額欄、快照、INITIAL payment 期限三欄、加密快照非明文且可解回四欄；報價通知是否併提醒；錯誤先後（`FIRST_VISIT_DATE_PASSED` 在 `DEADLINE_PASSED` 之後、`PLAN_REQUIRED` 最後） |
+| `QuoteConcurrencyIntegrationTest` | PRD-006 AC-2.6 | 報價 vs 撤回兩執行緒；鎖逾時；冪等 |
+| `PaymentQueryIntegrationTest` | PRD-007 AC-1.1、AC-2.7 | 快照可讀者；REFUND 無帳號；簽名網址 5 分鐘；ADMIN 可讀範圍；回應不含簽名網址於冪等 body |
+| `PaymentSubmissionIntegrationTest` | PRD-007 AC-1.2、AC-1.4、AC-1.5、AC-1.7 | 欄位 / magic bytes / 5 MB 邊界；`receivedAt` 判斷期限（進交易時已過仍成功）；`SUBMITTED` 且過期回 `PAYMENT_STATE_CONFLICT`；`ADMIN_ADJUSTMENT` 409；驗證失敗時 GCS 無物件 |
+| `PaymentSubmissionIdempotencyIntegrationTest` | PRD-007 AC-1.6 | §10.2；回放不重傳 GCS；崩潰後接手遇到既有物件 |
+| `PaymentSubmissionConcurrencyIntegrationTest` | PRD-007 AC-1.8；PRD-027 AC-3.5 | 上傳 vs 保母取消兩執行緒；取消先時物件被刪、無 submission；GCS 失敗 503 後同 key 重試成功 |
+| `PaymentReviewIntegrationTest` | PRD-007 AC-2.1–2.6、AC-2.8 | O5 + 月額度計數 + 待辦關閉；補款 / 退款確認連動；駁回保留歷史；退款不可駁回 403 先於 409；`submissionId` 過期；Resend 失敗不回滾 |
+| `PaymentCronIntegrationTest` | PRD-007 AC-3.2–3.5 | C2 條件（`SUBMITTED`、已過 `due_at`、緊急單不發）與重跑不重發；C3 O8 + 取消共同附帶動作；C3 略過 `SUBMITTED`；C4 建待辦、重跑不重建、保母先確認則不建 |
+| `AdminVoidIntegrationTest` | PRD-007 AC-3.6、AC-3.7 | O16 全部附帶；待辦非 OPEN / 非 INITIAL → 403（不取鎖）；submission 維持 `SUBMITTED`、`voided=true` |
+| `AdminVoidConcurrencyIntegrationTest` | PRD-007 AC-3.8 | 確認 / 駁回 vs 作廢兩執行緒；不會同時有 `CONFIRMED` 與 `CANCELLED` 的 log |
+| `ModificationInitiateIntegrationTest` | PRD-016 AC-1.1–1.6、AC-1.8、AC-3.8 | OWNER `REQUESTED` / SITTER `QUOTED`；不可發起四種錯誤先後；毛孩範圍、數量上限；`PLAN_NOT_IN_ORDER` |
+| `ModificationQuoteIntegrationTest` | PRD-016 AC-2.1–2.5、AC-2.7、AC-2.8 | 計價範圍含 `DONE` / `CLOSED_BY_SYSTEM`；FREE / BASIC / 鎖定依系統計算；PRO 加減；`INVALID_VISIT_DATE` 先於 `PLAN_REQUIRED`；方案區間依報價當下等級 |
+| `ModificationLifecycleIntegrationTest` | PRD-016 AC-2.6、AC-3.1、AC-3.2、AC-3.4；PRD-023 AC-1.6 | 拒絕（雙方各自可拒絕的狀態）、撤回權限（SYSTEM 變更 403）、期限以時間判斷、`ended_at` |
+| `ModificationCronIntegrationTest` | PRD-016 AC-3.3 | C5：`REQUESTED` / `QUOTED` 到期轉 `EXPIRED`、`ended_at`、SYSTEM log 與雙方通知；鎖後已是終態則略過、不重複 log；訂單 `DISPUTED` 略過 |
+| `ModificationQueryIntegrationTest` | PRD-016 AC-3.5 | 歷史倒序、空清單、`allowedActions` 依 §4.6 表與逾期 |
+| `ModificationConcurrencyIntegrationTest` | PRD-016 AC-3.6；PRD-023 AC-1.5 | 撤回 vs 報價；同意 vs 開始行程（O9 不因變更取消觸發）；同意 vs 撤回 |
+| `ModificationIdempotencyIntegrationTest` | PRD-016 AC-3.7；PRD-023 AC-1.8 | §10.2；換 key 再同意不重建 payment（`ux_payments_per_modreq`） |
+| `ModificationSettlementIntegrationTest` | PRD-023 AC-1.1–1.4、AC-1.7、AC-2.1–2.3、AC-3.1–3.5 | 三分支；同意時重算已收淨額；`VISIT_ALREADY_STARTED` 整筆回滾；新增日期已過仍建立；O10 與其獨立 log；`IN_PROGRESS` 整筆取消不轉 `CANCELLED`；`completion_basis_at` 重算 |
+| `SupplementExpiryIntegrationTest` | PRD-023 AC-2.4–2.8、AC-3.6 | 重算與下限 0；只扣本次取消；T9 系統退款列欄位；flush 順序不撞 partial unique；`SUBMITTED` 不逾時；駁回後下一輪逾時；單筆失敗整筆回滾 |
+| `PaymentDisputeIntegrationTest` | PRD-024 AC-1.1–1.4、AC-1.6–1.8 | 兩種申報條件；72h 自目前 submission 起算與駁回重傳重算；`disputeAvailableAt`；雙方同時申報只一筆待辦；申報 vs 確認併發 |
+| `DisputeFreezeIntegrationTest` | PRD-024 AC-2.1、AC-2.2 | 所有 payment / 變更端點 409 `ORDER_STATE_CONFLICT`（發起不回 `MODIFICATION_IN_PROGRESS`）；行程照常開始、主狀態不變 |
+| `MediationIntegrationTest` | PRD-024 AC-2.3、AC-2.4 | `UNPAID` 退款作廢；`SUBMITTED` 退款已匯出 / 未匯出；未標示 400 且整筆不生效；補款作廢不登記金額；終態由行程判斷；`INVALID_ADJUSTMENT_AMOUNT` |
+| `AdminOrderQueryIntegrationTest` | PRD-024 AC-2.5 | 可讀範圍三情境；回應含快照與 log |
+| `CompletionIntegrationTest` | PRD-024 AC-2.6 | O11 / O13 遇未結束變更 409；錯誤先後（CQ-6）；C8 排除有未結束變更的訂單 |
+| `CompletionBasisIntegrationTest` | PRD-024 AC-2.7 | `DONE` = `completed_at + 24h`、`CLOSED_BY_SYSTEM` = 關閉時間、只有 `SETTLED` 推遲；行程未全結束為 NULL；O13 視窗 `DISPUTE_WINDOW_ENDS_AT` 邊界 |
+| `SubscriptionLockedOrderIntegrationTest` | PRD-024 AC-2.8 | 鎖定保母的發起 / 報價 / 拒絕 / 撤回 / 確認 / 上傳退款 / 申報皆不回 `SUBSCRIPTION_LOCKED` |
+| `OrderWithdrawIntegrationTest` | PRD-026 AC-1.1–1.5、AC-1.8 | O3 / O6、`expectedStatus`、原因空白存 null、期限後仍可撤回、排程後到略過 |
+| `OrderWithdrawConcurrencyIntegrationTest` | PRD-026 AC-1.7 | 撤回 vs 報價、撤回 vs 婉拒；`cancelledBy` 為先到者 |
+| `SitterDeclineIntegrationTest` | PRD-027 AC-1.1–1.4、AC-1.6、AC-1.7 | 原因規則；鎖定 / 額度滿仍可婉拒；期限後仍可、C1 後到略過；`ORDER_REJECTED` 供轉介判斷 |
+| `ReviewExpiryCronIntegrationTest` | PRD-027 AC-2.1–2.3 | 邊界（等於到期時間即處理）；重驗略過計 `skipped`；單筆例外計 `failed` 不影響其他筆 |
+| `SitterCancelIntegrationTest` | PRD-027 AC-3.1–3.4、AC-3.6、AC-3.7 | O7 + payment VOID；`PAYMENT_ALREADY_SUBMITTED`；駁回後可取消；期限後仍可、C3 後到略過 |
+| `OrderLockServiceTest` | 共用（§3.6.1） | `lock_timeout` 3s → `OrderBusyException`；`SKIP LOCKED` 回空；`MANDATORY` 無交易時拋例外 |
+| `OrderLogWriterTest` | 共用（§3.6.3） | 主交易回滾後 log 不存在；`transitions[]` 內容 |
+| `ZombieVisitCronIntegrationTest` | 共用（C7） | 只處理 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`；O9 另寫 SYSTEM 列；基準重算 |
+| `OrphanProofSweepIntegrationTest` | 共用（C10） | 只刪無引用、> 24h、非 `PROCESSING` 的物件 |
+
+共 **43 個測試類別**（其中 `OrderLockServiceTest`、`OrderLogWriterTest`、`ZombieVisitCronIntegrationTest`、`OrphanProofSweepIntegrationTest` 4 個驗證共用機制，不直接對應 AC）。前端互動類 AC（PRD-005 AC-2.4、PRD-006 AC-2.7 畫面部分、PRD-007 AC-2.3 確認框、PRD-016 AC-3.5 畫面、PRD-027 AC-1.2 / AC-1.5）另由 TS-005 / 006 / 007 / 016 / 027 的 E2E 驗證。
+
+### 10.4 TS 需要的後端支援
+
+| 項目 | 契約 | 限制 |
+|------|------|------|
+| 帳號 provision（既有） | `POST /api/internal/test-data/provision-account` | 只接受 `@e2e-journey.test` 網域 |
+| 保母設定 provision（新） | `POST /api/internal/test-data/sitter-setup`：`userId`、`tier`（FREE / BASIC / PRO / ULTIMATE）、`locked`、`kycVerified`、`payoutAccount`（四欄或 null）、`plans[]`（標題、單價、可預約區間）、`questions[]` | 只接受 `@e2e-journey.test` 帳號；透過各模組既有 Service 寫入（不直寫他模組表） |
+| 時間平移（新） | `POST /api/internal/test-data/orders/{orderId}/shift-time`：`target` = `REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `ESCALATE_AT` / `REMIND_AT` / `MODIFICATION_EXPIRES_AT` / `SUBMISSION_AT` / `COMPLETION_BASIS_AT`，`minutes`（負值 = 提前） | 只允許雙方皆為 `@e2e-journey.test` 的訂單；取訂單鎖；寫 `order_logs` `TEST_TIME_SHIFTED`（不列入 §3.6.3 業務 action）；`prod` profile 也可用但受 `X-Internal-Secret` 與網域限制 |
+| 排程觸發 | 直接呼叫 C1–C10（帶 `X-Internal-Secret`） | — |
+| Cleanup 擴充 | `E2eJourneyDataCleanupService` 依 FK 順序刪除 `@e2e-journey.test` 帳號相關資料：先刪 `payment_submissions` 的 GCS 物件（`proof_object_key`）→ `payment_submissions` → `payments`（先刪帶 `source_payment_id` 的列）→ `admin_tasks` → `service_report_media` / `visit_service_reports` / `visits` → `order_item_pets` → `order_items` → `modification_requests`（先刪 `initiated_by=SYSTEM` 的列）→ `order_answers` → `order_plan_snapshots` → `order_snapshots` → `order_logs` → `referral_logs` → `orders` → `idempotency_records`（`user_id`）。新增任何參照訂單的表時必須同步加入 | 硬刪除，只限測試網域 |
+| `TestDataCleanupService`（soft delete） | 不再處理訂單相關表（新表無 `is_deleted`）；改呼叫上列硬刪除邏輯的同一份 SQL 清單 | — |
 
 ---
 
@@ -1222,28 +1947,39 @@ erDiagram
 
 | 缺陷 | 新設計怎麼避開 | 捨棄方案與理由 |
 |------|--------------|---------------|
-| #1 AES 金鑰有 repo 內預設值、正式站未注入 | `APP_CRYPTO_KEY` 移除預設值，缺值啟動失敗；`deploy.yml` 以 Secret Manager 注入；快照與即時帳號同一金鑰管理，密文帶 `payee_account_key_version` 供日後輪替 | 保留預設值但正式站覆寫：只要漏設一次就以公開金鑰加密，且無從察覺 |
+| #1 AES 金鑰有 repo 內預設值、正式站未注入 | `APP_CRYPTO_KEY` 移除預設值，缺值啟動失敗；`deploy.yml` 以 Secret Manager 注入（§8.3 D1）；快照與即時帳號同一金鑰管理，密文帶 `payee_account_key_version` 供日後輪替 | 保留預設值但正式站覆寫：只要漏設一次就以公開金鑰加密，且無從察覺 |
 | #2 `order_logs` 用 `REQUIRES_NEW`，主交易失敗仍留下假紀錄 | `OrderLogWriter` 傳播 `MANDATORY`，與狀態變更同交易；整合測試驗證回滾後無 log | 交易後補寫（AFTER_COMMIT）：commit 與寫 log 之間崩潰會漏稽核 |
-| #3 同一請求佔 2 條連線 | 每請求同一時間 1 條：不用 `REQUIRES_NEW`；冪等三段為依序的短交易；排程協調者不開交易、逐筆另起交易 | 調大 Hikari pool：Supabase Transaction Pooler 連線數有限，且掩蓋設計問題 |
+| #3 同一請求佔 2 條連線 | 每請求同一時間 1 條：不用 `REQUIRES_NEW`；冪等三段為依序的短交易；排程協調者不開交易、逐筆另起交易；我的最愛由協調者在 commit 後呼叫，不用 `AFTER_COMMIT` listener | 調大 Hikari pool：Supabase Transaction Pooler 連線數有限，且掩蓋設計問題 |
 | #4 GCS 上傳在 DB 交易內 | 三段式第 2 段：上傳在交易外、先於交易 B；失敗刪物件 + C10 兜底 | 交易內上傳：上傳期間佔連線、持有訂單鎖，其他當事人被 `ORDER_BUSY` |
 | #5 冪等回 409 而非回放；先查再寫有競態 | `idempotency_records` 存 hash 與回應，同 key 同內容回放；認領用 `INSERT ... ON CONFLICT`；處理中 `locked_until` 30 秒可接手 | 只存 key 回 409：網路重試的客戶端看到錯誤 |
 | #6 verify / reject 不加鎖、各 Service 鎖策略不一 | 單一入口 `OrderLockService`，所有改訂單 / payment / 變更 / 行程的操作（含 SD-FULFILL）都經它；`orders` 等實體保留 `@Version` 防線 | 各 Service 自行 `findByIdForUpdate`：容易漏鎖、鎖子列而非父列會讓跨實體轉移互相看不到 |
-| #12 無錯誤碼表與 AC 對應表、貼實作程式碼 | §1 列 156 條 AC；§3 每個轉移列錯誤碼與例外類別；全文不貼 Entity / Converter / Listener | — |
+| #12 無錯誤碼表與 AC 對應表、貼實作程式碼 | §1 列 156 條 AC；§6.5 錯誤碼總表 36 項；§3 / §6.3 每個轉移與端點列錯誤碼與例外類別；全文不貼 Entity / Converter / Listener | — |
 | #13 一份 SD 混付款憑證、收款帳號設定、訂單詳情端點 | 收款帳號設定歸 SD-SUPPLY（PRD-025），本 SD 只依賴 `PayoutAccountQuery`；訂單詳情是訂單聚合的一部分，與付款同屬本 SD | — |
 
-### 11.2 其他技術決策
+### 11.2 使用者決策（2026-11-22 全部採用建議）
+
+| # | 決策 | 選擇（已採用） | 捨棄方案與理由 |
+|---|------|--------------|---------------|
+| 1 | 冪等表 | 新表 `idempotency_records`；舊 `idempotency_keys` 原樣保留給 KYC、照護記事 / 媒體、照護日誌，待各 SD 改寫後移除 | 原地改 `idempotency_keys` 的 PK 與欄位：牽動 4 個未重建模組，舊程式以 `(key, user_id)` 查詢可能查到多列 |
+| 2 | 部署與舊 API 路徑 | 遷移一支到位（破壞性）；不保留 `/booking`、`/payment-proof`、`/modify`、`/admin-resolve` 等舊路徑；後端與前端連續部署，接受短暫空窗 | 雙階段 expand / contract 或保留舊路徑轉接：未上線、交易資料全清，舊狀態機（`PAID`、`MODIFYING`）語意已不存在，轉接層等於重寫一次舊邏輯 |
+| 3 | `visits` 新欄位的遷移歸屬 | 放在本 SD 的遷移（§5.1.1 第 13 段），定義權仍屬 SD-FULFILL，SD-FULFILL 撰寫時接手並可修改 | 等 SD-FULFILL 完成再加：O1、C7、變更計價都要 `service_date` / `order_item_id`，無法先行實作 |
+| 4 | SD-NOTIFY outbox 的先後 | `NotificationService.enqueue()`（`MANDATORY`）與 `notifications` 的 Email 投遞欄位隨 SD-ORDER 同一次發布交付（SD-NOTIFY 先寫這一小段設計） | 過渡期沿用現行 `createNotification` + AFTER_COMMIT 寄信：Email 失敗無補送，違反各 PRD「Resend 失敗由排程重試 5 次」的 AC |
+| 5 | 方案判斷位置 | `PlanPolicy`（讀 SD-BILLING 即時等級）由 Service 在判斷順序第 13 步呼叫；不使用 `@RequirePlan`。**此為對 SD-GLOBAL-SPEC §3.1 的刻意偏離；SD-ORDER 核准後由主流程回寫 GLOBAL §3.1**（本 SD 不改 GLOBAL） | `@RequirePlan` 在 Controller 進入前攔截，會讓 403 `PLAN_REQUIRED` 早於 404 / 409 / 422，違反 baseline §3.7；且報價只有「帶調整」時才需 PRO、變更計價在鎖定時改依 FREE，屬條件式判斷 |
+
+### 11.3 其他技術決策
 
 | 決策 | 選擇 | 捨棄方案與理由 |
 |------|------|---------------|
-| 遷移策略 | expand / contract 兩支、分兩次發布（§5.1） | 單支遷移一次 DROP：新 revision 啟動跑 Flyway 時舊 revision 仍在服務，讀到被 DROP 的欄位會 500 |
 | 清空方式 | `TRUNCATE` 明列所有表、不加 `CASCADE` | `TRUNCATE orders CASCADE`：會靜默清掉任何新增的 FK 參照表 |
 | 鎖 SQL | native `SET LOCAL lock_timeout` + `FOR NO KEY UPDATE`；SQLSTATE 55P03 → `ORDER_BUSY` | JPA `PESSIMISTIC_WRITE`：產生的鎖模式依 dialect 版本而異，可能變成 `FOR UPDATE`，與子表 FK 的 `FOR KEY SHARE` 互斥 |
-| 方案判斷位置 | `PlanPolicy`（讀 SD-BILLING 即時等級）由 Service 在判斷順序第 13 步呼叫；不使用 `@RequirePlan` | `@RequirePlan` 在 Controller 進入前攔截，會讓 403 `PLAN_REQUIRED` 早於 404 / 409 / 422，違反 baseline §3.7 判斷順序；且報價只有「帶調整」時才需 PRO、變更計價在鎖定時改依 FREE，屬條件式判斷。**此為對 SD-GLOBAL-SPEC §3.1 的刻意偏離**，SD-ORDER 核准後應回寫 GLOBAL §3.1 |
+| `@Version` 衝突 | 409 `ORDER_BUSY` + `Retry-After: 1`（baseline §3.7，CQ-2 已決） | 409 `ORDER_STATE_CONFLICT`：防線觸發時狀態未必改變，回狀態錯誤會誤導前端 |
+| 角色不符與非當事人分開對映 | `@PreAuthorize` 拒絕（`AuthorizationDeniedException`）→ `ROLE_MISMATCH`；歸屬不符由 Service 拋 `OrderException(FORBIDDEN)` | 兩者都用 `AccessDeniedException`：`GlobalExceptionHandler` 無法分辨，PRD 的 AC 要求兩種碼 |
+| 欄位驗證時點 | DTO 不掛 `@Valid`，`OrderRequestValidator` 在第 6 步驗證；`Idempotency-Key` header 非必填宣告 | Bean Validation：在進入方法前回 400，早於 404 / 403，違反判斷順序（PRD-005 AC-2.5 情境 4 會失敗） |
+| 錯誤回應格式 | `{ code, message, payload, traceId, timestamp }` | 沿用現有 `{ error, message }`：沒有 payload 欄位，`currentStatus`、`deadline` 等共通欄位無處可放；其他模組重建時改用同格式 |
 | 收款帳號快照儲存 | 四欄 JSON 整體以 AES-256-GCM 加密成單一欄 `payee_account_snapshot` | 四欄各自加密：可能分次讀寫組出不一致的帳號（PRD-025 BR-12），且欄位多一倍 |
 | 報價單價快照 | 新表 `order_plan_snapshots`（每訂單每方案一列）；`order_snapshots` 只留訂單層媒體額度 | 沿用 `order_snapshots.snapshot_unit_price` 單一欄：多方案訂單無法表示 |
 | 預約群組與變更新增 | 同一張 `order_items`（`source = BOOKING / MODIFICATION`），行程以 `order_item_id` 回指，毛孩綁定一律在 `order_item_pets` | 變更新增的毛孩綁定掛在行程上：評估頁與變更計價要合併兩種來源 |
 | 變更內容儲存 | `requested_content` / `quoted_content` JSONB；減少目標於鎖內以 SD-FULFILL 行程狀態驗證 | 子表 `modification_request_visits`：內容只在協商期間讀寫、無獨立查詢需求，子表只增加 join 與 flush 順序問題 |
-| 冪等表 | 新表 `idempotency_records`；舊 `idempotency_keys` 原樣保留給 KYC、照護記事 / 媒體、照護日誌，待各 SD 改寫後移除 | **待使用者決策**（推薦本案）。捨棄「原地改 `idempotency_keys` 的 PK 與欄位」：滾動部署期間舊程式以 `(key, user_id)` 查詢，可能因新程式寫入多個 scope 而查到多列報錯，也牽動 4 個未重建模組 |
 | 稽核粒度 | 一個操作一列，附帶轉移列在 `transitions[]`；同交易內操作者不同的主狀態轉移（O10、C7 觸發的 O9）另寫一列 | 每個實體轉移一列：一次同意變更會產生 5–8 列，ADMIN 判讀困難；PRD-026 / PRD-007 AC 也以「一筆紀錄」驗收 |
 | 付款提醒時點 | O2 建立 payment 時預先算 `remind_at`（報價時已過提醒點則 NULL），C2 只比對 `remind_at` | C2 每次 join 訂單首日即時計算：查詢無法用部分索引；`remind_at` 是排程時點而非「已提醒」標記，不違反 PRD-006 BR-11 |
 | 月額度計數 | 由 `orders.confirmed_at` 即時計數（Asia/Taipei 自然月） | `subscriptions.monthly_order_count` 計數器：需要跨訂單鎖、月初歸零排程，且取消不返還的語意靠 `confirmed_at` 保留就自然成立 |
@@ -1253,29 +1989,28 @@ erDiagram
 | 檔案格式驗證 | 檔頭 magic bytes | 信任 multipart `Content-Type`：可被任意偽造 |
 | ADMIN 讀取端點 | 付款 / 變更讀取端點（E10、E12、E13、E18、E19）同時允許 ADMIN，以 `AdminOrderAccessPolicy` 限制範圍；寫入端點 ADMIN 一律 `ROLE_MISMATCH` | 另開一套 `/api/admin/...` 讀取端點：重複 DTO 與授權邏輯 |
 | 排程協調 | 協調者不開交易，逐筆呼叫另一 bean 的 `REQUIRED` 交易方法 | 協調者開交易再對每筆 `REQUIRES_NEW`：同時佔 2 條連線（抽樣缺陷 #3） |
-| 舊 API 路徑 | 不保留（`/booking`、`/payment-proof`、`/modify`、`/admin-resolve` 等）；**待使用者決策**（推薦）：未上線，發布 1 後端與前端連續部署，接受數分鐘空窗 | 保留舊路徑轉接：舊狀態機（`PAID`、`MODIFYING`）語意已不存在，轉接層等於重寫一次舊邏輯 |
-| `visits` 新欄位的遷移歸屬 | **待使用者決策**（推薦）：放在本 SD 的 expand 遷移（§5.1.1 第 13 段），定義權仍屬 SD-FULFILL，SD-FULFILL 撰寫時接手並可修改 | 等 SD-FULFILL 完成再加：SD-ORDER 的 O1、C7、變更計價都要 `service_date` / `order_item_id`，無法先行實作 |
-| SD-NOTIFY outbox 的先後 | **待使用者決策**（推薦）：`NotificationService.enqueue()`（`MANDATORY`）與 `notifications` 的 Email 投遞欄位隨 SD-ORDER 發布 1 一起交付（SD-NOTIFY 先寫這一小段設計） | 過渡期沿用現行 `createNotification` + AFTER_COMMIT 寄信：Email 失敗無補送，違反各 PRD「Resend 失敗由排程重試 5 次」的 AC |
 | 冪等回放查詢位置 | `IdempotencyInterceptor`（handler mapping 之後、method security 之前） | 放在 Service：`@PreAuthorize` 已先擋，違反「回放先於 `ROLE_MISMATCH`」 |
+| 可預約狀態不揭露 | E31 以單一值 `PAUSED` 表示月額度已滿 / 訂閱鎖定 / 停權 | 分開回傳：前端拿得到保母的訂閱與額度狀況，違反 PRD-005 BR-23 |
 | Hikari | 設計保證每請求 1 條連線；prod 現值 3 不變 | — |
 
 ---
 
 ## 12. 待釐清事項
 
-| CQ | 問題 | 建議預設值 | 狀態 |
+| CQ | 問題 | 決定 / 建議預設值 | 狀態 |
 |----|------|-----------|------|
-| CQ-1 | PRD-023 內部矛盾：BR-21 寫「任何人撤回 `initiatedBy=SYSTEM` 的退款變更 → `MODIFICATION_STATE_CONFLICT`（變更狀態檢查先於發起者檢查）」，但同卡 EX-15、AC-3.6 與 PRD-016 T5、baseline CQ-76 都是 403 `FORBIDDEN`（非發起者先於狀態） | 依 baseline CQ-76 回 403 `FORBIDDEN`；PRD-023 BR-21 的例句改為 403（文字修正，不影響 AC） | Open |
-| CQ-2 | `@Version` 衝突（理論上被訂單鎖擋下的最後防線）的錯誤碼：PRD-006 EX-22 寫 409 `ORDER_STATE_CONFLICT`，PRD-007 EX-24 寫 409 `ORDER_BUSY` | 一律 409 `ORDER_BUSY` + `Retry-After: 1`（可重試；重試時重驗會回正確的狀態錯誤）；PRD-006 EX-22 修正 | Open |
-| CQ-3 | 清空交易資料的連帶範圍：`referral_logs` 以 FK 參照 `orders`（SD-TRUST）；`notifications` 有指向已清空訂單的連結（SD-NOTIFY） | 一併清空 `referral_logs`；刪除 `category IN ('ORDER_AFFAIR','SERVICE_RECORD')` 的通知 | Open |
-| CQ-4 | 既有 GCS 物件（舊 `payment-proofs/`、`refund-proofs/`、照護日誌媒體）在 DB 清空後成為無引用檔 | 不主動刪除舊物件（未上線、量小，避免誤刪）；C10 只掃最近 7 天的日期前綴，遷移後 7 天內上傳的舊憑證會被當孤兒刪除，可接受 | Open |
-| CQ-5 | O13（回報服務問題）由 SD-ORDER 提供 API，但 PRD-009 尚未依 baseline 改寫：待辦 `type`、說明欄長度、視窗已過的錯誤碼與 `deadline` 名稱皆無出處 | `admin_tasks.type=SERVICE_DISPUTE`；說明必填 1–500 字、不附圖（比照 PRD-024 BR-13）；視窗已過 → 409 `DEADLINE_PASSED`，`deadline=DISPUTE_WINDOW_ENDS_AT`（需 baseline §3.7 新增此期限名稱） | Open |
-| CQ-6 | O11 同時「有未結束變更」與「行程未全部結束」時的錯誤碼先後（PRD-024 §4.5 交給 PRD-009 定義） | 依 baseline §3.7 第 9 步先回 `MODIFICATION_IN_PROGRESS`，再回 `VISITS_NOT_FINISHED`（O13 同） | Open |
-| CQ-7 | O15 / O17（E29）的 request 與錯誤碼（PRD-020 尚未改寫）：有 `IN_PROGRESS` 行程時的錯誤碼、手動調解金額上限的錯誤碼、依據長度 | 有 `IN_PROGRESS` 行程 → 409 `VISITS_NOT_FINISHED`；手動 `ADMIN_ADJUSTMENT` 金額 > 已收淨額（扣除本次自動補登後）→ 422 `INVALID_ADJUSTMENT_AMOUNT`（模組碼）；依據 1–500 字；終態不由 ADMIN 選擇（依 CQ-57 由系統判斷） | Open |
-| CQ-8 | 保母帳務總覽（E30）收入的月份歸屬：baseline §4 只定義收入 = `COMPLETED` 與 `CANCELLED` 訂單的已收淨額，未定義歸屬月份 | 依訂單進入終態的時間（`completed_at` / `cancelled_at`，Asia/Taipei 自然月）歸屬 | Open |
-| CQ-9 | O14 / O13 / O15 期間 ADMIN 的通知：PRD-024 BR-4 規定 O14 不通知 ADMIN；O13 未規定 | O13 同樣不通知 ADMIN，只出現在待辦清單 | Open |
+| CQ-1 | PRD-023 BR-21 與同卡 EX-15、AC-3.6 矛盾（撤回 SYSTEM 變更的錯誤碼） | 403 `FORBIDDEN`（baseline CQ-76）；PRD-023 BR-21 已由主流程修正（commit 2f20426）；寫入 §3.3 T5、§6.3 E22 | 已決（使用者 2026-11-22） |
+| CQ-2 | `@Version` 衝突的錯誤碼（PRD-006 EX-22 vs PRD-007 EX-24） | 409 `ORDER_BUSY` + `Retry-After: 1`；baseline §3.7 與 PRD-006 EX-22 已修正；寫入 §3.6.1、§6.4 | 已決（使用者 2026-11-22） |
+| CQ-3 | 清空交易資料的連帶範圍 | 一併清空 `referral_logs`；刪除 `category IN ('ORDER_AFFAIR','SERVICE_RECORD')` 的通知；寫入 §5.1.1 第 0 段 | 已決（使用者 2026-11-22） |
+| CQ-4 | 既有 GCS 物件成為無引用檔 | 不主動刪除舊物件；C10 只掃最近 7 天的日期前綴；寫入 §8.1 C10 | 已決（使用者 2026-11-22） |
+| CQ-5 | O13 的待辦類型、說明長度、視窗已過錯誤碼 | `admin_tasks.type=SERVICE_DISPUTE`；說明 1–500 字、不附圖；視窗已過 409 `DEADLINE_PASSED`（`deadline=DISPUTE_WINDOW_ENDS_AT`，baseline §3.7 已新增）；寫入 §3.1.1、§3.5、§6.3 E26 | 已決（使用者 2026-11-22） |
+| CQ-6 | O11 / O13 同時有未結束變更與行程未結束時的錯誤碼先後 | 先 `MODIFICATION_IN_PROGRESS`，再 `VISITS_NOT_FINISHED`；寫入 §6.3 E25、E26 | 已決（使用者 2026-11-22） |
+| CQ-7 | E29 調解的 request 與錯誤碼 | 有 `IN_PROGRESS` 行程 → 409 `VISITS_NOT_FINISHED`；手動 `ADMIN_ADJUSTMENT` > 已收淨額（扣除本次自動補登後）→ 422 `INVALID_ADJUSTMENT_AMOUNT`；依據 1–500 字；終態由系統判斷；寫入 §6.3 E29、§6.5 | 已決（使用者 2026-11-22） |
+| CQ-8 | 帳務總覽收入的月份歸屬 | 依 `completed_at` / `cancelled_at`（Asia/Taipei 自然月）；寫入 §6.3 E30、`ix_orders_sitter_terminal` | 已決（使用者 2026-11-22） |
+| CQ-9 | O13 是否通知 ADMIN | 不通知，只出現在待辦清單；寫入 §7.2 | 已決（使用者 2026-11-22） |
+| CQ-10 | PRD-016、PRD-023、PRD-024 的 §9 沒有定義任何 testid，變更精靈、協商頁、補款 / 退款區塊、申報爭議無法依「以 PRD 為準」掛 testid | 由主流程在 PRD-016 / 023 / 024 §9 補定義（不退回 Approved 狀態，屬補充畫面識別）。建議名（依 SD-FRONTEND-SPEC §4）：`order-modify-type-{type}`、`order-modify-visit-checkbox-{visitId}`、`order-modify-add-item-{index}`、`order-modify-input-reason`、`order-modify-btn-submit`、`modification-detail-diff`、`modification-detail-expires-at`、`modification-btn-quote`、`modification-btn-reject`、`modification-btn-withdraw`、`modification-btn-accept`、`modification-input-reject-reason`、`modification-history-item-{modificationId}`、`modification-history-empty`、`modification-btn-payment-dispute`、`payment-dispute-input-description`、`payment-dispute-btn-submit`、`payment-dispute-available-at` | 已決（主流程 2026-11-22）：已補進三張 PRD §9 |
 
-依賴（非本 SD 可決定，列出供排程）：SD-FULFILL 須提供 `IN_PROGRESS` 行程逾時出口（baseline §6），否則 O11 / O12 / O15 可能永久卡住；SD-BILLING 重寫時移除 `subscriptions.monthly_order_count`（本 SD 不再使用）；`orders.media_expiry_warned` 由 SD-CARE 寫入，SD-CARE 重寫時改由本 SD 的 Service 寫或搬到媒體表。
+依賴（非本 SD 可決定，列出供排程）：SD-FULFILL 須提供 `IN_PROGRESS` 行程逾時出口（baseline §6），否則 O11 / O12 / O15 可能永久卡住；SD-BILLING 重寫時移除 `subscriptions.monthly_order_count`；`orders.media_expiry_warned` 由 SD-CARE 寫入，SD-CARE 重寫時改由本 SD 的 Service 寫或搬到媒體表；PRD-009（O11–O13 文案與畫面）與 PRD-020（ADMIN 待辦 / 調解畫面）改寫時對齊 §6.3 E25–E30。
 
 ---
 
@@ -1283,4 +2018,5 @@ erDiagram
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
-| 2026-11-22 | 建立第一階段：§1 AC 對應（156 條）、§2 模組邊界、§3 狀態機與共用機制、§5 資料模型（expand / contract 遷移）、§8 排程與外部服務、§11 技術決策、§12 待釐清 | 全面重建第 2 步（baseline 第 2 版與 8 張訂單 PRD 核准後） |
+| 2026-11-22 | 建立第一階段：§1 AC 對應（156 條）、§2 模組邊界、§3 狀態機與共用機制、§5 資料模型、§8 排程與外部服務、§11 技術決策、§12 待釐清 | 全面重建第 2 步（baseline 第 2 版與 8 張訂單 PRD 核准後） |
+| 2026-11-22 | 第二階段：§2.4 跨模組介面簽名、§4 序列圖、§6 API 契約（31 + 10 端點、錯誤碼總表 36 項）、§7 副作用、§8.3 部署清單、§9 前端、§10 測試設計；遷移合併為單一 `V20261122_01__order_rebuild.sql`（破壞性，不做雙階段）；CQ-1~9 已決、技術決策 1–5 已採用；新增 CQ-10；狀態改 In Review | 使用者 2026-11-22 決定（全部採建議、遷移併成一支） |
