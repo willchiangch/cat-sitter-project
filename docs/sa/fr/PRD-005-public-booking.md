@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Needs Clarification |
 | 建立日期 | 2026-05-09 |
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-005 |
@@ -231,6 +231,9 @@
 | CQ-9 | 飼主開啟預約頁後保母修改題目（新增必填題、非必填改必填、停用題目），送出時如何判斷；baseline §3.7 沒有對應錯誤碼 | 以送單當下啟用中題目驗證：當下必填題缺答 → 409 `QUESTIONNAIRE_CHANGED`（模組碼，payload 帶目前題目清單），前端重新載入問卷並保留仍存在題目的答案；答案對應的題目已停用或不存在 → 忽略該答案 | Open |
 | CQ-10 | 問卷答案格式與長度沒有出處（PRD-004 只定題目 200 字、選項 50 字）；免填時請求帶答案如何處理 | 單選須為選項之一；多選為選項子集、必填至少 1 項；簡答 ≤ 200 字、詳答 ≤ 1000 字；不符 → 400 `VALIDATION_FAILED`（payload 帶 `questionId`）；非必填未答的題目仍寫入快照、答案為空（保母可看出該題未答）；免填時忽略答案、不存 | Open |
 | CQ-11 | BR §4.5 Step 2 寫「依保母設定的題目（依寵物類型等）動態產生」，但 PRD-004 的題目沒有寵物類型屬性 | 不依寵物類型過濾，顯示保母全部啟用中題目；若要依寵物類型出題，另開 PRD-004 修訂 | Open |
+| CQ-12 | 行程日期只有下限（≥ 今天）沒有上限；FREE / BASIC 沒有可預約區間，可以預約好幾年後，`review_expires_at = 首日` 讓訂單長期卡在 `PENDING`（審查第 1 輪 #7） | 最後一個行程日期 ≤ 今天（Asia/Taipei）+ 365 天；超過 → 422 `INVALID_VISIT_DATE`（payload 帶日期）；日期選擇器停用超過範圍的日期 | Open |
+| CQ-13 | `base_amount` 沒有上限（PRD-003 單價也沒有上限），與 PRD-006 BR-5 `total_amount ≤ 999,999` 衝突，會建出保母無法報價的訂單（審查第 1 輪 #6） | O1 後端重算 `base_amount` > 999,999 → 400 `VALIDATION_FAILED`（payload `field=baseAmount`、`max=999999`）；前端試算超過時停用送出並顯示「單筆預約金額不可超過 NT$999,999，請拆成多筆預約」 | Open |
+| CQ-14 | ADMIN 停權保母時，預約頁走 PRD-017 KYC `SUSPENDED`（步驟 1.1，文案「尚未完成實名認證」）還是 baseline §2.2 的停權（403 `SUBSCRIPTION_LOCKED`）？（審查第 1 輪 #8） | baseline §2.2 的「ADMIN 停權」= KYC / 帳號停權：送單 403 `SUBSCRIPTION_LOCKED`，文案「保母目前暫停接受新預約」（不揭露停權）；步驟 1.1 只處理 `UNVERIFIED` / `PENDING_REVIEW` / `REJECTED`；PRD-017 同步修改 | Open |
 
 ## 11. 變更紀錄
 

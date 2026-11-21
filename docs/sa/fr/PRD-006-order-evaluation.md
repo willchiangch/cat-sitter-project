@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Needs Clarification |
 | 建立日期 | 2026-05-09 |
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-006 |
@@ -200,6 +200,7 @@
 | CQ-8 | 評估頁顯示哪些毛孩 | 決定：只顯示各日期群組綁定的毛孩；baseline CQ-60 規定每群組至少綁定 1 隻，原預設值「未綁定時顯示全部」不再發生（BR-21、AC-1.1） | 已決（使用者 2026-11-21） |
 | CQ-9 | BR §3.6「送單時不填問卷」與 BR §4.5 Step 2「填寫問卷」矛盾（第 1 輪衝突 #7） | （原建議以 BR §3.6 為準）。決定：以 BR §4.5 為準，送單時填寫 | 已決（由 baseline CQ-58 取代） |
 | CQ-10 | 評估頁要分辨「免填：熟客」與「免填：保母無題目」，但 baseline §3.5 兩者都只寫 `questionnaire_status = NOT_REQUIRED`，沒有記錄免填原因；事後重算會因熟客狀態改變（送單後才有訂單結案）或保母新增題目而與送單時不符 | PRD-005 於 O1 一併寫入 `questionnaire_exempt_reason`（`REGULAR_OWNER` / `NO_ACTIVE_QUESTIONS`；`COMPLETED` 時為 null），評估頁只讀此欄。兩者同時成立時記 `REGULAR_OWNER` | 已決（使用者 2026-11-21，baseline CQ-67）：送單時寫入 `questionnaire_exempt_reason`，見 PRD-005 |
+| CQ-11 | 送單時綁定的毛孩之後被飼主邏輯刪除（PRD-002），評估頁與飼主訂單詳情怎麼顯示？（審查第 1 輪 #6） | 照樣顯示該毛孩的基本資料，並標示「已刪除」；baseline §1.2 保母可讀「有過訂單的飼主的毛孩」，包含已刪除者；不另做毛孩快照 | Open |
 
 ## 11. 變更紀錄
 

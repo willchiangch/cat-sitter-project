@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Needs Clarification |
 | 建立日期 | 2026-11-21 |
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-024 |
@@ -159,6 +159,8 @@
 | CQ-1 | O14 申報是否必填說明、可否附圖 | 說明必填（1–500 字），不附圖；ADMIN 以既有憑證與 `order_logs` 判斷。已寫入 §4.1-2、T1、BR-13、EX-13、EX-14、AC-1.8 | 已決（使用者 2026-11-21） |
 | CQ-2 | 「補款 `SUBMITTED` 超過 72h 未核對」的起算點：BASELINE 未定義（submission 上傳時間？`due_at`？）；駁回後重傳是否重新起算 | 以目前這筆 `SUBMITTED` submission 的上傳時間起算；駁回後重傳重新起算（已寫入 BASELINE O14、CQ-64）。已寫入 §4.1-1、T1、BR-3、EX-6、AC-1.3 | 已決（使用者 2026-11-21） |
 | CQ-3 | 款項爭議待辦的 `type` 值與是否主動通知 ADMIN | `admin_tasks.type=MODIFICATION_PAYMENT_DISPUTE`；只出現在 ADMIN 待辦清單，不寄 Email。已寫入 §4.1-3、BR-4、§9、AC-1.1 | 已決（使用者 2026-11-21） |
+| CQ-4 | ADMIN 調解作廢 `SUBMITTED` 退款時，「已實際匯出」（BASELINE §3.3 須登記等額 `ADMIN_ADJUSTMENT` 的條件）由誰判定 | ADMIN 調解畫面對每筆 `SUBMITTED` 退款必選「已匯出 / 未匯出」（必填，寫入 `order_logs`）；已匯出 → 同交易自動建立等額 `ADMIN_ADJUSTMENT`（`VERIFIED`）；未匯出 → 只 `VOID`；AC-2.3 拆兩個 Given | Open（審查第 1 輪） |
+| CQ-5 | ADMIN 調解作廢 `SUBMITTED` 補款（飼主可能已匯款）時怎麼記 | 比照 O16：不登記任何金額，通知雙方「此筆補款由雙方自行處理」；已收淨額不含該筆 | Open（審查第 1 輪） |
 
 ## 11. 變更紀錄
 
