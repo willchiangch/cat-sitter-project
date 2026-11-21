@@ -15,8 +15,20 @@ erDiagram
     
     ORDER }o--|| SITTER : "assigned_to"
     ORDER }o--|| OWNER : "created_by"
+    ORDER ||--|{ ORDER_ITEM : "groups"
+    ORDER_ITEM ||--|{ ORDER_ITEM_PET : "binds"
+    ORDER_ITEM_PET }o--|| PET : "pet"
+    ORDER ||--o{ ORDER_ANSWER : "questionnaire_snapshot"
+    ORDER ||--o{ ORDER_PLAN_SNAPSHOT : "quote_price_snapshot"
+    ORDER ||--o| ORDER_SNAPSHOT : "media_quota_snapshot"
     ORDER ||--o{ VISIT : "contains"
-    ORDER ||--o| ORDER_SNAPSHOT : "stores_contract"
+    ORDER_ITEM ||--o{ VISIT : "expands_to"
+    ORDER ||--o{ PAYMENT : "charges_refunds"
+    PAYMENT ||--o{ PAYMENT_SUBMISSION : "proof_uploads"
+    ORDER ||--o{ MODIFICATION_REQUEST : "modifications"
+    MODIFICATION_REQUEST ||--o| PAYMENT : "supplement_or_refund"
+    ORDER ||--o{ ORDER_LOG : "audit"
+    ORDER ||--o{ ADMIN_TASK : "admin_tasks"
     
     VISIT ||--o| SERVICE_REPORT : "produces"
     SERVICE_REPORT ||--o{ REPORT_MEDIA : "includes"
@@ -43,29 +55,32 @@ erDiagram
 - **`updated_by`**: `UUID` (最後更新者 ID，對應 USER.id)。
 - **`is_deleted`**: `BOOLEAN` (邏輯刪除標記，預設為 false)。
 
-### 2.2 ORDER & ORDER_SNAPSHOT (含財務時間軸)
-- **ORDER**
-  - `total_amount`: INT (最終結算金額)
-  - `settlement_status`: VARCHAR (PENDING_PAYMENT, PAID, COMPLETED)
-  - **`paid_at`**: TIMESTAMPTZ (飼主付款日 / 憑證核對日)
-  - **`completed_at`**: TIMESTAMPTZ (訂單結案日，作為帳務歸屬基準)
-  - **`payout_at`**: TIMESTAMPTZ (預計撥款給保母之日期)
-  - **`adjustment_reason`**: TEXT (保母手動調價的原因說明)
-  - **`is_disputed`**: BOOLEAN (是否處於爭議凍結狀態，預設為 false)
-  - **`cancelled_by`**: VARCHAR(16) (取消者，`OWNER` = 飼主付款前撤單，見 SD-006 §2.5；保母婉拒 / 訂單變更取消 / 舊資料為 NULL。V20261025_01)
-- **VISIT**
-  - `order_id`: UUID (FK)
+### 2.2 訂單交易（SD-ORDER，2026-11-22 重建，DDL 以 `SD-ORDER.md` §5 為準）
+
+> 狀態機與共用概念以 `docs/sa/00-DOMAIN-BASELINE.md` §3 為準。舊的 `settlement_status`、`paid_at`、`payout_at`、`adjustment_reason`、`is_disputed`、訂單層付款憑證欄位已移除（遷移 `V20261122_01` / `_02`）。
+- **ORDER**（`orders`）
+  - `status`: VARCHAR（`PENDING` / `PENDING_PAYMENT` / `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` / `COMPLETED` / `CANCELLED`，baseline §3.1）
+  - 金額（INT，TWD）：`base_amount`（後端重算）、`surcharge_amount`、`discount_amount`、`pricing_notes`、`total_amount`（報價前 NULL；目前生效的合約總額，只在報價、變更 SETTLED、補款逾時重算時改）
+  - 時間（TIMESTAMPTZ）：`review_expires_at`、`quoted_at`、`confirmed_at`（首次付款 VERIFIED，月接單額度計數依據）、`cancelled_at`、`completed_at`、`disputed_at`、`completion_basis_at`；`first_service_date` DATE（首日，Asia/Taipei）
+  - 問卷：`questionnaire_status`（`NOT_REQUIRED` / `COMPLETED`）、`questionnaire_exempt_reason`（`REGULAR_OWNER` / `NO_ACTIVE_QUESTIONS` / NULL）
+  - 取消 / 結案：`cancelled_by`（`OWNER` / `SITTER` / `SYSTEM` / `ADMIN`）、`cancel_reason_code`、`cancel_reason`、`completed_by`（`OWNER` / `SYSTEM` / `ADMIN`）
+- **ORDER_ITEM**（`order_items`）：預約群組或變更新增項目；`plan_id`、`service_dates` DATE[]、`daily_count`、`booked_unit_price`、`source`（`BOOKING` / `MODIFICATION`）
+- **ORDER_ITEM_PET**（`order_item_pets`）：群組 × 毛孩
+- **ORDER_ANSWER**（`order_answers`）：問卷答案快照（題目文字、題型、答案）
+- **ORDER_PLAN_SNAPSHOT**（`order_plan_snapshots`）：報價時各方案單價與名稱
+- **ORDER_SNAPSHOT**（`order_snapshots`）：訂單層媒體額度快照 `plan_tier`、`max_photos`、`max_videos`、`media_retention_days`（-1 = 永久）
+- **PAYMENT**（`payments`）：`direction`（`CHARGE` / `REFUND`）、`purpose`（`INITIAL` / `SUPPLEMENT` / `MODIFICATION_REFUND` / `ADMIN_ADJUSTMENT`）、`method`、`amount`、`status`（`UNPAID` / `SUBMITTED` / `VERIFIED` / `VOID`）、`due_at`、`remind_at`、`escalate_at`、`payee_account_snapshot`（AES-256-GCM 密文）
+- **PAYMENT_SUBMISSION**（`payment_submissions`）：每次上傳憑證一列（後五碼、免責同意時間、物件鍵、狀態、駁回原因）
+- **MODIFICATION_REQUEST**（`modification_requests`）：`type`、`status`（baseline §3.4）、`initiated_by`（`OWNER` / `SITTER` / `SYSTEM`）、期望 / 報價內容、計價欄位、`expires_at`、`ended_at`
+- **ORDER_LOG**（`order_logs`）：`action_type`、`operator_role`、`operator_user_id`、`payload`（與狀態變更同交易）
+- **ADMIN_TASK**（`admin_tasks`）：`type`、`status`（`OPEN` / `RESOLVED`）、`resolution`
+- **IDEMPOTENCY_RECORD**（`idempotency_records`）：冪等範圍、request hash、回應回放（舊 `idempotency_keys` 暫留給尚未重建的模組）
+- **VISIT**（`visits`，歸 SD-FULFILL）
+  - `order_id`: UUID (FK)、`order_item_id`: UUID (FK)
   - `plan_id`: UUID (FK, 關聯方案)
-  - `snapshot_plan_title`: VARCHAR (方案快照名稱)
-  - `scheduled_at`: TIMESTAMPTZ (預定執行時間)
-  - **`finished_at`**: TIMESTAMPTZ (實際完成時間，用於結案倒數計算)
-- **ORDER_SNAPSHOT**
-  - `order_id`: UUID (FK)
-  - `snapshot_unit_price`: INT, `snapshot_original_total`: INT, `adjustment_amount`: INT
-  - `snapshot_plan_title`: VARCHAR, `snapshot_media_retention_days`: INT
-  - `snapshot_max_photos`: INT, `snapshot_max_videos`: INT, `snapshot_max_video_seconds`: INT
-  - `snapshot_plan_tier`: VARCHAR (SaaS 方案等級，如 FREE/BASIC/PRO/ULTIMATE)
-  - `terms_agreed_at`: TIMESTAMPTZ
+  - `status`: `PENDING` / `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`
+  - `service_date`: DATE（Asia/Taipei 日期；取代以 UTC 午夜存的 `scheduled_at`，定義權屬 SD-FULFILL）
+  - `finished_at`、`cancelled_at`、`closed_at`: TIMESTAMPTZ
 
 ### 2.3 SITTER & PROFILE (含審核與彈性資料)
 - **SITTER**
@@ -77,7 +92,8 @@ erDiagram
 - **OWNER**
   - **`address`**: VARCHAR (飼主地址，供保母評估服務距離)
 - **SUBSCRIPTION**
-  - `sitter_id`: UUID (FK), `plan_tier`: VARCHAR, `monthly_order_count`: INT, `expired_at`: TIMESTAMPTZ
+  - `sitter_id`: UUID (FK), `plan_tier`: VARCHAR, `expired_at`: TIMESTAMPTZ
+  - `monthly_order_count`: INT（**已不使用**：月接單額度改由 `orders.confirmed_at` 即時計數，見 SD-ORDER §11；SD-BILLING 重寫時移除）
 
 ### 2.4 業務輔助實體
 - **GATEKEEPER_RULE**: `sitter_id`, `target_client_id`, `rule_type` (WHITELIST, BLACKLIST).
