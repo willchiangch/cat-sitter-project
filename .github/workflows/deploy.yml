@@ -1,9 +1,8 @@
 name: Build and Deploy to GCP
 
+# 2026-11-21：重建期間停用 push main 自動部署，改為手動觸發（Actions 頁面 Run workflow，或 gh workflow run deploy.yml）
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
