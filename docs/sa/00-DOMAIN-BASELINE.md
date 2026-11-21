@@ -271,7 +271,7 @@ stateDiagram-v2
 | 409 | `DEADLINE_PASSED` | 已過期限（payload 帶期限名稱） |
 | 409 | `FIRST_VISIT_DATE_PASSED` | 首個行程日期已過仍報價 |
 | 409 | `PRICE_CHANGED` | 畫面上的金額已過期 |
-| 409 | `ORDER_BUSY` | 訂單鎖等待逾時 |
+| 409 | `ORDER_BUSY` | 訂單鎖等待逾時；`@Version` 衝突（最後防線） |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | 同 key 請求處理中 |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | 同 key 不同內容 |
 | 422 | `SELF_BOOKING_NOT_ALLOWED` | 預約自己 |
@@ -297,7 +297,7 @@ stateDiagram-v2
   13. 403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED`
   - 需要讀取當下資料才能判斷的上限檢查（例：依目前題目判斷答案字數、後端重算後的 `base_amount` / `total_amount` 上限）雖回 400 `VALIDATION_FAILED`，判斷時點歸在第 12 步。
   - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
-- **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
+- **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
 - 需要 `Idempotency-Key` 的端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。
 
 模組專屬錯誤碼（例如媒體額度超過、檔案格式）由各模組 SD 定義，命名不得與本表衝突。
@@ -442,6 +442,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | §3.7 新增期限名稱 `DISPUTE_WINDOW_ENDS_AT`（O13）；`@Version` 衝突回 `ORDER_BUSY`（核准後修訂，SD-ORDER CQ-2、CQ-5） | 使用者核准 2026-11-22 |
 | 2026-11-22 | CQ-77（行程全部開始後不能加訂，另開新單）；第 2 版核准，狀態 Approved | 使用者決定與核准 |
 | 2026-11-22 | CQ-76：§3.7 判斷順序改為逐步清單（冪等回放移到 401 後、權限類 403 先於狀態類、補 `MODIFICATION_*` 內部順序與 `VISIT_ALREADY_STARTED`） | PRD-007 / PRD-016 修正回饋（技術細節，主流程決定） |
 | 2026-11-21 | CQ-68~75：方案區間看等級、變更發起需有 PENDING 行程且只有 SETTLED 推遲結案、錯誤判斷順序與 payload 共通欄位、快照加密、不可關閉通知、日期與金額上限、收款帳號修改不重驗 | 訂單 PRD 第 1 輪審查 + 使用者決定（全部採建議） |

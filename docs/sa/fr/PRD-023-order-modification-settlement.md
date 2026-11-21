@@ -141,7 +141,7 @@
 | BR-18 | 寫入端點帶 `Idempotency-Key`，同 key 回放；不同 key 重做已完成動作 → 409，不重複建立 payment | BASELINE §3.6；沿用原 PRD-016 |
 | BR-19 | 金額整數 TWD；時間 UTC 儲存、Asia/Taipei 顯示 | BASELINE §4、§5 |
 | BR-20 | 補款不另發到期前提醒：期限只在同意當下的通知與補款頁寫明（「請於 YYYY-MM-DD HH:mm 前完成」）；`due_at` 前不產生補款提醒通知 | 使用者決定 2026-11-21（本卡 CQ-2） |
-| BR-21 | 多個錯誤同時成立時依 PRD-016 BR-28（BASELINE §3.7 判斷順序）回第一個。例：訂單 `DISPUTED` 時同意 → `ORDER_STATE_CONFLICT`；`QUOTED` 已過期且減少目標已開始 → `DEADLINE_PASSED`；任何人撤回 `initiatedBy=SYSTEM` 的退款變更 → `MODIFICATION_STATE_CONFLICT`（變更狀態檢查先於發起者檢查，與 PRD-016 T5、EX-8 一致） | BASELINE §3.7（CQ-70）；PRD-016 BR-28；審查第 1 輪 #3 |
+| BR-21 | 多個錯誤同時成立時依 PRD-016 BR-28（BASELINE §3.7 判斷順序）回第一個。例：訂單 `DISPUTED` 時同意 → `ORDER_STATE_CONFLICT`；`QUOTED` 已過期且減少目標已開始 → `DEADLINE_PASSED`；任何人撤回 `initiatedBy=SYSTEM` 的退款變更 → 403 `FORBIDDEN`（非發起者先於變更狀態檢查，與 PRD-016 T5、EX-4 及本卡 EX-15 / AC-3.6 一致） | BASELINE §3.7（CQ-70、CQ-76）；PRD-016 BR-28；審查第 1 輪 #3 |
 
 ## 7. 例外處理
 
@@ -223,6 +223,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | BR-21 例句改為 403 `FORBIDDEN`，與 EX-15 / AC-3.6 及 baseline CQ-76 一致（核准後修訂，SD-ORDER CQ-1） | 使用者核准 2026-11-22 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 建立：由原 PRD-016 拆出飼主同意 / 拒絕、補款、退款、結清後主狀態 | 原 PRD-016 依 DOMAIN-BASELINE 重寫並拆卡（子模組 > 3）；處理 `docs/reviews/00-DOMAIN-BASELINE.prd.review.md` 第 1 輪 #45–#49、#51 中屬於結清的部分 |
 | 2026-11-21 | 第 1 輪 #45：結清後一律斷言訂單狀態「仍為」原值（AC-1.1、AC-2.1、AC-3.1、AC-3.5），無「恢復」 | 第 1 輪 #45、CQ-1 |
