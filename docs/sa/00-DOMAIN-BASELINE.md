@@ -3,12 +3,12 @@
 | 項目 | 內容 |
 |------|------|
 | 狀態 | In Review |
-| 前次核准 | 使用者，2026-11-21（第 2 版修訂中：依訂單 PRD 重寫回饋補充，見 §7 CQ-58~75） |
+| 前次核准 | 使用者，2026-11-21（第 2 版修訂中：依訂單 PRD 重寫回饋補充，見 §7 CQ-58~76） |
 | 建立日期 | 2026-11-21 |
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
 | 適用 | 所有 PRD / SD / TS。本文件定義的概念，其他文件只能引用、不得重新定義；要改就改這份並走核准 |
 
-> §7 CQ-1~75 已全部由使用者決定（2026-11-21）。第 1 版已核准；CQ-58~75 為 PRD 重寫時發現的缺口，補充後待使用者再次核准。
+> §7 CQ-1~76 已全部由使用者決定。第 1 版已核准；CQ-58~76 為 PRD 重寫時發現的缺口，補充後待使用者再次核准。
 > 「現況」欄是 2026-11-21 程式碼的實際行為，只當證據，不代表正確。
 > 標「提案值」的參數（`URGENT_WINDOW_HOURS` 2h、排程頻率 15 分鐘、CLOSED_BY_SYSTEM 計價）已隨核准確認。
 
@@ -281,7 +281,21 @@ stateDiagram-v2
 | 422 | `PAYOUT_ACCOUNT_REQUIRED` | 保母未設定收款帳號就報價 |
 
 - 當事人做不屬於自己方向的動作（例：保母上傳 CHARGE 憑證、飼主駁回退款）→ 403 `FORBIDDEN`。
-- **判斷順序**（多個錯誤同時成立時回第一個，CQ-70）：冪等回放（同 key 同內容）→ 401 `UNAUTHENTICATED` → 403 `ROLE_MISMATCH` → 404 `NOT_FOUND` → 403 `FORBIDDEN`（非資源當事人）→ 400 `VALIDATION_FAILED`（含缺 `Idempotency-Key`）→ 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` → 409 `ORDER_STATE_CONFLICT` → 409 `MODIFICATION_*` / `PAYMENT_STATE_CONFLICT` → 403 `FORBIDDEN`（當事人但非發起者 / 方向不符）→ 409 `DEADLINE_PASSED` → 422 業務規則（含模組碼）→ 403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED`。
+- **判斷順序**（多個錯誤同時成立時回第一個，CQ-70、CQ-76）：
+  1. 401 `UNAUTHENTICATED`
+  2. 冪等回放（同使用者、同端點、同 key、同內容 → 回放第一次結果）
+  3. 403 `ROLE_MISMATCH`
+  4. 404 `NOT_FOUND`
+  5. 403 `FORBIDDEN`：非資源當事人；或當事人但不是此動作的操作方（非發起者、payment 方向不符）
+  6. 400 `VALIDATION_FAILED`（含缺 `Idempotency-Key`）
+  7. 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`
+  8. 409 `ORDER_STATE_CONFLICT`
+  9. 409 `MODIFICATION_IN_PROGRESS` → `MODIFICATION_NOT_ALLOWED` → `MODIFICATION_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT`
+  10. 409 `DEADLINE_PASSED`
+  11. 409 `VISIT_ALREADY_STARTED`、`PRICE_CHANGED`
+  12. 422 業務規則（含模組碼）
+  13. 403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED`
+  - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
 - **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
 - 需要 `Idempotency-Key` 的端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。
 
@@ -342,7 +356,7 @@ stateDiagram-v2
 
 ## 7. 決定紀錄
 
-全部由使用者於 2026-11-21 決定。CQ-58~75 來自訂單 PRD 重寫與審查（PRD-005/006/007/016/023~027）。CQ-1~8 為初稿提出；CQ-9~28、CQ-40~49 來自 prd 審查，CQ-29~36、CQ-50~57 來自 sd 審查（`docs/reviews/00-DOMAIN-BASELINE.{prd,sd}.review.md` 第 1、2 輪）。
+全部由使用者於 2026-11-21 決定。CQ-58~76 來自訂單 PRD 重寫與審查（PRD-005/006/007/016/023~027）。CQ-1~8 為初稿提出；CQ-9~28、CQ-40~49 來自 prd 審查，CQ-29~36、CQ-50~57 來自 sd 審查（`docs/reviews/00-DOMAIN-BASELINE.{prd,sd}.review.md` 第 1、2 輪）。
 
 | CQ | 問題 | 決定 | 落在 |
 |----|------|------|------|
@@ -418,6 +432,7 @@ stateDiagram-v2
 | CQ-73 | 哪些通知不可關閉 | 付款提醒、逾期取消、駁回、作廢、收款帳號變更 | §3.6 |
 | CQ-74 | 預約日期與金額上限 | 最遠今天 + 365 天；單筆 ≤ 999,999 | O1、§4 |
 | CQ-75 | 修改收款帳號是否重新驗證身分 | MVP 不要求，改後立即發不可關閉的通知 | §3.6（PRD-025） |
+| CQ-76 | 判斷順序修正：冪等回放須在認證後；權限類 403 應先於狀態類 409；`MODIFICATION_*` 內部順序與 `VISIT_ALREADY_STARTED` 位置（PRD-016 CQ-11） | 見 §3.7 判斷順序 | §3.7 |
 
 ---
 
@@ -425,6 +440,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | CQ-76：§3.7 判斷順序改為逐步清單（冪等回放移到 401 後、權限類 403 先於狀態類、補 `MODIFICATION_*` 內部順序與 `VISIT_ALREADY_STARTED`） | PRD-007 / PRD-016 修正回饋（技術細節，主流程決定） |
 | 2026-11-21 | CQ-68~75：方案區間看等級、變更發起需有 PENDING 行程且只有 SETTLED 推遲結案、錯誤判斷順序與 payload 共通欄位、快照加密、不可關閉通知、日期與金額上限、收款帳號修改不重驗 | 訂單 PRD 第 1 輪審查 + 使用者決定（全部採建議） |
 | 2026-11-21 | 第 2 版修訂：§3.5 改為送單時填問卷；O1 綁定毛孩與問卷；O2 加月額度與收款帳號檢查；O14 / O16 錯誤碼；取消類操作的期限例外；取消共同附帶動作；鎖定期間計價；§3.7 增刪錯誤碼；狀態退回 In Review | 訂單 PRD 重寫回饋 + 使用者決定（CQ-58~66）；CQ-67 免填原因、O10 補款逾時無退款路徑、ADMIN 可讀範圍用詞統一為「OPEN 待辦」 |
 | 2026-11-21 | 狀態改 Approved | 使用者核准 |
