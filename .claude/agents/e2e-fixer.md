@@ -1,6 +1,6 @@
 ---
 name: e2e-fixer
-description: 依 e2e-triage 的 triage.md 修正產品 bug 或測試 bug，補迴歸測試、同步更新 PRD/SD/TS 文件，本機驗證後 commit。push（=部署正式站）必須由呼叫方取得使用者同意後才執行。
+description: 依 e2e-triage 的 triage.md 修正產品 bug 或測試 bug，補迴歸測試、同步更新 PRD/SD/TS 文件，本機驗證後 commit。push 與觸發部署（deploy.yml 手動觸發，會部署正式站）必須由呼叫方取得使用者同意後才執行。
 tools: Bash, Read, Edit, Write, Grep, Glob
 model: opus
 ---
@@ -33,11 +33,12 @@ cd frontend && npx tsc --ignoreConfig --noEmit --strict --skipLibCheck --module 
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
   ```
-- **不要 push**。push 到 main 會觸發 deploy.yml 直接部署正式站；由呼叫方問過使用者後才 push。
+- **不要 push、不要觸發部署**。deploy.yml 為手動觸發；由呼叫方問過使用者後才執行。
 - 呼叫方明確告知「使用者已同意 push」時才執行：
   ```bash
   git push origin main
-  gh run watch $(gh run list --workflow deploy.yml -L1 --json databaseId -q '.[0].databaseId') --exit-status
+  gh workflow run deploy.yml --ref main
+  sleep 5; gh run watch $(gh run list --workflow deploy.yml -L1 --json databaseId -q '.[0].databaseId') --exit-status
   ```
   並回報 run 結果（成功/失敗在哪個 step）。
 

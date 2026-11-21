@@ -64,7 +64,7 @@ erDiagram
   - `snapshot_unit_price`: INT, `snapshot_original_total`: INT, `adjustment_amount`: INT
   - `snapshot_plan_title`: VARCHAR, `snapshot_media_retention_days`: INT
   - `snapshot_max_photos`: INT, `snapshot_max_videos`: INT, `snapshot_max_video_seconds`: INT
-  - `snapshot_plan_tier`: VARCHAR (SaaS 方案等級，如 FREE/BASIC/PRO/PREMIUM)
+  - `snapshot_plan_tier`: VARCHAR (SaaS 方案等級，如 FREE/BASIC/PRO/ULTIMATE)
   - `terms_agreed_at`: TIMESTAMPTZ
 
 ### 2.3 SITTER & PROFILE (含審核與彈性資料)

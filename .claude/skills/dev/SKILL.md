@@ -10,7 +10,7 @@ disable-model-invocation: true
 參數：`$ARGUMENTS`
 
 1. **關卡**：SD 與對應 PRD 必須 Approved。`git status` 有不相關的未 commit 變更 → 先問使用者怎麼處理，不要混進來。
-2. **分支**：`push main = 部署正式站`，所以開發在 `feature/sd-NNN-{slug}`（GLOBAL-SPEC §5.1）。記下 `BASE=$(git rev-parse HEAD)` 給審查用。使用者明確說「直接在 main」才留在 main。
+2. **分支**：main 要保持可部署狀態，所以開發在 `feature/sd-NNN-{slug}`（GLOBAL-SPEC §5.1）。記下 `BASE=$(git rev-parse HEAD)` 給審查用。使用者明確說「直接在 main」才留在 main。
 3. **派工**（依 SD 判斷，或依第二個參數限定）：
    - 前後端都要、SD 的 API 契約完整 → backend-dev 與 frontend-dev 平行。
    - 契約不完整 → 先 backend-dev，完成後把實際 API（`docs/api/openapi.json` diff）交給 frontend-dev。

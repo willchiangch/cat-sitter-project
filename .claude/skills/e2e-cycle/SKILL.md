@@ -22,7 +22,7 @@ loop:
        - 有 PRODUCT_BUG/TEST_BUG/CONSISTENCY_WINDOW → 3
      else → 4
   3. e2e-fixer(RUN_DIR, 項目 IDs)
-     → 回報 commit 清單，用 AskUserQuestion 問「是否 push 到 main（會部署正式站並觸發 CI E2E）」
+     → 回報 commit 清單，用 AskUserQuestion 問「是否 push 到 main 並觸發 deploy.yml（會部署正式站並跑 CI E2E）」
      → 同意：SendMessage 給同一個 fixer「使用者已同意 push」，等 CI 跑完
      → 不同意：停
      iteration += 1；新 RUN_DIR；MODE=ci；回到 1

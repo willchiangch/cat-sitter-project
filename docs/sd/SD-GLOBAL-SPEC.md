@@ -31,6 +31,7 @@
 - **儲存精度**：一律使用 `INT` 儲存於 DB。計算中途使用 `BigDecimal`，入庫前四捨五入。
 
 ### 2.3 併發控制 (Concurrency Control)
+> **2026-11-21**：訂單、付款、變更、行程的狀態轉移改依 `docs/sa/00-DOMAIN-BASELINE.md` §3.6（鎖父訂單 `FOR NO KEY UPDATE`、`@Version` 僅作防線、同交易稽核、outbox、冪等回放）。本節與之衝突處以 baseline 為準，待 SD-ORDER 核准後改寫本節。
 - **資料列級鎖**：實體更新使用 JPA `@Version` 樂觀鎖。
 - **業務級分散式鎖**：需要跨列序列化的業務規則（例如 SD-021 記事模板 / 媒體上限、SD-022 草稿 get-or-create、SD-000 單一 session），統一使用 **PostgreSQL Advisory Locks**。
   - **不做檔期 / 容量鎖**：系統不做接單容量控管（PRD-005 / PRD-006，2026-10 產品決策），沒有「保母 + 日期」的檔期佔用鎖（2026-10 backlog 第 7 批移除 `CapacityGuard` 與 `AdvisoryLockService.acquireLocks/generateLockKey`）。同一張訂單的狀態轉移（`PENDING` → `PENDING_PAYMENT`）以訂單列 `SELECT ... FOR UPDATE` 序列化（SD-006 §2.1）。
@@ -68,6 +69,7 @@
 - **永久儲存路徑例外**：涉及長期客戶關係之檔案（如 PRD-021 照護媒體庫），必須使用獨立的 `/{bucket}/care_media/{sitter_id}_{client_id}/` 路徑，絕對禁止寫入帶有生命週期週期前綴的資料夾，以免遭排程誤刪。
 
 ### 4.2 快照機制 (Snapshot Pattern)
+> **2026-11-21**：快照時點改為**報價時**（baseline §2.2、CQ-20），下列「進入 CONFIRMED 時」已過時。
 - **實作規則**：當訂單進入 `CONFIRMED` 時，系統必須對當時的「單價」、「媒體保留規則」執行實體快照，存入 `ORDER_SNAPSHOT` 表，確保後續業務邏輯不受保母方案異動影響。
 
 ### 4.3 業務稽核日誌 (Audit Trail)
