@@ -2,7 +2,8 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
+| 核准 | 使用者，2026-11-22 |
 | 建立日期 | 2026-05-09 |
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-005 |
@@ -249,6 +250,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 第 1 輪審查修正總覽：處理全部 20 項（重要 9、建議 11）；CQ-9~14 全部已決並寫入正文；`PET_REQUIRED` 移除；錯誤判斷順序改依 baseline §3.7（新增 BR-25）；補 testid；狀態 Needs Clarification → In Review。仍 3 個子模組，AC 8 / 8 / 8 = 24 條 | `docs/reviews/PRD-005-public-booking.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-68、70、73、74 |
 | 2026-11-21 | R1-#1（重要）：AC-3.1 加 `questionnaire_exempt_reason = NO_ACTIVE_QUESTIONS`；AC-3.5 加 `= null`；AC-3.7 熟客 `REGULAR_OWNER`、無題目 `NO_ACTIVE_QUESTIONS`，新增「熟客且無啟用題目 → `REGULAR_OWNER`」情境；BR-13 寫出免填原因 | 第 1 輪 #1；baseline CQ-67 |
 | 2026-11-21 | R1-#2（重要）：採 (a)，刪除 `PET_REQUIRED`，空 `petIds` 併入 400 `VALIDATION_FAILED`（`field=petIds`、`groupIndex`）；改 §4.4 步驟 3.6、T1、BR-17、BR-18、EX-14、EX-22、EX-27、AC-2.5、CQ-3 | 第 1 輪 #2；主流程一致性決定 #1 |

@@ -2,7 +2,8 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
+| 核准 | 使用者，2026-11-22 |
 | 建立日期 | 2026-05-09（2026-11-21 依 DOMAIN-BASELINE 重寫） |
 | 歸屬 SD | SD-ORDER（`docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-007 |
@@ -290,6 +291,7 @@ O8、O16 及 O6（飼主撤回，PRD-026）、O7（保母取消，PRD-027）的 
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 依審查第 1 輪逐項修正（18 / 18）：#1 跨卡引用改為 PRD-026（O6）、PRD-027（O7、`PAYMENT_ALREADY_SUBMITTED` BR-6）、PRD-023（補款 / 退款建立與結清、T8、BR-20）、PRD-024（O14）、PRD-006（報價時帳號檢查），表頭、§1、§4.2、§5、BR-8 / 22 / 23、AC-2.2、EX-18、§9 逐處替換；#2 §4.1-4 上傳順序改為冪等查詢 → 授權與狀態 / 期限預檢（不取鎖）→ 欄位與檔案驗證 → GCS → 交易內鎖定重驗，BR-18 / 19、EX-1 / 6 / 9 / 12 註明不寫 GCS；#3 `DEADLINE_PASSED` payload 改 `deadline=PAYMENT_DUE_AT`、`deadlineAt`（§4.4、BR-12、EX-12、AC-1.7、AC-2.3）；#4 EX-28 / §4.2 寫兩種確認框文案與各自後果，SUPPLEMENT 後果改引用 PRD-023 T8，AC-2.3 補 SUPPLEMENT 確認框；#5 §3 新增錯誤判斷順序（引用 baseline §3.7 CQ-70）與唯一結果、新增 BR-27，AC-1.5 / 1.7 / 2.4 補多錯誤斷言；#6 BR-2、§9 補快照加密（NFR-03、CQ-72）；#7、#12 付款提醒條件補 `now < due_at`、`quoted_at < 首日 − 48h`、標記同交易寫入（§4.4、BR-13、AC-3.2）；#8 §3 角色表補 `ADMIN_ADJUSTMENT` → 409、ADMIN 作廢非 INITIAL → 403 `FORBIDDEN`（新增 EX-30）、ADMIN 駁回退款 → 403 `ROLE_MISMATCH`；#9 越權格併入 AC-1.3（401、ADMIN 上傳）、AC-2.5（401、OWNER 駁回 CHARGE、SITTER 確認退款、ADMIN 駁回），`ADMIN_ADJUSTMENT` 寫入併入 AC-1.2；#10 依 CQ-15 改以 `receivedAt` 判斷期限（BR-12、§4.1），AC-1.7 補邊界值；#11 新增 EX-29（排程 vs 使用者），AC-3.8 補駁回分支，AC-3.5 補排程跳過；#13 §4.1 補多筆 payment 排序、上傳表單顯示條件、空狀態（AC-1.1、1.2）；#14 AC-1.1 改斷言無 `order-total-amount`、分行改「台北分行」，AC-2.7 改為回應含 `accountSnapshot`；#15 不拆 AC，於 §8 加 TS 拆步驟說明；#16 BR-20 改為引用 PRD-008；#17 表頭引用基準改「§3.1（`PENDING_PAYMENT` 定義、`DISPUTED` 凍結）」；#18 §3、§4.3、EX-2 補 payment / submission 不屬於路徑訂單 → 404，AC-1.3、2.7 補斷言。寫回 CQ-14~16（使用者 2026-11-21 採建議預設值；CQ-16 依 baseline CQ-73，新增 BR-26）。AC 數不變（3 子模組 × 8 = 24 條）；狀態 Needs Clarification → In Review | `docs/reviews/PRD-007-offline-payment.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-70~73 |
 | 2026-11-21 | 寫回 CQ-1~13 決定（全部採建議預設值）：BR-2（ADMIN 唯讀快照）、BR-3（後五碼 = 付款方匯出帳戶、免責適用所有方向）、BR-4、BR-5、BR-8（原因 1–200 字）、BR-13、BR-15（駁回關閉待辦）、BR-16（O16 錯誤碼）、BR-17（簽名網址 5 分鐘）；新增 BR-22（逾期後駁回不給寬限 + 確認框）、BR-23（補款不提醒）、BR-24（作廢後 submission 維持 SUBMITTED、標示已作廢）、BR-25（取消共同附帶動作引用 baseline）；O16 拆為待辦已關閉 403 `FORBIDDEN` / 鎖定後重驗失敗 409 `PAYMENT_STATE_CONFLICT`（§3、§4.4、P5、EX-25、新增 EX-27）；新增 EX-28；更新 AC-1.2、1.5、2.3、2.7、3.2、3.3、3.4、3.5、3.6、3.7、3.8（AC 數不變，24 條）；狀態維持 In Review | 使用者決定 2026-11-21；baseline 第 2 版修訂 CQ-65、CQ-66 |
 | 2026-11-21 | 依新範本與 DOMAIN-BASELINE 全文重寫：改為 payment / submission 兩層狀態；三子模組 24 條可觀察 AC；新增期限、提醒、O8、待核對升級、O16；保母收款帳號設定拆至 PRD-025；狀態 In Review | 全面重建；`docs/reviews/00-DOMAIN-BASELINE.prd.review.md` 第 1、2 輪；`reports/rereview/00-sample-SD-007.md` |

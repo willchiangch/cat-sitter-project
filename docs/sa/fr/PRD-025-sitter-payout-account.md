@@ -2,7 +2,8 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
+| 核准 | 使用者，2026-11-22 |
 | 建立日期 | 2026-11-21 |
 | 歸屬 SD | SD-SUPPLY（`docs/sd/00-SD-PLAN.md` §0：「收款帳號（自 SD-007 移入）」歸 SD-SUPPLY） |
 | 測試情境 | TS-025 |
@@ -144,6 +145,7 @@ SD-ORDER 建立 CHARGE payment（PRD-006 O2、PRD-023 補款）時呼叫 SD-SUPP
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 依審查第 1 輪逐項修正（11 / 11）：#1 GET 未設定回 200 `{ "configured": false }`（§4.1、BR-2、新增 EX-13），AC-1.1 補 API 斷言；#2 「值有變動」定義為正規化後四欄任一不同，呈現依 CQ-5（BR-8、AC-1.5 補只改銀行代碼案例）；#3 通知歸不可關閉類別（BR-8、AC-1.6，baseline CQ-73）；#4 BR-4 補 NFR-03（AES-256、金鑰隔離、無預設值、未設定啟動失敗），金鑰驗證列為 SD-SUPPLY 驗證項（§9），AC-1.5 維持；#5 首次設定寫稽核並發「收款帳號已設定」（新增 BR-11，AC-1.1）；#6 刪除「SD-PLAN 尚未列入」過時註記，相依 PRD-016 改 PRD-023；#7 405 補錯誤碼 `METHOD_NOT_ALLOWED`（BR-6、EX-11、AC-1.8）；#8 無保母 profile → 404 `NOT_FOUND`、不自動建立（§3、新增 EX-12、AC-1.3）；#9 帳號先移除空白與「-」再驗證、分行 / 戶名存去前後空白值（BR-1、§4.1、AC-1.2）；#10 快照單次讀取同一筆紀錄四欄（新增 §4.3、BR-12、EX-14，AC-1.4）；#11 BR-6 補帳號註銷依 PRD-000。§3 補錯誤判斷順序（baseline §3.7 CQ-70）。寫回 CQ-5~8（使用者 2026-11-21 全部採建議預設值；CQ-8 = baseline CQ-75，新增 BR-10）。AC 數不變（1 子模組 8 條）；狀態 Needs Clarification → In Review | `docs/reviews/PRD-025-sitter-payout-account.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-70、CQ-72、CQ-73、CQ-75 |
 | 2026-11-21 | 寫回 CQ-1~4 決定（全部採建議預設值）：BR-1 寫入欄位格式；新增 BR-8（變更通知只顯示後五碼）、BR-9（未設帳號不能報價，引用 baseline O2 / §3.7 `PAYOUT_ACCOUNT_REQUIRED`，由 PRD-006 檢查）；新增 §4.2、EX-11，改寫 EX-10；§3 ADMIN 欄改引用 baseline §1.2（CQ-66）；更新 AC-1.1、1.2、1.6、1.8（AC 數不變，8 條）；影響範圍補對外 Service；狀態維持 In Review | 使用者決定 2026-11-21；baseline 第 2 版修訂 CQ-63、CQ-66 |
 | 2026-11-21 | 建立：自 PRD-007 拆出保母收款帳號設定；狀態 In Review | PRD-007 重寫後子模組 > 3；收款帳號歸 SD-SUPPLY（00-SD-PLAN §0）；抽樣 #11、第 1 輪衝突 #23、CQ-23 |
