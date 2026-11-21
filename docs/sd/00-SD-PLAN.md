@@ -6,13 +6,13 @@ SD 改為依業務模組撰寫，一份涵蓋同一聚合 / 狀態機的多張 P
 
 | 模組 SD | 檔案 | 涵蓋 PRD | 擁有的主要 Table | 取代舊 SD | 重建順序 | 狀態 |
 |---------|------|---------|-----------------|----------|---------|------|
-| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016 | `orders`、`order_items`、`order_snapshot`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`idempotency_keys`、通知 outbox；保母帳務總覽 API（由 payments 加總） | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | 未開始 |
+| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016 | `orders`、`order_items`、`order_snapshot`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`idempotency_keys`、`admin_tasks`；保母帳務總覽 API（由 payments 加總） | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | 未開始 |
 | SD-FULFILL 服務履約 | `SD-FULFILL.md` | PRD-008、009、022 | `visits`、`visit_service_reports`、`service_report_media`、爭議相關 | SD-008、009、022 | 2 | 未開始 |
 | SD-IDENTITY 帳號身分 | `SD-IDENTITY.md` | PRD-000、001 | `users`、`refresh_tokens`、WebAuthn、OTP | SD-000、001 | 3 | 未開始 |
 | SD-TRUST 信任風控 | `SD-TRUST.md` | PRD-010、017、020 | 信任圈、轉介、KYC、信用分數 | SD-010、017、020 | 4 | 未開始 |
 | SD-CARE 照護資料 | `SD-CARE.md` | PRD-002、021、013 | `pets`、照護記事、照護媒體、媒體保存 | SD-002、021、013 | 5 | 未開始 |
 | SD-SUPPLY 保母供給 | `SD-SUPPLY.md` | PRD-003、004、018、019 | `service_plans`、問卷、公開檔案、收款帳號（自 SD-007 移入）、我的最愛 | SD-003、004、007（收款帳號設定）、018、019 | 6 | 未開始 |
-| SD-NOTIFY 通知 | `SD-NOTIFY.md` | PRD-014 | `notifications`、通知偏好 | SD-014 | 7 | 未開始 |
+| SD-NOTIFY 通知 | `SD-NOTIFY.md` | PRD-014 | `notifications`（即 outbox，含 Email 投遞欄位，baseline §3.6）、通知偏好 | SD-014 | 7 | 未開始 |
 | SD-BILLING 收費 | `SD-BILLING.md` | PRD-012、015 | `payout_records`、訂閱；線上付款為 SD-ORDER `payments` 的 `method=ONLINE`，不另建付款表 | SD-015 | 8（延後） | 未開始 |
 | — | — | PRD-011 | — | — | 跳過（使用者決定） | — |
 

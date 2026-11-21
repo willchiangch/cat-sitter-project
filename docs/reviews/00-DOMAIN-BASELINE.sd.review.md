@@ -171,3 +171,165 @@ idempotency_keys：PK 改 `(user_id, scope, idempotency_key)`，新增 `request_
 | `docs/sd/SD-ERD.md` §2.2 | `settlement_status (PENDING_PAYMENT, PAID, COMPLETED)`、`is_disputed`、`snapshot_plan_tier` 值 `PREMIUM`（vs baseline `ULTIMATE`） |
 | `docs/sa/fr/PRD-009-order-completion.md` | A/B/D 允許 `CONFIRMED → COMPLETED/DISPUTED`、L41/L89 引用 `MODIFYING`/`REFUND_VERIFY`/`PAID`，與 baseline §3.1 不一致（prd-reviewer 另審） |
 | `docs/sa/fr/PRD-016-order-modification-cancellation.md` L125 | 「飼主長時間未確認可發起爭議」，baseline 無此轉移 |
+
+
+---
+
+# 第 2 輪（2026-11-21，審 commit 5ac0fd8 改寫後正文）
+
+審查者：sd-reviewer。範圍：(1) 第 1 輪 23 項是否已被正文解決；(2) §3.3 / §3.4 / §3.6 / §3.7 / §5 能否直接交給 sd-architect 寫 SD-ORDER；(3) 跨文件同步。CQ-1~36 決定本身不質疑。
+證據：`docs/domain-baseline` 分支、`db/migration`（最大號仍 `V20261025_01`）、`V20260614_01`（`notifications` 無 Email 投遞欄位）、全 repo grep 無飼主退款帳號欄位。
+同輪 prd-reviewer 已寫 CQ-40~49；本輪與其重疊者不另開 CQ，只在下表標出 sd 觀點（同意 / 補實作條件 / 替代預設）。
+
+結論：**需釐清**（4 項阻擋，皆為「流程走不出去 / 公式不存在」，均已有 CQ 與預設值；使用者採預設即可開工）
+
+## 1. 第 1 輪項目驗證
+
+| # | 結果 | 原因 |
+|---|------|------|
+| 1 子流程無出口 | 部分 | 撤回、三種逾時、O14 已補；但 O14 只允許 `IN_PROGRESS → DISPUTED`，`CONFIRMED` 訂單的 `AWAITING_REFUND`（服務開始前整筆取消 / 減量，最常見的退款情境）仍無出口 → R2-4（= CQ-41） |
+| 2 payments 狀態機 | 已解決 | payments + payment_submissions、退款為 `direction=REFUND`、`SUBMITTED → VOID` 限 ADMIN。衍生矛盾見 R2-3 |
+| 3 `CONFIRMED` 死路 | 已解決 | O9 含系統關閉行程（CQ-28）。語意邊界見 R2-6 |
+| 4 付款期限起算點 | 已解決 | `payments.due_at` 公式、首日、緊急單。升級時點對緊急單不成立 → CQ-44 |
+| 5 payments 歸屬 | 已解決 | baseline §3.3 + 00-SD-PLAN §0 改歸 SD-ORDER；SD-015 待重寫時處理 |
+| 6 冪等定義 | 部分 | 範圍、同 key 不同內容、處理中、TTL 已寫；缺崩潰殘留的 `PROCESSING` 如何接手、4xx 是否回放、「端點」指實際路徑或路由樣板、multipart 的 hash、清除端點 → R2-8 |
+| 7 通知交付 | 部分 | outbox 原則已寫；Email 投遞欄位、防雙寄、最大重試、outbox table 歸屬未定 → R2-9 |
+| 8 鎖規則 | 部分 | `FOR NO KEY UPDATE` + `lock_timeout` 已寫；缺逾時值、逾時錯誤碼、FULFILL 改 visits 時如何取得訂單鎖 → R2-7 |
+| 9 `@Version` | 已解決 | CQ-35 落在 §3.6；GLOBAL §2.3 已加註 |
+| 10 拆 MODIFYING 後的顯式檢查 | 已解決 | O11 / O13 前置條件、§3.4「可發起時機」「協商期間」；唯一索引交 SD（見 §3.2） |
+| 11 套用時點 | 已解決 | CQ-32。部分套用公式缺 → R2-1（= CQ-47） |
+| 12 ADMIN 調解金額 | 已解決 | O15 + `ADMIN_ADJUSTMENT` |
+| 13 快照時點 | 已解決 | §2.2「報價時」；GLOBAL §4.2 已加註 |
+| 14 孤兒檔 | 部分 | 「交易失敗刪檔 + 孤兒清除排程」已寫；物件名未綁冪等 key（重試會重複上傳，由清除排程收尾可接受）、寬限期與引用來源未寫 → SD-ORDER 定，不阻擋 |
+| 15 排程約束 | 已解決 | §3.6「先唯讀候選、逐筆獨立交易、`SKIP LOCKED`、重驗、可重跑」。去重欄位見 §3.1 |
+| 16 狀態名 | 已解決 | CQ-29 |
+| 17 衍生顯示狀態 | 未解決 | §3.1 分頁仍只依主狀態；`IN_PROGRESS` 上的補款 / 退款待辦在列表看不到。屬 API 契約，下放 SD-ORDER（摘要 DTO 帶 `openPayment{purpose,direction,status,dueAt}`、`openModification{status,expiresAt}`、`actionRequiredBy`），不阻擋 baseline |
+| 18 遷移空窗 | 已解決 | CQ-36 清空；V 號與兩段式 DROP 交 SD-ORDER（新號 `V{撰寫日}_01`，須大於 `V20261025_01`） |
+| 19 稽核不吞例外 | 部分 | 同交易已寫；「寫入失敗即主交易失敗、不得 try/catch」未寫 → §3.6 稽核列補半句即可 |
+| 20 月上限允許超額 | 已解決 | §2.2「已在流程中的訂單照常進行」+ O5 不檢查額度。O5「月額度 +1」措辭見 R2-13 |
+| 21 cancelledBy 列舉 | 部分 | 列舉已寫；O10 寫哪個值未定；`ADMIN` 目前沒有轉移會產生（CQ-41 / CQ-43 採預設後才有） |
+| 22 SITTER 發起即報價 | 已解決 | §3.4 圖 `[*] --> QUOTED` |
+| 23 測試清理 CASCADE | 未解決 | SD-ORDER 層級，下放，不阻擋 |
+
+解決率：已解決 13 / 部分 8 / 未解決 2（23 項中 13 項完全解決，57%；未解決 2 項均下放 SD-ORDER，不需改 baseline）。
+
+## 2. 新問題清單
+
+| # | 嚴重度 | 位置 | 問題 | 建議修正 |
+|---|--------|------|------|---------|
+| R2-1 | 阻擋 | §3.4「補款」 | **「依已套用的部分重算差額」沒有公式**。變更是「減 A、加 B、新總額 T」；逾時後 B 不生效，但「只減 A」的總額從未被報價過；PRO+ 的 T 含自訂加減無法拆。逾時後 `orders.total_amount` 何時更新也未寫 | = CQ-47。sd 建議改預設（CQ-53）：CQ-47 用「快照單價 × 剩餘行程」會吃掉**原報價**的折扣。例：原報價 6 次 × 200 = 1200、PRO 折 200 → 1000；變更「減 1 加 3」補款逾時：CQ-47 算 5 × 200 = 1000，差額 0，飼主少了一次服務卻拿不到退款；CQ-53 算 1000 − 200 = 800，退 200 |
+| R2-2 | 阻擋 | §3.3、§5「付款待核對升級」 | **ADMIN 待辦沒有出口、沒有資料落點**。出口與升級時點 = CQ-43 / CQ-44（sd 同意）。另：待辦存哪張表、誰擁有、去重鍵未定，SD-ORDER 建立待辦時無處可寫；CQ-42 的補款核對逾時、CQ-48 的爭議凍結也需要 ADMIN 工作清單 | CQ-55 |
+| R2-3 | 阻擋 | §3.4「補款」vs §3.3 圖 | 補款逾時把 `SUBMITTED` 作廢，與 §3.3「`SUBMITTED → VOID` 限 ADMIN」及 CQ-31 精神矛盾；另有兩個時鐘（§3.4 `payments.due_at`、§5「進入當前狀態的時間」） | = CQ-42，sd 同意（沿用 O14 不需新機制）。實作補充：`AWAITING_SUPPLEMENT` 的唯一時鐘是補款 `payments.due_at`；「核對逾時」以 `payment_submissions.created_at + MODIFICATION_TIMEOUT_HOURS` 判斷，O14 前置條件需在鎖內查最新 submission |
+| R2-4 | 阻擋 | O14、O15、§3.1 圖 | **`CONFIRMED` 訂單退款無出口**；即使開放，O15 只能 → `COMPLETED` | = CQ-41，sd 同意方向。但 CQ-41「`CONFIRMED` 來的爭議 → `CANCELLED`」以「進入爭議前的主狀態」判斷不可靠：CQ-41 開放後，減量（仍有 `PENDING` 行程）的 `CONFIRMED` 訂單進爭議後行程可能照常執行 → 見 R2-17 / CQ-57，建議改以「行程實際狀態」判斷終態 |
+| R2-5 | 重要 | §3.4 圖 | 「系統自建 `AWAITING_REFUND` 變更」在狀態圖沒有入口邊，且未寫同交易的執行順序。與「同訂單最多一筆未結束變更」**不衝突**，前提是同交易內先把舊列 `UPDATE` 為 `EXPIRED`、補款 payment `VOID`，再 `INSERT` 新列與退款 payment（partial unique index 逐句檢查，順序反了會撞 `uq_modreq_open_per_order` / `uq_payment_open_per_order`） | 圖補 `[*] --> AWAITING_REFUND: 系統（補款逾時，重算差額 < 0）`；§3.4 補「先結束舊列再建新列，同交易」；新列 `parent_request_id` 指回舊列、`requested_by=SYSTEM`、不可撤回（CQ-47 已含）。不建議改成 `AWAITING_SUPPLEMENT --> AWAITING_REFUND` 同列轉移：一筆變更會有兩筆 payment，失去「每筆變更最多一筆 payment」唯一鍵 |
+| R2-6 | 重要 | O9、§5 `VISIT_ZOMBIE_HOURS` | 「任一行程離開 `PENDING`」字面上含 `CANCELLED`：若算，`CONFIRMED` 訂單一減量就變 `IN_PROGRESS`，O10 永遠到不了（CQ-41 改寫的 O10 也依賴此點）。殭屍清理未限定訂單狀態：`PENDING_PAYMENT`（待 ADMIN 處理）的行程過期被關會觸發 O9，但 O9 只從 `CONFIRMED` 出發；`DISPUTED` 訂單若還有 `PENDING` 行程（R2-17）則必須被清理 | CQ-56 |
+| R2-7 | 重要 | §3.6 鎖、§3.7 | `lock_timeout` 值、逾時（SQLState `55P03`）錯誤碼未定，前端無法判斷可否自動重試。visits 歸 SD-FULFILL，但「改行程狀態先鎖訂單列」——FULFILL 不得直接寫 orders，需要 SD-ORDER 的入口 | CQ-50；§3.6 鎖列補「其他模組改 visits 前呼叫 SD-ORDER 的鎖入口（例 `OrderTransitionGateway.lockForUpdate(orderId)`，`Propagation.MANDATORY`），O9 由同一入口處理」 |
+| R2-8 | 重要 | §3.6 冪等 | 第一個請求 `PROCESSING` 時 instance 被回收（Cloud Run 縮容常見）→ 該 key 24h 內永遠 409，客戶端重試無解；4xx 業務錯誤是否回放未定，前後端會各做各的 | CQ-51 |
+| R2-9 | 重要 | §3.6 通知、00-SD-PLAN §0 | (a) `notifications` 無 Email 投遞欄位，補送排程無從判斷；(b) commit 後送 + 排程補送會雙寄；(c) Resend 測試模式寄非白名單是永久失敗，無上限重試會每輪重打；(d) 00-SD-PLAN「通知 outbox」列在 SD-ORDER、`notifications` 列在 SD-NOTIFY，若 outbox 就是 `notifications`，同一 table 出現在兩列 | CQ-52 |
+| R2-10 | 重要 | §3.3 `REFUND`、§1.2 | **退款匯到哪裡沒有定義**。`CHARGE` 快照保母收款帳號；`REFUND` 保母要匯給飼主，但全 repo 沒有飼主帳號欄位，首次付款憑證只存末五碼。payment 欄位與加密範圍取決於此 | CQ-54 |
+| R2-11 | 重要 | §5 結案基準時間 | 「最後行程結束時間」對各終態取哪個欄位未定（CQ-40 處理了 DONE 未送日誌的情形，但沒定 `CLOSED_BY_SYSTEM` 的時間、`CANCELLED` 是否排除）；每次排程用 `max()` 子查詢跨 visits / modification_requests 兩模組計算 | §5 補：`DONE` 依 CQ-40、`CLOSED_BY_SYSTEM` 取關閉時間、`CANCELLED` 排除。建議 `orders.completion_basis_at` 在行程結束 / 變更結束時於訂單鎖內更新，排程只比對此欄（與 CQ-31「排程只比對寫好的欄位」一致） |
+| R2-12 | 重要 | §3.7 | CQ-45 `FIRST_VISIT_DATE_PASSED`、CQ-46 `DEADLINE_PASSED`、CQ-49 `INVALID_VISIT_DATE`、CQ-50 鎖逾時碼都是跨模組會用到的碼（FULFILL / CARE 也有期限），應進 §3.7；另缺 `401 UNAUTHENTICATED`（GLOBAL §3.4 已定） | 採用後一併補進 §3.7 |
+| R2-13 | 建議 | O5、§2.2 | 「月額度 +1」暗示計數欄位（SD-ERD `SUBSCRIPTION.monthly_order_count`），但 §2.2 定義是「當月進入 CONFIRMED 的訂單數、取消不返還」，用 `orders.confirmed_at` 直接計算即可，沒有計數器漂移 | O5 改「寫 `confirmed_at`」；計數 = `count(*) WHERE sitter_id=? AND confirmed_at 落在當月（Asia/Taipei）`，索引 `(sitter_id, confirmed_at)`；ERD 刪 `monthly_order_count` |
+| R2-14 | 建議 | §3.3 方向表 | 方向表把 `ADMIN_ADJUSTMENT` 當一列，與 `direction` 的值（只有 CHARGE / REFUND）混用；`ADMIN_ADJUSTMENT` 同時是 purpose 與 method | 改「purpose=ADMIN_ADJUSTMENT（direction=REFUND）：ADMIN 建立即 VERIFIED」 |
+| R2-15 | 建議 | §2.2、§3.7 | `403 SUBSCRIPTION_LOCKED` 回給「預約鎖定保母」的飼主語意不對（飼主沒有權限問題），也洩漏保母訂閱狀態 | 飼主端預約遇保母鎖定回 `422 SITTER_UNAVAILABLE`（與 `MONTHLY_QUOTA_REACHED` 同層）；`403 SUBSCRIPTION_LOCKED` 只用於保母本人操作 |
+| R2-16 | 建議 | §1.2、§3.3 | 收款帳號快照是銀行帳號的第二份拷貝，未要求同等加密；憑證 Signed URL TTL、憑證路徑是否落在 GLOBAL §4.1 的 `{plan_tier}` lifecycle 前綴（會被媒體保留期誤刪）未寫 | §1.2 補「快照與原欄位同等加密；API 預設遮蔽，付款方於 payment 未結時可看完整帳號」；憑證放 `payment-proofs/{orderId}/{paymentId}/...`，不走 plan_tier lifecycle；TTL 由 SD-ORDER 定（建議 10 分鐘） |
+| R2-17 | 重要 | O14、O15、CQ-41、CQ-48 | **`DISPUTED` 期間仍有 `PENDING` 行程時無規則**。O14（含 CQ-41 擴充）允許「還有未來行程」的訂單進爭議（例：5 次減 2 次 → `AWAITING_REFUND`，剩 3 次未執行）。CQ-48 只凍結 payment / 變更，未說行程能否開始、殭屍清理是否處理；O15 → `COMPLETED` 時若仍有 `PENDING` 行程，訂單結案但行程懸空 | CQ-57 |
+| R2-18 | 建議 | CQ-48、O15 | CQ-48「作廢 SUBMITTED 退款時同時登記等額 `ADMIN_ADJUSTMENT`」+ O15「可登記一筆」→ 同訂單可能 2 筆 adjustment，`uq_payment_adjustment` 不能設 | 若採 CQ-48，O15 改「ADMIN 登記一筆 `ADMIN_ADJUSTMENT`，金額 = 作廢的已匯退款 + 調解退款，合計 ≤ 已收淨額」，維持一筆；否則取消此唯一鍵 |
+
+## 3. 給 SD-ORDER 的落地清單（假設 CQ-40~57 採建議預設）
+
+### 3.1 時間 / 去重欄位
+
+| 表 | 欄位 | 寫入時點 |
+|----|------|---------|
+| `orders` | `review_expires_at` | O1 |
+| `orders` | `confirmed_at` | O5（取代 `paid_at`） |
+| `orders` | `completion_basis_at` | 行程結束 / 變更結束（R2-11） |
+| `payments` | `due_at` | 建立 `INITIAL` / `SUPPLEMENT` 時；`REFUND` 為 null |
+| `payments` | `remind_at`、`reminded_at` | `remind_at` = 首日 − 48h；建立時已過則 null（隨報價通知提醒） |
+| `payments` | `escalate_at`、`escalated_at` | CQ-44 |
+| `payments` | `verified_at`、`verified_by`、`voided_at`、`void_reason` | 轉移時 |
+| `modification_requests` | `expires_at` | 進入 `REQUESTED` / `QUOTED` 時 = now + 72h；`AWAITING_SUPPLEMENT` 時 null（改看補款 `due_at`）；`AWAITING_REFUND` 與終態 null |
+| `modification_requests` | `parent_request_id`、`requested_by`（含 `SYSTEM`） | R2-5 |
+| `idempotency_keys` | `request_hash`、`status`、`locked_until`、`response_status`、`response_body`、`expires_at` | CQ-51 |
+| `notifications`（SD-NOTIFY） | `email_status`、`email_attempts`、`email_next_attempt_at`、`email_last_error` | CQ-52 |
+| `admin_tasks` | 見 CQ-55 | — |
+
+### 3.2 Partial unique index / CHECK
+
+```sql
+CREATE UNIQUE INDEX uq_modreq_open_per_order ON modification_requests (order_id)
+  WHERE status IN ('REQUESTED','QUOTED','AWAITING_SUPPLEMENT','AWAITING_REFUND');
+CREATE UNIQUE INDEX uq_payment_open_per_order ON payments (order_id)
+  WHERE status IN ('UNPAID','SUBMITTED');
+-- 訂單取消後不會重開，首次付款 VOID 也不必排除
+CREATE UNIQUE INDEX uq_payment_initial ON payments (order_id) WHERE purpose = 'INITIAL';
+-- O15「一筆」；CQ-48 採預設時見 R2-18
+CREATE UNIQUE INDEX uq_payment_adjustment ON payments (order_id) WHERE purpose = 'ADMIN_ADJUSTMENT';
+-- 每筆變更一生最多一筆 payment（R2-5 新列設計的前提）
+CREATE UNIQUE INDEX uq_payment_per_modreq ON payments (modification_request_id)
+  WHERE modification_request_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_submission_open ON payment_submissions (payment_id) WHERE status = 'SUBMITTED';
+CREATE UNIQUE INDEX uq_admin_task_open ON admin_tasks (type, order_id) WHERE status = 'OPEN';
+
+ALTER TABLE payments ADD CONSTRAINT ck_payment_amount CHECK (amount > 0);
+ALTER TABLE payments ADD CONSTRAINT ck_payment_direction CHECK (
+  (direction = 'CHARGE' AND purpose IN ('INITIAL','SUPPLEMENT'))
+  OR (direction = 'REFUND' AND purpose IN ('MODIFICATION_REFUND','ADMIN_ADJUSTMENT')));
+ALTER TABLE payments ADD CONSTRAINT ck_payment_method CHECK ((purpose = 'ADMIN_ADJUSTMENT') = (method = 'ADMIN_ADJUSTMENT'));
+ALTER TABLE payments ADD CONSTRAINT ck_payment_due CHECK ((purpose IN ('INITIAL','SUPPLEMENT')) = (due_at IS NOT NULL));
+ALTER TABLE payments ADD CONSTRAINT ck_payment_modreq CHECK (
+  (purpose IN ('SUPPLEMENT','MODIFICATION_REFUND')) = (modification_request_id IS NOT NULL));
+-- 「退款合計 ≤ 已收淨額」無法用 CHECK 表達，於訂單鎖內檢查
+```
+
+### 3.3 排程清單（全部 `/api/internal/cron/*`；候選查詢唯讀、`LIMIT 200`；逐筆另一個 bean 的 `REQUIRES_NEW` + `FOR NO KEY UPDATE SKIP LOCKED` 後重驗）
+
+| 端點 | 頻率 | 候選查詢 | 處理 | 支援索引 |
+|------|------|---------|------|---------|
+| `orders/review-expiry` | 15 分 | `orders WHERE status='PENDING' AND review_expires_at <= now()` | O4 | `(review_expires_at) WHERE status='PENDING'` |
+| `payments/expiry` | 15 分 | `payments WHERE status='UNPAID' AND purpose IN ('INITIAL','SUPPLEMENT') AND due_at <= now()` | INITIAL → O8；SUPPLEMENT → 變更 EXPIRED + 重算（CQ-47 / 53，R2-5 順序） | `(due_at) WHERE status='UNPAID'` |
+| `payments/reminder` | 15 分 | `payments WHERE status='UNPAID' AND purpose='INITIAL' AND remind_at <= now() AND reminded_at IS NULL` | 通知 OWNER、寫 `reminded_at` | `(remind_at) WHERE reminded_at IS NULL` |
+| `payments/escalation` | 15 分 | `payments WHERE status='SUBMITTED' AND purpose='INITIAL' AND escalate_at <= now() AND escalated_at IS NULL` | 建 admin_task、通知雙方 | `(escalate_at) WHERE status='SUBMITTED'` |
+| `modifications/expiry` | 15 分 | `modification_requests WHERE status IN ('REQUESTED','QUOTED') AND expires_at <= now()` | → EXPIRED、通知雙方 | `(expires_at) WHERE status IN ('REQUESTED','QUOTED')` |
+| `visits/zombie`（SD-FULFILL，經 ORDER 鎖入口） | 15 分 | `visits JOIN orders WHERE visits.status='PENDING' AND 行程日 00:00(Taipei) + 72h <= now() AND orders.status IN ('CONFIRMED','IN_PROGRESS','DISPUTED')`，依 order 分組 | → CLOSED_BY_SYSTEM，同交易 O9 | FULFILL 定；visits 需要 `service_date DATE`（現況 `scheduled_at` = UTC 午夜，違反 §5） |
+| `orders/auto-complete` | 15 分 | `orders WHERE status='IN_PROGRESS' AND completion_basis_at + 48h <= now() AND NOT EXISTS 未結束行程 AND NOT EXISTS 未結束變更` | O12 | `(completion_basis_at) WHERE status='IN_PROGRESS'` |
+| `notifications/email-retry`（SD-NOTIFY） | 5 分 | `notifications WHERE email_status='PENDING' AND email_next_attempt_at <= now()` | 搶單後寄送（CQ-52） | `(email_next_attempt_at) WHERE email_status='PENDING'` |
+| `idempotency/cleanup` | 每日 | `DELETE FROM idempotency_keys WHERE ctid IN (SELECT ctid ... WHERE expires_at < now() - interval '1 day' LIMIT 5000)` | 分批刪除 | `(expires_at)` |
+| `storage/orphan-sweep` | 每日 | 列 `payment-proofs/` 下建立 > 24h 的物件，比對 `payment_submissions.proof_object_key` | 刪除無引用 | — |
+
+CQ-42 的「補款核對逾時」不需排程（申報爭議時於鎖內判斷）。訂閱鎖定通知飼主（CQ-19）屬 SD-BILLING。
+
+### 3.4 可直接交給 sd-architect 的部分
+
+§3.6 鎖 / 版本 / 稽核 / 外部 I/O / 排程、§4、§5 除 R2-11 外可直接照寫。`FOR NO KEY UPDATE` + `SET LOCAL lock_timeout` 在 Transaction Pooler 下可行；子表 INSERT 的 FK 檢查取 `FOR KEY SHARE`，與 `FOR NO KEY UPDATE` 相容，第 1 輪 #8(c) 的等待問題消失。
+
+## 4. 跨文件同步
+
+| 文件 | 第 1 輪列出的衝突 | 本輪狀態 |
+|------|-----------------|---------|
+| `docs/sd/00-SD-PLAN.md` §0 | payments 歸屬、帳務端點歸屬、§3 / §4 舊狀態機 | 已同步（§1 之後標「已被取代」）。**新衝突**：「通知 outbox」列在 SD-ORDER、`notifications` 列在 SD-NOTIFY（CQ-52）；`admin_tasks` 無歸屬（CQ-55） |
+| `docs/sd/SD-GLOBAL-SPEC.md` §2.3、§4.2 | `@Version`、快照時點 | 已加註。**本輪新發現未同步**：§2.1「前端依 Client 時區顯示」vs baseline §5「顯示一律 Asia/Taipei」；§3.4「資源不存在 → 400 / 404」vs baseline §1.2「404」；§5.3「main 合併自動部署」vs commit 9945bbd 改手動觸發；§4.1 lifecycle 前綴未排除付款憑證（R2-16） |
+| `docs/sd/SD-ERD.md` §2.2 | `settlement_status`、`is_disputed`、`PREMIUM` | 只改了 `ULTIMATE`。`settlement_status (PENDING_PAYMENT, PAID, COMPLETED)`、`paid_at`、`is_disputed`、`cancelled_by` 說明（「變更取消為 NULL」與 baseline 列舉衝突）、`SUBSCRIPTION.monthly_order_count`（R2-13）仍在；無 PAYMENT / PAYMENT_SUBMISSION / MODIFICATION_REQUEST 實體。建議隨 SD-ORDER 同一 commit 改寫，但 sd-architect 須知道 ERD §2.2 不可引用 |
+| `docs/sd/SD-015-payment-integration.md` | payments DDL 不相容 | 註明：SD-BILLING 重寫時作廢，不要求現在改 |
+| `docs/sa/fr/PRD-009-order-completion.md` | `CONFIRMED → COMPLETED/DISPUTED`、舊狀態名 | 註明：重寫 PRD 時處理；採 CQ-41 後 PRD-009 需加 `CONFIRMED → DISPUTED`（限退款爭議）與 `DISPUTED → CANCELLED` |
+| `docs/sa/fr/PRD-016-order-modification-cancellation.md` L125 | 飼主不確認退款可爭議 | 註明：baseline 已由 O14 承接；PRD 重寫時對齊 CQ-41 / CQ-42 / CQ-54 |
+
+## 5. 待使用者回答（已寫入 baseline §7「待決（第 2 輪）」）
+
+與 prd-reviewer CQ-40~49 的關係：R2-1 → CQ-47（sd 另提替代預設 CQ-53）；R2-2 → CQ-43 / CQ-44（同意，另開 CQ-55 補資料落點）；R2-3 → CQ-42（同意）；R2-4 → CQ-41（同意方向，終態判斷見 CQ-57）；到期後排程前的請求 → CQ-46（同意，碼進 §3.7）；R2-11 → CQ-40（同意，另補欄位）。
+
+| CQ | 問題 | 建議預設值 | 對應 |
+|----|------|-----------|------|
+| CQ-50 | 訂單鎖等待上限與逾時錯誤碼 | `SET LOCAL lock_timeout = '3s'`；逾時 → `409 ORDER_BUSY` + `Retry-After: 1`，前端可帶同一 `Idempotency-Key` 自動重試一次；§3.7 補此碼與 `401 UNAUTHENTICATED` | R2-7、R2-12 |
+| CQ-51 | 冪等：處理中殘留與錯誤回放 | `PROCESSING` 列帶 `locked_until = now + 30s`，過期可被同 key 請求接手；2xx 與業務錯誤（409 / 422）記錄並回放；5xx 與 `ORDER_BUSY` 不記錄（刪列，允許重試）；範圍的「端點」= HTTP method + 路由樣板；multipart 的 hash = 各欄位值 + 檔案 SHA-256 | R2-8 |
+| CQ-52 | outbox 的實體與歸屬、Email 補送 | outbox 就是 `notifications`，歸 SD-NOTIFY；SD-ORDER 呼叫 `NotificationService.enqueue()`（`MANDATORY`，在轉移交易內）；`notifications` 加 `email_status`（PENDING / SENDING / SENT / FAILED / SKIPPED）等欄位；寄送前以條件 UPDATE 搶單，Resend 呼叫帶 `Idempotency-Key = notification.id`；最多 5 次指數退避，4xx（含測試模式拒收）直接 FAILED；00-SD-PLAN 刪 SD-ORDER 列的「通知 outbox」 | R2-9 |
+| CQ-53 | CQ-47 的替代預設：補款逾時後已套用總額 | `已套用總額 = 原 total_amount − Σ(已取消行程的快照單價)`，下限 0；保留原報價的手動加減，只不沿用本次變更的加減；`orders.total_amount` 於逾時交易內即改為已套用總額（系統退款變更 SETTLED 時不再改）。與 CQ-47 擇一 | R2-1 |
+| CQ-54 | 退款匯款目的地 | 飼主同意產生退款的變更時，必填退款帳號（銀行代碼 + 帳號 + 戶名），快照到該 `REFUND` payment（同等加密，只有付款方 SITTER 可看完整值）；系統自建退款變更由飼主於通知連結補填，未填前保母不可上傳退款憑證；`ADMIN_ADJUSTMENT` 由 ADMIN 線下處理不需帳號；不建飼主帳號主檔 | R2-10 |
+| CQ-55 | ADMIN 待辦的資料表與歸屬 | 新表 `admin_tasks`（`type` = PAYMENT_UNVERIFIED / DISPUTE、`order_id`、`payment_id`、`status` OPEN / RESOLVED、`resolution`、`resolved_by`、`resolved_at`），歸 SD-ORDER；`(type, order_id) WHERE status='OPEN'` 唯一；O13 / O14 / CQ-43 升級時同交易建立，O5（保母自行核對）/ O15 / O16 時同交易關閉；ADMIN 後台列表只讀此表 | R2-2 |
+| CQ-56 | O9「離開 PENDING」與殭屍清理範圍 | 只計 `PENDING → IN_PROGRESS` 與 `PENDING → CLOSED_BY_SYSTEM`；因變更取消（`CANCELLED`）不推進主狀態。殭屍清理處理 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` 訂單的行程，不處理 `PENDING_PAYMENT`（由 CQ-43 收尾） | R2-6 |
+| CQ-57 | `DISPUTED` 期間仍有未執行行程 | 爭議期間行程照常（開始、送日誌、殭屍清理都可），不推進主狀態；O15 前置條件加「無 `IN_PROGRESS` 行程」，結案時剩餘 `PENDING` 行程一律取消；終態依行程實際狀態：有任何 `DONE` / `CLOSED_BY_SYSTEM` → `COMPLETED`，全部 `CANCELLED` → `CANCELLED`（`cancelledBy=ADMIN`）。取代 CQ-41「依爭議來源狀態」的判斷 | R2-4、R2-17 |
+
+## 6. SD-ORDER 可否開始
+
+阻擋項 R2-1~R2-4 對應 CQ-41 / 42 / 43(+55) / 47(或 53)，決定前 SD-ORDER 的付款與變更子流程狀態機寫不完。使用者若採建議預設，baseline 依 CQ-40~57 補字（主狀態表新增 O16 與 `DISPUTED → CANCELLED`、O14 擴起點、§3.4 圖補 3 條邊、§3.7 補 4~5 個碼、§5 補 `completion_basis_at` / `escalate_at` / `expires_at` 定義）後即可開工。資料表、鎖、冪等、排程骨架（本輪 §3）不受這些決定影響，可先行撰寫。

@@ -152,3 +152,113 @@
 | CQ-26 | 報價總額可否為 0（全額折扣） | 不可以，`total_amount ≥ 1`，否則 422 `INVALID_QUOTE_AMOUNT` |
 | CQ-27 | 飼主在最後一個行程完成後立即手動結案，會讓保母失去 PRD-022 的 24h 日誌補送期 | 「確認結案」只在所有行程日誌都是 SUBMITTED、或已過 `CARE_LOG_EDIT_HOURS` 時開放，否則 409 `CARE_LOG_PENDING` |
 | CQ-28 | `CONFIRMED → IN_PROGRESS` 的觸發者；行程全被系統關閉的訂單 | 任一行程離開 PENDING（保母開始，或系統關閉 CLOSED_BY_SYSTEM），在同一交易把訂單 `CONFIRMED → IN_PROGRESS`，寫 order_logs；操作者 = 該行程動作的操作者（系統關閉記 SYSTEM） |
+
+---
+
+# 審查：BASELINE（00-DOMAIN-BASELINE，第 2 輪，2026-11-21）
+
+結論：需釐清
+
+審查範圍：commit 5ac0fd8 改寫後的 §1–§6。CQ-1~36 的決定本身不列為問題；只檢查決定落到正文後是否自洽。
+
+摘要：第 1 輪 36 項中 24 項已解決、8 項部分、4 項未解決（皆為「建議」）；第 1 輪的阻擋項全部處理，但 #3、#6 只解了一半。改寫後新增 5 個阻擋，都是「子流程拆開後的出口」問題：(1) 結案條件漏掉 `CANCELLED` 行程，任何減量變更後訂單都不能結案；(2) O11/O12 綁「日誌已送出」，日誌沒送的 DONE 行程讓自動結案永遠不觸發；(3) `CONFIRMED` 的整筆取消在等退款時沒有任何出口；(4) 補款 `SUBMITTED` 遇到 72h 逾時，§3.3 與 §3.4 互相矛盾；(5) 首次付款 ADMIN 待辦沒有任何轉移。
+
+## 第 1 輪逐條驗證
+
+| # | 結果 | 原因 |
+|---|------|------|
+| 1 | 已解決 | §5「首日 = 首個行程日期 00:00 Asia/Taipei」 |
+| 2 | 已解決 | CQ-10 改為允許緊急單，`review_expires_at` / `due_at` 取 max；提醒點已過隨報價通知（O2）。公式本身衍生的新問題見第 2 輪 #6、#7 |
+| 3 | 部分 | §3.3 補了 `SUBMITTED → VOID` 與「到期不取消、首日升級 ADMIN 待辦」；但 ADMIN 待辦之後訂單沒有任何轉移（見 #5），升級時點也有問題（見 #6） |
+| 4 | 已解決 | O9 |
+| 5 | 已解決 | §3.4「整筆取消」分 CONFIRMED / IN_PROGRESS；收入 = 已收淨額 |
+| 6 | 部分 | 加了 WITHDRAWN / EXPIRED、`AWAITING_REFUND` 走 O14；但補款 payment 已 `SUBMITTED` 時的逾時行為自相矛盾（見 #4），`CONFIRMED` 時的退款等待沒有出口（見 #3） |
+| 7 | 已解決 | §3.3 `direction=REFUND`，AWAITING_REFUND → SETTLED 改為退款 payment VERIFIED |
+| 8 | 已解決 | §2.2、§4 統一為報價時 |
+| 9 | 已解決 | §3.4 CQ-32：減少於同意時取消、新增於 SETTLED 生效（新衍生問題見 #11、#12） |
+| 10 | 已解決 | `payment_submissions` 獨立狀態 |
+| 11 | 已解決 | O6 前置條件 + `PAYMENT_ALREADY_SUBMITTED`；O7 |
+| 12 | 已解決 | O4 |
+| 13 | 已解決 | §3.5 |
+| 14 | 已解決 | O11 / O13 前置條件、§3.4 可發起時機、§5 結案基準時間 |
+| 15 | 部分 | §5 末段只約束排程（`now ≥` 判斷、15 分鐘）；使用者端操作在期限後、排程未跑前是否允許仍未寫（見 #8） |
+| 16 | 已解決 | O11 前置條件；CQ-27 |
+| 17 | 已解決 | §1.2 ADMIN 唯讀、O15 |
+| 18 | 已解決 | §2.2 CQ-19（「報價」是否包含變更報價另見 #15） |
+| 19 | 已解決 | §2.2、`MONTHLY_QUOTA_REACHED` |
+| 20 | 已解決 | §3.4 差額、§4 已收淨額 |
+| 21 | 已解決 | §1.2 收款帳號快照、§3.3 |
+| 22 | 已解決 | §3.6 冪等 |
+| 23 | 部分 | 有 §3.7 錯誤碼表；但 O1 / O2 仍寫「422 對應錯誤碼」「409 / 422」，且缺媒體額度超過、日期已過、期限已過、退款上傳方向錯誤、減量行程已開始等碼（見 #16） |
+| 24 | 已解決 | 出處改 CQ-24 |
+| 25 | 部分 | (b) `CANCELLED` 已列為行程狀態；(a) DONE 觸發條件明寫延後到 SD-FULFILL，但 O11 已寫死「DONE（日誌已送出）」，等於先選了一邊（見 #2）；(c) BR `SCHEDULED` 改名未註明 |
+| 26 | 已解決 | CQ-25 |
+| 27 | 已解決 | `ROLE_MISMATCH` |
+| 28 | 已解決 | CQ-26 |
+| 29 | 未解決 | 方案矩陣沒有「不做 / 延後」列（AI 報告助理、定期扣款、額滿日期），也沒有「未列出功能不分級」 |
+| 30 | 未解決 | 出處欄仍未標「取代 BR §5.4.2」「SAAS 優先於 BR §5.4」 |
+| 31 | 部分 | CANCELLED 起算點已不成立（IN_PROGRESS 不再轉 CANCELLED，CONFIRMED 不會有媒體）；但「結案日」的日界與到期時刻、「永久 = 至帳號註銷」仍未寫 |
+| 32 | 部分 | `cancelledBy` 值域已列（含 ADMIN）；但沒有任何轉移使用 ADMIN，變更造成的取消（O10 記 SYSTEM）也沒有 `cancelReason` |
+| 33 | 部分 | `@Version` 衝突已由 CQ-35 解決；§3.6 仍無出處欄 |
+| 34 | 未解決 | §1.2 毛孩可讀範圍仍是「有過任何狀態訂單」 |
+| 35 | 已解決 | §2.2「之後升降級只影響新訂單；例外：升級可展延保留期限」，媒體額度依快照已明確 |
+| 36 | 未解決 | 線下退款的飼主收款資訊歸屬與可讀規則仍未寫；`REFUND` payment 只快照保母帳號（「CHARGE 時快照」） |
+
+解決率：已解決 24 / 36（67%）；含部分 32 / 36（89%）。未解決 4 項均為「建議」。
+
+## 問題清單（改寫後新產生）
+
+| # | 嚴重度 | 位置 | 問題 | 建議修正 |
+|---|--------|------|------|---------|
+| 1 | 阻擋 | O11、O12、O13 | 前置條件「所有行程為 DONE 或 CLOSED_BY_SYSTEM」把 `CANCELLED` 行程算進「所有行程」。情境：IN_PROGRESS 訂單 3 個行程，第 1 個 DONE，飼主整筆取消（CQ-14）或減量變更 → 剩下 2 個變 `CANCELLED` → 永遠不滿足 O11/O12/O13，訂單卡 IN_PROGRESS，收入永不入帳。CQ-14「照常走結案流程」實際上走不通 | 三條都改為「所有**非 CANCELLED** 行程為 DONE 或 CLOSED_BY_SYSTEM」；§5 結案基準時間的「最後行程結束時間」同樣排除 CANCELLED |
+| 2 | 阻擋 | O11「DONE（日誌已送出）」× O12「同 O11」× §6「DONE 觸發條件由 SD-FULFILL 定義」 | 依 PRD-022（Approved），DONE 先於日誌送出，草稿 24h 後變 EXPIRED。保母結束行程但沒送日誌 → O11 不成立；O12 寫「同 O11」→ 自動結案也永不觸發，爭議視窗 O13 同樣算不出。§6 說交給 SD-FULFILL，但 O11 已經先綁死 | CQ-40 |
+| 3 | 阻擋 | O10、O14、§3.4 退款「無逾時」、§3.2 末段「CONFIRMED 時發生爭議：不提供」 | 情境：CONFIRMED 訂單已收 3000、全部行程 PENDING；飼主整筆取消、保母報新總額 0、飼主同意 → 行程全部 CANCELLED，退款 3000 `AWAITING_REFUND`。保母不上傳或飼主不確認：退款無逾時、O14 只從 IN_PROGRESS 出發、沒有行程能觸發 O9 → 訂單永久停在 CONFIRMED。改期變更（取消 11/25、新增 11/27、差額 > 0）補款逾時後也會落到同一個「CONFIRMED + 零行程 + AWAITING_REFUND」，而且不符合 O10「整筆取消的變更請求」的觸發條件。另外 PRO 保母可對整筆取消開新總額 > 0（取消費）→ 訂單 CANCELLED，但 §4 收入只算 COMPLETED，保母實收的錢在帳務上消失 | CQ-41 |
+| 4 | 阻擋 | §3.4 補款逾時 × §3.3 付款狀態圖 | §3.4：`AWAITING_SUPPLEMENT` 72h → payment VOID、變更 EXPIRED；§3.3 圖：`SUBMITTED → VOID` 只限 ADMIN。飼主第 71h 上傳補款憑證、保母未核對：照 §3.4 系統要作廢一筆飼主已匯款的 payment（違反 §3.3，且與 CQ-31 對首次付款的處理相反）；照 §3.3 不作廢，則保母不核對時變更永不結束，自動結案暫停、O13 被互斥擋掉，沒有人能解 | CQ-42 |
+| 5 | 阻擋 | §3.3「首日仍 SUBMITTED → ADMIN 待辦」、§3.1 `cancelledBy=ADMIN`、§1.2 | 待辦之後沒有任何轉移：O1–O15 沒有 ADMIN 在 `PENDING_PAYMENT` 的轉移；§3.3 圖有 `SUBMITTED → VOID: ADMIN 處理逾期待辦`，但 payment VOID 後訂單停在 `PENDING_PAYMENT` 且沒有未結 payment → 死路。保母在待辦建立後能否照常核對也沒寫。`cancelledBy=ADMIN` 沒有任何轉移會寫到 | CQ-43 |
+| 6 | 重要 | §5「付款待核對升級 = 首日」× `due_at` 公式 | 情境 A：當天 10:00 送單（首日 = 今天 00:00）、11:00 報價 → `due_at` = 13:00；12:00 飼主上傳 → 此時已 `now ≥ 首日`，下一輪排程立刻建 ADMIN 待辦，保母連核對的機會都沒有。情境 B：23:30 報價、首日為隔天 → `due_at` = 首日 01:30，飼主 00:10 上傳即升級。凡 `due_at > 首日` 的訂單都會這樣 | CQ-44 |
+| 7 | 重要 | O1「首個行程日期 ≥ 今天」× `review_expires_at` × O2 | 當天 23:50 送單、首個行程 = 今天：`review_expires_at` = 隔天 01:50，O2 沒有日期檢查 → 保母 00:30 報價、飼主付款、核對 → CONFIRMED 的訂單所有行程日期都已過 → 72h 後殭屍清理 → O9 → 48h 後 O12 自動結案，保母收入計入但沒有服務。一般訂單也有類似邊緣：`review_expires_at = 首日` 表示保母可在首日 23:59 前一刻報價 | CQ-45 |
+| 8 | 重要 | O2 / O5 / O8 / §3.4 逾時 × §5 末段 | §5 只規定排程以 `now ≥` 判斷，沒規定使用者操作。排程 15 分鐘一次，期限到排程執行之間：保母仍可報價（`review_expires_at` 後）、飼主仍可上傳首次付款（`due_at` 後，O8 前置條件 `UNPAID` 被打破，訂單不再會被取消）、飼主仍可同意已逾 72h 的變更。測試結果取決於排程時機，AC 不可測 | CQ-46 |
+| 9 | 重要 | §3.4 補款逾時「依已套用的部分重算差額…另建一筆變更退款」 | (a) PRO 保母對整包變更加的 surcharge / discount 無法分攤到「只套用減少部分」，重算值不可算；(b) 重算後 `orders.total_amount` 何時改沒寫（§3.4 只說新總額 SETTLED 時生效，但這筆是系統建立的）；(c) 系統建立、直接 `AWAITING_REFUND` 的變更請求不在 §3.4 狀態圖（沒有 `[*] → AWAITING_REFUND`），發起者是誰、「發起者撤回」對它適不適用都沒寫 | CQ-47；狀態圖補 `[*] --> AWAITING_REFUND: SYSTEM（補款逾時重算）` |
+| 10 | 重要 | O15 × §3.4 狀態圖、DISPUTED 期間 | O15「未結束變更 → REJECTED」，但圖上 REJECTED 只能從 REQUESTED / QUOTED 進入，`AWAITING_SUPPLEMENT / AWAITING_REFUND → REJECTED` 不存在。情境：整筆取消 + 退款爭議（O14）→ DISPUTED 期間保母上傳退款、飼主按確認 → 變更 SETTLED、訂單仍 DISPUTED，ADMIN 再登記 ADMIN_ADJUSTMENT 會重複退款。另外 O15 把一筆 SUBMITTED 的退款（保母已實際匯出）VOID，已收淨額會高估 | CQ-48 |
+| 11 | 重要 | §3.4「減少的行程…只能取消 PENDING 行程」 | 報價（QUOTED）到飼主同意之間，要減少的行程可能已被保母開始，或被殭屍清理關閉（72h 協商窗與行程日 + 72h 重疊）。同意當下這些行程已非 PENDING：同意要失敗嗎？回什麼碼？差額是依「會取消」算的，若只取消其餘，金額就錯 | 飼主同意時重驗：任一要減少的行程非 PENDING → 409 `MODIFICATION_STALE`，變更維持 QUOTED（由撤回 / 拒絕 / 逾時離開）；`MODIFICATION_STALE` 進 §3.7 |
+| 12 | 重要 | §3.4「新增的行程…SETTLED 時生效」 | 新增行程日期沒有下限；補款最長 72h + 保母核對時間，SETTLED 時新增行程日期可能已過，建立即落入殭屍清理 | CQ-49 |
+| 13 | 重要 | O10「整筆取消的變更請求」 | 「整筆取消」是變更請求的一種類型（需 `type` 欄位）還是「新內容沒有任何行程」的推論，沒定義。CONFIRMED 時「刪掉全部行程、不新增」與「整筆取消」是否相同、會不會觸發 O10，SD 會各自判斷。#3 的改期案例也依賴這個定義 | 定義：O10 觸發 = 訂單 `CONFIRMED` 且某筆變更結束（SETTLED）時無任何非 CANCELLED 行程，與變更類型無關（詳 CQ-41） |
+| 14 | 重要 | §3.4 整筆取消 × CQ-22 系統計算新總額 | IN_PROGRESS 整筆取消時，FREE / BASIC 新總額由系統「依快照單價 × 新內容」計算：`CLOSED_BY_SYSTEM`（保母沒去）的行程算不算新內容、要不要計價，沒寫。算 → 飼主替沒做的行程付錢；不算 → 與 CQ-27/CQ-28 把它當「已結束」不一致 | 明寫：系統計算的新內容 = DONE + CLOSED_BY_SYSTEM 行程（與結案規則一致，爭議另走 O13）；或只計 DONE。建議前者並在 §3.4 寫出公式 |
+| 15 | 重要 | §2.2 訂閱鎖定「報價…403 `SUBSCRIPTION_LOCKED`」× §3.4 | 「報價」是否包含變更協商的報價沒寫。若包含：鎖定保母無法回應飼主的整筆取消（§3.4 報價一律由 SITTER 給），與 CQ-19「變更回應照常」衝突，飼主付了錢退不了。SITTER 主動發起變更算不算新生意也沒寫 | 明寫：§2.2 的「報價」只指 O2；變更報價與 SITTER 發起變更屬既有訂單，照常 |
+| 16 | 重要 | O1、O2、§3.7 | (a) O1 不符時「422 對應錯誤碼」，但保母鎖定在 §2.2 是 403 `SUBSCRIPTION_LOCKED`，兩處不一致；(b) O2「409 / 422」沒對應到情境：問卷未完成、FREE/BASIC 帶調整（應為 403 `PLAN_REQUIRED`）、總額 < 1（422 `INVALID_QUOTE_AMOUNT`）；(c) §3.7 缺：首個行程日期 < 今天（O1）、期限已過（#8）、媒體額度超過（§2.1，PRD-022 自用 `AUTH_PLAN_LIMIT`）、爭議視窗已過（O13）、減量行程已非 PENDING（#11）、退款金額超過已收淨額 | 把 O1–O15「不符時」欄全部寫成具體 HTTP + code，對不上的補進 §3.7 |
+| 17 | 重要 | §5 結案基準時間「最後行程結束時間」 | DONE 的結束時間（保母按結束 `finished_at`？日誌送出時間？）與 CLOSED_BY_SYSTEM 的結束時間（關閉時刻 = 行程日 + 72h？行程日 23:59？）沒定義。只有 CLOSED_BY_SYSTEM 行程的訂單，自動結案時刻差 72h | 明寫：DONE = `finished_at`；CLOSED_BY_SYSTEM = 被關閉的時刻；CANCELLED 不計（#1） |
+| 18 | 重要 | §5 `VISIT_ZOMBIE_HOURS` × O9 | 殭屍清理沒限訂單狀態。行程在送單時就存在（PENDING），`PENDING_PAYMENT` 訂單因首次付款卡 SUBMITTED（CQ-31 不取消）而跨過行程日 + 72h → 行程被關閉 → 「同交易觸發 O9」但訂單不是 CONFIRMED，轉移不存在。「開始行程」允許的訂單狀態也沒寫 | 明寫：殭屍清理與開始行程只作用於 `CONFIRMED / IN_PROGRESS` 訂單的行程；PENDING / PENDING_PAYMENT 的行程不動 |
+| 19 | 建議 | §3.3 方向表 | 「方向」表有 `ADMIN_ADJUSTMENT` 一列，但 `direction` 值域只有 CHARGE / REFUND；`purpose` 與 `method` 又都有 `ADMIN_ADJUSTMENT`。三個欄位語意重疊 | 方向表刪 ADMIN_ADJUSTMENT 列，改註「`purpose=ADMIN_ADJUSTMENT` 一律 `direction=REFUND, method=ADMIN_ADJUSTMENT`，建立即 VERIFIED」 |
+| 20 | 建議 | §3.4 補款逾時 × §3.3 `due_at` | 補款逾時有兩個來源：變更的「進入當前狀態 + 72h」與 SUPPLEMENT payment 的 `due_at`；§3.6 排程原則是只比對一欄。另外補款是否有提醒（首次付款有 −48h 提醒）沒寫 | 明寫補款逾時只看 `payments.due_at`，變更 EXPIRED 由 payment VOID 連動；補款不另發提醒（或 `due_at − 24h` 提醒） |
+
+## 與 PRD 的新增衝突（改寫後才產生，不含第 1 輪 74 項）
+
+| # | PRD | 段落 | 現在寫的 | baseline 規定 | 要怎麼改 |
+|---|-----|------|---------|--------------|---------|
+| 1 | PRD-005 | 第 1 輪衝突 #8 | 第 1 輪建議加 422 `BOOKING_TOO_SOON` | CQ-10 改為允許緊急單；O1 只要求首個行程日期 ≥ 今天 | 作廢第 1 輪 #8 的 `BOOKING_TOO_SOON`；改加「首個行程日期 < 今天 → 422（碼見 #16）」與 `review_expires_at` 寫入的 AC |
+| 2 | PRD-005、PRD-012 | 第 1 輪衝突 #2、#61 | 第 1 輪建議 409 `SITTER_QUOTA_EXCEEDED` | §3.7：422 `MONTHLY_QUOTA_REACHED` | 依 §3.7 |
+| 3 | PRD-006 | 第 1 輪衝突 #11、#12、#18 | 第 1 輪建議撤回失敗回 `ORDER_STATE_CONFLICT`、「拿掉版本字眼」 | O6：409 `PAYMENT_ALREADY_SUBMITTED`；CQ-35 保留 `@Version`，畫面過期用 `expectedAmount` → 409 `PRICE_CHANGED` | 依 baseline 改寫 |
+| 4 | PRD-006 | 第 1 輪衝突 #13 | 第 1 輪建議 409 `PAYMENT_DEADLINE_PASSED` | `due_at = max(首日 − 24h, 報價 + URGENT_WINDOW_HOURS)`，報價不會因期限被拒 | 改寫為 `due_at` 公式 AC，含當天單、23:30 報價兩個範例 |
+| 5 | PRD-016 | L125「若飼主長時間未確認，可發起爭議處理」 | 只寫飼主未確認的情境 | O14：OWNER / SITTER 任一方，於 `AWAITING_REFUND` 期間；限 IN_PROGRESS（CONFIRMED 待 CQ-41） | 改寫 |
+| 6 | PRD-016 | 變更請求終態 | 只有拒絕 | §3.4：`WITHDRAWN`、`EXPIRED`（第 1 輪 CQ-15 建議的 `REJECTED + reason` 未採用） | 狀態名依 §3.4；AC 驗 WITHDRAWN / EXPIRED |
+| 7 | PRD-022 | AC-1.1、例外 B | 日誌可在行程 DONE 後 24h 內建立 / 送出（DONE 先於日誌） | O11「DONE（日誌已送出）」 | 依 CQ-40 決定後統一；若 DONE 保持「結束行程」語意，O11 要拆成兩個條件 |
+| 8 | PRD-017 | L58、L67 | `SUSPENDED`：「強制終止服務資格」「預約網頁立即失效」 | §2.2 / CQ-19：停權只擋新生意，既有訂單照常 | 改為「公開頁不可預約；既有訂單照常，通知受影響飼主」 |
+| 9 | PRD-020 | L38–39 | 停權時凍結訂閱倒數、復權依停權天數延長 | §2.2 只寫停權擋新生意，沒有凍結 / 延長 | baseline 決定是否保留；保留就寫進 §2.2（訂閱到期日 = 原到期日 + 停權天數），否則刪 PRD-020 這兩行 |
+| 10 | PRD-009 | 第 1 輪衝突 #33 | 第 1 輪寫「最後一個行程 DONE 或 CLOSED_BY_SYSTEM 起 48h」 | §5 結案基準時間 = max(最後行程結束, 最後變更結束)，且排除 CANCELLED（#1） | 自動結案與爭議視窗 AC 改用「結案基準時間」，並加「變更在最後行程後結束」的範例 |
+
+## 待使用者回答
+
+已寫入 baseline §7「待決（第 2 輪）」。
+
+| CQ | 問題 | 建議預設值 |
+|----|------|-----------|
+| CQ-40 | DONE 但日誌未送出時 O11 / O12 永不成立 | O11 維持要日誌；O12 / O13 只看「非 CANCELLED 行程為 DONE 或 CLOSED_BY_SYSTEM」，DONE 行程的結束時間 + `CARE_LOG_EDIT_HOURS` 後才算入結案基準時間 |
+| CQ-41 | CONFIRMED + AWAITING_REFUND + 零行程的死路；CONFIRMED 取消費的收入；保母能否拒絕整筆取消 | O14 擴到 CONFIRMED；CONFIRMED 來的爭議由 ADMIN 結案為 CANCELLED（新增 `DISPUTED → CANCELLED`）；O10 觸發 = CONFIRMED 且變更 SETTLED 後無非 CANCELLED 行程；收入 = COMPLETED + CANCELLED 的已收淨額；保母可拒絕 |
+| CQ-42 | 補款 SUBMITTED 遇 72h 逾時 | SUBMITTED 不逾時；補款 SUBMITTED 超過 72h 未核對 → 任一方可申報 O14 爭議 |
+| CQ-43 | 首次付款 ADMIN 待辦的出口 | 保母仍可核對；ADMIN 可代為確認（O5）或作廢並取消（新增 O16 `PENDING_PAYMENT → CANCELLED`，cancelledBy=ADMIN） |
+| CQ-44 | 待核對升級時點早於 `due_at` | 升級 = `max(首日, due_at) + URGENT_WINDOW_HOURS`，寫入 `payments.escalate_at` |
+| CQ-45 | 首個行程日已過仍可報價 | O2 加「首個行程日期 ≥ 今天」，否則 409 `FIRST_VISIT_DATE_PASSED`；O5 不檢查 |
+| CQ-46 | 期限已過、排程未跑時的使用者操作 | 一律拒絕，409 `DEADLINE_PASSED`；排程只補寫終態 |
+| CQ-47 | 補款逾時部分套用的重算方式 | 快照單價 × 剩餘非 CANCELLED 行程，不帶手動調整；系統變更 `initiatedBy=SYSTEM`、不可撤回，SETTLED 時更新 `total_amount` |
+| CQ-48 | DISPUTED 期間子流程是否凍結 | 凍結，僅 ADMIN 可動；狀態圖補 `AWAITING_* → REJECTED`；ADMIN 作廢實際已匯的退款須登記等額 ADMIN_ADJUSTMENT |
+| CQ-49 | 變更新增行程的日期下限 | 報價時 ≥ 今天 + 1 天，否則 422 `INVALID_VISIT_DATE`；SETTLED 時已過期的照建，交殭屍清理 |

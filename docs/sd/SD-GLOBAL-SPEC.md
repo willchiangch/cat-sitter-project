@@ -24,7 +24,7 @@
 ### 2.1 時區 (Timezone)
 - **資料庫儲存**：一律採用 `UTC`。
 - **API 傳輸**：一律採用 `ISO 8601` 字串。
-- **前端顯示**：由前端根據 Client 時區轉換。
+- **前端顯示**：一律以 Asia/Taipei 顯示；「日」的邊界也以 Asia/Taipei 計算（2026-11-21 依 baseline §5 修正，原為依 Client 時區）。
 
 ### 2.2 貨幣與精度 (Currency)
 - **幣別**：新台幣 (TWD)。
@@ -54,7 +54,7 @@
 
 ### 3.4 身分一律取自 token（防 BOLA，2026-10-25 fix-batch11）
 - **規範**：「呼叫者是誰」一律以 `TokenContext.getUserId()`（`JwtAuthenticationFilter` 從 JWT `userId` claim 寫入）取得，並在 controller 掛 `@PreAuthorize("hasRole(...)")` 限定角色。**禁止**以 `@RequestParam` / `@PathVariable` / `@RequestBody` 接收「代表呼叫者自己」的身分欄位（`sitterId`、`ownerId`、`userId`、`requesterId`…）再拿它去比對資源歸屬——這些 UUID 會出現在 API 回應（訂單詳情、公開頁），任何已登入者都拿得到。
-- **資源歸屬檢查**：Service 層以 token 身分比對資源擁有者（例：`order.sitter.id == token.userId`），找得到資源但不屬於呼叫者 → `AccessDeniedException` → **403**；資源不存在 → 400 / 404。不可用 `findByIdAndXxxId` 查不到就一律 400，否則分不出越權。
+- **資源歸屬檢查**：Service 層以 token 身分比對資源擁有者（例：`order.sitter.id == token.userId`），找得到資源但不屬於呼叫者 → `AccessDeniedException` → **403**；資源不存在 → **404**（2026-11-21 依 baseline §1.2 統一，原為 400 / 404）。不可用 `findByIdAndXxxId` 查不到就一律 400，否則分不出越權。
 - **允許的例外**（參數是「操作對象」而非「呼叫者」）：公開查詢（`GET /api/sitters/{sitterId}/plans|questions`、`GET /api/sitter/profile/{sitterId}`）、對象型參數（收藏 / 黑名單 / 轉介的目標 `sitterId` / `ownerId`）、ADMIN 專用端點、配對型路徑（`/api/care-notes/{sitterId}/{ownerId}`、`/api/care-media/{sitterId}/{ownerId}`：其中之一必須等於 token 身分，寫入端點限 `sitterId == token`，且雙方須有過任何狀態的訂單，SD-021 §1.3）。
 - **部署相容**：移除身分參數時，後端不宣告該參數即可——Spring 對未宣告的 query param / Jackson 對未知 JSON 欄位（`FAIL_ON_UNKNOWN_PROPERTIES=false`）都直接忽略，舊前端在「後端已部署、前端未部署」的空窗期仍可運作。部署順序：先後端再前端。
 - **已套用的端點（fix-batch11）**：`POST /api/orders/{id}/confirm|quote|reject`（SITTER）、`/complete|/dispute`（OWNER）——原本 `@RequestParam sitterId/ownerId`；`POST /api/orders/booking`（OWNER）——原本 body `ownerId`。2026-10-25 全 controller 掃描（23 支）後，其餘端點的呼叫者身分都已取自 token；仍收 `sitterId` / `ownerId` 的只剩上列「允許的例外」（`/api/sitter/trust-circle/referral-candidates?ownerId=` 與 `CreateReferralRequest.ownerId` 是 PRD-010 D 主動分享的通知對象）。
@@ -65,7 +65,7 @@
 ### 4.1 檔案儲存命名與清理 (GCS)
 - **路徑格式**：`/{bucket}/{plan_tier}/{date}/{order_id}/{file_uuid}`。
 - **不可變原則 (Immutability)**：檔案寫入 GCS 後路徑即凍結。若發生方案變更（升/降級），**不進行檔案搬移**。
-- **自動清理**：配合 `PRD-013`，利用 GCS Lifecycle Management 根據路徑前綴自動刪檔。真正的存取權限與「已過期」顯示由 DB 欄位控管。
+- **自動清理**：配合 `PRD-013`，利用 GCS Lifecycle Management 根據路徑前綴自動刪檔。**Lifecycle 規則只能匹配媒體前綴（`/{bucket}/{plan_tier}/...`），`payment-proofs/`、`refund-proofs/`、`kyc/`、`care_media/` 必須排除**（財務憑證與證件永久保存，baseline §5）。真正的存取權限與「已過期」顯示由 DB 欄位控管。
 - **永久儲存路徑例外**：涉及長期客戶關係之檔案（如 PRD-021 照護媒體庫），必須使用獨立的 `/{bucket}/care_media/{sitter_id}_{client_id}/` 路徑，絕對禁止寫入帶有生命週期週期前綴的資料夾，以免遭排程誤刪。
 
 ### 4.2 快照機制 (Snapshot Pattern)
@@ -86,7 +86,7 @@
 
 ### 5.3 CI/CD 部署管線 (GitHub Actions)
 - **CI**: 發起 PR 時執行 Lint 檢查與 Build Test，失敗則阻擋合併。
-- **CD**: `main` 分支合併後，自動觸發「Docker Build -> Artifact Registry -> Cloud Run Deploy」，實現無縫切換。
+- **CD**: 2026-11-21 起改為手動觸發（`gh workflow run deploy.yml --ref main`），push main 不再自動部署；流程仍為「測試 -> Docker Build -> Artifact Registry -> Cloud Run Deploy -> Firebase -> E2E」。
 
 ## 6. 單人開發效率與自動化規範 (Solo Developer Efficiency)
 ### 6.1 資料庫遷移
