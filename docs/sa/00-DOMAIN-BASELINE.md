@@ -3,12 +3,12 @@
 | 項目 | 內容 |
 |------|------|
 | 狀態 | In Review |
-| 前次核准 | 使用者，第 1 版 2026-11-21；第 2 版 2026-11-22（第 3 版修訂中：依 FULFILL PRD 重寫回饋補充，見 §7 CQ-78~82） |
+| 前次核准 | 使用者，第 1 版 2026-11-21；第 2 版 2026-11-22（第 3 版修訂中：依 FULFILL PRD 重寫回饋補充，見 §7 CQ-78~83） |
 | 建立日期 | 2026-11-21 |
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
 | 適用 | 所有 PRD / SD / TS。本文件定義的概念，其他文件只能引用、不得重新定義；要改就改這份並走核准 |
 
-> §7 CQ-1~82 已全部由使用者決定。第 2 版已核准；CQ-78~82 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
+> §7 CQ-1~83 已全部由使用者決定。第 2 版已核准；CQ-78~83 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
 > 「現況」欄是 2026-11-21 程式碼的實際行為，只當證據，不代表正確。
 > 標「提案值」的參數（`URGENT_WINDOW_HOURS` 2h、排程頻率 15 分鐘、CLOSED_BY_SYSTEM 計價）已隨核准確認。
 
@@ -292,7 +292,7 @@ stateDiagram-v2
   6. 400 `VALIDATION_FAILED`（含缺 `Idempotency-Key`）
   7. 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`
   8. 409 `ORDER_STATE_CONFLICT`
-  9. 409 `MODIFICATION_IN_PROGRESS` → `MODIFICATION_NOT_ALLOWED` → `MODIFICATION_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT` / `VISIT_STATE_CONFLICT` → `VISITS_NOT_FINISHED`
+  9. 409 `MODIFICATION_IN_PROGRESS` → `MODIFICATION_NOT_ALLOWED` → `MODIFICATION_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT` / `VISIT_STATE_CONFLICT` → `VISITS_NOT_FINISHED`；模組自訂的狀態類 409 碼（例：`CARE_LOG_STATE_CONFLICT`）緊接在本步之後
   10. 409 `DEADLINE_PASSED`
   11. 409 `VISIT_ALREADY_STARTED`、`PRICE_CHANGED`
   12. 422 業務規則（含模組碼）
@@ -300,6 +300,7 @@ stateDiagram-v2
   - 需要讀取當下資料才能判斷的上限檢查（例：依目前題目判斷答案字數、後端重算後的 `base_amount` / `total_amount` 上限）雖回 400 `VALIDATION_FAILED`，判斷時點歸在第 12 步。
   - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
 - **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT` / `VISIT_ZOMBIE_AT` / `CARE_LOG_EDIT_ENDS_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
+- 503 `STORAGE_UNAVAILABLE`：GCS 等檔案儲存暫時無法使用（跨模組共用，只在以上檢查全部通過後的外部呼叫發生）。
 - 非業務錯誤：未預期的程式錯誤一律 500 `INTERNAL_ERROR`（不列入判斷順序，回應不含內部細節，帶 `traceId`）。
 - 需要 `Idempotency-Key` 的端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。
 
@@ -444,6 +445,7 @@ stateDiagram-v2
 | CQ-79 | 能否在行程日期前開始 | 不能（422 `VISIT_DATE_NOT_REACHED`）；日期已過未滿 72h 可補開始 | §5 |
 | CQ-80 | 行程狀態衝突碼與新期限名稱 | `VISIT_STATE_CONFLICT` 提升為跨模組碼；新增 `VISIT_ZOMBIE_AT`、`CARE_LOG_EDIT_ENDS_AT` | §3.7 |
 | CQ-81 | 照護日誌的歸屬與鎖 | owner / ADMIN 只能讀已送出的；日誌寫入經訂單鎖 | §1.2、§3.6 |
+| CQ-83 | 模組狀態類 409 的判斷位置；`STORAGE_UNAVAILABLE` 歸屬（PRD-022 寫回回饋，技術細節） | 緊接第 9 步之後；`STORAGE_UNAVAILABLE` 提升為跨模組碼 | §3.7 |
 | CQ-82 | O11–O13 的通知與 O13 錯誤碼 | O11 通知保母、O12 通知雙方、O13 通知保母（可關閉類別）；O13 錯誤碼與 `SERVICE_DISPUTE` 待辦；`VISITS_NOT_FINISHED` 列入判斷順序第 9 步 | §3.2、§3.7 |
 
 ---

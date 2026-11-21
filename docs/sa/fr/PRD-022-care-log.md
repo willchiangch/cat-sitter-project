@@ -7,7 +7,7 @@
 | 歸屬 SD | SD-FULFILL（`docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-022 |
 | 相依 PRD | PRD-008（行程 `PENDING → IN_PROGRESS`「開始行程」、`IN_PROGRESS → DONE`「結束行程」並寫 `completed_at`、`IN_PROGRESS` 逾時出口；本卡只消費行程狀態與 `completed_at`）；PRD-009（O11 飼主確認結案讀取本卡「日誌已送出」、O12 自動結案不看日誌、O13 爭議、O15 / O17 ADMIN 調解結案）；PRD-006（O2 報價時快照媒體額度）；PRD-012（訂閱等級與鎖定）；PRD-013（媒體保留期限、到期刪除與提示）；PRD-014（通知範本、「訂單事務」偏好） |
-| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.1（角色、`ROLE_MISMATCH`）、§1.2（訂單可讀範圍、ADMIN 唯讀 `DISPUTED` / OPEN 待辦訂單、403 / 404 規則）、§2.1（照護回報媒體額度、媒體保留期限）、§2.2（報價時快照媒體額度 CQ-4 / CQ-20；訂閱鎖定不擋日誌 CQ-19）、§3.1–§3.2（`IN_PROGRESS` / `DISPUTED` / `COMPLETED` / `CANCELLED` 定義、O11 / O12 / O15、`DISPUTED` 期間行程照常 CQ-48 / CQ-57）、§3.6（鎖、版本 CQ-35、通知 outbox、冪等 CQ-51、外部 I/O）、§3.7（錯誤碼、判斷順序 CQ-70 / CQ-76、payload 共通欄位）、§5（`CARE_LOG_EDIT_HOURS`、`completion_basis_at`、媒體保留、UTC / Asia/Taipei）、§6（行程、照護日誌、有效行程） |
+| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md`（第 3 版修訂）§1.1（角色、`ROLE_MISMATCH`）、§1.2（訂單可讀範圍、ADMIN 唯讀 `DISPUTED` / OPEN 待辦訂單、403 / 404 規則；照護日誌歸屬：owner / ADMIN 只能讀已送出、未送出 404，CQ-81）、§2.1（照護回報媒體額度、媒體保留期限）、§2.2（報價時快照媒體額度 CQ-4 / CQ-20；訂閱鎖定不擋日誌 CQ-19）、§3.1–§3.2（`IN_PROGRESS` / `DISPUTED` / `COMPLETED` / `CANCELLED` 定義、O11 / O12 / O15、`DISPUTED` 期間行程照常 CQ-48 / CQ-57）、§3.6（鎖：日誌暫存 / 上傳 / 刪除 / 送出經 SD-ORDER 鎖入口 CQ-81；版本 CQ-35、通知 outbox、冪等 CQ-51、外部 I/O）、§3.7（跨模組碼 `VISIT_STATE_CONFLICT` CQ-80、期限名稱 `CARE_LOG_EDIT_ENDS_AT` CQ-80、判斷順序 CQ-70 / CQ-76、payload 共通欄位）、§5（`CARE_LOG_EDIT_HOURS` 以伺服器收到請求時間判斷、`VISIT_IN_PROGRESS_TIMEOUT_HOURS` CQ-78、`completion_basis_at`、媒體保留、UTC / Asia/Taipei）、§6（行程定義定案 CQ-78、照護日誌、有效行程） |
 
 > 一張 PRD = 一個可獨立驗收的功能。子模組 AC ≤ 8 條，子模組 > 3 個就拆卡。
 > 共用概念（角色、SaaS 額度、訂單狀態、時間起算點）只能**引用** DOMAIN-BASELINE，不得在這裡重新定義；要改就改 baseline。
@@ -18,7 +18,7 @@
 
 保母每次到府（一個行程）都要向飼主回報毛孩近況（BR §2.3「服務執行面板」、§5.2）。本卡定義「照護日誌」：一個行程一份，保母在行程進行中或結束後 `CARE_LOG_EDIT_HOURS`（24h）內撰寫文字並上傳照片 / 影片，送出後飼主可見並收到通知。媒體數量依**訂單報價時快照的訂閱等級**限制（baseline §2.1、§2.2），以控管儲存成本。
 
-主流程定案（baseline CQ-27、CQ-40；PRD-008 / PRD-009 同步改寫）：保母按「結束行程」→ 行程 `DONE`、寫 `completed_at`（PRD-008）→ 24h 內編輯並送出日誌（本卡）→ 飼主才能手動確認結案（O11，PRD-009）；自動結案（O12）不看日誌。**行程 `DONE` 不以日誌送出為前提**，取代原 PRD-008「送出報告才 DONE」。
+主流程定案（baseline CQ-27、CQ-40；PRD-008 / PRD-009 同步改寫）：保母按「結束行程」→ 行程 `DONE`、寫 `completed_at`（PRD-008）→ 24h 內編輯並送出日誌（本卡）→ 飼主才能手動確認結案（O11，PRD-009）；自動結案（O12）不看日誌。**行程 `DONE` 不以日誌送出為前提**，取代原 PRD-008「送出報告才 DONE」。行程若因 `VISIT_IN_PROGRESS_TIMEOUT_HOURS` 由系統轉 `DONE`（PRD-008 §4.4 T4，baseline §5、CQ-78），保母同樣自該 `completed_at` 起有 24h 可送出日誌。
 
 行程檢核表（SOP 勾選）與「開始 / 結束行程」屬 PRD-008；媒體保留期限與到期刪除屬 PRD-013，本卡只引用。
 
@@ -39,7 +39,7 @@
 | 上傳媒體 | ✗ 403 `ROLE_MISMATCH` | 本人訂單 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 依**訂單快照**的媒體額度（BR-9） |
 | 刪除媒體 | ✗ 403 `ROLE_MISMATCH` | 本人訂單 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 無 |
 | 讀取日誌（保母視角，含草稿與逾期草稿） | ✗ 403 `ROLE_MISMATCH` | 本人訂單 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 無 |
-| 讀取已送出日誌與媒體 | 本人訂單（僅 `SUBMITTED`，BR-16） | 本人訂單 | 可讀訂單範圍內唯讀（`DISPUTED` 或有 OPEN 待辦，§1.2），僅 `SUBMITTED` | ✗ 401 | 無 |
+| 讀取已送出日誌與媒體 | 本人訂單（僅 `SUBMITTED`，BR-16；baseline §1.2 CQ-81） | 本人訂單 | 可讀訂單範圍內唯讀（`DISPUTED` 或有 OPEN 待辦，§1.2），僅 `SUBMITTED`（CQ-81） | ✗ 401 | 無 |
 
 - 「本人訂單」= 該行程所屬訂單的 owner / sitter，以 token 身分判斷；存在但不屬於呼叫者 → 403 `FORBIDDEN`；不存在 → 404 `NOT_FOUND`；token `currentRole` 與端點要求不符 → 403 `ROLE_MISMATCH`（§1.1、§1.2）。同一帳號兼具 OWNER / SITTER 時，以 OWNER token 呼叫保母端點一律 `ROLE_MISMATCH`。
 - 路徑上的媒體不屬於路徑上的日誌 / 行程，或行程不屬於路徑上的訂單 → 404 `NOT_FOUND`，以路徑上層資源為準。
@@ -52,10 +52,10 @@
   6. 400 `VALIDATION_FAILED`（標題 / 文字 / 說明文字長度、缺檔案、多於 1 檔、缺 `Idempotency-Key`）
   7. 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`
   8. 409 `ORDER_STATE_CONFLICT`（訂單非 `IN_PROGRESS` / `DISPUTED`，BR-4）
-  9. 409 `VISIT_STATE_CONFLICT` → 409 `CARE_LOG_STATE_CONFLICT`（模組碼，CQ-3）
-  10. 409 `DEADLINE_PASSED`（`deadline=CARE_LOG_EDIT_ENDS_AT`，CQ-2）
-  11. 422 業務規則（模組碼）：`CARE_LOG_CONTENT_EMPTY`、`CARE_LOG_MEDIA_TYPE_UNSUPPORTED`、`CARE_LOG_MEDIA_TOO_LARGE`、`CARE_LOG_VIDEO_DURATION_INVALID`、`CARE_LOG_MEDIA_QUOTA_EXCEEDED`（依此順序）
-  - 409 `ORDER_BUSY` 只在取得訂單鎖時發生；503 `STORAGE_UNAVAILABLE` 只在以上全部通過後的 GCS 呼叫發生。本卡不使用 403 `PLAN_REQUIRED`（額度依快照，升級無法解除，CQ-1）。
+  9. 409 `VISIT_STATE_CONFLICT`（baseline §3.7 跨模組碼，CQ-80；位於 baseline 第 9 步）→ 409 `CARE_LOG_STATE_CONFLICT`（SD-FULFILL 模組碼；使用者決定 2026-11-22，本卡 CQ-3）
+  10. 409 `DEADLINE_PASSED`（`deadline=CARE_LOG_EDIT_ENDS_AT`，baseline §3.7 期限名稱、§5 `CARE_LOG_EDIT_HOURS`，CQ-80）
+  11. 422 業務規則（SD-FULFILL 模組碼，對應 baseline 第 12 步）：`CARE_LOG_CONTENT_EMPTY`、`CARE_LOG_MEDIA_TYPE_UNSUPPORTED`、`CARE_LOG_MEDIA_TOO_LARGE`、`CARE_LOG_VIDEO_DURATION_INVALID`、`CARE_LOG_MEDIA_QUOTA_EXCEEDED`（依此順序）
+  - 409 `ORDER_BUSY` 只在取得訂單鎖時發生；503 `STORAGE_UNAVAILABLE` 只在以上全部通過後的 GCS 呼叫發生。本卡不使用 403 `PLAN_REQUIRED`（baseline 第 13 步；額度依快照，升級無法解除；使用者決定 2026-11-22，CQ-1）。
   - 依此得出的唯一結果（AC 以此為準）：已送出且已逾期的日誌再暫存 → `CARE_LOG_STATE_CONFLICT`；已送出的日誌暫存 1001 字 → 400 `VALIDATION_FAILED`；已逾期且額度已滿時上傳 → `DEADLINE_PASSED`；他人訂單的保母對已送出日誌暫存 → 403 `FORBIDDEN`；訂單 `COMPLETED` 且已逾期 → `ORDER_STATE_CONFLICT`。
 
 ## 4. 主流程
@@ -87,6 +87,7 @@
    4. 日誌不存在時建立；以 body 覆寫標題與文字；`DRAFT → SUBMITTED`，寫 `submitted_at`；寫 `order_logs`（`CARE_LOG_SUBMITTED`，BR-19）；`enqueue` 飼主站內通知（BR-17）；提交。
 3. 送出後日誌永久唯讀：不可再暫存、上傳、刪除、再送出；不會回到 `DRAFT`（BR-11）。
 4. 送出即滿足 O11「該 `DONE` 行程日誌已送出」條件（PRD-009）；不影響行程狀態與 `completion_basis_at`（`DONE` 行程結束時間固定為 `completed_at + CARE_LOG_EDIT_HOURS`，baseline §5）。
+5. **系統逾時轉 `DONE` 的行程**：保母未按「結束行程」、行程於 `started_at + VISIT_IN_PROGRESS_TIMEOUT_HOURS` 後被排程轉 `DONE`（`completed_at` = 排程處理時刻、完成來源 `SYSTEM`，PRD-008 §4.4 T4、BR-12），本卡規則與保母手動結束完全相同：可暫存、上傳、刪除、送出至 `completed_at + CARE_LOG_EDIT_HOURS`，期限顯示與判斷同第 1 點、BR-5；不因完成來源 `SYSTEM` 而縮短或鎖定（baseline §5 `VISIT_IN_PROGRESS_TIMEOUT_HOURS`、CQ-78；BR-27）。
 
 ### 4.3 媒體上傳
 
@@ -95,7 +96,7 @@
    - 某類型已用量 = 額度：選擇該類型檔案時前端擋下並顯示「此行程{照片 / 影片}額度已用完」，不發出請求。
 2. 每次請求上傳 1 個檔案，可附說明文字（選填，≤ 100 字）；前端多選時逐一依序上傳（BR-14）。
 3. 前端送出前檢查（BR-12、BR-13）：
-   - 照片：先轉為 WebP 壓縮；壓縮後仍 ≥ 1 MB → 顯示「照片需小於 1MB」，不送出；
+   - 照片：先轉為 WebP 並壓縮至 < 1 MB；壓縮後仍 ≥ 1 MB → 顯示「照片需小於 1MB」，不送出。前端壓縮不取代後端驗證：後端仍驗證格式（JPEG / PNG / WebP）與大小（使用者決定 2026-11-22，CQ-6）；
    - 影片：格式 MP4 / MOV、長度 15–30 秒（以瀏覽器讀取時長）、< 50 MB；不符顯示「影片需為 MP4 / MOV、長度 15–30 秒、小於 50MB」，不送出。
 4. 送出（帶 `Idempotency-Key`）。伺服器記下收到請求的時間 `receivedAt`（期限以此判斷，BR-5）。系統依序：
    1. 冪等查詢：同 key 同內容 → 回放第一次結果，不再上傳 GCS；
@@ -112,7 +113,7 @@
 
 1. 可編輯期間（§4.1-1），每個媒體顯示刪除鈕（`sitter-care-log-btn-delete-media-{mediaId}`）。
 2. 保母刪除 → 鎖訂單列、重驗可編輯條件 → 刪除媒體紀錄（不再計入已用量，額度立即釋放）、寫 `order_logs`（`MEDIA_DELETED`）、提交 → 交易後刪除 GCS 物件；物件刪除失敗不影響結果，由孤兒檔排程清除（BR-15、§3.6）。
-3. 說明文字上傳後不可修改，要改就刪除重傳（CQ-12）。
+3. 說明文字上傳後不可修改，要改就刪除重傳（BR-15；使用者決定 2026-11-22，CQ-12）。
 
 ### 4.5 檢視與逾期
 
@@ -150,30 +151,31 @@ stateDiagram-v2
 |---|------|------|
 | BR-1 | 照護日誌狀態只持久化 `DRAFT`、`SUBMITTED`；「逾期」為時間衍生，不寫入、不建排程 | 沿用原 PRD-022 B.2、B.3 |
 | BR-2 | 一個行程最多一份日誌（唯一）；首次暫存或首次上傳時建立 `DRAFT`；同時送達只建 1 份 | baseline §6「照護日誌」；沿用原 PRD-022 A.1 |
-| BR-3 | 可編輯的行程狀態：`IN_PROGRESS`，或 `DONE` 且未逾期；`PENDING`（BR 舊稱 `SCHEDULED`，baseline §6 改名）、`CLOSED_BY_SYSTEM`、`CANCELLED` 不可建立 / 編輯 → 409 `VISIT_STATE_CONFLICT`（payload `currentVisitStatus`）。送出只限行程 `DONE`，`IN_PROGRESS` 送出 → 409 `VISIT_STATE_CONFLICT` | 沿用原 PRD-022 A.2；baseline §6、CQ-40；呼叫方交辦主流程定案 2026-11-22；錯誤碼 CQ-3 |
-| BR-4 | 可編輯的訂單狀態：`IN_PROGRESS`、`DISPUTED`（爭議期間行程照常）；其餘（含 ADMIN 調解後的 `COMPLETED` / `CANCELLED`）→ 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。O11 要求日誌已送出、O12 晚於編輯期限，故一般流程下結案時不會有可編輯的草稿；唯一例外是 O15 調解結案，其後草稿即鎖定 | baseline §3.2 O11、O12、O15、CQ-48、CQ-57；沿用原 PRD-022 例外表「訂單已結案拒絕」；CQ-16 |
-| BR-5 | 編輯期限 = `completed_at + CARE_LOG_EDIT_HOURS`（24h）。以伺服器收到請求的時間 `receivedAt` 判斷：`receivedAt ≥ 期限` → 409 `DEADLINE_PASSED`（payload `deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt=<期限>`），適用暫存、上傳、刪除、送出；之後 `DRAFT` 對保母唯讀、對飼主永不可見、不發通知 | baseline §5 `CARE_LOG_EDIT_HOURS`、§3.2「期限一律以時間判斷」、§3.7 payload；沿用原 PRD-022 B.2；CQ-2、CQ-9 |
-| BR-6 | 標題選填，去前後空白後 1–30 字，空白存 null；null 時顯示「{行程日期} 行程」 | BR §5.2「可編輯日誌名稱」；長度與預設顯示 CQ-4 |
+| BR-3 | 可編輯的行程狀態：`IN_PROGRESS`，或 `DONE` 且未逾期；`PENDING`（BR 舊稱 `SCHEDULED`，baseline §6 改名）、`CLOSED_BY_SYSTEM`、`CANCELLED` 不可建立 / 編輯 → 409 `VISIT_STATE_CONFLICT`（payload `currentVisitStatus`）。送出只限行程 `DONE`（不論完成來源為保母或 `SYSTEM`，BR-27），`IN_PROGRESS` 送出 → 409 `VISIT_STATE_CONFLICT` | 沿用原 PRD-022 A.2；baseline §6（行程定義定案，CQ-78）、CQ-40；呼叫方交辦主流程定案 2026-11-22；錯誤碼為 baseline §3.7 跨模組碼（CQ-80） |
+| BR-4 | 可編輯的訂單狀態：`IN_PROGRESS`、`DISPUTED`（爭議期間行程照常）；其餘（含 ADMIN 調解後的 `COMPLETED` / `CANCELLED`）→ 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。O11 要求日誌已送出、O12 晚於編輯期限，故一般流程下結案時不會有可編輯的草稿；唯一例外是 O15 調解結案：結案後即使 `DONE` 行程仍在 24h 內，草稿立即鎖定（ADMIN 結案前的「尚有日誌未送出」提示屬 PRD-009） | baseline §3.2 O11、O12、O15、CQ-48、CQ-57；沿用原 PRD-022 例外表「訂單已結案拒絕」；使用者決定 2026-11-22（CQ-16） |
+| BR-5 | 編輯期限 = `completed_at + CARE_LOG_EDIT_HOURS`（24h）。以伺服器收到請求的時間 `receivedAt` 判斷：`receivedAt ≥ 期限` → 409 `DEADLINE_PASSED`（payload `deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt=<期限>`），適用暫存、上傳、刪除、送出；之後 `DRAFT` 對保母唯讀、對飼主永不可見、不發通知。期限只看 `receivedAt`（上傳耗時不影響）；訂單 / 行程 / 日誌狀態則以交易內鎖後重驗結果為準（例：GCS 上傳期間訂單被 O15 結案 → 409 `ORDER_STATE_CONFLICT`） | baseline §5 `CARE_LOG_EDIT_HOURS`（伺服器收到請求時間判斷）、§3.2「期限一律以時間判斷」、§3.7 期限名稱 `CARE_LOG_EDIT_ENDS_AT` 與 payload（CQ-80）；沿用原 PRD-022 B.2；使用者決定 2026-11-22（CQ-2、CQ-9，已寫入 baseline） |
+| BR-6 | 標題選填，去前後空白後 1–30 字，空白存 null；null 時顯示「{行程日期} 行程」 | BR §5.2「可編輯日誌名稱」；長度與預設顯示：使用者決定 2026-11-22（CQ-4） |
 | BR-7 | 文字日誌最多 1000 字（超過 → 400 `VALIDATION_FAILED`），前端顯示「目前字數 / 1000」且達上限禁止輸入；媒體說明文字選填、最多 100 字 | 沿用原 PRD-022 A.3 |
 | BR-8 | 未暫存的輸入不得被上傳 / 刪除後的畫面更新覆蓋；暫存或送出成功才以伺服器內容為準 | 沿用原 PRD-022 A.2 |
-| BR-9 | 媒體額度 = 訂單於 O2 報價時快照的訂閱等級額度（每行程，照片與影片分別計算）：FREE 0 照片 + 0 影片；BASIC 5 照片 + 0 影片；PRO 10 照片 + 2 影片；ULTIMATE 25 照片 + 5 影片。保母之後升降級不影響；不讀方案層 `maxPhotos`。超過 → 422 `CARE_LOG_MEDIA_QUOTA_EXCEEDED`（payload `mediaType`、`limit`、`used`） | baseline §2.1、§2.2、CQ-4、CQ-20；PRD-006 BR-8；錯誤碼 CQ-1 |
-| BR-10 | 送出時文字日誌去空白後至少 1 字，否則 422 `CARE_LOG_CONTENT_EMPTY`；暫存不檢查 | CQ-5 |
-| BR-11 | 送出後永久唯讀，不回 `DRAFT`；任何寫入 → 409 `CARE_LOG_STATE_CONFLICT` | 沿用原 PRD-022 B.1、資料規則；錯誤碼 CQ-3 |
-| BR-12 | 照片格式 JPEG / PNG / WebP，單檔 < 1 MB（1,048,576 bytes）；前端上傳前轉 WebP 壓縮；不符格式 → 422 `CARE_LOG_MEDIA_TYPE_UNSUPPORTED`，超過大小 → 422 `CARE_LOG_MEDIA_TOO_LARGE` | 沿用原 PRD-022 A.4；SAAS「技術實作建議」（WebP、< 1MB）；CQ-6、CQ-7 |
-| BR-13 | 影片格式 MP4 / MOV，長度 15–30 秒（含端點，時長四捨五入至整數秒），單檔 < 50 MB（52,428,800 bytes）；長度不符 → 422 `CARE_LOG_VIDEO_DURATION_INVALID`；格式 / 大小同 BR-12 錯誤碼；只有快照額度含影片（PRO / ULTIMATE）才能上傳 | 沿用原 PRD-022 A.4；SAAS「影片限制在 15-30 秒」；CQ-7 |
-| BR-14 | 每次上傳請求恰好 1 個檔案（0 或 > 1 → 400 `VALIDATION_FAILED`）；BR §5.4.2 的單次上傳檔案數參數本卡取 1、單次容量即 BR-12 / BR-13 單檔上限 | BR §5.4.2；CQ-8 |
-| BR-15 | 可編輯期間可刪除媒體，刪除後立即不計入額度；GCS 物件於交易後刪除，失敗由孤兒檔排程清除；送出後與逾期後不可刪除 | 沿用原 PRD-022 A.5；baseline §3.6 外部 I/O |
-| BR-16 | 飼主與 ADMIN 只能讀 `SUBMITTED` 日誌；讀非 `SUBMITTED`（含逾期草稿）一律 404 `NOT_FOUND`，畫面不顯示入口。ADMIN 只限 §1.2 可讀訂單範圍 | 沿用原 PRD-022 AC-1.2、B.2；baseline §1.2、CQ-18；回應碼 CQ-10 |
+| BR-9 | 媒體額度 = 訂單於 O2 報價時快照的訂閱等級額度（每行程，照片與影片分別計算）：FREE 0 照片 + 0 影片；BASIC 5 照片 + 0 影片；PRO 10 照片 + 2 影片；ULTIMATE 25 照片 + 5 影片。保母之後升降級不影響；不讀方案層 `maxPhotos`。超過 → 422 `CARE_LOG_MEDIA_QUOTA_EXCEEDED`（SD-FULFILL 模組碼，payload `mediaType`、`limit`、`used`）；不使用 403 `PLAN_REQUIRED` | baseline §2.1、§2.2、CQ-4、CQ-20；PRD-006 BR-8；錯誤碼：使用者決定 2026-11-22（CQ-1） |
+| BR-10 | 送出時文字日誌去空白後至少 1 字，否則 422 `CARE_LOG_CONTENT_EMPTY`（SD-FULFILL 模組碼）；有媒體但無文字也不可送出；暫存不檢查 | 使用者決定 2026-11-22（CQ-5） |
+| BR-11 | 送出後永久唯讀，不回 `DRAFT`；任何寫入 → 409 `CARE_LOG_STATE_CONFLICT`（SD-FULFILL 模組碼，判斷位置緊接 `VISIT_STATE_CONFLICT` 之後、`DEADLINE_PASSED` 之前） | 沿用原 PRD-022 B.1、資料規則；錯誤碼：使用者決定 2026-11-22（CQ-3） |
+| BR-12 | 照片格式 JPEG / PNG / WebP，單檔 < 1 MB（1,048,576 bytes，嚴格小於）；前端上傳前轉 WebP 並壓縮至 < 1 MB，壓縮後仍 ≥ 1 MB 則前端提示、不送出；後端不信任前端，仍驗證格式與大小：不符格式 → 422 `CARE_LOG_MEDIA_TYPE_UNSUPPORTED`，超過大小 → 422 `CARE_LOG_MEDIA_TOO_LARGE` | 沿用原 PRD-022 A.4；SAAS「技術實作建議」（WebP、< 1MB）；使用者決定 2026-11-22（CQ-6、CQ-7） |
+| BR-13 | 影片格式 MP4 / MOV，長度 15–30 秒（含端點，時長四捨五入至整數秒），單檔 < 50 MB（52,428,800 bytes，嚴格小於）；長度不符 → 422 `CARE_LOG_VIDEO_DURATION_INVALID`；格式 / 大小同 BR-12 錯誤碼；只有快照額度含影片（PRO / ULTIMATE）才能上傳 | 沿用原 PRD-022 A.4；SAAS「影片限制在 15-30 秒」；使用者決定 2026-11-22（CQ-7） |
+| BR-14 | 每次上傳請求恰好 1 個檔案（0 或 > 1 → 400 `VALIDATION_FAILED`）；BR §5.4.2 的單次上傳檔案數參數本卡取 1、單次容量即 BR-12 / BR-13 單檔上限；前端多選時依序逐一上傳 | BR §5.4.2；使用者決定 2026-11-22（CQ-8） |
+| BR-15 | 可編輯期間可刪除媒體，刪除後立即不計入額度；GCS 物件於交易後刪除，失敗由孤兒檔排程清除；送出後與逾期後不可刪除。媒體說明文字上傳後不可修改，要改就刪除重傳 | 沿用原 PRD-022 A.5；baseline §3.6 外部 I/O；說明文字：使用者決定 2026-11-22（CQ-12） |
+| BR-16 | 飼主與 ADMIN 只能讀 `SUBMITTED` 日誌；讀非 `SUBMITTED`（含逾期草稿）一律 404 `NOT_FOUND`（不洩漏草稿存在與否），畫面不顯示入口。ADMIN 只限 §1.2 可讀訂單範圍 | 沿用原 PRD-022 AC-1.2、B.2；baseline §1.2 照護日誌歸屬（CQ-81）、CQ-18；使用者決定 2026-11-22（CQ-10，已寫入 baseline） |
 | BR-17 | 送出時同交易 `enqueue` 飼主站內通知 1 則：「{行程日期 YYYY-MM-DD} 的行程日誌已由保母回報，快來看看毛孩的近況吧！」；日期為行程日期（Asia/Taipei）。屬 PRD-014「訂單事務」類別，依使用者偏好；草稿、暫存、上傳、逾期不發通知 | 沿用原 PRD-022 B.4；baseline §3.6 通知 outbox；PRD-014 §2「訂單事務：服務報告送達」 |
-| BR-18 | 媒體為 GCS 私有物件，只透過授權後產生的短效簽名網址讀取，有效期 15 分鐘；簽名網址不寫入冪等回放 body | baseline §3.6；有效期 CQ-11 |
-| BR-19 | `order_logs` 寫入：`MEDIA_UPLOADED`（物件鍵、類型、大小）、`MEDIA_DELETED`、`CARE_LOG_SUBMITTED`，皆與該寫入同交易；暫存草稿不寫 | BR §5.4.2（上傳）；BR §5.8（訂單動態來源）；CQ-13 |
-| BR-20 | 暫存、上傳交易、刪除、送出一律先經 SD-ORDER 鎖入口鎖訂單列（`lock_timeout 3s`，逾時 409 `ORDER_BUSY` + `Retry-After: 1`），以與行程轉移（PRD-008 結束行程、殭屍清理）、O11、O15 序列化，並保證額度檢查不超賣 | baseline §3.6「鎖」；CQ-15 |
-| BR-21 | 上傳與送出必帶 `Idempotency-Key`（缺 → 400 `VALIDATION_FAILED`，`field=Idempotency-Key`），行為依 baseline §3.6（multipart hash 含檔案 SHA-256；同 key 同內容回放第一次狀態碼與 body；同 key 不同內容 422 `IDEMPOTENCY_KEY_REUSED`；處理中 409 `IDEMPOTENCY_IN_PROGRESS`；5xx 與 `ORDER_BUSY` 不記錄）。冪等查詢在 GCS 上傳前。暫存（整份覆寫）與刪除不帶 key：重送暫存結果相同；重送刪除回 404 `NOT_FOUND`，前端視為已刪除 | baseline §3.6、CQ-51；沿用原 PRD-022 AC-2.2（改為回放，取代 409 `IDEMPOTENCY_CONFLICT`）；暫存 / 刪除 CQ-17 |
+| BR-18 | 媒體為 GCS 私有物件，只透過授權後產生的短效簽名網址讀取，有效期 15 分鐘；簽名網址不寫入冪等回放 body | baseline §3.6；有效期：使用者決定 2026-11-22（CQ-11） |
+| BR-19 | `order_logs` 寫入：`MEDIA_UPLOADED`（物件鍵、類型、大小）、`MEDIA_DELETED`、`CARE_LOG_SUBMITTED`，皆與該寫入同交易；暫存草稿不寫 | BR §5.4.2（上傳）；BR §5.8（訂單動態來源）；使用者決定 2026-11-22（CQ-13） |
+| BR-20 | 暫存、上傳交易、刪除、送出一律先經 SD-ORDER 鎖入口鎖訂單列（`lock_timeout 3s`，逾時 409 `ORDER_BUSY` + `Retry-After: 1`），以與行程轉移（PRD-008 結束行程、`IN_PROGRESS` 逾時轉 `DONE`、殭屍清理）、O11、O15 序列化，並保證額度檢查不超賣 | baseline §3.6「鎖」（照護日誌寫入經訂單鎖，CQ-81）；使用者決定 2026-11-22（CQ-15，已寫入 baseline） |
+| BR-21 | 上傳與送出必帶 `Idempotency-Key`（缺 → 400 `VALIDATION_FAILED`，`field=Idempotency-Key`），行為依 baseline §3.6（multipart hash 含檔案 SHA-256；同 key 同內容回放第一次狀態碼與 body；同 key 不同內容 422 `IDEMPOTENCY_KEY_REUSED`；處理中 409 `IDEMPOTENCY_IN_PROGRESS`；5xx 與 `ORDER_BUSY` 不記錄）。冪等查詢在 GCS 上傳前。暫存（整份覆寫）與刪除不帶 key：重送暫存結果相同；重送刪除回 404 `NOT_FOUND`，前端視為已刪除 | baseline §3.6、CQ-51；沿用原 PRD-022 AC-2.2（改為回放，取代 409 `IDEMPOTENCY_CONFLICT`）；暫存 / 刪除不帶 key：使用者決定 2026-11-22（CQ-17） |
 | BR-22 | 不接受客戶端 version；暫存為整份覆寫（後寫者為準）；日誌實體保留 `@Version` 作最後防線，觸發時回 409 `ORDER_BUSY`。同一保母多裝置 / 舊分頁互相覆蓋不處理 | baseline §3.6「版本」、CQ-35、§3.7；doc-conventions「不處理同一使用者多裝置自我併發」 |
 | BR-23 | 訂閱逾期 / 停權不擋本卡任何操作（屬既有訂單） | baseline §2.2、CQ-19 |
 | BR-24 | 日誌與媒體紀錄記錄 `created_by`、`updated_by`、建立 / 更新 / 送出時間；時間 UTC 儲存、ISO-8601 傳輸，畫面以 Asia/Taipei `YYYY-MM-DD HH:mm` 顯示 | baseline §5；沿用原 PRD-022 資料規則 |
-| BR-25 | 媒體保留期限依訂單快照（baseline §2.1，自訂單結案日起），到期刪除與提示依 PRD-013；逾期未送出的草稿媒體同樣依 PRD-013，飼主不可見 | baseline §2.1、§5；PRD-013；CQ-14 |
+| BR-25 | 媒體保留期限依訂單快照（baseline §2.1，自訂單結案日起），到期刪除與提示依 PRD-013；逾期未送出的草稿媒體不特別處理，同樣依 PRD-013 自訂單結案日起的保留期限刪除，飼主不可見 | baseline §2.1、§5；PRD-013；使用者決定 2026-11-22（CQ-14） |
 | BR-26 | 多錯誤同時成立時依 §3「錯誤判斷順序」回第一個 | baseline §3.7、CQ-70、CQ-76 |
+| BR-27 | 行程因 `VISIT_IN_PROGRESS_TIMEOUT_HOURS`（24h）被系統轉 `DONE`（完成來源 `SYSTEM`、`completed_at` = 排程處理時刻）時，日誌規則與保母手動結束相同：`receivedAt < completed_at + CARE_LOG_EDIT_HOURS` 內可暫存、上傳、刪除、送出；本卡不讀完成來源 | baseline §5 `VISIT_IN_PROGRESS_TIMEOUT_HOURS`、§6、CQ-78；PRD-008 §4.4 T4、BR-12 |
 
 ## 7. 例外處理
 
@@ -185,8 +187,8 @@ stateDiagram-v2
 | EX-4 | 未登入 | 拒絕 | 401 `UNAUTHENTICATED` | 導向登入 |
 | EX-5 | 標題 > 30 字、文字 > 1000 字、說明 > 100 字、缺檔案 / 多於 1 檔、上傳或送出缺 `Idempotency-Key` | 拒絕，不寫 GCS | 400 `VALIDATION_FAILED` | 欄位下方錯誤訊息 |
 | EX-6 | 訂單非 `IN_PROGRESS` / `DISPUTED`（含 O15 調解結案後的草稿） | 拒絕 | 409 `ORDER_STATE_CONFLICT`（`currentStatus`） | 「訂單已結束，無法編輯日誌」 |
-| EX-7 | 行程 `PENDING` / `CLOSED_BY_SYSTEM` / `CANCELLED` 時寫入；行程 `IN_PROGRESS` 時送出 | 拒絕，不建立日誌 | 409 `VISIT_STATE_CONFLICT`（`currentVisitStatus`） | 前端不提供入口；送出鈕停用「行程結束後才能送出」 |
-| EX-8 | 日誌已 `SUBMITTED` 時暫存 / 上傳 / 刪除 / 以新 key 送出 | 拒絕 | 409 `CARE_LOG_STATE_CONFLICT` | 畫面無編輯元素；API 直呼回錯誤 |
+| EX-7 | 行程 `PENDING` / `CLOSED_BY_SYSTEM` / `CANCELLED` 時寫入；行程 `IN_PROGRESS` 時送出 | 拒絕，不建立日誌 | 409 `VISIT_STATE_CONFLICT`（baseline §3.7 跨模組碼，`currentVisitStatus`） | 前端不提供入口；送出鈕停用「行程結束後才能送出」 |
+| EX-8 | 日誌已 `SUBMITTED` 時暫存 / 上傳 / 刪除 / 以新 key 送出 | 拒絕 | 409 `CARE_LOG_STATE_CONFLICT`（SD-FULFILL 模組碼） | 畫面無編輯元素；API 直呼回錯誤 |
 | EX-9 | `receivedAt ≥ completed_at + 24h` 時任何寫入（無排程，草稿仍為 `DRAFT`） | 拒絕，不寫 GCS | 409 `DEADLINE_PASSED`（`deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt`） | 「已超過日誌送出期限」；畫面改為唯讀「已逾期，未送出」 |
 | EX-10 | 送出時文字去空白後為空 | 拒絕，狀態不變 | 422 `CARE_LOG_CONTENT_EMPTY` | 「請填寫日誌內容後再送出」 |
 | EX-11 | SaaS 方案不足：快照額度為 0（FREE 傳任何媒體、BASIC 傳影片）或已用滿 | 前端不提供 / 擋下；後端拒絕，不寫 GCS | 422 `CARE_LOG_MEDIA_QUOTA_EXCEEDED`（`mediaType`、`limit`、`used`） | FREE：「此訂單方案僅支援文字回報」；用滿：「此行程{照片 / 影片}額度已用完」 |
@@ -205,6 +207,7 @@ stateDiagram-v2
 | EX-24 | 產生簽名網址失敗 | 不影響任何狀態 | 503 `STORAGE_UNAVAILABLE` | 「媒體暫時無法載入」 |
 | EX-25 | Resend 寄送失敗 | 不適用：本卡通知只有站內（BR-17），經 outbox 同交易寫入，無外部寄送 | — | — |
 | EX-26 | 訂單 `DISPUTED`、保母訂閱鎖定 / 停權 | 照常允許（BR-4、BR-23） | 200 / 201 | 正常 |
+| EX-27 | 保母未按「結束行程」，行程被 `IN_PROGRESS` 逾時排程轉 `DONE`（完成來源 `SYSTEM`） | 照常允許至 `completed_at + 24h`；逾期後同 EX-9（BR-27） | 200 / 201；逾期 409 `DEADLINE_PASSED` | 保母收到 PRD-008 系統結束通知；`sitter-care-log-deadline` 顯示以系統 `completed_at` 計算的期限 |
 
 ## 8. 驗收標準（AC）
 
@@ -218,7 +221,7 @@ stateDiagram-v2
 - [ ] **AC-1.3 (內容欄位)**：Given 可編輯，Then 文字框下方 `sitter-care-log-text-counter` 初始顯示「0 / 1000」；輸入 1000 字後顯示「1000 / 1000」且無法再輸入；直接呼叫 API 暫存 1001 字 → 400 `VALIDATION_FAILED`，1000 字 → 200；標題 31 字 → 400，標題「   」→ 200 且存為 null、畫面顯示「2026-11-25 行程」；Given 輸入框有未暫存文字「未存」，When 上傳一張照片成功，Then 輸入框仍為「未存」。對應：BR-6、BR-7、BR-8、EX-5
 - [ ] **AC-1.4 (送出限制與成功)**：Given V1 `IN_PROGRESS` 且有草稿，Then `sitter-care-log-btn-submit` 停用並顯示「行程結束後才能送出」，直接呼叫送出 → 409 `VISIT_STATE_CONFLICT`；Given V1 `DONE`（`completed_at` 如範例），Then 送出鈕啟用、`sitter-care-log-deadline` 顯示「請於 2026-11-26 11:00 前送出」；When 送出文字「已餵藥」，Then 200、日誌 `DRAFT → SUBMITTED`、`submitted_at` 有值、`order_logs` 新增 1 筆 `CARE_LOG_SUBMITTED`；Given V3 `DONE` 且從未暫存（FREE 保母），When 直接送出文字，Then 200 並建立 `SUBMITTED` 日誌；When 送出文字「   」，Then 422 `CARE_LOG_CONTENT_EMPTY`、日誌仍 `DRAFT`。對應：L3、BR-3、BR-10、BR-19、EX-7、EX-10
 - [ ] **AC-1.5 (送出後唯讀)**：Given V1 日誌 `SUBMITTED`，When S1 開啟，Then 無任何輸入框、上傳、刪除、暫存、送出元素；S1 直接呼叫暫存、上傳（有效檔案）、刪除媒體、以新 key 送出 → 皆 409 `CARE_LOG_STATE_CONFLICT`，內容與媒體不變；Given 同上且已過期限，Then 仍回 409 `CARE_LOG_STATE_CONFLICT`（非 `DEADLINE_PASSED`）。對應：BR-11、BR-26、EX-8
-- [ ] **AC-1.6 (24h 期限邊界)**：Given V1 `DONE`、日誌 `DRAFT`，When 伺服器於 2026-11-26T02:59:59Z 收到送出，Then 200 `SUBMITTED`；Given 另一份同條件草稿，When 伺服器於 2026-11-26T03:00:00Z 收到暫存、上傳、刪除或送出，Then 皆 409 `DEADLINE_PASSED`，payload `deadline = "CARE_LOG_EDIT_ENDS_AT"`、`deadlineAt = "2026-11-26T03:00:00Z"`，上傳時 GCS 無新物件；資料庫中日誌狀態仍為 `DRAFT`（無排程改寫）。Given 伺服器於 02:59:59Z 收到 40 MB 影片上傳、GCS 完成進交易時已過 03:00:00Z，Then 201（以 `receivedAt` 判斷）。對應：L4、BR-1、BR-5、EX-9
+- [ ] **AC-1.6 (24h 期限邊界，含系統逾時轉 DONE)**：Given V1 `DONE`、日誌 `DRAFT`，When 伺服器於 2026-11-26T02:59:59Z 收到送出，Then 200 `SUBMITTED`；Given 另一份同條件草稿，When 伺服器於 2026-11-26T03:00:00Z 收到暫存、上傳、刪除或送出，Then 皆 409 `DEADLINE_PASSED`，payload `deadline = "CARE_LOG_EDIT_ENDS_AT"`、`deadlineAt = "2026-11-26T03:00:00Z"`，上傳時 GCS 無新物件；資料庫中日誌狀態仍為 `DRAFT`（無排程改寫）。Given 伺服器於 02:59:59Z 收到 40 MB 影片上傳、GCS 完成進交易時已過 03:00:00Z，Then 201（以 `receivedAt` 判斷）。Given V4 `started_at = 2026-11-25T02:00:00Z`、保母未結束，排程於 2026-11-26T02:10:00Z 將 V4 轉 `DONE`（完成來源 `SYSTEM`、`completed_at = 2026-11-26T02:10:00Z`，PRD-008 T4）、日誌 `DRAFT`，When S1 開啟 V4，Then 送出鈕啟用、`sitter-care-log-deadline` 顯示「請於 2026-11-27 10:10 前送出」；伺服器於 2026-11-27T02:09:59Z 收到送出 → 200 `SUBMITTED`；另一份同條件草稿於 2026-11-27T02:10:00Z 收到送出 → 409 `DEADLINE_PASSED`（`deadlineAt = "2026-11-27T02:10:00Z"`）。對應：L4、BR-1、BR-5、BR-27、EX-9、EX-27
 - [ ] **AC-1.7 (逾期草稿)**：Given V1 `DONE`、日誌 `DRAFT`（標題「早上服務」、2 張照片）且 `now ≥ 2026-11-26T03:00:00Z`，When S1 開啟，Then `sitter-care-log-status` 顯示「已逾期，未送出」，顯示標題、文字與 2 張照片，無任何輸入與按鈕；When O1 開啟訂單詳情，Then V1 無 `owner-visit-btn-view-log-{V1}`，直接呼叫讀取 → 404 `NOT_FOUND`；O1 自始至終未收到 V1 的日誌通知。對應：L4、BR-5、BR-16、EX-9
 - [ ] **AC-1.8 (訂單狀態與訂閱鎖定)**：Given 訂單 `DISPUTED`、V1 `DONE` 未逾期、日誌 `DRAFT`，When S1 暫存與送出，Then 皆成功；Given S1 訂閱已逾期鎖定，Then 暫存、上傳、送出皆成功；Given ADMIN 已以 O15 將訂單調解為 `COMPLETED`、V1 `DONE` 未逾期、日誌 `DRAFT`，When S1 暫存或送出，Then 409 `ORDER_STATE_CONFLICT`（`currentStatus = "COMPLETED"`）；Given 同上且已逾期，Then 仍為 `ORDER_STATE_CONFLICT`。對應：BR-4、BR-23、BR-26、EX-6、EX-26
 
@@ -260,28 +263,29 @@ stateDiagram-v2
 
 | CQ | 問題 | 建議預設值 | 狀態 |
 |----|------|-----------|------|
-| CQ-1 | 媒體額度超過（含快照額度為 0）用哪個錯誤碼；baseline 無對應碼，原 PRD-022 用 `AUTH_PLAN_LIMIT`；403 `PLAN_REQUIRED` 暗示升級可解，但額度依快照、升級無效 | 模組碼 422 `CARE_LOG_MEDIA_QUOTA_EXCEEDED`，payload `mediaType`、`limit`、`used`；不用 `PLAN_REQUIRED` | Open |
-| CQ-2 | 日誌逾期用哪個錯誤碼；原 PRD-022 用 403 `REPORT_EXPIRED`；baseline §3.7 `DEADLINE_PASSED` 的期限名稱清單沒有日誌期限 | 409 `DEADLINE_PASSED`，`deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt=completed_at + 24h`；需在 baseline §3.7 期限名稱清單補上 | Open |
-| CQ-3 | 行程狀態不允許、日誌已送出用哪個錯誤碼（原 PRD-022 用 422 `INVALID_VISIT_STATUS` / `VISIT_NOT_FINISHED`、409 `REPORT_STATE_CONFLICT`） | 409 `VISIT_STATE_CONFLICT`（payload `currentVisitStatus`）、409 `CARE_LOG_STATE_CONFLICT`，判斷順序位於 `ORDER_STATE_CONFLICT` 之後、`DEADLINE_PASSED` 之前；兩碼由 SD-FULFILL 定義，PRD-008 共用 `VISIT_STATE_CONFLICT` | Open |
-| CQ-4 | BR §5.2 的「日誌名稱」長度與未填時顯示 | 選填，去空白後 1–30 字；未填顯示「{行程日期 YYYY-MM-DD} 行程」 | Open |
-| CQ-5 | 送出時內容是否必填（原 PRD-022 未定義；FREE 只能文字，空白送出無意義） | 文字去空白後 ≥ 1 字，否則 422 `CARE_LOG_CONTENT_EMPTY`；有媒體但無文字也不可送出 | Open |
-| CQ-6 | 照片是否由前端壓縮（SAAS 建議前端 WebP 壓縮；原 PRD-022 只寫格式與 < 1MB；手機原圖多半 > 1MB，不壓縮幾乎無法上傳） | 前端轉 WebP 壓縮至 < 1MB 後上傳；後端仍接受 JPEG / PNG / WebP 並驗證 < 1MB；壓縮後仍超過則前端提示不送出 | Open |
-| CQ-7 | 「< 1MB」「< 50MB」「15–30 秒」的精確邊界 | 1 MB = 1,048,576 bytes、50 MB = 52,428,800 bytes，皆嚴格小於；影片時長四捨五入至整數秒後 15 ≤ 秒數 ≤ 30 | Open |
-| CQ-8 | BR §5.4.2 要求「單次上傳總容量 / 最大檔案數」參數化，與每行程額度的關係 | 每次請求 1 個檔案（參數值 1），單次容量 = 單檔上限；前端多選時依序逐一上傳 | Open |
-| CQ-9 | 上傳 / 送出的期限以哪個時間判斷（50MB 影片上傳需數秒，期限前送出可能進交易時已過期） | 以伺服器收到請求的時間 `receivedAt` 判斷（同 PRD-007 CQ-15）；進交易時狀態已變（如 O15 結案）仍依狀態拒絕 | Open |
-| CQ-10 | 飼主 / ADMIN 讀未送出日誌回什麼 | 404 `NOT_FOUND`（對飼主視同不存在，不洩漏草稿存在與否） | Open |
-| CQ-11 | 日誌媒體簽名網址有效期（PRD-007 憑證為 5 分鐘；影片串流需較長） | 15 分鐘 | Open |
-| CQ-12 | 媒體說明文字上傳後可否修改 | 不可，要改就刪除重傳（沿用原 PRD-022 A.5 刪除替換機制） | Open |
-| CQ-13 | 哪些操作寫 `order_logs`（BR §5.4.2 只要求上傳；baseline §3.6 只規定狀態轉移要寫） | `MEDIA_UPLOADED`、`MEDIA_DELETED`、`CARE_LOG_SUBMITTED`；暫存草稿不寫 | Open |
-| CQ-14 | 逾期未送出草稿中的媒體如何處理（飼主永遠看不到，仍占儲存） | 不特別處理，依 PRD-013 自訂單結案日起的保留期限刪除 | Open |
-| CQ-15 | 日誌寫入是否要鎖訂單列（baseline §3.6 只列「改變訂單 / payment / 變更 / 行程狀態」的操作） | 要，經 SD-ORDER 鎖入口；用於與 PRD-008 行程轉移、O11、O15 序列化及額度不超賣；需在 baseline §3.6 補一句 | Open |
-| CQ-16 | ADMIN 以 O15 調解結案時，若有 `DONE` 行程仍在 24h 內且日誌未送出，草稿是否立即鎖定 | 立即鎖定（409 `ORDER_STATE_CONFLICT`），沿用原 PRD-022「訂單已結案拒絕」；ADMIN 結案前可於畫面看到「尚有日誌未送出」提示（提示屬 PRD-009） | Open |
-| CQ-17 | 暫存與刪除是否需要 `Idempotency-Key`（原 PRD-022 只要求送出與上傳） | 不需要：暫存為整份覆寫，重送結果相同；刪除重送回 404，前端視為已刪除 | Open |
+| CQ-1 | 媒體額度超過（含快照額度為 0）用哪個錯誤碼；baseline 無對應碼，原 PRD-022 用 `AUTH_PLAN_LIMIT`；403 `PLAN_REQUIRED` 暗示升級可解，但額度依快照、升級無效 | 模組碼 422 `CARE_LOG_MEDIA_QUOTA_EXCEEDED`，payload `mediaType`、`limit`、`used`；不用 `PLAN_REQUIRED` | 已決（使用者 2026-11-22）：採建議；寫入 §3、BR-9、EX-11、AC-2.1 / AC-2.2 |
+| CQ-2 | 日誌逾期用哪個錯誤碼；原 PRD-022 用 403 `REPORT_EXPIRED`；baseline §3.7 `DEADLINE_PASSED` 的期限名稱清單沒有日誌期限 | 409 `DEADLINE_PASSED`，`deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt=completed_at + 24h`；需在 baseline §3.7 期限名稱清單補上 | 已決（使用者 2026-11-22）：採建議；已寫入 baseline §3.7 期限名稱、§5 `CARE_LOG_EDIT_HOURS`（CQ-80），本卡改為引用；寫入 BR-5、EX-9、AC-1.6 |
+| CQ-3 | 行程狀態不允許、日誌已送出用哪個錯誤碼（原 PRD-022 用 422 `INVALID_VISIT_STATUS` / `VISIT_NOT_FINISHED`、409 `REPORT_STATE_CONFLICT`） | 409 `VISIT_STATE_CONFLICT`（payload `currentVisitStatus`）、409 `CARE_LOG_STATE_CONFLICT`，判斷順序位於 `ORDER_STATE_CONFLICT` 之後、`DEADLINE_PASSED` 之前；兩碼由 SD-FULFILL 定義，PRD-008 共用 `VISIT_STATE_CONFLICT` | 已決（使用者 2026-11-22）：採建議；`VISIT_STATE_CONFLICT` 已提升為 baseline §3.7 跨模組碼（CQ-80），本卡改為引用；`CARE_LOG_STATE_CONFLICT` 維持 SD-FULFILL 模組碼；寫入 §3 判斷順序、BR-3、BR-11、EX-7、EX-8 |
+| CQ-4 | BR §5.2 的「日誌名稱」長度與未填時顯示 | 選填，去空白後 1–30 字；未填顯示「{行程日期 YYYY-MM-DD} 行程」 | 已決（使用者 2026-11-22）：採建議；寫入 BR-6、AC-1.3 |
+| CQ-5 | 送出時內容是否必填（原 PRD-022 未定義；FREE 只能文字，空白送出無意義） | 文字去空白後 ≥ 1 字，否則 422 `CARE_LOG_CONTENT_EMPTY`；有媒體但無文字也不可送出 | 已決（使用者 2026-11-22）：採建議；寫入 BR-10、EX-10、AC-1.4 |
+| CQ-6 | 照片是否由前端壓縮（SAAS 建議前端 WebP 壓縮；原 PRD-022 只寫格式與 < 1MB；手機原圖多半 > 1MB，不壓縮幾乎無法上傳） | 前端轉 WebP 壓縮至 < 1MB 後上傳；後端仍接受 JPEG / PNG / WebP 並驗證 < 1MB；壓縮後仍超過則前端提示不送出 | 已決（使用者 2026-11-22）：採建議，照片於前端轉 WebP 並壓到 < 1MB，後端仍驗證格式與大小；寫入 §4.3-3、BR-12、AC-2.3 |
+| CQ-7 | 「< 1MB」「< 50MB」「15–30 秒」的精確邊界 | 1 MB = 1,048,576 bytes、50 MB = 52,428,800 bytes，皆嚴格小於；影片時長四捨五入至整數秒後 15 ≤ 秒數 ≤ 30 | 已決（使用者 2026-11-22）：採建議；寫入 BR-12、BR-13、AC-2.3、AC-2.4 |
+| CQ-8 | BR §5.4.2 要求「單次上傳總容量 / 最大檔案數」參數化，與每行程額度的關係 | 每次請求 1 個檔案（參數值 1），單次容量 = 單檔上限；前端多選時依序逐一上傳 | 已決（使用者 2026-11-22）：採建議；寫入 §4.3-2、BR-14、AC-2.5 |
+| CQ-9 | 上傳 / 送出的期限以哪個時間判斷（50MB 影片上傳需數秒，期限前送出可能進交易時已過期） | 以伺服器收到請求的時間 `receivedAt` 判斷（同 PRD-007 CQ-15）；進交易時狀態已變（如 O15 結案）仍依狀態拒絕 | 已決（使用者 2026-11-22）：採建議；判斷基準已寫入 baseline §5 `CARE_LOG_EDIT_HOURS`（伺服器收到請求時間），本卡改為引用；寫入 §4.3-4、BR-5、AC-1.6、AC-2.8 |
+| CQ-10 | 飼主 / ADMIN 讀未送出日誌回什麼 | 404 `NOT_FOUND`（對飼主視同不存在，不洩漏草稿存在與否） | 已決（使用者 2026-11-22）：採建議；已寫入 baseline §1.2 照護日誌歸屬（CQ-81），本卡改為引用；寫入 §3、BR-16、AC-1.7、AC-3.2、AC-3.4 |
+| CQ-11 | 日誌媒體簽名網址有效期（PRD-007 憑證為 5 分鐘；影片串流需較長） | 15 分鐘 | 已決（使用者 2026-11-22）：採建議；寫入 BR-18、AC-3.2 |
+| CQ-12 | 媒體說明文字上傳後可否修改 | 不可，要改就刪除重傳（沿用原 PRD-022 A.5 刪除替換機制） | 已決（使用者 2026-11-22）：採建議；寫入 §4.4-3、BR-15 |
+| CQ-13 | 哪些操作寫 `order_logs`（BR §5.4.2 只要求上傳；baseline §3.6 只規定狀態轉移要寫） | `MEDIA_UPLOADED`、`MEDIA_DELETED`、`CARE_LOG_SUBMITTED`；暫存草稿不寫 | 已決（使用者 2026-11-22）：採建議；寫入 BR-19、AC-1.4、AC-2.5、AC-2.6 |
+| CQ-14 | 逾期未送出草稿中的媒體如何處理（飼主永遠看不到，仍占儲存） | 不特別處理，依 PRD-013 自訂單結案日起的保留期限刪除 | 已決（使用者 2026-11-22）：採建議；寫入 BR-25 |
+| CQ-15 | 日誌寫入是否要鎖訂單列（baseline §3.6 只列「改變訂單 / payment / 變更 / 行程狀態」的操作） | 要，經 SD-ORDER 鎖入口；用於與 PRD-008 行程轉移、O11、O15 序列化及額度不超賣；需在 baseline §3.6 補一句 | 已決（使用者 2026-11-22）：採建議；已寫入 baseline §3.6「鎖」（CQ-81），本卡改為引用；寫入 BR-20、EX-17–EX-19、AC-1.2、AC-2.7、AC-3.7 |
+| CQ-16 | ADMIN 以 O15 調解結案時，若有 `DONE` 行程仍在 24h 內且日誌未送出，草稿是否立即鎖定 | 立即鎖定（409 `ORDER_STATE_CONFLICT`），沿用原 PRD-022「訂單已結案拒絕」；ADMIN 結案前可於畫面看到「尚有日誌未送出」提示（提示屬 PRD-009） | 已決（使用者 2026-11-22）：採建議；寫入 BR-4、EX-6、EX-18、AC-1.8、AC-3.7 |
+| CQ-17 | 暫存與刪除是否需要 `Idempotency-Key`（原 PRD-022 只要求送出與上傳） | 不需要：暫存為整份覆寫，重送結果相同；刪除重送回 404，前端視為已刪除 | 已決（使用者 2026-11-22）：採建議；寫入 BR-21、AC-2.6 |
 
 ## 11. 變更紀錄
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | CQ-1~17 全部已決（採建議預設值），逐條寫入正文：§3 判斷順序（`VISIT_STATE_CONFLICT` 改標 baseline §3.7 跨模組碼；`CARE_LOG_STATE_CONFLICT` / `CARE_LOG_MEDIA_QUOTA_EXCEEDED` / `CARE_LOG_CONTENT_EMPTY` 維持 SD-FULFILL 模組碼）、§4.3-3（前端 WebP < 1MB、後端仍驗證）、§4.4-3、BR-3~BR-6、BR-9~BR-16、BR-18~BR-21、BR-25、EX-7、EX-8；CQ-2 / CQ-3 / CQ-9 / CQ-10 / CQ-15 改引用 baseline §1.2 / §3.6 / §3.7 / §5（CQ-80、CQ-81）。新增系統逾時轉 `DONE` 情境：§1、§4.2-5、BR-27、EX-27、AC-1.6 併入（AC 數不變，24 條）。表頭引用基準更新為 baseline 第 3 版修訂。狀態維持 In Review | 使用者決定 2026-11-22；baseline 第 3 版修訂 CQ-78、CQ-80、CQ-81 |
 | 2026-11-22 | 依新範本與 DOMAIN-BASELINE 第 2 版全文重寫；三子模組 24 條可觀察 AC；新增日誌標題（BR §5.2）、錯誤判斷順序、訂單狀態條件、`order_logs`、鎖與額度併發、ADMIN 唯讀、送出時建立日誌；效能預算與業務 log 格式移交 NFR；歸屬 SD 改為 SD-FULFILL；狀態 Approved → In Review | 全面重建；呼叫方交辦主流程定案 2026-11-22（行程 `DONE` 先於日誌，baseline CQ-27、CQ-40） |
 | 2026-11-22 | 第 1 輪 #69（狀態）：修改規格內容，狀態退回 In Review | `docs/reviews/00-DOMAIN-BASELINE.prd.review.md` 第 1 輪 |
 | 2026-11-22 | 第 1 輪 #70（冪等 409）：重複 key 改為回放第一次狀態碼與 body，不新增媒體、不重發通知；同 key 不同內容 422 `IDEMPOTENCY_KEY_REUSED`（BR-21、EX-15、EX-16、AC-3.5、AC-3.6） | baseline §3.6、CQ-51 |
