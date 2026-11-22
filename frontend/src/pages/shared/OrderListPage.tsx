@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { paymentStatusLabel } from '../../components/ui/statusLabels';
 import { formatMoney } from '../../utils/money';
-import { formatDateTime, toTaipeiMonth } from '../../utils/datetime';
+import { formatDateTime, monthsBack } from '../../utils/datetime';
 import { useOrderListQuery } from '../../hooks/useOrders';
 import type { OrderCardDto, OrderTab } from '../../api/orderApi';
 import { LoadingBlock, PageContainer, QueryErrorBlock } from '../../components/orders/common';
@@ -14,27 +14,6 @@ const TABS: { key: OrderTab; label: string; id: string }[] = [
   { key: 'ACTIVE', label: '進行中', id: 'active' },
   { key: 'HISTORY', label: '歷史', id: 'history' }
 ];
-
-/**
- * 歷史月份篩選候選：以後端回傳的最新 `terminalAt`（Asia/Taipei 月份）為起點往前 12 個月。
- * E3 沒有 `serverTime`，且 SD-ORDER §9.2 不以瀏覽器時間判斷；終態時間不會晚於伺服器當下，
- * 以它為起點不會漏掉任何有資料的月份。
- */
-const monthsFrom = (anchor: string | null): string[] => {
-  if (!anchor) return [];
-  const [y, m] = anchor.split('-').map(Number);
-  return Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(Date.UTC(y, m - 1 - i, 1));
-    return d.toISOString().slice(0, 7);
-  });
-};
-
-const latestTerminalMonth = (orders: OrderCardDto[]): string | null =>
-  orders.reduce<string | null>((max, o) => {
-    if (!o.terminalAt) return max;
-    const m = toTaipeiMonth(o.terminalAt);
-    return !max || m > max ? m : max;
-  }, null);
 
 const OrderCard: React.FC<{ order: OrderCardDto; role: 'owner' | 'sitter'; history: boolean }> = ({
   order,
@@ -100,10 +79,11 @@ const OrderListPage: React.FC<{ role: 'owner' | 'sitter' }> = ({ role }) => {
     ...(history && role === 'owner' && month ? { month } : {})
   });
   const orders = query.data?.pages.flatMap((p) => p.content) ?? [];
-  // 月份候選錨點只往後推進，切換篩選後清單不會縮短
-  const [monthAnchor, setMonthAnchor] = useState<string | null>(null);
-  const seenMonth = history ? latestTerminalMonth(orders) : null;
-  if (seenMonth && (!monthAnchor || seenMonth > monthAnchor)) setMonthAnchor(seenMonth);
+  // 月份篩選候選 = E3 / E4 `serverMonth` 起往前 12 個月（SD-ORDER §9.2）；保留最近一次值，
+  // 切換篩選重新查詢期間選單不會清空
+  const [serverMonth, setServerMonth] = useState<string | null>(null);
+  const latestServerMonth = query.data?.pages.at(-1)?.serverMonth;
+  if (latestServerMonth && latestServerMonth !== serverMonth) setServerMonth(latestServerMonth);
 
   const emptyText = history ? (filtersActive ? '沒有符合條件的訂單' : '尚無歷史訂單') : '尚無訂單';
   const emptyTestId =
@@ -175,7 +155,7 @@ const OrderListPage: React.FC<{ role: 'owner' | 'sitter' }> = ({ role }) => {
               data-testid="owner-orders-history-select-month"
             >
               <option value="">全部月份</option>
-              {monthsFrom(monthAnchor).map((m) => (
+              {monthsBack(serverMonth).map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>

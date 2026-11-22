@@ -25,6 +25,11 @@ export interface Page<T> {
   totalElements: number;
 }
 
+/** E3 / E4 回應：分頁 + `serverMonth`（Asia/Taipei 當下月份 `YYYY-MM`，SD-ORDER E3） */
+export interface OrderListResponse extends Page<OrderCardDto> {
+  serverMonth: string;
+}
+
 // ---------- E31 booking-context ----------
 export type Bookability = 'BOOKABLE' | 'SELF' | 'NOT_VERIFIED' | 'UNAVAILABLE' | 'PAUSED';
 
@@ -576,10 +581,10 @@ export const createOrder = (body: CreateOrderRequest, key: string) =>
 export const getOrderDetail = async (orderId: string): Promise<OrderDetail> =>
   (await axiosClient.get(o(orderId))).data;
 
-export const listOwnerOrders = async (params: OrderListParams): Promise<Page<OrderCardDto>> =>
+export const listOwnerOrders = async (params: OrderListParams): Promise<OrderListResponse> =>
   (await axiosClient.get('/orders/owner', { params })).data;
 
-export const listSitterOrders = async (params: OrderListParams): Promise<Page<OrderCardDto>> =>
+export const listSitterOrders = async (params: OrderListParams): Promise<OrderListResponse> =>
   (await axiosClient.get('/orders/sitter', { params })).data;
 
 export const getEvaluation = async (orderId: string): Promise<Evaluation> =>

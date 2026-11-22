@@ -44,6 +44,20 @@ export const toTaipeiDate = (iso: string | Date): string => {
 /** ISO 時間 → Asia/Taipei 月份 `YYYY-MM` */
 export const toTaipeiMonth = (iso: string | Date): string => toTaipeiDate(iso).slice(0, 7);
 
+/**
+ * 自 `fromMonth`（`YYYY-MM`）起往前 `count` 個月（含當月），新到舊。
+ * 純月份運算，不讀瀏覽器時間；格式不符回空陣列。
+ */
+export const monthsBack = (fromMonth: string | null | undefined, count = 12): string[] => {
+  const match = fromMonth ? /^(\d{4})-(0[1-9]|1[0-2])$/.exec(fromMonth) : null;
+  if (!match) return [];
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  return Array.from({ length: count }, (_, i) =>
+    new Date(Date.UTC(y, m - 1 - i, 1)).toISOString().slice(0, 7)
+  );
+};
+
 /** `YYYY-MM-DD` 加減天數（純日期運算，不受時區影響） */
 export const addDays = (ymd: string, days: number): string => {
   const [y, m, d] = ymd.split('-').map(Number);
