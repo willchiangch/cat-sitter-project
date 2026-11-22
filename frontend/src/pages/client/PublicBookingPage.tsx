@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/ui/Button';
 import DateMultiPicker from '../../components/orders/DateMultiPicker';
+import BookingSitterCard from '../../components/orders/BookingSitterCard';
 import {
   ErrorText,
   LoadingBlock,
@@ -13,7 +14,6 @@ import {
 import { INFO_BANNER_STYLE } from '../../components/ui/statusTone';
 import { useBookingContextQuery } from '../../hooks/useOrders';
 import { usePetsQuery } from '../../hooks/usePets';
-import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
 import { useIdempotentAction } from '../../hooks/useIdempotentAction';
 import { useRole } from '../../contexts/RoleContext';
 import { createOrder } from '../../api/orderApi';
@@ -67,7 +67,6 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
   const qc = useQueryClient();
   const { currentRole } = useRole();
   const ctxQuery = useBookingContextQuery(sitterId);
-  const { data: profile } = usePublicProfileQuery(sitterId ?? '');
   const { data: pets = [] } = usePetsQuery();
   const [groups, setGroups] = useState<GroupDraft[]>([]);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
@@ -226,60 +225,7 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
 
   return (
     <PageContainer testId="public-booking-page">
-      <section
-        className="card-layered stack"
-        style={{ padding: '1.25rem' }}
-        data-testid="client-booking-sitter-card"
-      >
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          {profile?.avatarUrl ? (
-            <img
-              src={profile.avatarUrl}
-              alt=""
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                objectFit: 'cover',
-                flexShrink: 0
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: '50%',
-                flexShrink: 0,
-                background: 'var(--color-primary-container)',
-                color: 'var(--color-on-primary-container)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700
-              }}
-            >
-              {(profile?.displayName ?? '保').slice(0, 1)}
-            </div>
-          )}
-          <div style={{ minWidth: 0 }}>
-            <h2
-              style={{ margin: 0, overflowWrap: 'anywhere' }}
-              data-testid="client-booking-sitter-name"
-            >
-              {profile?.displayName ?? '保母'}
-            </h2>
-          </div>
-        </div>
-        {profile?.bio && (
-          <p
-            className="muted"
-            style={{ margin: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
-          >
-            {profile.bio}
-          </p>
-        )}
-      </section>
+      <BookingSitterCard sitterId={sitterId} canFavorite={currentRole === 'client'} />
 
       {unavailable && (
         <div
