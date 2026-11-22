@@ -4,6 +4,7 @@ import com.petsitter.application.exception.ApiErrors;
 import com.petsitter.application.exception.CommonErrorCode;
 import com.petsitter.application.exception.ErrorResponse;
 import com.petsitter.application.exception.RequestBodyTooLargeException;
+import com.petsitter.infrastructure.storage.LocalSignedUploads;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
@@ -30,6 +31,8 @@ import java.util.Map;
  *       {@link RequestBodyTooLargeException} → 400 同上。不先整包讀入再判斷。</li>
  * </ul>
  * multipart 適用全域 multipart 上限（{@code spring.servlet.multipart.*}），本 filter 不處理。
+ * local profile 模擬 GCS 直傳的 {@code PUT /local-storage/**}（{@link LocalSignedUploads#PATH_PREFIX}）亦排除：
+ * 大小由簽章網址宣告的 {@code x-goog-content-length-range} 驗證；正式環境無此 controller。
  */
 @Component
 @Order(-1)
@@ -41,6 +44,15 @@ public class RequestBodySizeLimitFilter extends OncePerRequestFilter {
 
     public RequestBodySizeLimitFilter(JsonMapper jsonMapper) {
         this.jsonMapper = jsonMapper;
+    }
+
+    /** 只排除 local 直傳路徑（以 servlet path 比對，不含 context path）。 */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String ctx = request.getContextPath();
+        String path = ctx != null && !ctx.isEmpty() && uri.startsWith(ctx) ? uri.substring(ctx.length()) : uri;
+        return path.startsWith(LocalSignedUploads.PATH_PREFIX);
     }
 
     @Override

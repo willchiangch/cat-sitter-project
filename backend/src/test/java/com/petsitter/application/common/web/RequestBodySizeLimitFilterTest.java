@@ -94,4 +94,57 @@ class RequestBodySizeLimitFilterTest {
         assertThat(res.getStatus()).isEqualTo(200);
         assertThat(size.get()).isEqualTo(2_000_000);
     }
+
+    @Test
+    @DisplayName("local 直傳 PUT /local-storage/** 不套用 1 MB 上限（Content-Length 與 chunked 皆放行）；其他路徑同大小仍 400")
+    void localStorageUploadExcluded() throws Exception {
+        AtomicReference<Integer> size = new AtomicReference<>();
+        MockFilterChain chain = new MockFilterChain() {
+            @Override
+            public void doFilter(jakarta.servlet.ServletRequest request, jakarta.servlet.ServletResponse response) {
+                try {
+                    size.set(request.getInputStream().readAllBytes().length);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }
+        };
+        byte[] big = new byte[5_000_000];
+
+        MockHttpServletRequest upload = new MockHttpServletRequest("PUT", "/local-storage/care-logs/a/b.jpg");
+        upload.setContentType("image/jpeg");
+        upload.setContent(big);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        filter.doFilter(upload, res, chain);
+        assertThat(res.getStatus()).isEqualTo(200);
+        assertThat(size.get()).isEqualTo(big.length);
+
+        MockHttpServletRequest chunkedUpload = chunked(big);
+        chunkedUpload.setMethod("PUT");
+        chunkedUpload.setRequestURI("/local-storage/care-logs/a/c.jpg");
+        size.set(null);
+        filter.doFilter(chunkedUpload, new MockHttpServletResponse(), chain);
+        assertThat(size.get()).isEqualTo(big.length);
+
+        // context path 下同樣以 servlet 路徑比對
+        MockHttpServletRequest withCtx = new MockHttpServletRequest("PUT", "/app/local-storage/x.jpg");
+        withCtx.setContextPath("/app");
+        withCtx.setContent(big);
+        size.set(null);
+        filter.doFilter(withCtx, new MockHttpServletResponse(), chain);
+        assertThat(size.get()).isEqualTo(big.length);
+
+        // 只排除該前綴：相似路徑與一般 API 仍擋
+        for (String uri : java.util.List.of("/local-storagex/a", "/api/local-storage/a", "/api/x")) {
+            MockHttpServletRequest other = new MockHttpServletRequest("PUT", uri);
+            other.setContentType("application/json");
+            other.setContent(big);
+            MockHttpServletResponse r = new MockHttpServletResponse();
+            size.set(null);
+            filter.doFilter(other, r, chain);
+            assertThat(r.getStatus()).as(uri).isEqualTo(400);
+            assertThat(r.getContentAsString()).as(uri).contains("VALIDATION_FAILED").contains("1048576");
+            assertThat(size.get()).as(uri).isNull();
+        }
+    }
 }
