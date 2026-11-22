@@ -148,6 +148,7 @@ CREATE INDEX idx_referral_logs_recommended_sitter ON referral_logs(recommended_s
 | 重複發送邀請（已是 PENDING 或 ACCEPTED） | 409 `TRUST_ALREADY_EXISTS` |
 | 回應已被處理過的請求（重複點擊） | 409 `STATE_CONFLICT` |
 | 非邀請對象本人回應邀請 | 403 `FORBIDDEN` |
+| 帶 `orderId` 轉介，但訂單不是保母婉拒（非 `CANCELLED`、`cancelledBy` 非 SITTER 或無 `ORDER_REJECTED` 紀錄，PRD-027 BR-3、SD-ORDER M21） | 409 `STATE_CONFLICT`「只有已婉拒的訂單可以轉介」；他人訂單 403 `FORBIDDEN`、訂單不存在 404（2026-11-22 補） |
 | 轉介對象目前休假/停權 | `ReferralCandidateDto.available=false`，前端標註但不隱藏（不阻擋轉介，只是提示） |
 | 轉介給非信任圈成員（繞過前端直接打 API） | 403 `NOT_IN_TRUST_CIRCLE`，後端重新驗證，不信任前端候選清單 |
 | 轉介候選已被保母事後加入黑名單 | 送出當下重新查 `GatekeeperService.isBlocked`，403 |
