@@ -38,6 +38,29 @@
   - **實作規範**：直接使用 `JdbcTemplate` 呼叫 `pg_advisory_xact_lock(lockId)`。
   - **生命週期**：必須與 Transaction 綁定（Transaction-level lock），確保事務結束（Commit/Rollback）時自動釋放，避免 Deadlock。
 
+### 2.4 冪等（共用機制，2026-11-22，本節擁有 `idempotency_records`）
+> 由 SD-ORDER §3.6.2 定案後移入共用（SD-FULFILL CQ-2）。所有模組重建時沿用；舊 `IdempotencyService.checkAndConsume` / `idempotency_keys`（重複回 409）改名 `LegacyIdempotencyService`，只留給尚未重建的 KYC、照護記事 / 媒體。
+- **套件與擁有權**：`application/common/idempotency`（`@Idempotent`、`IdempotencyBodyCachingFilter`、`IdempotencyInterceptor`、`IdempotencyService`、`IdempotencyRecordRepository`）。表 `idempotency_records` 歸本規範；DDL 隨 `V20261122_01` 建立。`IdempotencyRecordRepository` 只准本套件依賴（ArchUnit）；任何模組可依賴 `IdempotencyService` 與 `@Idempotent`。
+- **宣告**：冪等端點在 controller 方法上標 `@Idempotent`，不維護寫死的端點清單。範圍 = （token 使用者, HTTP method + 路由樣板, key）；有效期 `IDEMPOTENCY_KEY_TTL_HOURS`（baseline §5）。`@Idempotent` 端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`，判斷順序第 6 步，baseline §3.7）。
+- **讀 body**：`IdempotencyBodyCachingFilter` 在 handler mapping 前執行，以「帶 `Idempotency-Key` header 且 JSON」辨識，把 body 讀成 byte[]（上限 64 KB；超過只設 request attribute，由攔截器確認 handler 有 `@Idempotent` 後回 400）並包成可重讀 wrapper。multipart 由 `MultipartFile` 重讀。
+- **request hash**：SHA-256（路由樣板 + 已解析路徑變數 + 正規化 JSON；multipart = 各欄位值依名稱排序 + 檔案 SHA-256）。JSON 正規化：解析成樹、物件 key 依碼位排序、數字以十進位字串（整數不帶小數點）、字串不 trim、緊湊輸出、空 body 視為 `{}`。
+- **三段式**：段 0 `IdempotencyInterceptor` 回放（`COMPLETED`、未過期、同 hash → 回放第一次狀態碼與 body；在 `@PreAuthorize` 之前）；段 1 `IdempotencyService.claim`（自行開短交易，傳播 `NEVER`）：`INSERT ... ON CONFLICT`，每次認領或接手換新 `claim_token`，衝突時 hash 不同 → 422 `IDEMPOTENCY_KEY_REUSED`、處理中（`locked_until` 30 秒內）→ 409 `IDEMPOTENCY_IN_PROGRESS`、逾時 → 條件式 UPDATE 接手；段 2 交易外 I/O（如上傳）；段 3 `IdempotencyService.complete`（`MANDATORY`，在呼叫端的業務交易內，**不要求持有任何業務鎖**）：`UPDATE ... WHERE id AND status='PROCESSING' AND claim_token=:mine`，0 列 → 回滾並回 409 `IDEMPOTENCY_IN_PROGRESS`；失敗 `IdempotencyService.fail`（自行開短交易，`NEVER`，同樣比對 token）：可記錄的業務錯誤（409 / 422，不含 `ORDER_BUSY`、`IDEMPOTENCY_IN_PROGRESS`）→ `COMPLETED` 存錯誤回應；5xx、`ORDER_BUSY`、儲存服務失敗 → 刪紀錄；被接手 → 不動。
+- **回應 body** 不含簽名網址等時效性資料；每個請求同一時間只佔 1 條連線（不用 `REQUIRES_NEW`）。
+
+### 2.5 實體基底（2026-11-22）
+- **重建模組不得使用舊 `BaseEntity`**（含 `is_deleted`、`@CreatedBy` / `@LastModifiedBy`）。舊 `BaseEntity` 只留給尚未重建的模組，重建時移除。
+- `AuditedEntity`：`id`（UUID）、`created_at`（`@CreatedDate`）、`updated_at`（`@LastModifiedDate`）。`VersionedEntity extends AuditedEntity`：再加 `@Version version`，只給有並行寫入的狀態機或計數實體（例：`orders`、`payments`、`modification_requests`、`visits`）。不可變的明細 / 稽核列（例：`order_items`、`order_logs`）不繼承任何基底，自管欄位。
+- **不做軟刪除**：重建模組的表不含 `is_deleted`，查詢不過濾；需要保留紀錄的情境改用狀態欄或墓碑列。
+- **建立者欄位**：不掛 `@CreatedBy`。需要記建立者的欄位由 Service 明確寫入（使用者操作寫 token 使用者；系統建立寫 NULL）。原因：`RequestAuditorAware` 回傳的是觸發請求的使用者，系統在同一交易內代為建立的資料（例：O1 時建立的行程與檢核項）會被誤填成飼主。
+- **實體只映射資料表實際存在的欄位**：local `ddl-auto: validate` 守護；遷移刪欄時同一次發布修改實體。
+
+### 2.6 錯誤回應與例外對映（2026-11-22）
+- **格式（全域）**：`{ "code", "message", "payload", "traceId", "timestamp" }`；值為 null 的欄位不輸出（`default-property-inclusion: non-null`）；`authenticationEntryPoint` 回 401 `UNAUTHENTICATED`、`accessDeniedHandler` 回 403 `FORBIDDEN`，皆用此格式。
+- **全域 `GlobalExceptionHandler`**：`@PreAuthorize` 拒絕（`AuthorizationDeniedException`）→ 403 `ROLE_MISMATCH`；其他 `AccessDeniedException` → 403 `FORBIDDEN`；進方法前的格式錯誤（`HttpMessageNotReadableException`、`MethodArgumentTypeMismatchException`、缺必填 part / param、不支援的 media type、multipart 解析失敗、超過容器上限）→ 400 `VALIDATION_FAILED`；未處理例外 → 500 `INTERNAL_ERROR`（不含堆疊）。`spring.jackson.deserialization.accept-float-as-int=false`。
+- **模組專屬 advice**：各模組以 `@RestControllerAdvice(basePackageClasses = 模組 controller 套件)` + 最高優先序處理自己的例外與碼（例：SD-ORDER `OrderExceptionHandler`、SD-FULFILL `FulfillExceptionHandler`）。
+- **鎖與資料完整性**：SQLSTATE 55P03 / 40P01（含 Spring 轉換後的 `CannotAcquireLockException`、`PessimisticLockingFailureException`、`DeadlockLoserDataAccessException`）與 `@Version` 衝突 → 409 `ORDER_BUSY` + `Retry-After: 1`。`DataIntegrityViolationException` **只有 SQLSTATE 23505**（unique violation，含 commit 時的延遲唯一約束）可對映 409（依約束名對應模組碼，未列名者 `ORDER_BUSY`）；23514 / 23502 / 23503 等確定性錯誤一律 500 `INTERNAL_ERROR` 並記 ERROR log，不得對映為可重試碼。
+- **欄位驗證時點**：需遵守 baseline §3.7 判斷順序的端點，Request DTO 不掛 `@Valid`、必填 header 宣告為非必填，改由 Service 在第 6 步驗證；金額欄以 `BigDecimal` 接收並驗證為整數。
+
 ## 3. 開發效率與權限規範 (SaaS Gating)
 ### 3.1 SaaS Gating via AOP
 - **實作方式**：自定義註解 `@RequirePlan(PlanType)` 搭配 Spring AOP 攔截器。

@@ -59,7 +59,7 @@
     - `var(--color-surface)`: 基座底層 (#f6f7f5)。
     - `var(--color-surface-low)`: 次要區塊或分段。
     - `var(--color-surface-lowest)`: 互動卡片或容器 (純白)。
-  - **`--color-primary-container` 底上的文字一律用 `--color-on-primary-container`（2026-10-24，驗收 N18）**：sitter `#5c4300`（對 `#ffbf00` 5.6:1）、client `#00528c`（對 `#b3d4ff` 5.3:1）、admin `#334155`。過去直接用 `--color-primary`：sitter `#765600` 對 `#ffbf00` 只有 4.1:1、client 4.44:1，都未達 AA。適用：日誌頁「暫存草稿」、「已送出 / 已完工 (已送出)」徽章、訂單列表選中分頁、爭議類別選中鈕、門禁設定範圍鈕與鎖頭圖示、預約頁保母頭像佔位。迴歸：`e2e/ui-layout-contrast.spec.ts` N18（保母「暫存草稿」、飼主「進行中」分頁，舊版兩支紅）。
+  - **`--color-primary-container` 底上的文字一律用 `--color-on-primary-container`（2026-10-24，驗收 N18）**：sitter `#5c4300`（對 `#ffbf00` 5.6:1）、client `#00528c`（對 `#b3d4ff` 5.3:1）、admin `#334155`。過去直接用 `--color-primary`：sitter `#765600` 對 `#ffbf00` 只有 4.1:1、client 4.44:1，都未達 AA。適用：日誌頁「暫存草稿」、「已送出 / 已完工 (已送出)」徽章、訂單列表選中分頁、爭議類別選中鈕、門禁設定範圍鈕與鎖頭圖示、預約頁保母頭像佔位。迴歸：`e2e/ui-layout-contrast.spec.ts` N18（保母「暫存草稿」、飼主「進行中」分頁，舊版兩支紅）。2026-11-22 起日誌編輯移到服務執行面板 `/sitter/orders/:orderId/visits/:visitId`（SD-FULFILL §9.1，取代 `/visit-reports/manage/:visitId`），N18 的「暫存草稿」斷言隨 SD-FULFILL 同發布改以新面板為對象。
 
 ---
   - **Admin Theme**（2026-10-24，驗收 N7）：`--color-primary` #334155、漸層 `#1e293b → #475569`、`--color-on-primary` #f8fafc（對漸層兩端皆 ≥ 4.5:1）。`RoleContext` 一直會設 `data-theme="admin"`，過去 CSS 沒有這組變數，管理員畫面所有 `.btn-primary` 都是無底色的純文字。
@@ -100,7 +100,7 @@ frontend/
 │   ├── api/
 │   │   └── axiosClient.ts       # 實作 401 Queue 與 Refresh 邏輯
 │   ├── components/
-│   │   ├── layout/              # AppShell, AppHeader, BottomNav
+│   │   ├── layout/              # AppShell, AppHeader, BottomNav（尚未實作，見下方待辦）
 │   │   ├── modals/              # BottomSheet (共用骨架), PetFormModal 等
 │   │   └── ui/                  # Button, Card, StatusBadge (Design System 元件)
 │   ├── contexts/
@@ -112,6 +112,8 @@ frontend/
 │   │   └── shared/              # 共用畫面 (PetProfile, Booking Wizard)
 │   └── hooks/                   # React Query custom hooks (如 useOrders, usePets)
 ```
+
+**待辦：全站底部導覽 `BottomNav`（2026-11-22 使用者決定，SD-FULFILL CQ-12）**：BR §2.1 / §2.2 定義保母五項（行程、訂單、收款、通知、我的）、飼主五項（行程、訂單、保母、通知、我的）底部導覽，現況只有 `AppShell` 預留 80px 空間。SD-FULFILL 本次只在現有導覽加「行程」入口（保母 `/sitter/visits`、飼主 `/owner/visits`）；全站 `BottomNav` 的項目、路由對應與全域 testid（例 `nav-bottom-{item}`，需在 §4 登記為全域元件例外）於本文件另行定義後再實作。
 
 ---
 
@@ -193,7 +195,7 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 | 類別 | 狀態碼 → 顯示文字 |
 | :--- | :--- |
 | 訂單 `orders.status` | `PENDING` 待評估、`PENDING_PAYMENT` 待付款、`PAID` 已付款、`CONFIRMED` 已確認、`IN_PROGRESS` 服務進行中、`MODIFYING` 變更協商中、`REFUND_VERIFY` 待確認退款、`COMPLETED` 已結案、`CANCELLED` 已取消、`DISPUTED` 爭議處理中 |
-| 行程 `visits.status` | `PENDING`/`CONFIRMED` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消 |
+| 行程 `visits.status` | `PENDING` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消（2026-11-22 移除舊值 `CONFIRMED`，baseline §6）；`DONE` 且完成來源 `SYSTEM` 時另加註「系統自動結束」（PRD-008 BR-17、SD-FULFILL） |
 | 保母認證 `profiles.kyc_status` | `UNVERIFIED` 未認證、`PENDING_REVIEW` 審核中、`VERIFIED` 已認證、`REJECTED` 被駁回、`SUSPENDED` 已停權 |
 | KYC 申請 `kyc_records.status`（管理端） | `PENDING` 待審核、`APPROVED` 已通過、`REJECTED` 被駁回 |
 
