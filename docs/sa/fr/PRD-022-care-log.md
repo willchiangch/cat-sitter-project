@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Approved |
+| 狀態 | In Review |
 | 建立日期 | 2026-05-23（2026-11-22 依 DOMAIN-BASELINE 第 2 版重寫） |
 | 歸屬 SD | SD-FULFILL（`docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-022 |

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Approved |
+| 狀態 | In Review |
 | 核准 | 使用者，2026-11-22（依發布策略 B：與 SD-FULFILL 一起實作、一起發布；全域 multipart 上限 20 MB 確認） |
 | 建立日期 | 2026-11-22 |
 | 涵蓋 PRD | PRD-005、PRD-006、PRD-007、PRD-016、PRD-023、PRD-024、PRD-026、PRD-027（全部 Approved 2026-11-22；對應表見 `00-SD-PLAN.md` §0） |

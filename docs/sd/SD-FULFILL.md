@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Needs Clarification |
 | 建立日期 | 2026-11-22 |
 | 涵蓋 PRD | PRD-008、PRD-009、PRD-022、PRD-028（全部 Approved 2026-11-22；對應表見 `00-SD-PLAN.md` §0）。PRD-009 只在本 SD 定義畫面（§9.2）與測試對應；其 API（E2、E3、E25、E26、E30、C8）由 SD-ORDER 擁有，本 SD 不重複定義 |
 | 擁有的 Table | `visits`、`visit_checklist_items`（新）、`visit_service_reports`（照護日誌）、`service_report_media`（日誌媒體）、`care_log_media_uploads`（新，上傳槽位）。其他 SD 只能經本 SD 的 Service 存取 |
