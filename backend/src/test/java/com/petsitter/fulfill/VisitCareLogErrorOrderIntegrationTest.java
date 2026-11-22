@@ -14,7 +14,7 @@ import static testsupport.fulfill.MediaFiles.gif;
 import static testsupport.fulfill.MediaFiles.jpeg;
 
 @DisplayName("SD-FULFILL VisitCareLogErrorOrderIntegrationTest（判斷順序 §6.3）")
-class VisitCareLogErrorOrderIntegrationTest extends CareLogTestBase {
+class VisitCareLogErrorOrderIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-3.8 唯一結果五例：SUBMITTED 且逾期 → CARE_LOG_STATE_CONFLICT、1001 字 → 400、他人 → 403；逾期且額度滿 → DEADLINE_PASSED；逾期 + 101 字說明 → 400；COMPLETED + 逾期 → ORDER_STATE_CONFLICT；2 MB GIF → TYPE_UNSUPPORTED（格式先於大小）")

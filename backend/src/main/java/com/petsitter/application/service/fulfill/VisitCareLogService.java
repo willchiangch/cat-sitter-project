@@ -4,7 +4,7 @@ import com.petsitter.application.common.idempotency.IdempotencyClaim;
 import com.petsitter.application.common.idempotency.IdempotencyContext;
 import com.petsitter.application.common.idempotency.IdempotencyService;
 import com.petsitter.application.common.text.TextRules;
-import com.petsitter.application.dto.fulfill.CareLogResponses;
+import com.petsitter.application.dto.fulfill.VisitCareLogResponses;
 import com.petsitter.application.dto.fulfill.FulfillRequests;
 import com.petsitter.application.exception.FulfillErrorCode;
 import com.petsitter.application.exception.FulfillException;
@@ -52,7 +52,7 @@ public class VisitCareLogService {
     private final OrderLogWriter orderLogWriter;
     private final FulfillNotifier notifier;
     private final VisitNameResolver nameResolver;
-    private final CareLogSupport support;
+    private final VisitCareLogSupport support;
     private final MediaUrlSigner urlSigner;
     private final VisitRules rules;
     private final FulfillSettings settings;
@@ -61,10 +61,10 @@ public class VisitCareLogService {
     // ------------------------------------------------------------------ F13
 
     private record ReadData(Visit visit, VisitServiceReport report, List<ServiceReportMedia> media, OrderStatus orderStatus,
-                            CareLogSupport.Limits limits, Map<UUID, String> titles) {
+                            VisitCareLogSupport.Limits limits, Map<UUID, String> titles) {
     }
 
-    public CareLogResponses.CareLogView read(UUID orderId, UUID visitId) {
+    public VisitCareLogResponses.VisitCareLogView read(UUID orderId, UUID visitId) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
         if (!actor.isSitterRole()) {
@@ -87,12 +87,12 @@ public class VisitCareLogService {
             throw FulfillException.notFound();
         }
         // 簽名在讀取交易結束後執行（§2.5 第 4 點）
-        List<CareLogResponses.MediaItem> items = data.media.stream().map(this::mediaItem).toList();
+        List<VisitCareLogResponses.MediaItem> items = data.media.stream().map(this::mediaItem).toList();
         Visit v = data.visit;
         String name = nameResolver.name(v, data.titles);
         VisitServiceReport r = data.report;
         if (role != ActorRole.SITTER) {
-            return new CareLogResponses.CareLogView(visitId, name, v.getServiceDate(), r.getId(), null, r.getContent(),
+            return new VisitCareLogResponses.VisitCareLogView(visitId, name, v.getServiceDate(), r.getId(), null, r.getContent(),
                     r.getSubmittedAt(), null, null, null, null, null, items);
         }
         boolean expired = rules.careLogExpired(v, now);
@@ -100,26 +100,26 @@ public class VisitCareLogService {
         boolean running = VisitRules.RUNNING_ORDER.contains(data.orderStatus);
         boolean editable = running && open && !expired && (v.getStatus() == VisitStatus.IN_PROGRESS || v.getStatus() == VisitStatus.DONE);
         boolean submittable = running && open && !expired && v.getStatus() == VisitStatus.DONE;
-        return new CareLogResponses.CareLogView(visitId, name, v.getServiceDate(), r == null ? null : r.getId(),
+        return new VisitCareLogResponses.VisitCareLogView(visitId, name, v.getServiceDate(), r == null ? null : r.getId(),
                 r == null ? null : r.getStatus(), r == null ? null : r.getContent(), r == null ? null : r.getSubmittedAt(),
                 v.getStatus() == VisitStatus.DONE ? rules.careLogDeadline(v) : null, expired, editable, submittable,
                 support.quota(data.limits, data.media), items);
     }
 
-    private CareLogResponses.MediaItem mediaItem(ServiceReportMedia m) {
+    private VisitCareLogResponses.MediaItem mediaItem(ServiceReportMedia m) {
         Integer duration = m.getDurationSeconds() == null ? null : m.getDurationSeconds().intValue();
         if (m.isPurged()) {
-            return new CareLogResponses.MediaItem(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(), duration,
+            return new VisitCareLogResponses.MediaItem(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(), duration,
                     m.getUploadedAt(), null, null, true);
         }
         MediaUrlSigner.SignedUrl url = urlSigner.sign(m.getObjectKey());
-        return new CareLogResponses.MediaItem(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(), duration,
+        return new VisitCareLogResponses.MediaItem(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(), duration,
                 m.getUploadedAt(), url.url(), url.expiresAt(), false);
     }
 
     // ------------------------------------------------------------------ F14
 
-    public CareLogResponses.Draft saveDraft(UUID orderId, UUID visitId, FulfillRequests.CareLogText req, OffsetDateTime receivedAt) {
+    public VisitCareLogResponses.Draft saveDraft(UUID orderId, UUID visitId, FulfillRequests.VisitCareLogText req, OffsetDateTime receivedAt) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
         guard.requireSitter(ref.sitterId(), actor);
@@ -134,13 +134,13 @@ public class VisitCareLogService {
             r.setContent(text);
             r.setUpdatedBy(actor.userId());
             VisitServiceReport saved = reportRepository.saveAndFlush(r);
-            return new CareLogResponses.Draft(saved.getId(), VisitServiceReport.DRAFT, text, saved.getUpdatedAt());
+            return new VisitCareLogResponses.Draft(saved.getId(), VisitServiceReport.DRAFT, text, saved.getUpdatedAt());
         });
     }
 
     // ------------------------------------------------------------------ F15
 
-    public CareLogResponses.Submitted submit(UUID orderId, UUID visitId, FulfillRequests.CareLogText req, OffsetDateTime receivedAt) {
+    public VisitCareLogResponses.Submitted submit(UUID orderId, UUID visitId, FulfillRequests.VisitCareLogText req, OffsetDateTime receivedAt) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
         guard.requireSitter(ref.sitterId(), actor);
@@ -164,7 +164,7 @@ public class VisitCareLogService {
             r.setUpdatedBy(actor.userId());
             VisitServiceReport saved = reportRepository.saveAndFlush(r);
             List<ServiceReportMedia> media = mediaRepository.findByReportIdOrderByUploadedAtAscIdAsc(saved.getId());
-            long images = media.stream().filter(m -> CareLogSupport.IMAGE.equals(m.getMediaType())).count();
+            long images = media.stream().filter(m -> VisitCareLogSupport.IMAGE.equals(m.getMediaType())).count();
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("visitId", visitId.toString());
             payload.put("careLogId", saved.getId().toString());
@@ -176,7 +176,7 @@ public class VisitCareLogService {
             OrderQueryService.OrderContextView octx = orderQueryService.getOrderContexts(Set.of(orderId)).get(orderId);
             notifier.careLogSubmitted(locked, new FulfillNotifier.NamedVisit(visitId, v.getServiceDate().toString(),
                     nameResolver.name(v, octx == null ? Map.of() : octx.planTitles())));
-            CareLogResponses.Submitted resp = new CareLogResponses.Submitted(saved.getId(), VisitServiceReport.SUBMITTED, now);
+            VisitCareLogResponses.Submitted resp = new VisitCareLogResponses.Submitted(saved.getId(), VisitServiceReport.SUBMITTED, now);
             idempotencyService.complete(claim, 200, resp);
             return resp;
         });

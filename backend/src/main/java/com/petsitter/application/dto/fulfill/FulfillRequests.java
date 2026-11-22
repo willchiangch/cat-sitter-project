@@ -23,7 +23,7 @@ public final class FulfillRequests {
     public record Check(JsonNode checked) {
     }
 
-    public record CareLogText(JsonNode text) {
+    public record VisitCareLogText(JsonNode text) {
     }
 
     public record MediaUpload(JsonNode file, JsonNode caption) {

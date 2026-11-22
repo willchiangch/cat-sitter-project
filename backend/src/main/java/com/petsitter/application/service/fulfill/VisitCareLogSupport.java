@@ -1,6 +1,6 @@
 package com.petsitter.application.service.fulfill;
 
-import com.petsitter.application.dto.fulfill.CareLogResponses;
+import com.petsitter.application.dto.fulfill.VisitCareLogResponses;
 import com.petsitter.application.exception.FulfillException;
 import com.petsitter.application.service.order.OrderQueryService;
 import com.petsitter.domain.model.fulfill.ServiceReportMedia;
@@ -19,7 +19,7 @@ import java.util.UUID;
 /** 照護日誌共用規則（SD-FULFILL §3.2、§4.5；PRD-022 判斷順序第 8–10 步與 BR-9 額度）。 */
 @Component
 @RequiredArgsConstructor
-public class CareLogSupport {
+public class VisitCareLogSupport {
 
     public static final String IMAGE = "IMAGE";
     public static final String VIDEO = "VIDEO";
@@ -46,13 +46,13 @@ public class CareLogSupport {
         return report == null ? 0 : mediaRepository.countByReportIdAndMediaType(report.getId(), mediaType);
     }
 
-    public CareLogResponses.Quota quota(Limits limits, VisitServiceReport report) {
-        return new CareLogResponses.Quota(limits.planTier(), limits.imageLimit(), used(report, IMAGE), limits.videoLimit(), used(report, VIDEO));
+    public VisitCareLogResponses.Quota quota(Limits limits, VisitServiceReport report) {
+        return new VisitCareLogResponses.Quota(limits.planTier(), limits.imageLimit(), used(report, IMAGE), limits.videoLimit(), used(report, VIDEO));
     }
 
-    public CareLogResponses.Quota quota(Limits limits, List<ServiceReportMedia> media) {
+    public VisitCareLogResponses.Quota quota(Limits limits, List<ServiceReportMedia> media) {
         long images = media.stream().filter(m -> IMAGE.equals(m.getMediaType())).count();
-        return new CareLogResponses.Quota(limits.planTier(), limits.imageLimit(), images, limits.videoLimit(), media.size() - images);
+        return new VisitCareLogResponses.Quota(limits.planTier(), limits.imageLimit(), images, limits.videoLimit(), media.size() - images);
     }
 
     /**

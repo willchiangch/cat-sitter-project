@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static testsupport.fulfill.MediaFiles.sha256;
 
 /** 照護日誌整合測試共用（F13–F19）。 */
-abstract class CareLogTestBase extends FulfillIntegrationTestBase {
+abstract class VisitCareLogTestBase extends FulfillIntegrationTestBase {
 
     protected static final String LOG = VISIT + "/care-log";
 

@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static testsupport.fulfill.MediaFiles.jpeg;
 
 @DisplayName("SD-FULFILL VisitCareLogConcurrencyIntegrationTest（兩條執行緒真打）")
-class VisitCareLogConcurrencyIntegrationTest extends CareLogTestBase {
+class VisitCareLogConcurrencyIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-2.7 BASIC 已 4 張、兩個 key 各申請 1 張後同時確認：恰 1 筆 201、另 1 筆 422 QUOTA_EXCEEDED（used 5）、被拒者物件刪除")

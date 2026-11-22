@@ -7,9 +7,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /** F13–F19 response（SD-FULFILL §6.3）。 */
-public final class CareLogResponses {
+public final class VisitCareLogResponses {
 
-    private CareLogResponses() {
+    private VisitCareLogResponses() {
     }
 
     public record Quota(String planTier, int imageLimit, long imageUsed, int videoLimit, long videoUsed) {
@@ -20,7 +20,7 @@ public final class CareLogResponses {
     }
 
     /** F13（SITTER 全欄；OWNER / ADMIN 只有 visitId / visitName / serviceDate / careLogId / text / submittedAt / media）。 */
-    public record CareLogView(UUID visitId, String visitName, LocalDate serviceDate, UUID careLogId, String status,
+    public record VisitCareLogView(UUID visitId, String visitName, LocalDate serviceDate, UUID careLogId, String status,
                               String text, OffsetDateTime submittedAt, OffsetDateTime deadlineAt, Boolean expired,
                               Boolean editable, Boolean submittable, Quota quota, List<MediaItem> media) {
     }

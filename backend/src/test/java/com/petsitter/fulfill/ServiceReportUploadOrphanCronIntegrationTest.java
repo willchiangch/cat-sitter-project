@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static testsupport.fulfill.MediaFiles.jpeg;
 
 @DisplayName("SD-FULFILL ServiceReportUploadOrphanCronIntegrationTest（FC2）")
-class ServiceReportUploadOrphanCronIntegrationTest extends CareLogTestBase {
+class ServiceReportUploadOrphanCronIntegrationTest extends VisitCareLogTestBase {
 
     private static final String JOB = "storage/care-log-orphans";
     private static final OffsetDateTime T0 = OffsetDateTime.parse("2030-06-01T00:00:00Z");

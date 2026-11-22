@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("SD-FULFILL VisitCareLogSubmitIntegrationTest（F15）")
-class VisitCareLogSubmitIntegrationTest extends CareLogTestBase {
+class VisitCareLogSubmitIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-1.4 IN_PROGRESS 送出 409；DONE 送出 DRAFT → SUBMITTED、CARE_LOG_SUBMITTED 1 筆；FREE 未暫存直接送出建立；空白 422 CARE_LOG_CONTENT_EMPTY")

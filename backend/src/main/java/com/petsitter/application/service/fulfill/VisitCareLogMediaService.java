@@ -4,7 +4,7 @@ import com.petsitter.application.common.idempotency.IdempotencyClaim;
 import com.petsitter.application.common.idempotency.IdempotencyContext;
 import com.petsitter.application.common.idempotency.IdempotencyService;
 import com.petsitter.application.common.text.TextRules;
-import com.petsitter.application.dto.fulfill.CareLogResponses;
+import com.petsitter.application.dto.fulfill.VisitCareLogResponses;
 import com.petsitter.application.dto.fulfill.FulfillRequests;
 import com.petsitter.application.exception.FulfillErrorCode;
 import com.petsitter.application.exception.FulfillException;
@@ -54,8 +54,8 @@ import java.util.UUID;
 public class VisitCareLogMediaService {
 
     private static final Map<String, Set<String>> ALLOWED = Map.of(
-            CareLogSupport.IMAGE, Set.of("image/jpeg", "image/png", "image/webp"),
-            CareLogSupport.VIDEO, Set.of("video/mp4", "video/quicktime"));
+            VisitCareLogSupport.IMAGE, Set.of("image/jpeg", "image/png", "image/webp"),
+            VisitCareLogSupport.VIDEO, Set.of("video/mp4", "video/quicktime"));
     private static final Map<String, String> EXT = Map.of("image/jpeg", "jpg", "image/png", "png", "image/webp", "webp",
             "video/mp4", "mp4", "video/quicktime", "mov");
     /** F18 鎖前 / 鎖後的確定性錯誤：條件式轉 FAILED（§3.3 表）。 */
@@ -77,7 +77,7 @@ public class VisitCareLogMediaService {
     private final MediaStorageService storage;
     private final MediaInspector inspector;
     private final MediaUrlSigner urlSigner;
-    private final CareLogSupport support;
+    private final VisitCareLogSupport support;
     private final FulfillSettings settings;
     private final OrderClock clock;
     private final JsonMapper jsonMapper;
@@ -87,7 +87,7 @@ public class VisitCareLogMediaService {
                                     VisitServiceReportRepository reportRepository, ServiceReportMediaRepository mediaRepository,
                                     ServiceReportUploadRepository uploadRepository, OrderQueryService orderQueryService,
                                     OrderLogWriter orderLogWriter, MediaStorageService storage, MediaInspector inspector,
-                                    MediaUrlSigner urlSigner, CareLogSupport support, FulfillSettings settings, OrderClock clock,
+                                    MediaUrlSigner urlSigner, VisitCareLogSupport support, FulfillSettings settings, OrderClock clock,
                                     JsonMapper jsonMapper) {
         this.guard = guard;
         this.tx = tx;
@@ -113,7 +113,7 @@ public class VisitCareLogMediaService {
 
     // ------------------------------------------------------------------ F16
 
-    public CareLogResponses.UploadSlot requestUpload(UUID orderId, UUID visitId, FulfillRequests.MediaUpload req,
+    public VisitCareLogResponses.UploadSlot requestUpload(UUID orderId, UUID visitId, FulfillRequests.MediaUpload req,
                                                      OffsetDateTime receivedAt) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
@@ -122,13 +122,13 @@ public class VisitCareLogMediaService {
         IdempotencyContext ctx = validator.requireIdempotencyKey();
         IdempotencyClaim claim = idempotencyService.claim(ctx);
         // 預檢（不取鎖）：訂單 / 行程 / 日誌狀態 → 期限（receivedAt）→ 宣告格式 / 大小 / 時長 → 額度
-        CareLogSupport.Limits limits = tx.readOnly(() -> {
+        VisitCareLogSupport.Limits limits = tx.readOnly(() -> {
             OrderStatus orderStatus = orderQueryService.getParticipants(orderId).status();
             Visit v = visitRepository.findById(visitId).orElseThrow(FulfillException::notFound);
             VisitServiceReport r = reportRepository.findByVisitId(visitId).orElse(null);
             support.requireWritable(orderStatus, v, r, receivedAt, false);
             checkFormat(d.mediaType(), d.contentType(), d.sizeBytes(), d.durationSeconds());
-            CareLogSupport.Limits l = support.limits(orderId);
+            VisitCareLogSupport.Limits l = support.limits(orderId);
             checkQuota(d.mediaType(), l, support.used(r, d.mediaType()));
             return l;
         });
@@ -145,7 +145,7 @@ public class VisitCareLogMediaService {
                     .declaredDurationSeconds(d.durationSeconds() == null ? null : d.durationSeconds().shortValue())
                     .caption(d.caption()).objectKey(objectKey).status(ServiceReportUpload.PENDING)
                     .receivedAt(receivedAt).expiresAt(expiresAt).createdAt(now).updatedAt(now).build());
-            CareLogResponses.UploadSlot resp = new CareLogResponses.UploadSlot(uploadId, receivedAt, expiresAt);
+            VisitCareLogResponses.UploadSlot resp = new VisitCareLogResponses.UploadSlot(uploadId, receivedAt, expiresAt);
             idempotencyService.complete(claim, 201, resp);
             return resp;
         });
@@ -173,7 +173,7 @@ public class VisitCareLogMediaService {
             throw FulfillException.validation("file.sha256");
         }
         Integer duration = null;
-        if (CareLogSupport.VIDEO.equals(mediaType)) {
+        if (VisitCareLogSupport.VIDEO.equals(mediaType)) {
             JsonNode dur = file.get("durationSeconds");
             if (!FulfillRequestValidator.present(dur) || !dur.isNumber() || dur.decimalValue().signum() < 0
                     || dur.decimalValue().compareTo(BigDecimal.valueOf(Short.MAX_VALUE)) > 0) {
@@ -197,11 +197,11 @@ public class VisitCareLogMediaService {
         if (contentType == null || !ALLOWED.get(mediaType).contains(contentType)) {
             throw new FulfillException(FulfillErrorCode.CARE_LOG_MEDIA_TYPE_UNSUPPORTED, Map.of("mediaType", mediaType));
         }
-        long max = CareLogSupport.IMAGE.equals(mediaType) ? settings.getPhotoMaxBytesExclusive() : settings.getVideoMaxBytesExclusive();
+        long max = VisitCareLogSupport.IMAGE.equals(mediaType) ? settings.getPhotoMaxBytesExclusive() : settings.getVideoMaxBytesExclusive();
         if (sizeBytes >= max) {
             throw new FulfillException(FulfillErrorCode.CARE_LOG_MEDIA_TOO_LARGE, Map.of("maxBytes", max));
         }
-        if (CareLogSupport.VIDEO.equals(mediaType)) {
+        if (VisitCareLogSupport.VIDEO.equals(mediaType)) {
             int min = settings.getVideoMinSeconds();
             int maxS = settings.getVideoMaxSeconds();
             if (durationSeconds == null || durationSeconds < min || durationSeconds > maxS) {
@@ -214,7 +214,7 @@ public class VisitCareLogMediaService {
         }
     }
 
-    private static void checkQuota(String mediaType, CareLogSupport.Limits limits, long used) {
+    private static void checkQuota(String mediaType, VisitCareLogSupport.Limits limits, long used) {
         int limit = limits.limit(mediaType);
         if (used >= limit) {
             throw new FulfillException(FulfillErrorCode.CARE_LOG_MEDIA_QUOTA_EXCEEDED, Map.of("mediaType", mediaType, "limit", limit, "used", used));
@@ -223,7 +223,7 @@ public class VisitCareLogMediaService {
 
     // ------------------------------------------------------------------ F17
 
-    public CareLogResponses.UploadTarget target(UUID orderId, UUID visitId, UUID uploadId) {
+    public VisitCareLogResponses.UploadTarget target(UUID orderId, UUID visitId, UUID uploadId) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
         ServiceReportUploadRepository.UploadRef up = uploadRef(visitId, uploadId);
@@ -232,7 +232,7 @@ public class VisitCareLogMediaService {
         ServiceReportUpload slot = tx.readOnly(() -> uploadRepository.findById(uploadId).orElseThrow(FulfillException::notFound));
         switch (slot.getStatus()) {
             case ServiceReportUpload.COMPLETED -> {
-                return new CareLogResponses.UploadTarget(uploadId, true, null, null, null, null);
+                return new VisitCareLogResponses.UploadTarget(uploadId, true, null, null, null, null);
             }
             case ServiceReportUpload.FAILED -> throw stored(slot);
             case ServiceReportUpload.DISCARDED -> throw FulfillException.notFound();
@@ -250,15 +250,15 @@ public class VisitCareLogMediaService {
         headers.put("Content-Type", slot.getContentType());
         headers.put("x-goog-content-length-range", slot.getDeclaredSize() + "," + slot.getDeclaredSize());
         headers.put("x-goog-if-generation-match", "0");
-        return new CareLogResponses.UploadTarget(uploadId, false, url, "PUT", headers, now.plus(ttl));
+        return new VisitCareLogResponses.UploadTarget(uploadId, false, url, "PUT", headers, now.plus(ttl));
     }
 
     // ------------------------------------------------------------------ F18
 
-    private record Outcome(CareLogResponses.MediaCreated body) {
+    private record Outcome(VisitCareLogResponses.MediaCreated body) {
     }
 
-    public CareLogResponses.MediaCreated completeUpload(UUID orderId, UUID visitId, UUID uploadId, OffsetDateTime receivedAt) {
+    public VisitCareLogResponses.MediaCreated completeUpload(UUID orderId, UUID visitId, UUID uploadId, OffsetDateTime receivedAt) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
         ServiceReportUploadRepository.UploadRef up = uploadRef(visitId, uploadId);
@@ -270,7 +270,7 @@ public class VisitCareLogMediaService {
         try {
             slot = tx.readOnly(() -> {
                 ServiceReportUpload s = uploadRepository.findById(uploadId).orElseThrow(FulfillException::notFound);
-                Optional<CareLogResponses.MediaCreated> settled = settledOutcome(orderId, s);
+                Optional<VisitCareLogResponses.MediaCreated> settled = settledOutcome(orderId, s);
                 if (settled.isPresent()) {
                     throw new SettledSignal(settled.get());
                 }
@@ -315,14 +315,14 @@ public class VisitCareLogMediaService {
             Outcome outcome = tx.inLockedTx(orderId, locked -> {
                 OffsetDateTime now = clock.now();
                 ServiceReportUpload s = uploadRepository.findById(uploadId).orElseThrow(FulfillException::notFound);
-                Optional<CareLogResponses.MediaCreated> settled = settledOutcome(orderId, s);
+                Optional<VisitCareLogResponses.MediaCreated> settled = settledOutcome(orderId, s);
                 if (settled.isPresent()) {
                     return new Outcome(settled.get());
                 }
                 Visit v = visitRepository.findById(visitId).orElseThrow(FulfillException::notFound);
                 VisitServiceReport r = reportRepository.findByVisitId(visitId).orElse(null);
                 support.requireWritable(locked.status(), v, r, s.getReceivedAt(), false);
-                CareLogSupport.Limits limits = support.limits(orderId);
+                VisitCareLogSupport.Limits limits = support.limits(orderId);
                 checkQuota(s.getMediaType(), limits, support.used(r, s.getMediaType()));
                 boolean created = r == null;
                 if (created) {
@@ -370,7 +370,7 @@ public class VisitCareLogMediaService {
                 && v.getStatus() != com.petsitter.domain.model.order.VisitStatus.DONE) {
             throw FulfillException.visitState(v.getStatus(), v.getCompletionSource());
         }
-        CareLogSupport.requireNotSubmitted(r);
+        VisitCareLogSupport.requireNotSubmitted(r);
         if (ServiceReportUpload.EXPIRED.equals(s.getStatus()) || !receivedAt.isBefore(s.getExpiresAt())) {
             throw uploadExpired(s);
         }
@@ -390,7 +390,7 @@ public class VisitCareLogMediaService {
     }
 
     /** 槽位已 COMPLETED → 既有媒體；FAILED → 存下的錯誤；DISCARDED → 404；其他回空。 */
-    private Optional<CareLogResponses.MediaCreated> settledOutcome(UUID orderId, ServiceReportUpload s) {
+    private Optional<VisitCareLogResponses.MediaCreated> settledOutcome(UUID orderId, ServiceReportUpload s) {
         switch (s.getStatus()) {
             case ServiceReportUpload.COMPLETED -> {
                 ServiceReportMedia m = mediaRepository.findByUploadId(s.getId()).orElseThrow(FulfillException::notFound);
@@ -455,16 +455,16 @@ public class VisitCareLogMediaService {
         return uploadRepository.findRef(uploadId).filter(u -> u.getVisitId().equals(visitId)).orElseThrow(FulfillException::notFound);
     }
 
-    private static CareLogResponses.MediaCreated created(ServiceReportMedia m, UUID careLogId, CareLogResponses.Quota quota) {
-        return new CareLogResponses.MediaCreated(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(),
+    private static VisitCareLogResponses.MediaCreated created(ServiceReportMedia m, UUID careLogId, VisitCareLogResponses.Quota quota) {
+        return new VisitCareLogResponses.MediaCreated(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(),
                 m.getDurationSeconds() == null ? null : m.getDurationSeconds().intValue(), m.getUploadedAt(), careLogId, quota);
     }
 
     /** 鎖前發現槽位已完成：跳出唯讀交易直接回既有結果。 */
     private static final class SettledSignal extends RuntimeException {
-        final CareLogResponses.MediaCreated body;
+        final VisitCareLogResponses.MediaCreated body;
 
-        SettledSignal(CareLogResponses.MediaCreated body) {
+        SettledSignal(VisitCareLogResponses.MediaCreated body) {
             super(null, null, false, false);
             this.body = body;
         }
@@ -472,10 +472,10 @@ public class VisitCareLogMediaService {
 
     // ------------------------------------------------------------------ F19
 
-    private record Deleted(CareLogResponses.MediaDeleted body, String objectKey, long generation) {
+    private record Deleted(VisitCareLogResponses.MediaDeleted body, String objectKey, long generation) {
     }
 
-    public CareLogResponses.MediaDeleted deleteMedia(UUID orderId, UUID visitId, UUID mediaId, OffsetDateTime receivedAt) {
+    public VisitCareLogResponses.MediaDeleted deleteMedia(UUID orderId, UUID visitId, UUID mediaId, OffsetDateTime receivedAt) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
         mediaRepository.findVisitIdById(mediaId).filter(visitId::equals).orElseThrow(FulfillException::notFound);
@@ -498,7 +498,7 @@ public class VisitCareLogMediaService {
             payload.put("objectKey", m.getObjectKey());
             payload.put("mediaType", m.getMediaType());
             orderLogWriter.write(locked, "MEDIA_DELETED", Actor.sitter(actor.userId()), payload);
-            return new Deleted(new CareLogResponses.MediaDeleted(mediaId, support.quota(support.limits(orderId), r)),
+            return new Deleted(new VisitCareLogResponses.MediaDeleted(mediaId, support.quota(support.limits(orderId), r)),
                     m.getObjectKey(), m.getObjectGeneration());
         });
         // commit 後同一請求內 best-effort 提早刪除（帶 generation 前置條件；不寫 object_deleted_at，FC2 最終清除）

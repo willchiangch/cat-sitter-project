@@ -1,6 +1,5 @@
 package com.petsitter.application.listener;
 
-import com.petsitter.application.event.VisitNotificationEvent;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.MediaExpiryWarningEvent;
@@ -80,15 +79,6 @@ class NotificationListenerLinkTest {
         assertThat(frontendRoutes)
                 .as("linkUrl %s 必須對應 frontend/src/routes.tsx 的某條路由", link)
                 .anyMatch(p -> p.matcher(link).matches());
-    }
-
-    @Test
-    @DisplayName("照護日誌回報（Check-in/Check-out）→ 飼主訂單詳情")
-    void visitNotificationLinksToOwnerOrderDetail() {
-        listener.handleVisitNotification(new VisitNotificationEvent(UUID.randomUUID(), orderId, "msg"));
-        String link = capturedLink();
-        assertThat(link).isEqualTo("/owner/orders/" + orderId);
-        assertIsFrontendRoute(link);
     }
 
     @Test

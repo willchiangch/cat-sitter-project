@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static testsupport.fulfill.MediaFiles.*;
 
 @DisplayName("SD-FULFILL VisitCareLogMediaUploadIntegrationTest（F16–F18）")
-class VisitCareLogMediaUploadIntegrationTest extends CareLogTestBase {
+class VisitCareLogMediaUploadIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-2.1 FREE 快照（保母已升級 ULTIMATE）：申請上傳 422 QUOTA_EXCEEDED（limit 0、used 0），無槽位、無物件、無日誌；暫存 200")

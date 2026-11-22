@@ -29,6 +29,7 @@ import java.time.Instant;
  */
 @RestController
 @Profile("local")
+@io.swagger.v3.oas.annotations.Hidden // local 模擬端點，不列入 API 文件
 @RequiredArgsConstructor
 public class LocalStorageUploadController {
 

@@ -197,11 +197,6 @@ public class GlobalExceptionHandler {
         return ApiErrors.of(HttpStatus.CONFLICT, "STATE_CONFLICT", ex.getMessage());
     }
 
-    @ExceptionHandler(VisitReportException.class)
-    public ResponseEntity<ErrorResponse> handleVisitReport(VisitReportException ex) {
-        return ApiErrors.of(ex.getStatus(), ex.getError(), ex.getMessage());
-    }
-
     @ExceptionHandler(KycException.class)
     public ResponseEntity<ErrorResponse> handleKycException(KycException ex) {
         return ApiErrors.of(ex.getStatus(), ex.getError(), ex.getMessage());

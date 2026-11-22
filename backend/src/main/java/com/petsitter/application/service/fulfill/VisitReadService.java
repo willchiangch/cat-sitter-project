@@ -228,10 +228,10 @@ public class VisitReadService {
         VisitServiceReport report = batch.reports.get(v.getId());
         boolean submitted = report != null && VisitServiceReport.SUBMITTED.equals(report.getStatus());
         OffsetDateTime deadline = v.getStatus() == VisitStatus.DONE ? rules.careLogDeadline(v) : null;
-        VisitResponses.CareLogSummary careLog = role == ActorRole.SITTER
-                ? new VisitResponses.CareLogSummary(submitted, report == null ? null : report.getStatus(), deadline,
+        VisitResponses.VisitCareLogSummary careLog = role == ActorRole.SITTER
+                ? new VisitResponses.VisitCareLogSummary(submitted, report == null ? null : report.getStatus(), deadline,
                 rules.careLogExpired(v, now))
-                : new VisitResponses.CareLogSummary(submitted, null, deadline, null);
+                : new VisitResponses.VisitCareLogSummary(submitted, null, deadline, null);
         List<VisitChecklistItem> items = batch.items.getOrDefault(v.getId(), List.of());
         int done = (int) items.stream().filter(VisitChecklistItem::isCompleted).count();
         VisitResponses.ChecklistSummary checklist = new VisitResponses.ChecklistSummary(items.size(), done,

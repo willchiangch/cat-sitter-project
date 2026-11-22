@@ -14,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static testsupport.fulfill.MediaFiles.jpeg;
 
 @DisplayName("SD-FULFILL VisitCareLogIdempotencyIntegrationTest（F15 / F16）")
-class VisitCareLogIdempotencyIntegrationTest extends CareLogTestBase {
+class VisitCareLogIdempotencyIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-3.5 送出回放同一 body、不重發通知 / log；同 key 不同文字 422；新 key 409 CARE_LOG_STATE_CONFLICT；缺 key 400")

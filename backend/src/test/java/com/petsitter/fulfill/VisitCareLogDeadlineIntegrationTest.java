@@ -14,7 +14,7 @@ import static testsupport.fulfill.MediaFiles.jpeg;
 import static testsupport.fulfill.MediaFiles.mp4;
 
 @DisplayName("SD-FULFILL VisitCareLogDeadlineIntegrationTest（期限以 receivedAt）")
-class VisitCareLogDeadlineIntegrationTest extends CareLogTestBase {
+class VisitCareLogDeadlineIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-1.6 情境 1–2 02:59:59 送出 200；03:00:00 暫存 / 申請上傳 / 刪除 / 送出皆 409 DEADLINE_PASSED（deadlineAt），無新物件、日誌仍 DRAFT")

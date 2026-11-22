@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("SD-FULFILL VisitCareLogMediaDeleteIntegrationTest（F19）")
-class VisitCareLogMediaDeleteIntegrationTest extends CareLogTestBase {
+class VisitCareLogMediaDeleteIntegrationTest extends VisitCareLogTestBase {
 
     private UUID mediaOf(UUID uploadId) {
         return jdbc.queryForObject("SELECT id FROM service_report_media WHERE upload_id = ?", UUID.class, uploadId);

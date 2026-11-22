@@ -1,7 +1,7 @@
 package com.petsitter.interfaces.controller.fulfill;
 
 import com.petsitter.application.common.idempotency.Idempotent;
-import com.petsitter.application.dto.fulfill.CareLogResponses;
+import com.petsitter.application.dto.fulfill.VisitCareLogResponses;
 import com.petsitter.application.dto.fulfill.FulfillRequests;
 import com.petsitter.application.service.fulfill.VisitCareLogMediaService;
 import com.petsitter.application.service.fulfill.VisitCareLogService;
@@ -39,15 +39,15 @@ public class VisitCareLogController {
     /** F13 讀取日誌。 */
     @GetMapping
     @PreAuthorize("hasAnyRole('OWNER','SITTER','ADMIN')")
-    public CareLogResponses.CareLogView read(@PathVariable UUID orderId, @PathVariable UUID visitId) {
+    public VisitCareLogResponses.VisitCareLogView read(@PathVariable UUID orderId, @PathVariable UUID visitId) {
         return careLogService.read(orderId, visitId);
     }
 
     /** F14 暫存（整份覆寫）。 */
     @PutMapping("/draft")
     @PreAuthorize("hasRole('SITTER')")
-    public CareLogResponses.Draft draft(@PathVariable UUID orderId, @PathVariable UUID visitId,
-                                        @RequestBody(required = false) FulfillRequests.CareLogText body) {
+    public VisitCareLogResponses.Draft draft(@PathVariable UUID orderId, @PathVariable UUID visitId,
+                                        @RequestBody(required = false) FulfillRequests.VisitCareLogText body) {
         OffsetDateTime receivedAt = clock.now();
         return careLogService.saveDraft(orderId, visitId, body, receivedAt);
     }
@@ -56,9 +56,9 @@ public class VisitCareLogController {
     @PostMapping("/submit")
     @Idempotent
     @PreAuthorize("hasRole('SITTER')")
-    public CareLogResponses.Submitted submit(@PathVariable UUID orderId, @PathVariable UUID visitId,
+    public VisitCareLogResponses.Submitted submit(@PathVariable UUID orderId, @PathVariable UUID visitId,
                                              @RequestHeader(value = VisitController.KEY, required = false) String key,
-                                             @RequestBody(required = false) FulfillRequests.CareLogText body) {
+                                             @RequestBody(required = false) FulfillRequests.VisitCareLogText body) {
         OffsetDateTime receivedAt = clock.now();
         return careLogService.submit(orderId, visitId, body, receivedAt);
     }
@@ -67,7 +67,7 @@ public class VisitCareLogController {
     @PostMapping("/media-uploads")
     @Idempotent
     @PreAuthorize("hasRole('SITTER')")
-    public ResponseEntity<CareLogResponses.UploadSlot> requestUpload(@PathVariable UUID orderId, @PathVariable UUID visitId,
+    public ResponseEntity<VisitCareLogResponses.UploadSlot> requestUpload(@PathVariable UUID orderId, @PathVariable UUID visitId,
                                                                     @RequestHeader(value = VisitController.KEY, required = false) String key,
                                                                     @RequestBody(required = false) FulfillRequests.MediaUpload body) {
         OffsetDateTime receivedAt = clock.now();
@@ -77,14 +77,14 @@ public class VisitCareLogController {
     /** F17 取得簽名上傳網址。 */
     @GetMapping("/media-uploads/{uploadId}/target")
     @PreAuthorize("hasRole('SITTER')")
-    public CareLogResponses.UploadTarget target(@PathVariable UUID orderId, @PathVariable UUID visitId, @PathVariable UUID uploadId) {
+    public VisitCareLogResponses.UploadTarget target(@PathVariable UUID orderId, @PathVariable UUID visitId, @PathVariable UUID uploadId) {
         return mediaService.target(orderId, visitId, uploadId);
     }
 
     /** F18 確認上傳（以 uploadId 天然冪等）。 */
     @PostMapping("/media-uploads/{uploadId}/complete")
     @PreAuthorize("hasRole('SITTER')")
-    public ResponseEntity<CareLogResponses.MediaCreated> complete(@PathVariable UUID orderId, @PathVariable UUID visitId,
+    public ResponseEntity<VisitCareLogResponses.MediaCreated> complete(@PathVariable UUID orderId, @PathVariable UUID visitId,
                                                                  @PathVariable UUID uploadId) {
         OffsetDateTime receivedAt = clock.now();
         return ResponseEntity.status(HttpStatus.CREATED).body(mediaService.completeUpload(orderId, visitId, uploadId, receivedAt));
@@ -93,7 +93,7 @@ public class VisitCareLogController {
     /** F19 刪除媒體（重送 404）。 */
     @DeleteMapping("/media/{mediaId}")
     @PreAuthorize("hasRole('SITTER')")
-    public CareLogResponses.MediaDeleted deleteMedia(@PathVariable UUID orderId, @PathVariable UUID visitId, @PathVariable UUID mediaId) {
+    public VisitCareLogResponses.MediaDeleted deleteMedia(@PathVariable UUID orderId, @PathVariable UUID visitId, @PathVariable UUID mediaId) {
         OffsetDateTime receivedAt = clock.now();
         return mediaService.deleteMedia(orderId, visitId, mediaId, receivedAt);
     }

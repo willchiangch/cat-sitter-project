@@ -1,6 +1,5 @@
 package com.petsitter.application.listener;
 
-import com.petsitter.application.event.VisitNotificationEvent;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.SitterSuspendedEvent;
@@ -18,7 +17,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class NotificationListener {
 
     // SD-ORDER M22：訂單事件（付款憑證、撤單、婉拒、付款確認 / 駁回）的 AFTER_COMMIT handler 已刪除，
-    // 改由各轉移交易內 NotificationService.enqueue()。行程通知 handler 屬 SD-FULFILL，C 階段刪除（F-M9）。
+    // 改由各轉移交易內 NotificationService.enqueue()。行程 / 日誌通知改由 SD-FULFILL 轉移交易內 enqueue（F-M9，handler 已刪除）。
 
     private final NotificationService notificationService;
 
@@ -30,20 +29,6 @@ public class NotificationListener {
      */
     static String ownerOrderLink(java.util.UUID orderId) {
         return "/owner/orders/" + orderId;
-    }
-
-    @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleVisitNotification(VisitNotificationEvent event) {
-        log.info("Async notification - Visit Notification for User: {}, Msg: {}", event.userId(), event.message());
-        notificationService.createNotification(
-                event.userId(),
-                "照護日誌回報",
-                event.message(),
-                "SERVICE_RECORD",
-                ownerOrderLink(event.orderId()),
-                "OWNER"
-        );
     }
 
     @Async

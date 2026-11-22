@@ -14,7 +14,7 @@ import static testsupport.fulfill.MediaFiles.jpeg;
 
 /** 真 JWT + 真 SecurityConfig filter chain。 */
 @DisplayName("SD-FULFILL VisitCareLogAuthorizationIntegrationTest（F13–F19）")
-class VisitCareLogAuthorizationIntegrationTest extends CareLogTestBase {
+class VisitCareLogAuthorizationIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-3.3 401 / 他人保母 403 / 他人飼主 403 / OWNER 與 ADMIN 寫入 ROLE_MISMATCH / 跨訂單路徑 404；保母以 OWNER token 讀自己草稿 404（§6.3 已知邊界）；日誌媒體不變、無新物件")

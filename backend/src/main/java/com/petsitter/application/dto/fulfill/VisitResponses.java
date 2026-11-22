@@ -21,12 +21,12 @@ public final class VisitResponses {
     public record VisitRow(UUID visitId, UUID orderItemId, UUID planId, LocalDate serviceDate, int sequenceInDay,
                            int slotsInDay, String name, String customName, String status, OffsetDateTime startedAt,
                            OffsetDateTime completedAt, String completionSource, OffsetDateTime closedAt,
-                           OffsetDateTime cancelledAt, OffsetDateTime zombieAt, CareLogSummary careLog,
+                           OffsetDateTime cancelledAt, OffsetDateTime zombieAt, VisitCareLogSummary careLog,
                            ChecklistSummary checklist) {
     }
 
     /** SITTER：status / deadlineAt / expired；OWNER / ADMIN：只有 submitted（不洩漏草稿）。 */
-    public record CareLogSummary(Boolean submitted, String status, OffsetDateTime deadlineAt, Boolean expired) {
+    public record VisitCareLogSummary(Boolean submitted, String status, OffsetDateTime deadlineAt, Boolean expired) {
     }
 
     public record ChecklistSummary(int total, int completed, List<ChecklistItem> items) {
@@ -49,7 +49,7 @@ public final class VisitResponses {
                               LocalDate serviceDate, int sequenceInDay, int slotsInDay, String name, String customName,
                               String status, OffsetDateTime startedAt, OffsetDateTime completedAt, String completionSource,
                               OffsetDateTime closedAt, OffsetDateTime cancelledAt, OffsetDateTime zombieAt,
-                              CareLogSummary careLog, ChecklistSummary checklist, Party owner, List<PetRef> pets,
+                              VisitCareLogSummary careLog, ChecklistSummary checklist, Party owner, List<PetRef> pets,
                               List<String> allowedActions, boolean dateReached, boolean zombieDeadlinePassed) {
     }
 

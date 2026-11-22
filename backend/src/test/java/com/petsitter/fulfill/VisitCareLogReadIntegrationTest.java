@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @DisplayName("SD-FULFILL VisitCareLogReadIntegrationTest（F13）")
-class VisitCareLogReadIntegrationTest extends CareLogTestBase {
+class VisitCareLogReadIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-1.7 逾期草稿：保母可讀（expired=true、不可編輯 / 送出、含文字與照片）；飼主讀取 404、無日誌通知")

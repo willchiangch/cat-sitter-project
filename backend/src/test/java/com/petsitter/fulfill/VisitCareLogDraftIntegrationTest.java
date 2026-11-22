@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static testsupport.fulfill.MediaFiles.jpeg;
 
 @DisplayName("SD-FULFILL VisitCareLogDraftIntegrationTest（F14）")
-class VisitCareLogDraftIntegrationTest extends CareLogTestBase {
+class VisitCareLogDraftIntegrationTest extends VisitCareLogTestBase {
 
     @Test
     @DisplayName("PRD-022 AC-1.1 開放條件：PENDING / CLOSED / CANCELLED → 409 VISIT_STATE_CONFLICT；CONFIRMED 訂單 → ORDER_STATE_CONFLICT；IN_PROGRESS 可暫存")
