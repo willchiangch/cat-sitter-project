@@ -51,11 +51,40 @@ class QuoteIntegrationTest extends OrderIntegrationTestBase {
         // 加密快照非明文且可解回四欄
         String cipherText = (String) p.get("payee_account_snapshot");
         assertThat(cipherText).doesNotContain("1234567890123").doesNotContain("王小明");
-        assertThat(cipher.decrypt(cipherText, ((Number) p.get("payee_account_key_version")).shortValue()).accountNumber())
+        assertThat(cipher.decrypt(cipherText, ((Number) p.get("payee_account_key_version")).shortValue(), (UUID) p.get("id")).accountNumber())
                 .isEqualTo("1234567890123");
         assertThat(logActions(orderId)).containsExactly("ORDER_CREATED", "ORDER_QUOTED");
         assertThat(count("SELECT count(*) FROM notifications WHERE related_order_id = ? AND type = 'QUOTE_SENT' AND mandatory = false", orderId)).isEqualTo(1);
         assertThat(r.get("payment").get("dueAt")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("SD-ORDER §8.2 / NFR-003 CQ-48 快照 AAD：payment id 加密前產生並寫入同值；同一明文兩次密文不同；A 列密文複製到 B 列 → 讀 B 500 INTERNAL_ERROR；竄改 1 byte → 500")
+    void snapshotBoundToPaymentRow() throws Exception {
+        UUID orderA = book(today().plusDays(10));
+        UUID paymentA = quote(orderA);
+        UUID orderB = book(today().plusDays(11));
+        UUID paymentB = quote(orderB);
+        String ctA = jdbc.queryForObject("SELECT payee_account_snapshot FROM payments WHERE id = ?", String.class, paymentA);
+        String ctB = jdbc.queryForObject("SELECT payee_account_snapshot FROM payments WHERE id = ?", String.class, paymentB);
+        assertThat(ctA).isNotEqualTo(ctB);
+        // 回應的 paymentId 即 DB 列 id，且以該 id 為 AAD 可解回
+        assertThat(cipher.decrypt(ctA, PayoutSnapshotCipher.KEY_VERSION, paymentA).accountNumber()).isEqualTo("1234567890123");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> cipher.decrypt(ctA, PayoutSnapshotCipher.KEY_VERSION, paymentB))
+                .isInstanceOf(IllegalStateException.class);
+        // E10 正常讀取
+        mvc.perform(getAs("/api/orders/{o}/payments", ownerToken(), orderB)).andExpect(status().isOk());
+        // 有 DB 寫入權者把 A 列密文搬到 B 列 → AAD 不符 → 500，不回部分欄位
+        jdbc.update("UPDATE payments SET payee_account_snapshot = ? WHERE id = ?", ctA, paymentB);
+        String moved = mvc.perform(getAs("/api/orders/{o}/payments", ownerToken(), orderB))
+                .andExpect(status().isInternalServerError()).andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(moved).doesNotContain("1234567890123").doesNotContain("王小明");
+        // 竄改任一位元組 → 500
+        byte[] raw = java.util.Base64.getDecoder().decode(ctB);
+        raw[raw.length - 1] ^= 0x01;
+        jdbc.update("UPDATE payments SET payee_account_snapshot = ? WHERE id = ?", java.util.Base64.getEncoder().encodeToString(raw), paymentB);
+        mvc.perform(getAs("/api/orders/{o}/payments", ownerToken(), orderB)).andExpect(status().isInternalServerError());
     }
 
     @Test

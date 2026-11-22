@@ -64,6 +64,9 @@ app:
   email:
     resend-api-key: ${RESEND_API_KEY:}
     from-address: ${EMAIL_FROM_ADDRESS:WhiskerWatch <onboarding@resend.dev>}
+  order:
+    # SD-ORDER §8.2（NFR-003 CQ-43、PRD-005 BR-26）：同一飼主對同一保母同時 PENDING 的訂單上限
+    owner-pending-per-sitter-max: ${APP_ORDER_OWNER_PENDING_PER_SITTER_MAX:3}
   idempotency:
     # baseline §5 IDEMPOTENCY_KEY_TTL_HOURS（SD-GLOBAL-SPEC §2.4）
     ttl-hours: ${IDEMPOTENCY_KEY_TTL_HOURS:24}

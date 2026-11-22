@@ -2,8 +2,6 @@ package com.petsitter.domain.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Getter;
@@ -32,8 +30,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public abstract class AuditedEntity {
 
+    /** 未指定時產生隨機 UUID；Service 可預先指定（例：payments，SD-ORDER §8.2 AAD），見 {@link AssignableUuid}。 */
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @AssignableUuid
     private UUID id;
 
     @CreatedDate

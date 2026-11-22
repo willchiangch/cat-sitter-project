@@ -261,12 +261,14 @@ class BookingIntegrationTest extends OrderIntegrationTestBase {
     }
 
     @Test
-    @DisplayName("PRD-005 AC-1.7 每月上限：FREE 當月 3 張 CONFIRMED（含之後取消）→ 422；PENDING 不計")
+    @DisplayName("PRD-005 AC-1.7 每月上限：FREE 當月 3 張 CONFIRMED（含之後取消）→ 422；PENDING 不計（情境 4：5 張 PENDING 來自 5 位不同飼主，避開 BR-26）")
     void monthlyQuota() throws Exception {
         tier(sitter, "FREE");
         LocalDate d = today().plusDays(2);
         for (int i = 0; i < 5; i++) {
-            book(d);
+            UUID other = otherOwner();
+            mvc.perform(postJson("/api/orders", bearer(other, "OWNER"), key(),
+                    bookingBody(sitter, List.of(d), 1, 500, fx.pet(other, "貓" + i)))).andExpect(status().isCreated());
         }
         for (int i = 0; i < 3; i++) {
             UUID o = fx.order(owner, sitter, i == 2 ? "CANCELLED" : "CONFIRMED");
@@ -277,6 +279,107 @@ class BookingIntegrationTest extends OrderIntegrationTestBase {
         tier(sitter, "BASIC");
         mvc.perform(postJson("/api/orders", ownerToken(), key(), bookingBody(sitter, List.of(d), 1, 500, petA)))
                 .andExpect(status().isCreated());
+    }
+
+    private UUID otherOwner() {
+        UUID id = fx.user("owner-" + UUID.randomUUID() + "@test.com", "OWNER");
+        fx.profile(id, "CLIENT", "UNVERIFIED");
+        return id;
+    }
+
+    private org.springframework.test.web.servlet.ResultActions bookAs(UUID ownerId, UUID pet, UUID sitterId, UUID planId, String k)
+            throws Exception {
+        Map<String, Object> body = Map.of("sitterId", sitterId.toString(),
+                "groups", List.of(Map.of("planId", planId.toString(), "dates", List.of(today().plusDays(3).toString()),
+                        "dailyCount", 1, "petIds", List.of(pet.toString()))),
+                "expectedAmount", 500);
+        return mvc.perform(postJson("/api/orders", bearer(ownerId, "OWNER"), k, body));
+    }
+
+    private int ordersOf(UUID ownerId, UUID sitterId) {
+        return count("SELECT count(*) FROM orders WHERE owner_id = ? AND sitter_id = ?", ownerId, sitterId);
+    }
+
+    @Test
+    @DisplayName("PRD-005 AC-2.7 情境 2：X 對 S 已有 3 張 PENDING → 第 4 張 422 PENDING_ORDER_LIMIT_REACHED（limit=3），訂單數不變、無新 order_logs；同 key 重送回放 422")
+    void pendingLimitReached() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            book(today().plusDays(2 + i));
+        }
+        int logsBefore = count("SELECT count(*) FROM order_logs");
+        String k = key();
+        bookAs(owner, petA, sitter, planA, k).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("PENDING_ORDER_LIMIT_REACHED"))
+                .andExpect(jsonPath("$.payload.limit").value(3));
+        assertThat(ordersOf(owner, sitter)).isEqualTo(3);
+        assertThat(count("SELECT count(*) FROM order_logs")).isEqualTo(logsBefore);
+        bookAs(owner, petA, sitter, planA, k).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("PENDING_ORDER_LIMIT_REACHED"));
+        assertThat(ordersOf(owner, sitter)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("PRD-005 AC-2.7 情境 3：X 對 S 有 2 張 PENDING、1 張 PENDING_PAYMENT、1 張 CANCELLED → 201（只計 PENDING）")
+    void onlyPendingCounted() throws Exception {
+        book(today().plusDays(2));
+        book(today().plusDays(3));
+        fx.order(owner, sitter, "PENDING_PAYMENT");
+        fx.order(owner, sitter, "CANCELLED");
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isCreated());
+        assertThat(count("SELECT count(*) FROM orders WHERE owner_id = ? AND sitter_id = ? AND status = 'PENDING'", owner, sitter)).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("PRD-005 AC-2.7 情境 4：情境 2 之後 X 對保母 T、飼主 Y 對 S 皆 201（分開計算）")
+    void otherSitterAndOtherOwnerUnaffected() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            book(today().plusDays(2 + i));
+        }
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isUnprocessableContent());
+        UUID sitterT = fx.user("sitter-t-" + UUID.randomUUID() + "@test.com", "SITTER");
+        fx.profile(sitterT, "SITTER", "VERIFIED");
+        tier(sitterT, "PRO");
+        UUID planT = fx.plan(sitterT, "到府餵食", 500);
+        bookAs(owner, petA, sitterT, planT, key()).andExpect(status().isCreated());
+        UUID y = otherOwner();
+        bookAs(y, fx.pet(y, "小白"), sitter, planA, key()).andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("PRD-005 AC-2.7 情境 5：情境 2 之後 S 報價其中 1 張（轉 PENDING_PAYMENT）→ X 再送 201")
+    void quoteFreesSlot() throws Exception {
+        UUID first = book(today().plusDays(2));
+        book(today().plusDays(3));
+        book(today().plusDays(4));
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isUnprocessableContent());
+        quote(first);
+        assertThat(orderStatus(first)).isEqualTo("PENDING_PAYMENT");
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("PRD-005 AC-2.7 情境 6：S 為 FREE 或 ULTIMATE 結果相同（不依方案）；判斷晚於 MONTHLY_QUOTA_REACHED、早於 PLAN_NOT_BOOKABLE")
+    void notTierDependentAndOrder() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            book(today().plusDays(2 + i));
+        }
+        tier(sitter, "FREE");
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("PENDING_ORDER_LIMIT_REACHED"));
+        tier(sitter, "ULTIMATE");
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("PENDING_ORDER_LIMIT_REACHED"));
+        // 早於 PLAN_NOT_BOOKABLE：以不存在的 planId 送單仍回 PENDING_ORDER_LIMIT_REACHED
+        bookAs(owner, petA, sitter, UUID.randomUUID(), key()).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("PENDING_ORDER_LIMIT_REACHED"));
+        // 晚於 MONTHLY_QUOTA_REACHED：FREE 且當月 3 張 CONFIRMED → MONTHLY_QUOTA_REACHED
+        tier(sitter, "FREE");
+        for (int i = 0; i < 3; i++) {
+            UUID o = fx.order(otherOwner(), sitter, "CONFIRMED");
+            jdbc.update("UPDATE orders SET confirmed_at = ? WHERE id = ?", OffsetDateTime.now(clock), o);
+        }
+        bookAs(owner, petA, sitter, planA, key()).andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("MONTHLY_QUOTA_REACHED"));
     }
 
     @Test

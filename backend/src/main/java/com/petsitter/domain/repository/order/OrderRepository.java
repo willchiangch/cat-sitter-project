@@ -17,6 +17,9 @@ import java.util.UUID;
 /** 訂單聚合 Repository：只准 {@code application.service.order} 依賴（{@code OrderAggregateArchTest}）。 */
 public interface OrderRepository extends JpaRepository<Order, UUID> {
 
+    /** E1 同時 PENDING 上限（NFR-003 CQ-43、PRD-005 BR-26）：不加鎖單純計數，走 ix_orders_owner_list。 */
+    long countByOwnerIdAndSitterIdAndStatus(UUID ownerId, UUID sitterId, com.petsitter.domain.model.order.OrderStatus status);
+
     /** 月額度：當月（Asia/Taipei 自然月，由呼叫端換算成 UTC 區間）進入 CONFIRMED 的筆數（ix_orders_sitter_confirmed）。 */
     @Query("SELECT COUNT(o) FROM Order o WHERE o.sitterId = :sitterId AND o.confirmedAt >= :from AND o.confirmedAt < :to")
     long countConfirmedBetween(@Param("sitterId") UUID sitterId, @Param("from") OffsetDateTime from,

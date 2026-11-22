@@ -47,7 +47,7 @@ public class PaymentViews {
         for (Payment p : payments) {
             PaymentView.AccountSnapshot snap = null;
             if (includeSnapshot && p.getDirection() == PaymentDirection.CHARGE && p.getPayeeAccountSnapshot() != null) {
-                PayoutAccountSnapshot s = cipher.decrypt(p.getPayeeAccountSnapshot(), p.getPayeeAccountKeyVersion());
+                PayoutAccountSnapshot s = cipher.decrypt(p.getPayeeAccountSnapshot(), p.getPayeeAccountKeyVersion(), p.getId());
                 snap = new PaymentView.AccountSnapshot(s.bankCode(), s.branch(), s.accountNumber(), s.accountName());
             }
             out.add(new PaymentView(p.getId(), p.getDirection().name(), p.getPurpose().name(), p.getMethod().name(),

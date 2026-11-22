@@ -285,6 +285,46 @@ class OrderCronIntegrationTest extends OrderIntegrationTestBase {
         }
 
         @Test
+        @DisplayName("PRD-023 AC-2.8 先前已有 SETTLED 變更時只扣本次取消：A 減 V2 退 500 結清（total 1000）；B 減 V3 加 2 次補 500 逾時 → total 500、SYSTEM 退款新總額 500、退款 500；V1 仍 PENDING、訂單 CONFIRMED")
+        void expiryDeductsOnlyThisModification() throws Exception {
+            LocalDate d = today().plusDays(5);
+            UUID orderId = confirmedOrder(d, d.plusDays(1), d.plusDays(2));
+            List<UUID> vs = visitIds(orderId, "PENDING");
+            UUID v1 = vs.get(0);
+            UUID v2 = vs.get(1);
+            UUID v3 = vs.get(2);
+            // 變更 A：減少 V2，新總額 1000，退款 500 確認 → SETTLED
+            UUID modA = modificationId(modify(orderId, sitterToken(), Map.of("type", "CHANGE", "reason", "a",
+                    "removeVisitIds", List.of(v2.toString()), "addItems", List.of())));
+            JsonNode ra = body(mvc.perform(postJson("/api/orders/{o}/modifications/{m}/accept", ownerToken(), key(), Map.of(), orderId, modA)));
+            UUID refundA = UUID.fromString(ra.get("payment").get("paymentId").asString());
+            UUID subA = submitProof(orderId, refundA, sitterToken());
+            verify(orderId, refundA, subA, ownerToken()).andExpect(status().isOk());
+            assertThat(jdbc.queryForObject("SELECT status FROM modification_requests WHERE id = ?", String.class, modA)).isEqualTo("SETTLED");
+            assertThat(jdbc.queryForObject("SELECT total_amount FROM orders WHERE id = ?", Integer.class, orderId)).isEqualTo(1000);
+            // 變更 B：減少 V3、新增 2 次，新總額 1500，同意 → V3 CANCELLED、補款 500
+            UUID modB = modificationId(modify(orderId, sitterToken(), Map.of("type", "CHANGE", "reason", "b",
+                    "removeVisitIds", List.of(v3.toString()),
+                    "addItems", List.of(addItem(d.plusDays(10), planA, 1, petA), addItem(d.plusDays(11), planA, 1, petA)))));
+            JsonNode rb = body(mvc.perform(postJson("/api/orders/{o}/modifications/{m}/accept", ownerToken(), key(), Map.of(), orderId, modB)));
+            UUID supplement = UUID.fromString(rb.get("payment").get("paymentId").asString());
+            assertThat(jdbc.queryForObject("SELECT amount FROM payments WHERE id = ?", Integer.class, supplement)).isEqualTo(500);
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v3)).isEqualTo("CANCELLED");
+            // B 的補款 UNPAID 逾時
+            advance(Duration.ofHours(72));
+            counts(cron("modifications/supplement-expiry"), 1, 0, 0);
+            assertThat(jdbc.queryForObject("SELECT status FROM modification_requests WHERE id = ?", String.class, modB)).isEqualTo("EXPIRED");
+            assertThat(jdbc.queryForObject("SELECT total_amount FROM orders WHERE id = ?", Integer.class, orderId)).isEqualTo(500);
+            Map<String, Object> sys = jdbc.queryForMap("SELECT * FROM modification_requests WHERE source_modification_id = ?", modB);
+            assertThat(sys).containsEntry("initiated_by", "SYSTEM").containsEntry("new_total_amount", 500)
+                    .containsEntry("status", "AWAITING_REFUND");
+            assertThat(jdbc.queryForObject("SELECT amount FROM payments WHERE modification_request_id = ?", Integer.class, sys.get("id"))).isEqualTo(500);
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1)).isEqualTo("PENDING");
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v2)).isEqualTo("CANCELLED");
+            assertThat(orderStatus(orderId)).isEqualTo("CONFIRMED");
+        }
+
+        @Test
         @DisplayName("PRD-023 AC-2.5 純新增逾時不退款、總額不變；AC-2.7 SUBMITTED 不逾時；C6 vs 保母確認：確認先 → C6 略過")
         void pureAddAndSubmitted() throws Exception {
             UUID[] ids = supplementPending(0, 1);

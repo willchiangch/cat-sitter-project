@@ -178,6 +178,12 @@ public class BookingOrchestrator {
         if (gate.quotaReached()) {
             throw new OrderException(OrderErrorCode.MONTHLY_QUOTA_REACHED);
         }
+        // SD-ORDER §6.3 E1（NFR-003 CQ-43、PRD-005 BR-26 §4.4 步驟 3.8.3）：每月額度之後；不加鎖單純計數
+        // （同一飼主多裝置並行可能短暫超過，使用者 2026-11-22 決定不處理）；只計 PENDING；不依方案區分
+        int pendingMax = settings.getOwnerPendingPerSitterMax();
+        if (orderRepository.countByOwnerIdAndSitterIdAndStatus(actor.userId(), sitterId, OrderStatus.PENDING) >= pendingMax) {
+            throw new OrderException(OrderErrorCode.PENDING_ORDER_LIMIT_REACHED, Map.of("limit", pendingMax));
+        }
         Set<UUID> planIds = groups.stream().map(ParsedGroup::planId).collect(Collectors.toSet());
         Map<UUID, PlanView> plans = servicePlanQuery.findForBooking(sitterId, planIds).stream()
                 .collect(Collectors.toMap(PlanView::planId, Function.identity()));

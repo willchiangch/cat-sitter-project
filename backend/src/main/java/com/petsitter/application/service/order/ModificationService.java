@@ -360,11 +360,13 @@ public class ModificationService {
                 PayoutAccountQuery.PayoutAccountSnapshot account = payoutAccountQuery.getSnapshot(o.getSitterId())
                         .orElseThrow(() -> new PayoutAccountMissingException("payout account missing for sitter of order " + o.getId()));
                 modificationRequestRepository.flush();
+                UUID supplementPaymentId = UUID.randomUUID(); // SD-ORDER §8.2：加密前產生（AAD 綁定該列）
                 payment = paymentRepository.save(Payment.builder()
+                        .id(supplementPaymentId)
                         .orderId(o.getId()).modificationRequestId(m.getId())
                         .direction(PaymentDirection.CHARGE).purpose(PaymentPurpose.SUPPLEMENT).method(PaymentMethod.OFFLINE_TRANSFER)
                         .amount(diff).status(PaymentStatus.UNPAID).dueAt(now.plus(settings.modificationTimeout()))
-                        .payeeAccountSnapshot(cipher.encrypt(account)).payeeAccountKeyVersion(PayoutSnapshotCipher.KEY_VERSION)
+                        .payeeAccountSnapshot(cipher.encrypt(account, supplementPaymentId)).payeeAccountKeyVersion(PayoutSnapshotCipher.KEY_VERSION)
                         .createdBy(actor.userId()).build());
                 aggregateSupport.recomputeCompletionBasis(o);
             } else {

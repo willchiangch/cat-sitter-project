@@ -22,10 +22,14 @@ class OrderHistoryIntegrationTest extends OrderIntegrationTestBase {
     @Test
     @DisplayName("PRD-009 AC-3.6 分頁籤歸屬：EVALUATING / ACTIVE / HISTORY 只含本人訂單，created_at 倒序，每批 20 筆可載入更多")
     void tabsAndPaging() throws Exception {
-        for (int i = 0; i < 22; i++) {
+        UUID confirmed = confirmedOrder(today().plusDays(4));
+        // PRD-005 BR-26：同一飼主對同一保母同時 PENDING 上限 3 張，API 只建 2 張，其餘以 fixture 直接寫入
+        for (int i = 0; i < 2; i++) {
             book(today().plusDays(3));
         }
-        UUID confirmed = confirmedOrder(today().plusDays(4));
+        for (int i = 0; i < 20; i++) {
+            fx.order(owner, sitter, "PENDING");
+        }
         fx.order(stranger, sitter, "PENDING");
         JsonNode eval = list("/api/orders/owner", ownerToken(), "tab=EVALUATING");
         assertThat(eval.get("content").size()).isEqualTo(20);

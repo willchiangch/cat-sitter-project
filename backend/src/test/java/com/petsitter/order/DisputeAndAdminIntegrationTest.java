@@ -463,5 +463,30 @@ class DisputeAndAdminIntegrationTest extends OrderIntegrationTestBase {
             mvc.perform(getAs("/api/orders/sitter/ledger?month=2026-1", sitterToken())).andExpect(status().isBadRequest());
             mvc.perform(getAs("/api/orders/sitter/ledger?month=" + month, ownerToken())).andExpect(status().isForbidden());
         }
+
+        private java.util.Set<String> ledgerIds(String month) throws Exception {
+            JsonNode r = body(mvc.perform(getAs("/api/orders/sitter/ledger?month=" + month, sitterToken())).andExpect(status().isOk()));
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            r.get("orders").forEach(o -> ids.add(o.get("orderId").asString()));
+            return ids;
+        }
+
+        @Test
+        @DisplayName("PRD-009 AC-3.2 月份歸屬邊界（Asia/Taipei）：D completed 11-30 23:59、E completed 12-01 00:00、F cancelled 11-01 00:30 → 11 月含 D、F 不含 E；12 月含 E；10 月不含 D、F")
+        void monthBoundary() throws Exception {
+            UUID d = confirmedOrder(d1());
+            UUID e = confirmedOrder(d1().plusDays(1));
+            UUID f = confirmedOrder(d1().plusDays(2));
+            jdbc.update("UPDATE orders SET status = 'COMPLETED', completed_by = 'SYSTEM', completed_at = ?::timestamptz WHERE id = ?",
+                    "2026-11-30T15:59:00Z", d);
+            jdbc.update("UPDATE orders SET status = 'COMPLETED', completed_by = 'SYSTEM', completed_at = ?::timestamptz WHERE id = ?",
+                    "2026-11-30T16:00:00Z", e);
+            jdbc.update("UPDATE orders SET status = 'CANCELLED', cancelled_by = 'SITTER', cancel_reason_code = 'SITTER_CANCELLED', "
+                    + "cancelled_at = ?::timestamptz WHERE id = ?", "2026-10-31T16:30:00Z", f);
+            java.util.Set<String> nov = ledgerIds("2026-11");
+            assertThat(nov).contains(d.toString(), f.toString()).doesNotContain(e.toString());
+            assertThat(ledgerIds("2026-12")).contains(e.toString()).doesNotContain(d.toString(), f.toString());
+            assertThat(ledgerIds("2026-10")).doesNotContain(d.toString(), f.toString(), e.toString());
+        }
     }
 }

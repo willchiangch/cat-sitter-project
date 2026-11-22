@@ -179,7 +179,10 @@ public class QuoteService {
         OffsetDateTime escalateAt = OrderClock.max(firstDay, dueAt).plus(settings.urgentWindow());
         OffsetDateTime reminderPoint = firstDay.minus(settings.paymentReminderLead());
         boolean reminderMerged = !now.isBefore(reminderPoint);
+        // SD-ORDER §8.2：payment UUID 在加密前產生（AAD 綁定該列）
+        UUID paymentId = UUID.randomUUID();
         Payment payment = paymentRepository.save(Payment.builder()
+                .id(paymentId)
                 .orderId(order.getId())
                 .direction(PaymentDirection.CHARGE)
                 .purpose(PaymentPurpose.INITIAL)
@@ -189,7 +192,7 @@ public class QuoteService {
                 .dueAt(dueAt)
                 .escalateAt(escalateAt)
                 .remindAt(reminderMerged ? null : reminderPoint)
-                .payeeAccountSnapshot(cipher.encrypt(account))
+                .payeeAccountSnapshot(cipher.encrypt(account, paymentId))
                 .payeeAccountKeyVersion(PayoutSnapshotCipher.KEY_VERSION)
                 .createdBy(actor.userId())
                 .build());

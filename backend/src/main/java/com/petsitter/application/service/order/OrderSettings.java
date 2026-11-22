@@ -48,6 +48,10 @@ public class OrderSettings {
     @Value("${app.order.max-amount:999999}")
     private int maxAmount;
 
+    /** NFR-003 CQ-43、PRD-005 BR-26：同一飼主對同一保母同時 PENDING 的訂單上限（SD-ORDER §8.2）。 */
+    @Value("${app.order.owner-pending-per-sitter-max:3}")
+    private int ownerPendingPerSitterMax;
+
     public Duration urgentWindow() {
         return Duration.ofHours(urgentWindowHours);
     }

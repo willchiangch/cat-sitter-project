@@ -23,6 +23,8 @@ public enum OrderErrorCode {
     PRICE_CHANGED(HttpStatus.CONFLICT, "金額已更新，請重新確認"),
     SELF_BOOKING_NOT_ALLOWED(HttpStatus.UNPROCESSABLE_CONTENT, "這是您自己的預約頁，無法預約"),
     MONTHLY_QUOTA_REACHED(HttpStatus.UNPROCESSABLE_CONTENT, "本月接單額度已滿"),
+    /** SD-ORDER §6.5 #37（NFR-003 CQ-43、PRD-005 BR-26）：同一飼主對同一保母已有上限張 PENDING；payload {@code limit}。 */
+    PENDING_ORDER_LIMIT_REACHED(HttpStatus.UNPROCESSABLE_CONTENT, "您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出"),
     INVALID_QUOTE_AMOUNT(HttpStatus.UNPROCESSABLE_CONTENT, "報價總額必須至少為 1"),
     INVALID_VISIT_DATE(HttpStatus.UNPROCESSABLE_CONTENT, "行程日期不符規則"),
     PAYOUT_ACCOUNT_REQUIRED(HttpStatus.UNPROCESSABLE_CONTENT, "請先設定收款帳號"),
