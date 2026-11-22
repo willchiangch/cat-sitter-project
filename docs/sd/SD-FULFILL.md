@@ -4,7 +4,7 @@
 |------|------|
 | 狀態 | In Review |
 | 建立日期 | 2026-11-22 |
-| 涵蓋 PRD | PRD-008、PRD-009、PRD-022、PRD-028（全部 Approved 2026-11-22；對應表見 `00-SD-PLAN.md` §0）。PRD-009 只在本 SD 定義畫面（§9.2）與測試對應；其 API（E2、E3、E25、E26、E30、C8）由 SD-ORDER 擁有，本 SD 不重複定義 |
+| 涵蓋 PRD | PRD-008、PRD-009、PRD-022、PRD-028（PRD-008、PRD-009、PRD-028 為 Approved 2026-11-22；**PRD-022 為 In Review**（CQ-19~22 直傳修訂，待使用者再核准）。核准順序：PRD-022 → SD-ORDER + SD-FULFILL 同批；對應表見 `00-SD-PLAN.md` §0）。PRD-009 只在本 SD 定義畫面（§9.2）與測試對應；其 API（E2、E3、E25、E26、E30、C8）由 SD-ORDER 擁有，本 SD 不重複定義 |
 | 擁有的 Table | `visits`、`visit_checklist_items`（新）、`visit_service_reports`（照護日誌）、`service_report_media`（日誌媒體）、`care_log_media_uploads`（新，上傳槽位）。其他 SD 只能經本 SD 的 Service 存取 |
 | 依賴的 SD | **SD-ORDER**（同一次發布，SD-ORDER CQ-21）：`OrderLockService`、`OrderLifecycleService`、`OrderLogWriter`、`OrderQueryService.getParticipants` / `getMediaQuota` / `getOrderContexts`、E2 `serverTime` / `completionHint`、E30 `serverMonth`、排程 C7。**本 SD 需要的 SD-ORDER 修訂（§12 CQ-1~4、CQ-10）已由使用者 2026-11-22 決定讓 SD-ORDER 退回 In Review、由原作者同批修訂，兩份一起核准**。**SD-GLOBAL-SPEC**：冪等三段式（§2.4，`@Idempotent`）、實體基底（§2.5，`AuditedEntity` / `VersionedEntity`）、例外對映（§2.6）。**SD-SUPPLY**（未重建，過渡實作）：`ServicePlanQuery.findDefaultTasks`（新）。**SD-NOTIFY**：`NotificationService.enqueue()`。**SD-CARE / SD-ORDER**：呼叫本 SD 的 `CareLogMediaRetentionPort`（媒體保留、到期提醒，PRD-013） |
 | 遵守 | `SD-GLOBAL-SPEC.md`（§2.3、§4.1、§4.2 依其註記以 baseline 為準）、`SD-FRONTEND-SPEC.md`、`docs/sa/00-DOMAIN-BASELINE.md` 第 3 版（下稱 baseline）、`SD-ORDER.md`（下稱 SD-ORDER；判斷順序代號 G1–G7、L 沿用其 §6.1） |
@@ -92,34 +92,34 @@
 
 ### 1.4 PRD-009 訂單結案、服務爭議與帳務（24 條；API 屬 SD-ORDER）
 
-> 端點、轉移與其後端整合測試由 SD-ORDER 擁有（使用者 2026-11-22：E25 / E26 / C8 / E30 / E3 的 API 行為歸 SD-ORDER 測試，SD-ORDER §10.3 補 PRD-009 對應列，§12 CQ-4）。本 SD 只負責畫面（§9.2，TS-009）與行程端資料（F1 的 `careLog.submitted` / `deadlineAt`）的測試。
+> 端點、轉移與其後端整合測試由 SD-ORDER 擁有（使用者 2026-11-22：E25 / E26 / C8 / E30 / E3 / E2 提示的 API 行為歸 SD-ORDER 測試；類別名以 SD-ORDER §10.3 為準，§12 CQ-4）。本 SD 只負責畫面（§9.2，TS-009）與行程端資料（F1 的 `careLog.submitted` / `deadlineAt`）的測試。
 
 | PRD | AC | API / 畫面 | Table / 欄位 | 鎖 / 交易 | 測試 |
 |-----|----|-----------|-------------|----------|------|
-| PRD-009 | AC-1.1 | E25；`owner-order-detail-btn-complete`、`owner-order-complete-btn-confirm` | `orders.completed_at`、`completed_by=OWNER`；`notifications` `ORDER_COMPLETED_BY_OWNER` | 訂單鎖（SD-ORDER） | SD-ORDER E25 測試；畫面 TS-009 |
-| PRD-009 | AC-1.2 | E25；E2 `completionHint`（§9.2） | `visits`、`visit_service_reports.status` | 同上 | SD-ORDER E25 / E2 測試；`OrderVisitListIntegrationTest`（`careLog.submitted`）；畫面 TS-009 |
-| PRD-009 | AC-1.3 | E25；`owner-order-detail-complete-hint`（`completionHint=MODIFICATION_IN_PROGRESS`） | `modification_requests` | 同上 | SD-ORDER E25 / E2 測試；畫面 TS-009 |
-| PRD-009 | AC-1.4 | E25、E17 | `orders.status` | 同上 | SD-ORDER E25 測試 |
-| PRD-009 | AC-1.5 | E25 | — | G1–G6 | SD-ORDER E25 測試 |
-| PRD-009 | AC-1.6 | E25 vs C8；鎖逾時 | `idempotency_records` | 訂單鎖 vs 排程鎖 | SD-ORDER E25 / C8 測試 |
+| PRD-009 | AC-1.1 | E25；`owner-order-detail-btn-complete`、`owner-order-complete-btn-confirm` | `orders.completed_at`、`completed_by=OWNER`；`notifications` `ORDER_COMPLETED_BY_OWNER` | 訂單鎖（SD-ORDER） | `CompletionIntegrationTest`；畫面 TS-009 |
+| PRD-009 | AC-1.2 | E25；E2 `completionHint`（§9.2） | `visits`、`visit_service_reports.status` | 同上 | `CompletionIntegrationTest`、`OrderDetailCompletionHintIntegrationTest`；`OrderVisitListIntegrationTest`（`careLog.submitted`）；畫面 TS-009 |
+| PRD-009 | AC-1.3 | E25；`owner-order-detail-complete-hint`（`completionHint.code=MODIFICATION_IN_PROGRESS`） | `modification_requests` | 同上 | `CompletionIntegrationTest`、`OrderDetailCompletionHintIntegrationTest`；畫面 TS-009 |
+| PRD-009 | AC-1.4 | E25、E17 | `orders.status` | 同上 | `CompletionIntegrationTest` |
+| PRD-009 | AC-1.5 | E25 | — | G1–G6 | `CompletionIntegrationTest` |
+| PRD-009 | AC-1.6 | E25 vs C8；鎖逾時 | `idempotency_records` | 訂單鎖 vs 排程鎖 | `CompletionIntegrationTest` |
 | PRD-009 | AC-1.7 | `/owner/orders/:orderId`、`/sitter/orders/:orderId`；`owner-order-detail-completed-at`、`sitter-order-detail-completed-at` | — | 唯讀 | 畫面 TS-009 |
 | PRD-009 | AC-1.8 | F1 + E2；`owner-order-detail-visit-row-{visitId}`、`owner-order-detail-btn-view-log-{visitId}` | `visit_service_reports.status` | 唯讀 | `OrderVisitListIntegrationTest`；畫面 TS-009 |
-| PRD-009 | AC-2.1 | C8 | `orders.completed_at`；`notifications` `ORDER_AUTO_COMPLETED` | 排程鎖（SD-ORDER） | SD-ORDER C8 測試 |
-| PRD-009 | AC-2.2 | C8、E25；E2 `completionHint=CARE_LOG_EXPIRED` | `completion_basis_at` | 同上 | SD-ORDER C8 / E2 測試；`OrderVisitListIntegrationTest`（`deadlineAt`）；畫面 TS-009 |
-| PRD-009 | AC-2.3 | C8 | `orders`、`modification_requests` | 同上 | SD-ORDER C8 測試 |
-| PRD-009 | AC-2.4 | C8 | — | 失敗隔離、重跑、403 | SD-ORDER C8 測試 |
-| PRD-009 | AC-2.5 | E26、E28；`owner-order-detail-btn-report-issue`、`owner-order-dispute-*` | `admin_tasks`（`SERVICE_DISPUTE`） | 訂單鎖（SD-ORDER） | SD-ORDER E26 測試；畫面 TS-009 |
-| PRD-009 | AC-2.6 | E26 vs C8；`owner-order-detail-dispute-window-ends-at`、`sitter-order-detail-auto-complete-at`（E2 `serverTime`） | `completion_basis_at` | 鎖後時間判斷視窗 | SD-ORDER E26 / C8 測試；畫面 TS-009 |
-| PRD-009 | AC-2.7 | E26 | — | 判斷順序 | SD-ORDER E26 測試 |
-| PRD-009 | AC-2.8 | E26 | `order_logs` payload | G5 / G6 / G7 | SD-ORDER E26 測試；計數器 TS-009 |
-| PRD-009 | AC-3.1 | E30；`sitter-ledger-*` | `payments` 加總 | 唯讀 | SD-ORDER E30 測試 |
-| PRD-009 | AC-3.2 | E30 | `completed_at` / `cancelled_at`（Asia/Taipei 月） | 唯讀 | SD-ORDER E30 測試 |
-| PRD-009 | AC-3.3 | E30 | — | 唯讀 | SD-ORDER E30 測試 |
-| PRD-009 | AC-3.4 | E30（`serverMonth`）；`/sitter/ledger` 預設月份 | — | 唯讀 | SD-ORDER E30 測試；畫面 TS-009 |
-| PRD-009 | AC-3.5 | E30 | — | G3 | SD-ORDER E30 測試 |
-| PRD-009 | AC-3.6 | E3 `tab=HISTORY`；`owner-orders-tab-history`、`owner-orders-history-btn-load-more` | `ix_orders_owner_terminal` | 唯讀 | SD-ORDER E3 測試；畫面 TS-009 |
-| PRD-009 | AC-3.7 | E3 `status` / `month`；`owner-orders-history-filter-status`、`-select-month`、`-empty` | — | 唯讀 | SD-ORDER E3 測試；畫面 TS-009 |
-| PRD-009 | AC-3.8 | E30 | `payments` | 唯讀 | SD-ORDER E30 測試 |
+| PRD-009 | AC-2.1 | C8 | `orders.completed_at`；`notifications` `ORDER_AUTO_COMPLETED` | 排程鎖（SD-ORDER） | `CompletionIntegrationTest` |
+| PRD-009 | AC-2.2 | C8、E25；E2 `completionHint.code=CARE_LOG_EXPIRED` | `completion_basis_at` | 同上 | `CompletionIntegrationTest`、`CompletionBasisIntegrationTest`、`OrderDetailCompletionHintIntegrationTest`；`OrderVisitListIntegrationTest`（`deadlineAt`）；畫面 TS-009 |
+| PRD-009 | AC-2.3 | C8 | `orders`、`modification_requests` | 同上 | `CompletionIntegrationTest`、`CompletionBasisIntegrationTest` |
+| PRD-009 | AC-2.4 | C8 | — | 失敗隔離、重跑、403 | `CompletionIntegrationTest` |
+| PRD-009 | AC-2.5 | E26、E28；`owner-order-detail-btn-report-issue`、`owner-order-dispute-*` | `admin_tasks`（`SERVICE_DISPUTE`） | 訂單鎖（SD-ORDER） | `CompletionIntegrationTest`；畫面 TS-009 |
+| PRD-009 | AC-2.6 | E26 vs C8；`owner-order-detail-dispute-window-ends-at`、`sitter-order-detail-auto-complete-at`（E2 `serverTime`） | `completion_basis_at` | 鎖後時間判斷視窗 | `CompletionIntegrationTest`、`CompletionBasisIntegrationTest`、`OrderDetailCompletionHintIntegrationTest`（`serverTime`）；畫面 TS-009 |
+| PRD-009 | AC-2.7 | E26 | — | 判斷順序 | `CompletionIntegrationTest` |
+| PRD-009 | AC-2.8 | E26 | `order_logs` payload | G5 / G6 / G7 | `CompletionIntegrationTest`；計數器 TS-009 |
+| PRD-009 | AC-3.1 | E30；`sitter-ledger-*` | `payments` 加總 | 唯讀 | `SitterLedgerIntegrationTest` |
+| PRD-009 | AC-3.2 | E30 | `completed_at` / `cancelled_at`（Asia/Taipei 月） | 唯讀 | `SitterLedgerIntegrationTest` |
+| PRD-009 | AC-3.3 | E30 | — | 唯讀 | `SitterLedgerIntegrationTest` |
+| PRD-009 | AC-3.4 | E30（`serverMonth`）；`/sitter/ledger` 預設月份 | — | 唯讀 | `SitterLedgerIntegrationTest`（`serverMonth`）；畫面 TS-009 |
+| PRD-009 | AC-3.5 | E30 | — | G3 | `SitterLedgerIntegrationTest` |
+| PRD-009 | AC-3.6 | E3 `tab=HISTORY`；`owner-orders-tab-history`、`owner-orders-history-btn-load-more` | `ix_orders_owner_terminal` | 唯讀 | `OrderHistoryIntegrationTest`；畫面 TS-009 |
+| PRD-009 | AC-3.7 | E3 `status` / `month`；`owner-orders-history-filter-status`、`-select-month`、`-empty` | — | 唯讀 | `OrderHistoryIntegrationTest`；畫面 TS-009 |
+| PRD-009 | AC-3.8 | E30 | `payments` | 唯讀 | `SitterLedgerIntegrationTest` |
 
 **合計 79 / 79 條 AC**（PRD-008 21、PRD-028 10、PRD-022 24、PRD-009 24）。
 
@@ -187,7 +187,7 @@
 | SD-ORDER | `OrderQueryService.getParticipants(orderId)` | 鎖前歸屬（403）判斷 | 已定義 |
 | SD-ORDER | `OrderQueryService.getMediaQuota(orderId)` | 日誌媒體額度（BR-9） | 已定義 |
 | SD-ORDER | **`OrderQueryService.getOrderContexts(Set<UUID>)`** | O2 方案名稱快照（行程預設名稱，PRD-008 BR-14、CQ-9 / CQ-15）、ADMIN 可讀判斷、儀表板卡片的對方名稱 / 毛孩 / 訂單建立時間 / 群組順序 | SD-ORDER 原作者已新增（§12 CQ-1） |
-| SD-ORDER | **E2 `serverTime` / `completionHint`、E30 `serverMonth`** | PRD-009 結案提示、「即將自動結案」、帳務預設月份（§9.2） | SD-ORDER 原作者已新增（§12 CQ-10）；`completionHint`：`MODIFICATION_IN_PROGRESS` / `VISITS_NOT_FINISHED` / `CARE_LOG_EXPIRED`（附 `autoCompleteAt`）/ `CARE_LOG_PENDING` / null |
+| SD-ORDER | **E2 `serverTime` / `completionHint`、E30 `serverMonth`** | PRD-009 結案提示、「即將自動結案」、帳務預設月份（§9.2） | SD-ORDER 原作者已新增（§12 CQ-10）；`completionHint` = `{ code, autoCompleteAt } | null`，`code`：`MODIFICATION_IN_PROGRESS` / `VISITS_NOT_FINISHED` / `CARE_LOG_EXPIRED` / `CARE_LOG_PENDING` |
 | SD-ORDER | `OrderBusyException`、`IdempotencyException`、`StorageUnavailableException`（`application/exception/`） | 本 SD 的 advice 一併對映 | 已定義 |
 | SD-GLOBAL-SPEC §2.4（共用套件） | 冪等三段式：`@Idempotent` 端點標註、`IdempotencyService`（`claim` / `complete` / `fail`）、`IdempotencyInterceptor`、`IdempotencyBodyCachingFilter`、`idempotency_records`（使用者 2026-11-22：移到共用套件、表由 GLOBAL 擁有） | F3、F4、F9、F15、F16 | 已寫入 GLOBAL §2.4（SD-ORDER 原作者），本 SD 只引用 |
 | SD-GLOBAL-SPEC §2.5 / §2.6 | 實體基底規則（不映射已刪除的 `is_deleted`；`@Version` 只放在需要的實體；系統寫入的列不經 `RequestAuditorAware`）；業務時間欄一律以注入 `Clock` 由 Service 寫入 | 本模組所有 entity（§2.5 第 7 點） | 已寫入 GLOBAL §2.5 / §2.6，本 SD 只引用 |
@@ -203,7 +203,7 @@
 4. **外部 I/O 不在交易內**：簽名網址產生、GCS 讀取檢驗與刪除一律在交易外（F13 的簽名在 `@Transactional(readOnly)` 範圍之外執行）；上傳由瀏覽器直傳 GCS（§4.4、§11 決策 1）。
 5. **同一使用者多裝置自我併發不處理**（doc-conventions）；跨角色與系統排程以訂單鎖序列化。同一 `uploadId` 的兩個 F18 並行屬會刪錯物件的資料錯誤，另以條件式更新處理（§3.3）。
 6. 實體 `@Version`：`visits`、`visit_service_reports` 保留作最後防線；衝突回 409 `ORDER_BUSY`（baseline §3.6）。不接受客戶端 version。
-7. **實體基底**（依 SD-GLOBAL-SPEC §2.5，§12 CQ-13）：`Visit`、`VisitServiceReport` 繼承 `VersionedEntity`（無 `is_deleted`，含 `@Version`）；`VisitChecklistItem`、`ServiceReportMedia` 繼承 `AuditedEntity`；`ServiceReportMedia` 不含 `version`、不用 `@CreatedBy`（`uploaded_by` 由 Service 寫）；`VisitChecklistItem` 不用 `@CreatedBy` / `@LastModifiedBy`，`created_by` / `updated_by` 由 Service 明確寫入（SITTER 寫 token 身分、SYSTEM 帶入寫 NULL；否則 O1 由 OWNER 觸發時 auditing 會填入 OWNER id 而撞 `ck_checklist_source`）；`ServiceReportUpload`（`care_log_media_uploads`）不用 auditing。
+7. **實體基底**（依 SD-GLOBAL-SPEC §2.5，§12 CQ-13）：`Visit`、`VisitServiceReport` 繼承 `VersionedEntity`（無 `is_deleted`，含 `@Version`）；`VisitChecklistItem`、`ServiceReportMedia` 繼承 `AuditedEntity`。**建立者 / 更新者**（PRD-022 BR-24；主流程 2026-11-22 決定）：`VisitServiceReport` 映射 `created_by` / `updated_by`，由 Service 寫入 token 保母（F14 / F15 / F18 首次建立日誌時寫 `created_by`，每次寫入都更新 `updated_by`）；`ServiceReportMedia` 以 `uploaded_by` 作為 BR-24 的建立者（媒體建立後不可修改，故無 `updated_by`）；`visits.created_by` / `updated_by` 刪欄（行程操作者記在 `order_logs`，與 SD-ORDER 一致）。`ServiceReportMedia` 不含 `version`、不用 `@CreatedBy`；`VisitChecklistItem` 不用 `@CreatedBy` / `@LastModifiedBy`，`created_by` / `updated_by` 由 Service 明確寫入（SITTER 寫 token 身分、SYSTEM 帶入寫 NULL；否則 O1 由 OWNER 觸發時 auditing 會填入 OWNER id 而撞 `ck_checklist_source`）；`ServiceReportUpload`（`care_log_media_uploads`）不用 auditing。
 8. **時間欄**：`started_at`、`completed_at`、`closed_at`、`cancelled_at`、`checked_at`、`submitted_at`、`uploaded_at`、`received_at`、`expires_at` 一律由 Service 以注入 `Clock` 寫入；auditing 只負責 `created_at` / `updated_at`。
 9. **`receivedAt` 定義**：Controller 進入時以注入 `Clock` 取得一次，傳入 Service；F16 把它寫入 `care_log_media_uploads.received_at`（不用 DB 預設值）。F18 另取自己的 `receivedAt`，只用於判斷槽位是否逾期（§3.3）。
 
@@ -261,7 +261,7 @@ stateDiagram-v2
     [*] --> PENDING: F16 預檢通過（received_at = F16 receivedAt、expires_at = received_at + 30m）
     PENDING --> COMPLETED: F18 鎖後重驗通過，建立媒體
     PENDING --> FAILED: F18 確定性錯誤（條件式 UPDATE），存錯誤碼
-    PENDING --> EXPIRED: FC2（now ≥ expires_at，條件式 UPDATE）
+    PENDING --> EXPIRED: FC2（now ≥ expires_at + 寬限，條件式 UPDATE）
     COMPLETED --> DISCARDED: F19 刪除媒體
     COMPLETED --> [*]
     FAILED --> [*]
@@ -270,8 +270,8 @@ stateDiagram-v2
 ```
 
 - **互斥**：`PENDING → COMPLETED`、`PENDING → FAILED`、`PENDING → EXPIRED` 一律以 `UPDATE ... WHERE id=:id AND status='PENDING'` 寫入，影響 0 列即表示已被他方轉移，該請求不得做後續副作用（不得刪物件），改為重讀槽位依其狀態回應。同一 `uploadId` 兩個 F18 並行時，恰一個成功，另一個回 201 既有媒體（鎖後見 `COMPLETED`）或依重讀結果回應，物件不會被刪。
-- **簽名網址不得超過槽位**：F17 簽發 TTL = `min(upload-url-ttl, expires_at − now)`；剩餘不足 2 分鐘直接回 409 `CARE_LOG_UPLOAD_EXPIRED`。因此 PUT 只能在 `expires_at` 前開始；在途上傳由 FC2 的寬限期（`upload-delete-grace` = 15 分鐘）涵蓋。
-- **槽位逾期判斷**：F18 以**自己的** `receivedAt < expires_at` 判斷，交易 B 不再以鎖後 `now` 重比（第 29:50 開始、串流 20 秒的合法完成不被誤判）。
+- **簽名網址不得超過槽位**：F17 簽發 TTL = `min(upload-url-ttl, expires_at − now)`；結果 ≤ 0 才回 409 `CARE_LOG_UPLOAD_EXPIRED`。因此 PUT 只能在 `expires_at` 前開始；在途上傳由 FC2 的寬限期（`upload-delete-grace` = 15 分鐘）涵蓋。
+- **槽位逾期判斷**：F18 以**自己的** `receivedAt < expires_at` 判斷，交易 B 不再以鎖後 `now` 重比（第 29:50 開始、串流 20 秒的合法完成不被誤判）。F18 遇 `ORDER_BUSY` 後若重打時已過 `expires_at`，重打的 F18 以其自己的 `receivedAt` 比對而得 409 `CARE_LOG_UPLOAD_EXPIRED`、檔案作廢，即使第一次確認在窗內收到；這是照 PRD-022 BR-28 字面（每次確認各自比對）的結果（主流程 2026-11-22 決定）。
 - **物件刪除分兩種**：(1) 提早刪除（best-effort）：本請求把槽位轉 `FAILED`、或 F19 把媒體轉 `DISCARDED` 後，在交易外刪除；**不寫** `object_deleted_at`。(2) 最終清除：FC2 對 `FAILED` / `EXPIRED` / `DISCARDED` 且 `now ≥ expires_at + upload-delete-grace` 的槽位刪除物件（不存在視為成功），成功才寫 `object_deleted_at`。理由：簽名網址在 `expires_at` 前仍有效，提早刪除後可能被遲到的 PUT 重新寫入，只有過了 `expires_at + 寬限` 的刪除才是最終的。`COMPLETED` 槽位的物件只由 F19（→ `DISCARDED`）或 PRD-013 `markPurged`（直接寫 `object_deleted_at`）處理。
 
 **F18 失敗類別 × 槽位 × 物件 × 前端動作**
@@ -403,6 +403,7 @@ sequenceDiagram
 - **期限**：寫入期限以 F16 的 `received_at` 判斷（PRD-022 BR-5「上傳耗時不影響」）；F18 自己的 `receivedAt ≥ received_at + 30 分` → 409 `CARE_LOG_UPLOAD_EXPIRED`（不用鎖後 now）。這是 baseline §5「以伺服器收到請求時間判斷」在兩段式上傳情境的解釋：「收到上傳請求」= 收到申請（F16），30 分鐘窗則以確認（F18）請求的收到時間比對（使用者 2026-11-22 決定，PRD-022 BR-5、BR-28 已同步）。訂單 / 行程 / 日誌狀態以交易 B 鎖後為準（AC-2.8 情境 3）。
 - **檔案檢驗**：F16 驗宣告值，F18 驗實際物件（不信任宣告與 GCS metadata），順序：SHA-256 與宣告不符 → 400（`reason=SHA256_MISMATCH`）→ magic bytes 不屬允許格式、與 `mediaType` 不符、或與宣告 `contentType` 不同（例宣告 JPEG 實為 PNG）→ 422 `CARE_LOG_MEDIA_TYPE_UNSUPPORTED` → 實際大小 → 422 `CARE_LOG_MEDIA_TOO_LARGE` → 時長（half-up 整數秒）→ 422 `CARE_LOG_VIDEO_DURATION_INVALID` → 額度。物件不存在 → 400（`reason=OBJECT_MISSING`），槽位維持 `PENDING`。同時以既有 `isPubliclyReadable` 檢查物件，若為公開（bucket 預設 ACL 設錯）則 `revokePublicRead` 並記 WARN log（DF7）。
 - **與 PRD-022 原字面的差異**（使用者 2026-11-22 採用，PRD-022 已同步：CQ-19~22、BR-5、BR-28、EX-28~32；PRD「申請上傳」= F16 + F17）：實際內容檢驗發生在物件已寫入 GCS 之後，不符者在 F18 被拒並刪除，結果為「最終無物件」；瀏覽器 PUT 失敗不經後端，後端的 503 只來自 F17 簽名或 F18 讀取（§12 CQ-5）。
+- **EX-21 (1) 對應**：PRD-022「申請時無法取得傳檔位置 → 503，不記冪等結果」在本設計等價於「F16 已記錄槽位與冪等結果、F17 簽名失敗回 503 可同 key 重試」：同 key 重送回放同一槽位，無媒體紀錄、額度不變，外部可觀察結果相同；TS-022 以此斷言。
 - **連線**：預檢、GCS 串流期間不持有 DB 連線（`open-in-view: false`；只在短交易與交易 B 取連線），符合 Hikari 小池。
 
 ### 4.5 暫存、送出、刪除媒體
@@ -472,7 +473,9 @@ sequenceDiagram
 -- ============================================================
 DROP INDEX IF EXISTS idx_visits_order;                       -- 被 ix_visits_order_status 前導欄涵蓋
 ALTER TABLE visits DROP COLUMN scheduled_at,                 -- 改用 service_date（idx_visits_status_scheduled 隨之刪除）
-                   DROP COLUMN is_deleted;                   -- 行程不做軟刪除
+                   DROP COLUMN is_deleted,                   -- 行程不做軟刪除
+                   DROP COLUMN created_by,                   -- 行程操作者記在 order_logs（與 SD-ORDER 一致）
+                   DROP COLUMN updated_by;
 ALTER TABLE visits RENAME COLUMN finished_at TO completed_at;
 ALTER TABLE visits RENAME COLUMN snapshot_plan_title TO booking_plan_title;  -- O1 帶入的方案名稱，報價前顯示用（PRD-008 CQ-15）
 ALTER TABLE visits ALTER COLUMN plan_id SET NOT NULL,
@@ -541,6 +544,7 @@ ALTER TABLE visit_service_reports
     ADD CONSTRAINT ck_care_log_submitted CHECK ((status = 'SUBMITTED') = (submitted_at IS NOT NULL)),
     ADD CONSTRAINT ck_care_log_content   CHECK (content IS NULL OR char_length(content) <= 1000);
 -- visit_id UNIQUE（V20260523_03，約束名 visit_service_reports_visit_id_key）保留：一行程一份日誌的最後防線
+-- created_by / updated_by（V20260523_03）保留，由 Service 寫入保母 id（PRD-022 BR-24），不經 auditing
 
 -- ============================================================
 -- 16. care_log_media_uploads：上傳槽位（§3.3）；service_report_media 改寫
@@ -641,8 +645,8 @@ erDiagram
 
 | 表 | 刪除 | 新增 / 改名 |
 |----|------|------------|
-| `visits` | `scheduled_at`、`is_deleted`、索引 `idx_visits_order`（`idx_visits_status_scheduled` 隨欄位刪除） | `finished_at → completed_at`、`snapshot_plan_title → booking_plan_title`；新增 `order_item_id`、`owner_id`、`sitter_id`、`service_date`、`sequence_in_day`、`slots_in_day`、`custom_name`、`started_at`、`completion_source`、`cancelled_at`、`closed_at` |
-| `visit_service_reports` | `is_deleted`、索引 `idx_visit_service_reports_visit` | CHECK 三條 |
+| `visits` | `scheduled_at`、`is_deleted`、`created_by`、`updated_by`、索引 `idx_visits_order`（`idx_visits_status_scheduled` 隨欄位刪除） | `finished_at → completed_at`、`snapshot_plan_title → booking_plan_title`；新增 `order_item_id`、`owner_id`、`sitter_id`、`service_date`、`sequence_in_day`、`slots_in_day`、`custom_name`、`started_at`、`completion_source`、`cancelled_at`、`closed_at` |
+| `visit_service_reports` | `is_deleted`、索引 `idx_visit_service_reports_visit` | CHECK 三條；`created_by` / `updated_by` 保留並改由 Service 寫入 |
 | `service_report_media` | `version`、`is_deleted`、索引 `idx_service_report_media_report` | `media_url → object_key`；新增 `upload_id`、`object_generation`、`size_bytes`、`duration_seconds`、`uploaded_by`、`uploaded_at` |
 | 新表 | — | `visit_checklist_items`、`care_log_media_uploads` |
 | 不動 | `service_plans.default_tasks`（SD-SUPPLY，唯讀） | — |
@@ -821,7 +825,7 @@ Response 201：`{ "uploadId", "receivedAt", "expiresAt" }`（可回放；不含�
 
 Response 200：`{ "uploadId", "alreadyCompleted": false, "uploadUrl", "method": "PUT", "headers": { "Content-Type", "x-goog-content-length-range", "x-goog-if-generation-match": "0" }, "urlExpiresAt" }`；`urlExpiresAt = now + min(upload-url-ttl, expires_at − now)`；`x-goog-content-length-range = {declared_size},{declared_size}`。
 
-錯誤（依序）：G4（槽位不存在或不屬該行程）→ G5 → 槽位 `COMPLETED` → 200 `{ "uploadId", "alreadyCompleted": true }`（**先於**逾期判斷，PRD-022 AC-3.6 情境 3）→ 槽位 `FAILED` → 回存下的錯誤（同 F18）→ 槽位 `DISCARDED` → 404 → 槽位 `EXPIRED`、`now ≥ expires_at` 或剩餘不足 2 分鐘 → 409 `CARE_LOG_UPLOAD_EXPIRED`（`expiresAt`）→ 503 `STORAGE_UNAVAILABLE`（簽名失敗）。
+錯誤（依序）：G4（槽位不存在或不屬該行程）→ G5 → 槽位 `COMPLETED` → 200 `{ "uploadId", "alreadyCompleted": true }`（**先於**逾期判斷，PRD-022 AC-3.6 情境 3）→ 槽位 `FAILED` → 回存下的錯誤（同 F18）→ 槽位 `DISCARDED` → 404 → 槽位 `EXPIRED` 或 `now ≥ expires_at`（簽發 TTL ≤ 0）→ 409 `CARE_LOG_UPLOAD_EXPIRED`（`expiresAt`）→ 503 `STORAGE_UNAVAILABLE`（簽名失敗）。
 
 **F18 `POST …/care-log/media-uploads/{uploadId}/complete`**
 
@@ -930,7 +934,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 |------|------|
 | Resend 失敗 | 站內通知已同交易寫入；SD-NOTIFY C11 重試最多 5 次指數退避，4xx 直接失敗（PRD-008 EX-18、PRD-022 EX-25） |
 | 簽名網址產生失敗（F13 / F17） | 503 `STORAGE_UNAVAILABLE`，不影響任何狀態（PRD-022 EX-24） |
-| 前端 PUT GCS 失敗 | 不觸及後端；畫面「儲存服務暫時無法使用，請稍候重試」，保留已選檔案；重試同槽位重做 F17 + PUT（§9.3） |
+| 前端 PUT GCS 失敗 | 不觸及後端；畫面「上傳失敗，請稍候重試」（PRD-022 EX-21 (2)、AC-2.8 情境 4），保留已選檔案；重試同槽位重做 F17 + PUT（§9.3） |
 | F18 各類失敗 | §3.3 表；物件只在本請求以條件式 UPDATE 把槽位轉 `FAILED` 時提早刪除，`ORDER_BUSY` / 5xx 保留物件 |
 | F19 GCS 提早刪除失敗 | 紀錄已刪、額度已釋放、回 200；FC2 最終清除（EX-23） |
 | FC2 刪除持續失敗 | `delete_attempts + 1`；達 5 次起每次記 ERROR log（觸發 Error Reporting），仍每輪重試 |
@@ -946,12 +950,12 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 代號 | 端點 | 頻率（Asia/Taipei） | 候選查詢（唯讀） | 逐筆處理 | 冪等 / 重跑 | 索引 |
 |------|------|------|-----------------|---------|-----------|------|
 | FC1 | `/api/internal/cron/visits/in-progress-timeout` | `7-59/15 * * * *`（避開 SD-ORDER D5：C1 :00、C2 :01、C3 :02、C4 :03、C5 :05、C6 :06、C7 :08、C8 :10 起每 15 分，C11 `4-59/5`） | `visits.status='IN_PROGRESS' AND started_at <= :now − VISIT_IN_PROGRESS_TIMEOUT_HOURS`，唯讀 JOIN `orders.status IN ('IN_PROGRESS','DISPUTED')`（排程候選例外，SD-ORDER CQ-22），`DISTINCT order_id LIMIT 200` | §4.6 | 已 `DONE` 不再被查出；重驗擋已處理者 | `ix_visits_in_progress` |
-| FC2 | `/api/internal/cron/storage/care-log-orphans` | `27 * * * *`（`7-59/15` 已涵蓋 :37，避開 FC1 與 SD-ORDER D5 各分鐘） | ① `status='PENDING' AND expires_at <= :now` → 條件式 UPDATE 為 `EXPIRED`；② `status IN ('FAILED','EXPIRED','DISCARDED') AND object_deleted_at IS NULL AND expires_at <= :now − upload-delete-grace` | ② 每列：刪 GCS 物件（不存在視為成功）→ 短交易寫 `object_deleted_at`；失敗 `delete_attempts + 1`；不鎖訂單（不影響行程 / 日誌狀態） | 天然冪等 | `ix_uploads_cleanup` |
+| FC2 | `/api/internal/cron/storage/care-log-orphans` | `27 * * * *`（`7-59/15` 已涵蓋 :37，避開 FC1 與 SD-ORDER D5 各分鐘） | ① `status='PENDING' AND expires_at <= :now − upload-delete-grace` → 條件式 UPDATE 為 `EXPIRED`（等過寬限才轉，不搶確認窗內已收到、仍在串流的 F18，主流程 2026-11-22）；② `status IN ('FAILED','EXPIRED','DISCARDED') AND object_deleted_at IS NULL AND expires_at <= :now − upload-delete-grace` | ② 每列：刪 GCS 物件（不存在視為成功）→ 短交易寫 `object_deleted_at`；失敗 `delete_attempts + 1`；不鎖訂單（不影響行程 / 日誌狀態） | 天然冪等 | `ix_uploads_cleanup` |
 | C7 | SD-ORDER | `*/15`（SD-ORDER） | 本 SD 提供 `findOrderIdsWithZombieVisits` | SD-ORDER C7 呼叫 `closeZombieVisits` | — | `ix_visits_zombie` |
 
 - 共通：時間預算 50 秒（`app.fulfill.cron.time-budget=PT50S`）、一次只佔 1 條連線、一筆失敗不影響其他筆、`now` 為注入 `Clock`（SD-ORDER §8.1 規則）。
 - 分工：FC2 清「未成為媒體、或已被刪除媒體」的槽位物件；PRD-013 的 `/api/internal/cron/media/cleanup`（SD-CARE）清「保留期滿」的媒體（經 `CareLogMediaRetentionPort`）。兩者不重疊。
-- 與 SD-ORDER 錯開：SD-ORDER 已依 §8.3 D5 錯開各 job 分鐘；FC1 / FC2 選用未被佔用的分鐘，同樣遵守每支 50 秒預算。
+- 與其他排程錯開：完整分鐘表以 SD-ORDER §8.3 D5 為準（含現有 `/notifications/cleanup`、`/media/cleanup`、`/media/expiry-warning`、`/test-data/*` 端點的排定分鐘）；FC1 / FC2 使用其中未被佔用的分鐘，同樣遵守每支 50 秒預算；部署時以 `gcloud scheduler jobs list` 唯讀核對實際 job 清單。
 - `LocalCronSimulator`（local profile）加入 FC1、FC2。
 - 舊 `CompletionService` 的殭屍處理（SD-ORDER M5）刪除，由 C7 + `closeZombieVisits` 取代。
 
@@ -959,7 +963,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 服務 | 用途 | Mock 開關 | 失敗處理 | 設定 / Secret |
 |------|------|----------|---------|--------------|
-| GCS | 日誌媒體私有物件；V4 簽名 PUT（上傳）與 GET（讀取）；串流讀取檢驗；刪除 | `@Profile("local")` → `LocalMediaStorageServiceImpl`：簽名上傳網址指向只在 local profile 註冊的 `PUT /local-storage/**`（**不在 `/api/internal/` 下**，避開 `InternalSecretFilter`；`permitAll`），以網址內 HMAC 簽名 + 到期時間驗證，並模擬 `Content-Type`、`x-goog-content-length-range`、`if-generation-match=0`（物件已存在回 412）；整合測試以可程式化 fake（可注入失敗、預置物件）；mock E2E 以 `page.route('https://storage.googleapis.com/**')` 攔 PUT | 簽名 / 讀取失敗 503；刪除失敗交 FC2 | `gcp.storage.bucket-name`；Cloud Run attached SA 簽名；local HMAC 金鑰只在 `application-local.yml` |
+| GCS | 日誌媒體私有物件；V4 簽名 PUT（上傳）與 GET（讀取）；串流讀取檢驗；刪除 | `@Profile("local")` → `LocalMediaStorageServiceImpl`：簽名上傳網址為**相對路徑**，指向只在 local profile 註冊的 `PUT /local-storage/**`（`frontend/vite.config.ts` 新增 `/local-storage` 代理到後端，同源請求不需後端 CORS 放行 `x-goog-*` 標頭）（**不在 `/api/internal/` 下**，避開 `InternalSecretFilter`；`permitAll`），以網址內 HMAC 簽名 + 到期時間驗證，並模擬 `Content-Type`、`x-goog-content-length-range`、`if-generation-match=0`（物件已存在回 412）；整合測試以可程式化 fake（可注入失敗、預置物件）；mock E2E 以 `page.route('https://storage.googleapis.com/**')` 攔 PUT | 簽名 / 讀取失敗 503；刪除失敗交 FC2 | `gcp.storage.bucket-name`；Cloud Run attached SA 簽名；local HMAC 金鑰只在 `application-local.yml` |
 | Resend | 經 SD-NOTIFY | SD-NOTIFY | SD-NOTIFY 重試 | SD-NOTIFY |
 | Cloud Scheduler | 觸發 FC1、FC2 | `LocalCronSimulator` | 單次失敗由下一輪補 | `INTERNAL_CRON_SECRET`（沿用，prod 無預設值，SD-ORDER D2） |
 
@@ -990,7 +994,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `care-log-text-max` / `caption-max` | 1000 / 100 | PRD-022 BR-7 |
 | `photo-max-bytes-exclusive` / `video-max-bytes-exclusive` | 1048576 / 52428800 | PRD-022 BR-12、BR-13 |
 | `video-min-seconds` / `video-max-seconds` | 15 / 30 | PRD-022 BR-13 |
-| `upload-slot-ttl` / `upload-url-ttl` / `upload-url-min-remaining` / `upload-delete-grace` | PT30M / PT15M / PT2M / PT15M | §3.3、使用者 2026-11-22 |
+| `upload-slot-ttl` / `upload-url-ttl` / `upload-delete-grace` | PT30M / PT15M / PT15M | §3.3、使用者 2026-11-22 |
 | `media-url-ttl` / `media-url-cache-ttl` | PT15M / PT5M | PRD-022 BR-18 |
 | `orphan-delete-alert-attempts` | 5 | §7.3 |
 | `cron.batch-size` / `cron.time-budget` | 200 / PT50S | 同 SD-ORDER |
@@ -1034,7 +1038,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | F-M7 | `application/dto/VisitSummaryDto.java`、`VisitServiceReportDto.java`、`ReportMediaDto` | 舊 DTO | 依 §6.3 重寫 |
 | F-M8 | `application/exception/VisitReportException.java` 與 `GlobalExceptionHandler` 的對映 | 舊錯誤碼（`MSG_DATA_*`、`REPORT_EXPIRED` 等） | 刪除；改 `FulfillException` + `FulfillExceptionHandler`（§6.1） |
 | F-M9 | `application/event/VisitNotificationEvent.java`、`NotificationListener` 的行程 / 日誌 handler（`@Async` + `AFTER_COMMIT`） | 交易後非同步通知 | 刪除；改交易內 `enqueue()`（§7.2） |
-| F-M10 | `MediaStorageService.uploadReportMedia`、`GcsMediaStorageServiceImpl.java:98`（`uploadPublic`）、`LocalMediaStorageServiceImpl.java:56` | 日誌媒體公開上傳 | 刪除；新增 §8.2 方法與 local `/local-storage/**` 端點 |
+| F-M10 | `MediaStorageService.uploadReportMedia`、`GcsMediaStorageServiceImpl.java:98`（`uploadPublic`）、`LocalMediaStorageServiceImpl.java:56`、`frontend/vite.config.ts`（只代理 `/api`、`/local-media`） | 日誌媒體公開上傳；無 `/local-storage` 代理 | 刪除；新增 §8.2 方法與 local `/local-storage/**` 端點 |
 | F-M11 | `MediaRetentionServiceImpl.java:26、42、51`、`MediaPurgeBatchDeleter.java:17–25` | 直讀寫 `service_report_media`、以 `mediaUrl` 刪檔 | 改呼叫 `CareLogMediaRetentionPort`（§2.3.2）；刪檔改 `deletePrivateObject(objectKey, generation)` |
 | F-M12 | `IdempotencyService.checkAndConsume`（`VisitReportService` 內使用） | 舊冪等（重複回 409） | 本模組改用 SD-GLOBAL-SPEC 共用的 `idempotency_records` 三段式（`@Idempotent`）；SD-ORDER M28「照護日誌維持舊表」由原作者改寫（CQ-2） |
 | F-M13 | `ServicePlanService`（`defaultTasks`） | 無對外查詢 | 新增 `findDefaultTasks`（SD-SUPPLY 過渡，§8.4.1） |
@@ -1082,7 +1086,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 |------|-----------------------|------------------------|-----------------|------|
 | 行程（開始 / 結束 / 命名） | 「訂單狀態已變更，請重新整理」（PRD-008 EX-6） | 依 `currentVisitStatus` / `completionSource`：「此行程已取消」「此行程已由系統關閉」「此行程已結束」「此行程已由系統自動結束」「此行程已開始」（PRD-008 EX-7） | 「請切換至保母身分」 | `DEADLINE_PASSED`：`VISIT_ZOMBIE_AT`「此行程已超過可開始期限，系統將自動關閉」、`CARE_LOG_EDIT_ENDS_AT`「已超過可編輯期限」；`VISIT_DATE_NOT_REACHED` 顯示 `sitter-visit-panel-date-not-reached-message` |
 | 檢核項（新增 / 刪除 / 排序 / 打勾） | 「訂單狀態已變更，請重新整理」（PRD-028 EX-7） | 編輯：「此行程已結束，無法修改」；打勾且 `PENDING`：「開始行程後才能打勾」（PRD-028 EX-8） | 「請切換至保母身分」 | 20 項上限「每個行程最多 20 項」；標題「請輸入 1–50 字」 |
-| 照護日誌（暫存 / 送出 / 上傳 / 刪除） | 「訂單已結束，無法編輯日誌」（PRD-022 EX-6） | 前端不提供入口；送出鈕停用「行程結束後才能送出」（PRD-022 EX-7） | 「請切換至正確角色」（PRD-022 EX-3） | `CARE_LOG_STATE_CONFLICT` 畫面轉唯讀；`DEADLINE_PASSED`「已超過日誌送出期限」；`CARE_LOG_CONTENT_EMPTY`「請填寫日誌內容後再送出」；`CARE_LOG_UPLOAD_EXPIRED`「上傳逾時，請重新選擇檔案」；`CARE_LOG_MEDIA_*` 依 PRD-022 EX-11–14 |
+| 照護日誌（暫存 / 送出 / 上傳 / 刪除） | 「訂單已結束，無法編輯日誌」（PRD-022 EX-6） | 前端不提供入口；送出鈕停用「行程結束後才能送出」（PRD-022 EX-7） | 「請切換至正確角色」（PRD-022 EX-3） | `CARE_LOG_STATE_CONFLICT` 畫面轉唯讀；`DEADLINE_PASSED`「已超過日誌送出期限」；`CARE_LOG_CONTENT_EMPTY`「請填寫日誌內容後再送出」；`CARE_LOG_UPLOAD_EXPIRED`「上傳逾時，請重新上傳」（EX-29）；400 `reason=SHA256_MISMATCH`「檔案上傳不完整，請重新選擇檔案」（EX-30）；400 `reason=OBJECT_MISSING` 不顯示文案，前端自動補傳後再確認（EX-30）；F17 503「儲存服務暫時無法使用，請稍候重試」（EX-21 (1)）；`CARE_LOG_MEDIA_*` 依 PRD-022 EX-11–14 |
 
 - 舊路由 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 以 F2 / F13 查出 `orderId` 後轉址到新路由（舊通知連結相容）。
 - 服務面板「開始行程」三態（PRD-008 §4.1 步驟 2）依 F2 的 `dateReached`、`zombieDeadlinePassed` 決定；按下後以伺服器結果為準。
@@ -1100,15 +1104,15 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 **伺服器時間來源**（使用者 2026-11-22，CQ-10；SD-ORDER 原作者同批修訂 E2 / E30）：不讀 HTTP `Date` 標頭。E2 回 `serverTime`（注入 `Clock`）與 `completionHint`（與 `allowedActions` 同一套前置條件、同次計算）；E30 回 `serverMonth`（Asia/Taipei）。
 
-**飼主結案區塊（PRD-009 §4.1 步驟 1、BR-26）**：只在 E2 `status = IN_PROGRESS` 時顯示。按鈕依 E2 `allowedActions`（`COMPLETE`、`REPORT_SERVICE_ISSUE`）；提示依 E2 `completionHint`：
+**飼主結案區塊（PRD-009 §4.1 步驟 1、BR-26）**：只在 E2 `status = IN_PROGRESS` 時顯示。按鈕依 E2 `allowedActions`（`COMPLETE`、`REPORT_SERVICE_ISSUE`）；提示依 E2 `completionHint`（SD-ORDER 物件形狀 `{ code, autoCompleteAt } | null`）：
 
-| `completionHint` | 對應 PRD-009 §4.1 | `owner-order-detail-complete-hint` |
+| `completionHint.code` | 對應 PRD-009 §4.1 | `owner-order-detail-complete-hint` |
 |------------------|------------------|-----------------------------------|
 | `MODIFICATION_IN_PROGRESS` | i | 「訂單變更處理中，完成後才能確認結案」 |
 | `VISITS_NOT_FINISHED` | ii | 「所有行程完成且保母送出照護日誌後，即可確認結案」 |
-| `CARE_LOG_EXPIRED`（附 `autoCompleteAt`） | iii | 「保母未於期限內送出照護日誌，訂單將於 {`autoCompleteAt`，YYYY-MM-DD HH:mm} 自動結案」；`serverTime ≥ autoCompleteAt` 時改「保母未於期限內送出照護日誌，即將自動結案」 |
+| `CARE_LOG_EXPIRED` | iii | 「保母未於期限內送出照護日誌，訂單將於 {`completionHint.autoCompleteAt`，YYYY-MM-DD HH:mm} 自動結案」；`serverTime ≥ autoCompleteAt` 時改顯示「即將自動結案」（沿用 PRD-009 CQ-15 已決文字，不另擬） |
 | `CARE_LOG_PENDING` | iv | 同 ii |
-| null | v | 不顯示提示，顯示 `owner-order-detail-btn-complete` |
+| `completionHint` 為 null | v | 不顯示提示，顯示 `owner-order-detail-btn-complete` |
 
 - `owner-order-detail-dispute-window-ends-at` 與 `sitter-order-detail-auto-complete-at` 顯示 `disputeWindowEndsAt`；`serverTime ≥ disputeWindowEndsAt` 且訂單仍 `IN_PROGRESS` 時改顯示「即將自動結案」（PRD-009 BR-21、CQ-15）。
 - **帳務預設月份**（AC-3.4）：前端先以瀏覽器 Asia/Taipei 月份呼叫 E30；回應 `serverMonth` 不同時改選 `serverMonth` 並重查一次。
@@ -1128,7 +1132,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 收到 | 前端動作 |
 |------|---------|
-| PUT 網路 / GCS 失敗 | 顯示「儲存服務暫時無法使用，請稍候重試」，保留檔案；重試：同槽位重做 F17 + PUT + F18 |
+| PUT 網路 / GCS 失敗 | 顯示「上傳失敗，請稍候重試」（PRD-022 EX-21 (2)），保留檔案；重試：同槽位重做 F17 + PUT + F18 |
 | F18 `ORDER_BUSY` / 5xx / 503 | 同槽位**直接重打 F18**（物件已在 GCS，不重傳） |
 | F18 400 `reason=OBJECT_MISSING` | 同槽位重做 F17 + PUT + F18 |
 | F18 / F17 `CARE_LOG_UPLOAD_EXPIRED`、F18 確定性錯誤（含 `SHA256_MISMATCH`、`CARE_LOG_MEDIA_*`、狀態類 409）、F17 回 `FAILED` 的錯誤 | 顯示錯誤；使用者重選檔案時**換新 key** 從 F16 開始 |
@@ -1144,7 +1148,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 ### 10.1 整合測試類別
 
 > 共用基礎設施沿用 SD-ORDER §10.1（Testcontainers PostgreSQL、真 JWT filter chain、注入 `Clock`、`MediaStorageService` fake 可注入失敗與預置物件）。`@DisplayName` 以 `PRD-NNN AC-x.y` 開頭。
-> **歸屬**（使用者 2026-11-22）：C7 端點的整合測試歸本 SD（`CloseZombieVisitsIntegrationTest` 涵蓋 C7 計數、O9、行程寫入與通知；SD-ORDER `ZombieVisitCronIntegrationTest` 併入或刪除，CQ-4）。PRD-009 的 E25 / E26 / C8 / E30 / E3 API 行為由 SD-ORDER 測試承接；本 SD 只測行程端資料與畫面。
+> **歸屬**（使用者 2026-11-22）：C7 端點的整合測試歸本 SD（`CloseZombieVisitsIntegrationTest` 涵蓋 C7 計數、O9、行程寫入與通知；SD-ORDER 刪除 `ZombieVisitCronIntegrationTest`，CQ-4）。PRD-009 的 E25 / E26 / C8 / E30 / E3 / E2 提示的 API 行為由 SD-ORDER 具名測試類別承接（`CompletionIntegrationTest`、`CompletionBasisIntegrationTest`、`OrderHistoryIntegrationTest`、`SitterLedgerIntegrationTest`、`OrderDetailCompletionHintIntegrationTest`，對應見 §1.4）；本 SD 只測行程端資料與畫面。
 
 | 類別 | 對應 AC | 必測重點 |
 |------|--------|---------|
@@ -1165,8 +1169,8 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `ChecklistReadIntegrationTest` | PRD-028 AC-2.3、AC-2.4 | 飼主見 `PENDING` 行程項目；ADMIN 範圍 |
 | `VisitCareLogDraftIntegrationTest` | PRD-022 AC-1.1–1.3 | 首次暫存建 `DRAFT`、整份覆寫、首次暫存與首次上傳同時只 1 份、1000 / 1001 code point |
 | `VisitCareLogSubmitIntegrationTest` | PRD-022 AC-1.4、AC-1.5、AC-1.8、AC-3.1 | 直接送出建立、空白 422、送出後唯讀、`COMPLETED`（O11 / O12 / O15）一律 `ORDER_STATE_CONFLICT`、通知與 Email 偏好、Resend 失敗不影響 |
-| `VisitCareLogDeadlineIntegrationTest` | PRD-022 AC-1.6 | 02:59:59 / 03:00:00 邊界（暫存、F16、刪除、送出）；F16 在期限前、F18 在期限後但槽位內 → 201；F18 `receivedAt` 在槽位到期前、鎖後才過到期 → 仍 201；系統逾時 `DONE` 以其 `completed_at` 起算 |
-| `VisitCareLogMediaUploadIntegrationTest` | PRD-022 AC-2.1–2.5、AC-2.8 | 各快照額度（升降級不影響）、FREE 0；宣告值與實際物件檢驗（magic bytes、宣告 / 實際類型不同、大小邊界、時長）、`SHA256_MISMATCH` / `OBJECT_MISSING`；拒絕時無槽位 / 無物件或物件被刪；`MEDIA_UPLOADED` payload；GCS 讀取失敗 503 後同槽位重打成功；O15 介入後鎖內重驗刪物件；F17 TTL = min(15m, 剩餘)、剩餘 < 2 分鐘 409；F17 對 `COMPLETED` 先於逾期回 `alreadyCompleted` |
+| `VisitCareLogDeadlineIntegrationTest` | PRD-022 AC-1.6 | 02:59:59 / 03:00:00 邊界（暫存、F16、刪除、送出）；F16 在期限前、F18 在期限後但槽位內 → 201；F18 `receivedAt` 在槽位到期前、鎖後才過到期 → 仍 201；AC-1.6 情境 6（F18 `receivedAt = expires_at` → 409 `CARE_LOG_UPLOAD_EXPIRED`；換新 key 重新申請 → 409 `DEADLINE_PASSED`）；系統逾時 `DONE` 以其 `completed_at` 起算 |
+| `VisitCareLogMediaUploadIntegrationTest` | PRD-022 AC-2.1–2.5、AC-2.8 | 各快照額度（升降級不影響）、FREE 0；宣告值與實際物件檢驗（magic bytes、宣告 / 實際類型不同、大小邊界、時長）、`SHA256_MISMATCH` / `OBJECT_MISSING`；拒絕時無槽位 / 無物件或物件被刪；`MEDIA_UPLOADED` payload；GCS 讀取失敗 503 後同槽位重打成功；AC-2.3 情境 6 後半（宣告大小錯、宣告雜湊等於實際檔案、實際 1,048,576 bytes → 422 `CARE_LOG_MEDIA_TOO_LARGE`）以 fake 直接放置物件造出（正式環境 GCS 在 PUT 階段即依綁定的宣告大小拒絕，E2E 無法重現；PRD-022 由 writer 加註）；AC-2.8 情境 1–2 在 F17 注入簽名失敗；O15 介入後鎖內重驗刪物件；F17 TTL = min(15m, 剩餘)、剩餘 ≤ 0 → 409；F17 對 `COMPLETED` 先於逾期回 `alreadyCompleted` |
 | `VisitCareLogMediaDeleteIntegrationTest` | PRD-022 AC-2.6 | 額度釋放、重送 404、跨行程 404、GCS 刪除失敗仍 200 且 FC2 最終清除 |
 | `VisitCareLogConcurrencyIntegrationTest` | PRD-022 AC-2.7、AC-3.7 | 額度剩 1 兩筆同時完成恰 1 筆成功、被拒者物件刪除；**同 uploadId 兩條執行緒同時 F18：恰 1 筆媒體、物件仍存在**；送出 vs E29、送出 vs E25；F18 `ORDER_BUSY` 時物件保留、槽位 `PENDING`，鎖釋放後同槽位重打 F18 → 201 |
 | `VisitCareLogReadIntegrationTest` | PRD-022 AC-1.7、AC-3.2、AC-3.4 | 逾期草稿保母可讀、飼主 404；簽名網址含 `X-Goog-Expires=900`、快取命中時 `urlExpiresAt` 為原值；`purged` 不給網址；ADMIN `DRAFT` 404 |
@@ -1174,11 +1178,11 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `VisitCareLogIdempotencyIntegrationTest` | PRD-022 AC-3.5、AC-3.6 | 送出回放不重發通知；F16 同 key 換檔案 422；完成後超過 31 分鐘（槽位已逾時、期限已過）以同 key 走完 F16 → F17 → F18 仍 201 同一媒體（限冪等紀錄 24h 內） |
 | `VisitCareLogErrorOrderIntegrationTest` | PRD-022 AC-3.8 | 「唯一結果」五例逐一 |
 | `MediaInspectorTest`（單元） | PRD-022 AC-2.3、AC-2.4 | JPEG / PNG / WebP / GIF / HEIC 檔頭；MP4 `moov` 在前 / 在後、MOV、`mvhd` v0 / v1、14.4 / 14.5 / 30.4 / 30.5 秒 half-up；`moov` 超過 8 MB |
-| `ServiceReportUploadOrphanCronIntegrationTest` | 共用（FC2） | 逾時槽位轉 `EXPIRED`、與 F18 完成互斥；寬限期前不刪、寬限後刪除並寫 `object_deleted_at`；提早刪除後被遲到 PUT 重寫的物件於最終清除時刪掉；`delete_attempts` 與 ERROR log；重跑冪等 |
+| `ServiceReportUploadOrphanCronIntegrationTest` | 共用（FC2） | 逾時槽位在 `expires_at + 寬限` 後才轉 `EXPIRED`、與 F18 完成互斥；F18 在 `expires_at` 前收到、串流期間 FC2 觸發 → 仍 201；寬限期前不刪、寬限後刪除並寫 `object_deleted_at`；提早刪除後被遲到 PUT 重寫的物件於最終清除時刪掉；`delete_attempts` 與 ERROR log；重跑冪等 |
 | `FulfillExceptionMappingTest` | 共用（§6.1） | 23505 → 409 `ORDER_BUSY`；23514 / 23502 / 23503 → 500 |
 | `FulfillAggregateArchTest` | 共用（§2.3.1） | ArchUnit：本模組 Repository 只被 fulfill 套件依賴；`Visit` 不依賴 `Order` entity；除 `CareLogMediaRetentionPort` 外不新增 `CareLog*` 類別 |
 
-共 **29 個測試類別**（其中 `ServiceReportUploadOrphanCronIntegrationTest`、`FulfillExceptionMappingTest`、`FulfillAggregateArchTest` 驗證共用機制）。前端互動類 AC（PRD-008 AC-1.3 情境 4、AC-1.5 對話框；PRD-022 AC-1.3 情境 3、AC-2.3 情境 4–5、AC-2.4 情境 5；PRD-028 AC-2.3；PRD-009 全部畫面斷言）由 TS-008 / 009 / 022 / 028 的 E2E 驗證。
+共 **29 個測試類別**（其中 `ServiceReportUploadOrphanCronIntegrationTest`、`FulfillExceptionMappingTest`、`FulfillAggregateArchTest` 驗證共用機制）。前端互動類 AC（PRD-008 AC-1.3 情境 4、AC-1.5 對話框；PRD-022 AC-1.3 情境 3、AC-2.3 情境 4–5、AC-2.4 情境 5、AC-2.8 情境 4（瀏覽器傳檔失敗）；PRD-028 AC-2.3；PRD-009 全部畫面斷言）由 TS-008 / 009 / 022 / 028 的 E2E 驗證。
 
 ### 10.2 TS 需要的後端支援
 
@@ -1189,7 +1193,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 訂單時間平移 / 帳號 / 保母 / 飼主設定 | SD-ORDER §10.4 | SD-ORDER |
 | 排程觸發 | 直接呼叫 FC1、FC2、C7、C8（帶 `X-Internal-Secret`） | 本 SD / SD-ORDER |
 | 方案預設任務 | SD-ORDER §10.4 `sitter-setup` 的 `plans[]` 需可帶 `defaultTasks`（字串陣列，不擋超過 20 項，供驗 PRD-028 CQ-7 截斷） | SD-ORDER（CQ-4） |
-| Cleanup | `E2eJourneyDataCleanupService` 在 SD-ORDER §10.4 順序的 `service_report_media / visit_service_reports / visits` 位置改為：① 唯讀收集 `service_report_media.object_key` 與 `care_log_media_uploads.object_key` → ② **交易外**刪 GCS 物件 → ③ 短交易依序刪 `service_report_media` → `care_log_media_uploads` → `visit_service_reports` → `visit_checklist_items` → `visits` | SD-ORDER 清單擴充（CQ-4） |
+| Cleanup | `E2eJourneyDataCleanupService` 在 SD-ORDER §10.4 順序的 `service_report_media / visit_service_reports / visits` 位置改為（與 SD-ORDER §10.4 同一順序）：① 唯讀收集 `service_report_media.object_key` 與 `care_log_media_uploads.object_key` → ② DB 交易依序刪 `service_report_media` → `care_log_media_uploads` → `visit_service_reports` → `visit_checklist_items` → `visits` → ③ commit 後**交易外**刪 GCS 物件（以資料列為準，GCS 失敗只記 log）。槽位刪除後，仍在簽名效期內的遲到 PUT 會留下測試帳號殘檔，FC2 無法再追蹤，接受此殘留（只限 `@e2e-journey.test` 帳號） | SD-ORDER 清單擴充（CQ-4） |
 | mock E2E | 以 `page.route('https://storage.googleapis.com/**')` 攔 PUT；F16–F18 照一般 API mock | 前端 |
 | TS 文件 | TS-008 / TS-009 / TS-022 為舊版，TS-028 不存在；需依 Approved PRD（PRD-022 依 CQ-5 同步小修後）重寫 / 新建；`VisitCareLogIdempotencyIntegrationTest` 類情境限定在冪等 TTL 24h 內 | `/ts` |
 
@@ -1222,19 +1226,19 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | CQ | 問題 | 建議預設值 | 狀態 |
 |----|------|-----------|------|
 | CQ-1 | **SD-ORDER 修訂（介面新增）**：本 SD 需讀 O2 報價快照的方案名稱（PRD-008 BR-14、CQ-9 / CQ-15）、ADMIN 可讀範圍、儀表板卡片資料，SD-ORDER §2.4.1 沒有對應查詢 | 新增批次唯讀 `OrderQueryService.getOrderContexts(Set<UUID> orderIds)` → `Map<UUID, OrderContextView>`，`SUPPORTS`，單次最多 200 筆、固定查詢次數。欄位：`orderId`、`status`、`createdAt`、`ownerId`、`sitterId`、`ownerDisplayName`、`sitterDisplayName`、`adminReadable`（與 E27 共用同一 policy、讀取當下計算）、`items[]`（`orderItemId`、`planId`、`source`、`sortIndex`）、`pets` 依 `orderItemId`、`planTitles`（`order_plan_snapshots` 的 `planId → plan_title`，報價前為空；若同方案可能有多列快照則改以 `orderItemId` 為鍵，由原作者確認） | 已決定 2026-11-22（使用者）；SD-ORDER 已新增（`planTitles` 以 `planId` 為鍵、單次 ≤ 200 筆） |
-| CQ-2 | **冪等機制擁有權**：SD-ORDER §11.3 寫「供其他模組沿用」，但端點範圍、Service 與 Repository 都在訂單套件內 | 移到共用套件（例 `application/service/common/idempotency`），`idempotency_records` 由 SD-GLOBAL-SPEC 擁有；端點以 `@Idempotent` 宣告；`IdempotencyBodyCachingFilter` 在 handler mapping 前執行，需以 `HandlerMappingIntrospector` 判斷或對 `/api/**` JSON POST / PUT 一律快取 ≤ 64 KB；`complete()` 只要求 `MANDATORY` 交易、不要求持有訂單鎖（F16 不取鎖）；SD-ORDER §3.6.2「交易外 I/O 只有 E11」改通用；M28 改寫 | 已決定 2026-11-22（使用者）；已寫入 SD-GLOBAL-SPEC §2.4，本 SD 只引用 |
+| CQ-2 | **冪等機制擁有權**：SD-ORDER §11.3 寫「供其他模組沿用」，但端點範圍、Service 與 Repository 都在訂單套件內 | 移到 SD-GLOBAL-SPEC §2.4 定的共用套件 `application/common/idempotency`，`idempotency_records` 由 SD-GLOBAL-SPEC 擁有；端點以 `@Idempotent` 宣告；`IdempotencyBodyCachingFilter` 在 handler mapping 前執行，需以 `HandlerMappingIntrospector` 判斷或對 `/api/**` JSON POST / PUT 一律快取 ≤ 64 KB；`complete()` 只要求 `MANDATORY` 交易、不要求持有訂單鎖（F16 不取鎖）；SD-ORDER §3.6.2「交易外 I/O 只有 E11」改通用；M28 改寫 | 已決定 2026-11-22（使用者）；已寫入 SD-GLOBAL-SPEC §2.4，本 SD 只引用 |
 | CQ-3 | **SD-ORDER 修訂（同批）**：(1) §5.1.1 第 13 段整段刪除、改「見 SD-FULFILL §5.1」；(2) §2.4.2 `createVisits` 註記改為不寫 `scheduled_at`、`planTitle` 寫入 `booking_plan_title`；(3) §8.1 C7 的 `closeZombieVisits(orderId, now)` 改為 `(LockedOrder, now, Duration)`；(4) M26 補 `findOrdersReadyForAutoComplete`（F-M21）、M32 拆 `findOrdersPendingMediaExpiryWarning`（F-M22，已完成）；(5) §6.4 `DataIntegrityViolationException` 改為只有 23505 → `ORDER_BUSY`；(6) §9.1 `/owner/orders` 歷史分頁空狀態改依本 SD §9.2；(7) 兩支 journey spec 分界（SD-ORDER M33 已完成）；(8) C1–C8 錯開分鐘（SD-ORDER §8.3 D5 已完成） | 照列修訂 | 已決定 2026-11-22（使用者）：交 SD-ORDER 原作者同批修訂 |
-| CQ-4 | **SD-ORDER 修訂（測試支援與歸屬）**：§10.4 cleanup 清單、`sitter-setup.plans[].defaultTasks`、`force-status` 契約；§10.3 PRD-009 測試歸屬；`ZombieVisitCronIntegrationTest` 與本 SD 重疊 | §10.4 依本 SD §10.2 順序與交易邊界擴充；`force-status` 改引用本 SD FT1（含 FT2）；§10.3 補 PRD-009 AC 對應（E25 / E26 / C8 / E30 / E3 的 API 行為歸 SD-ORDER 測試）；`ZombieVisitCronIntegrationTest` 併入本 SD `CloseZombieVisitsIntegrationTest`（C7 歸本 SD） | 已決定 2026-11-22（使用者）：交 SD-ORDER 原作者同批修訂 |
+| CQ-4 | **SD-ORDER 修訂（測試支援與歸屬）**：§10.4 cleanup 清單、`sitter-setup.plans[].defaultTasks`、`force-status` 契約；§10.3 PRD-009 測試歸屬；`ZombieVisitCronIntegrationTest` 與本 SD 重疊 | §10.4 依本 SD §10.2 順序（先唯讀收集鍵 → DB 交易刪列 → commit 後交易外刪 GCS）擴充；`force-status` 改引用本 SD FT1（含 FT2）；§10.3 新增具名類別承接 PRD-009 AC：`CompletionIntegrationTest`、`CompletionBasisIntegrationTest`、`OrderHistoryIntegrationTest`、`SitterLedgerIntegrationTest`、`OrderDetailCompletionHintIntegrationTest`（本 SD §1.4 已引用）；刪除 `ZombieVisitCronIntegrationTest`（C7 歸本 SD `CloseZombieVisitsIntegrationTest`） | 已決定 2026-11-22（使用者 / 主流程）：交 SD-ORDER 原作者同批修訂 |
 | CQ-5 | **日誌媒體直傳 GCS 對 PRD-022 的可觀察行為變更**：(a) 實際內容（magic bytes、SHA-256、時長）在物件已進 GCS 後才檢驗，偽造宣告的檔案會先寫入再刪除，AC-2.3 / 2.4「GCS 無新物件」變成「最終無物件」；(b) 新增 30 分鐘槽位與 409 `CARE_LOG_UPLOAD_EXPIRED`，F16 → F18 超過 30 分鐘不再適用「上傳耗時不影響」；(c) 新增 400 原因（`OBJECT_MISSING`、`SHA256_MISMATCH`、`file` 描述欄位格式、`VIDEO` 缺時長）；(d) 瀏覽器 PUT 失敗不經後端，後端 503 只來自 F17 簽名或 F18 讀取（AC-2.8 情境 1）；(e)「上傳回應」拆成 F16（`uploadId`）與 F18（媒體 + 已用量），回放只對 F16；另 (f) F18 `ORDER_BUSY` 保留物件、同次上傳直接重打 F18（取代 AC-3.7 情境 4「刪除物件」）。雲端資源：DF2 CORS、DF5 刪舊公開物件、DF7 預設 ACL 檢查，依硬性規則 5 當次分開同意 | 採用直傳；PRD-022 加註上述行為（以申請時間判斷期限、30 分鐘內確認都算、`CARE_LOG_UPLOAD_EXPIRED`、確認時檢驗內容、`ORDER_BUSY` 保留檔案直接重試 F18、已完成上傳同 key 重送回放 201 先於逾時判斷） | 已決定 2026-11-22（使用者）：採用；PRD-022 已同步（CQ-19~22、BR-5、BR-28、EX-28~32） |
 | CQ-6 | 字數單位：PRD-008（名稱 20）、PRD-022（日誌 1000、說明 100）、PRD-028（標題 50）未定義以何計字 | 一律 Unicode code point（PostgreSQL `char_length`、Java `codePointCount`、前端 `[...str].length` 三端一致；ZWJ emoji 等組合字計多個，屬可接受落差，寫入 TS-022 邊界案例）；名稱與檢核項標題先去前後空白再計，日誌文字與說明以原文計 | Open |
 | CQ-7 | （改列 CQ-12） | — | 已移至 CQ-12 |
 | CQ-8 | 方案端（PRD-003）尚未定義預設任務的 20 項 / 50 字上限 | 依 PRD-028 CQ-7 截斷，不擋行程建立；PRD-003 改寫時方案端採同一上限 | Open（待 PRD-003） |
 | CQ-9 | 通知類型代碼與類別（SD-NOTIFY 尚未重建） | 採 §7.2 四個代碼，類別 `ORDER_AFFAIR`；本 SD 不使用 `SERVICE_RECORD`，`notification_preferences` 既有 `SERVICE_RECORD` 列的去留交 SD-NOTIFY | Open |
 | CQ-10 | 畫面需要伺服器時間的三處（結案提示 iii、「即將自動結案」、帳務預設月份） | SD-ORDER E2 新增 `serverTime` 與 `completionHint`（`MODIFICATION_IN_PROGRESS` / `VISITS_NOT_FINISHED` / `CARE_LOG_EXPIRED`（附 `autoCompleteAt`）/ `CARE_LOG_PENDING` / null，以注入 `Clock` 與 `allowedActions` 同次計算）；E30 新增 `serverMonth`；§9.2 改用這些，不讀 HTTP `Date` | 已決定 2026-11-22（使用者）；SD-ORDER E2 / E30 已新增 |
-| CQ-11 | 保母訂單詳情行程區塊在 `PENDING` / `PENDING_PAYMENT` / `CANCELLED` 是否顯示 | 保母任何狀態都顯示（報價前名稱用 `booking_plan_title`、`CANCELLED` 標已取消）；飼主仍依 PRD-009 BR-24；由主流程回寫 PRD-008 §4.6 步驟 3 | 已決定 2026-11-22（使用者）：採建議 |
+| CQ-11 | 保母訂單詳情行程區塊在 `PENDING` / `PENDING_PAYMENT` / `CANCELLED` 是否顯示 | 保母任何狀態都顯示（報價前名稱用 `booking_plan_title`、`CANCELLED` 標已取消）；飼主仍依 PRD-009 BR-24；由主流程回寫 PRD-008 §4.6 步驟 3；回寫前 TS-008 不得斷言保母 `PENDING` 訂單的行程列 | 已決定 2026-11-22（使用者）：採建議；已回寫 PRD-008 §4.6 步驟 3 |
 | CQ-12 | 底部導覽範圍（原 CQ-7） | 本次只加「行程」入口；全站 `BottomNav` 寫進 SD-FRONTEND-SPEC 待辦（已寫入 §3），不在本 SD 實作 | 已決定 2026-11-22（使用者） |
 | CQ-13 | **實體基底規則**：現況 `BaseEntity` 固定映射 `is_deleted`、`version`、`@CreatedBy`，本 SD 與 SD-ORDER 都刪了 `is_deleted`，新表不需 `version`，系統帶入的列不得被 `RequestAuditorAware` 填入 token 使用者 | SD-GLOBAL-SPEC 定義：基底不含 `is_deleted`；`@Version` 只放需要的實體；系統寫入的列不用 auditing 的建立人；業務時間欄由 Service 以注入 `Clock` 寫入。本模組用法見 §2.5 第 7、8 點 | 已決定 2026-11-22（使用者）；已寫入 SD-GLOBAL-SPEC §2.5 / §2.6，本 SD 引用 |
-| CQ-14 | 飼主行程列展開的檢核單項沒有 testid（PRD-028 §9 未定義），TS 定位單項只能靠 `data-checked` | 由主流程在 PRD-028 §9 補 `owner-order-detail-visit-checklist-item-{itemId}`；本 SD 不自取 | Open（主流程） |
+| CQ-14 | 飼主行程列展開的檢核單項沒有 testid（PRD-028 §9 未定義），TS 定位單項只能靠 `data-checked` | 由主流程在 PRD-028 §9 補 `owner-order-detail-visit-checklist-item-{itemId}`；本 SD 不自取 | 已決定 2026-11-22：已回寫 PRD-028 §9 `owner-order-detail-visit-checklist-item-{itemId}`（核准後回寫，待使用者同意） |
 
 ---
 
@@ -1242,5 +1246,6 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 第 2 輪審查修訂（狀態不動）：N1 FC2 第 ① 步等過 `expires_at + 寬限` 才轉 `EXPIRED`；N2 日誌 `created_by` / `updated_by` 由 Service 寫入、媒體以 `uploaded_by` 為建立者、`visits.created_by` / `updated_by` 刪欄；N3 排程分鐘改引 SD-ORDER D5 完整表；S2 cleanup 對齊 SD-ORDER 順序並接受測試殘檔；S4 `ORDER_BUSY` 後跨 30 分鐘照 BR-28 字面作廢；I10 三處文案改 PRD-022 字面；I11 AC-2.3 情境 6 後半以整合測試放置物件造出；I12 表頭上游狀態（PRD-022 In Review）與核准順序；I13 / B2 §1.4 填 SD-ORDER 具名測試類別、`ZombieVisitCronIntegrationTest` 由 SD-ORDER 刪除；S14b `completionHint` 物件形狀；S15 刪除「剩餘不足 2 分鐘」規則；S16 iii 逾時文字沿用 PRD-009 CQ-15；S17 補 AC-1.6 情境 6 與 AC-2.8 情境 4；S18 EX-21 (1) 等價說明；S19 local 相對路徑 + Vite `/local-storage` 代理；S20 CQ-11 註明待回寫；冪等套件路徑改 `application/common/idempotency` | `docs/reviews/SD-FULFILL.data.review.md`、`SD-FULFILL.api.review.md` 第 2 輪；主流程決定 2026-11-22 |
 | 2026-11-22 | 第 1 輪審查修訂（狀態 Needs Clarification）。資料面：#1 F18 失敗路徑改條件式 UPDATE 成功才刪物件、鎖後見 `COMPLETED` 回 201、新增同 uploadId 並行測試；#2 F17 簽名 TTL 取 min、FC2 寬限期最終清除、F18 以自身 `receivedAt` 判槽位逾期；#3 實體基底（§2.5 第 7 點、CQ-13）；#4 鎖前只用投影；#5 §3.3 失敗類別表與 §9.3 重試表、400 `reason`、`DISCARDED` → 404；#6 FC1 `7-59/15`、FC2 `27 * * * *`（對齊 SD-ORDER D5 分鐘表）；#7 只有 23505 → `ORDER_BUSY`；#8 SD-ORDER 第 13 段整段刪除、`DROP INDEX idx_visits_order`；#9 / API #I8 local 上傳端點改 `/local-storage/**`；#10 DF2 origin 清單與只開 PUT、DF7 預設 ACL、F18 公開檢查；#11 Hibernate batch 設定；#12 `received_at` 定義統一；#13–#24 建議項（索引條件、CHECK、content-length 綁宣告大小、`object_generation`、快取 5 分鐘、FT2 整群組平移、時間欄用 `Clock`、`delete_attempts`、cleanup 交易邊界、`claim_token`、非字串任務略過、理由修正）。API 面：#B1 CQ-5 改列可觀察行為變更；#I1 F17 `COMPLETED` 先於逾期；#I2 `ORDER_BUSY` 保留物件直接重打 F18（使用者決定）；#I3 E2 `serverTime` / `completionHint`、E30 `serverMonth`（CQ-10）；#I4 F-M21 / F-M22、`hasUnpurgedMedia`；#I5 避開 `CareLog*` 撞名；#I6 補 hook、5 支 spec、2 個後端測試、journey 認領；#I7 保母行程區塊任何狀態顯示（CQ-11）；#I9 表頭改為需 SD-ORDER 配合修訂；S1–S14（文案表、DTO 型別、提示限 `IN_PROGRESS`、FT1 狀態限制與 `closedAt`、空狀態、SD-FRONTEND-SPEC §6.4、測試歸屬、F13 邊界、TTL 註記、`maxLength`、類型不符拒絕、FC1 不合併理由、FC2 與 media cleanup 分工）。PRD-009 後端測試改由 SD-ORDER 承接；測試類別 34 → 29。同步更新 SD-ERD、SD-FRONTEND-SPEC（§6.4、§2.3 N18、§3 BottomNav 待辦） | `docs/reviews/SD-FULFILL.data.review.md`、`SD-FULFILL.api.review.md` 第 1 輪；使用者決定 2026-11-22 |
 | 2026-11-22 | 建立草稿：涵蓋 PRD-008 / 009 / 022 / 028 共 79 條 AC；實作 SD-ORDER §2.4.2 `VisitCommandService` / `VisitQueryService`；新增 `visit_checklist_items`、`care_log_media_uploads`，改寫 `visits` / 日誌兩表（併入 `V20261122_01` 第 13–16 段）；19 支使用者端點、2 支排程、2 支測試造資料；媒體直傳 GCS 三段式；CQ-1~9 | 全面重建；baseline 第 3 版與 FULFILL PRD 核准（2026-11-22） |

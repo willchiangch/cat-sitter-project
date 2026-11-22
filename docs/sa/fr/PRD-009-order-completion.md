@@ -80,7 +80,7 @@
 | `DISPUTED`（不分 O13 服務爭議或 O14 款項爭議，PRD-024 引用本列） | 橫幅「訂單爭議處理中，請等候平台處理」（`owner-order-detail-disputed-banner`）；行程清單與「查看日誌」照常；不顯示確認結案、回報問題、申請變更、付款動作 | 同樣橫幅（`sitter-order-detail-disputed-banner`）；行程照常可執行（PRD-008） | 進行中 |
 | `COMPLETED`（O11 / O12 / O15 共用） | 狀態「已結案」與結案時間（`owner-order-detail-completed-at`）；行程清單與「查看日誌」照常；不顯示任何操作按鈕。O15 進入者另有調解結果區塊（結果、`ADMIN_ADJUSTMENT` 金額與依據），歸 PRD-020 | 狀態「已結案」與結案時間（`sitter-order-detail-completed-at`）；不顯示任何操作按鈕；O15 調解結果區塊同左，歸 PRD-020 | 歷史 |
 
-- 行程清單（每列 `owner-order-detail-visit-row-{visitId}`，列內容由 PRD-008 §4.5 定義）與「查看日誌」（`owner-order-detail-btn-view-log-{visitId}`，只對已送出日誌顯示，PRD-022）在訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` / `COMPLETED` 時顯示，`PENDING` / `PENDING_PAYMENT` / `CANCELLED` 不顯示（BR-24）。日誌與媒體的檢視規則、保留期限見 PRD-022、PRD-013；結案後沒有可編輯的日誌（BR-25）。
+- 行程清單（每列 `owner-order-detail-visit-row-{visitId}`，列內容由 PRD-008 §4.6 定義）與「查看日誌」（`owner-order-detail-btn-view-log-{visitId}`，只對已送出日誌顯示，PRD-022）在訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` / `COMPLETED` 時顯示，`PENDING` / `PENDING_PAYMENT` / `CANCELLED` 不顯示（BR-24）。日誌與媒體的檢視規則、保留期限見 PRD-022、PRD-013；結案後沒有可編輯的日誌（BR-25）。
 
 ### 4.5 保母帳務總覽
 

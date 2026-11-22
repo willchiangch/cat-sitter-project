@@ -83,7 +83,7 @@ erDiagram
   - `plan_id`: UUID (FK, 關聯方案)、`booking_plan_title`（原 `snapshot_plan_title`，O1 帶入，報價前顯示用）
   - `status`: `PENDING` / `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`
   - `service_date`: DATE（Asia/Taipei 日期；`scheduled_at` 已刪除）、`sequence_in_day` / `slots_in_day`（同日序號 / 每日次數）、`custom_name`（保母自訂名稱，NULL = 預設名稱）
-  - `started_at`、`completed_at`（原 `finished_at`）、`cancelled_at`、`closed_at`: TIMESTAMPTZ；`completion_source`（`SITTER` / `SYSTEM`）
+  - `started_at`、`completed_at`（原 `finished_at`）、`cancelled_at`、`closed_at`: TIMESTAMPTZ；`completion_source`（`SITTER` / `SYSTEM`）；`created_by` / `updated_by` / `is_deleted` 已刪除（操作者見 `order_logs`）
 - **VISIT_CHECKLIST_ITEM**（`visit_checklist_items`，SD-FULFILL，PRD-028）：`visit_id`、`title`（1–50）、`sort_order`（`(visit_id, sort_order)` deferrable 唯一）、`is_completed`、`checked_at`、`created_source`（`SYSTEM` / `SITTER`）、`created_by`（FK users，SYSTEM 帶入為 NULL，由 Service 寫入不經 auditing）；實體基底依 SD-GLOBAL-SPEC §2.5（`visits`、`visit_service_reports` 用 `VersionedEntity`，其餘 `AuditedEntity`）
 - **CARE_LOG_MEDIA_UPLOAD**（`care_log_media_uploads`，SD-FULFILL）：日誌媒體直傳 GCS 的上傳槽位；`status`（`PENDING` / `COMPLETED` / `FAILED` / `DISCARDED` / `EXPIRED`）、`received_at`（申請 F16 收到時間，期限判斷基準）、`expires_at`（+30 分鐘）、`object_key`、宣告的類型 / 大小 / SHA-256 / 時長、`failure_*`（存第一次錯誤供回放）、`object_deleted_at`（只在 `expires_at` + 寬限後的最終清除或 PRD-013 刪除時寫入）、`delete_attempts`；無 auditing、無 `version`
 
@@ -127,12 +127,12 @@ erDiagram
   - `visit_id`: UUID (FK, UNIQUE — 每個行程僅一份)
   - `status`: VARCHAR (`DRAFT` / `SUBMITTED`；逾期為時間衍生，不持久化)
   - `content`: TEXT (nullable，≤ 1000 code point)；不設標題（顯示行程名稱）
-  - `submitted_at`: TIMESTAMPTZ (送出時寫入)；`is_deleted` 已移除
+  - `submitted_at`: TIMESTAMPTZ (送出時寫入)；`created_by` / `updated_by` 由 Service 寫入保母 id（PRD-022 BR-24，不經 auditing）；`is_deleted` 已移除
   - 媒體額度與保留天數不存於此表，經 SD-ORDER `getMediaQuota`（`order_snapshots`）取得
 - **REPORT_MEDIA**（`service_report_media`，日誌多媒體）
   - `report_id`: UUID (FK)、`upload_id`: UUID (FK `care_log_media_uploads`, UNIQUE)、`object_generation`（GCS generation，刪除帶前置條件）
   - `media_type`: VARCHAR (`IMAGE` / `VIDEO`)、`size_bytes`、`duration_seconds`（影片）
   - `object_key`: VARCHAR（原 `media_url`；GCS **私有**物件 `{plan_tier}/{date}/{order_id}/{upload_id}.{ext}`，`plan_tier` 取 O2 快照，讀取一律簽名網址 15 分鐘）
-  - `caption`: VARCHAR (nullable，≤ 100，上傳後不可改)；`is_purged` / `purged_at`（PRD-013）；刪除為實刪（`version`、`is_deleted` 已移除）
+  - `caption`: VARCHAR (nullable，≤ 100，上傳後不可改)；`uploaded_by` 即 PRD-022 BR-24 的建立者（媒體不可修改，無 `updated_by`）；`is_purged` / `purged_at`（PRD-013）；刪除為實刪（`version`、`is_deleted` 已移除）
 
 ---

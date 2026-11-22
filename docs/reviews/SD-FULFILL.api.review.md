@@ -109,3 +109,113 @@
 | CQ-10（新） | 畫面需要伺服器時間的三處（結案提示 iii、「即將自動結案」、帳務預設月份）改由後端回傳，而非讀 HTTP `Date` 標頭？ | SD-ORDER E2 新增 `serverTime` 與 `completionHint`（以注入 `Clock` 計算，與 `allowedActions` 同次）；E30 回應新增 `serverMonth`，前端首次以瀏覽器月份呼叫、與 `serverMonth` 不同時改用並重查。SD-ORDER 隨 CQ-1~4 一起修訂 |
 | CQ-11（新） | 保母訂單詳情的行程區塊在訂單 `PENDING` / `PENDING_PAYMENT` / `CANCELLED` 是否顯示？（PRD-009 BR-24 只規定飼主；PRD-008 CQ-15 預期保母審閱時看得到行程名稱） | `PENDING` / `PENDING_PAYMENT` 顯示（唯讀，名稱用 `booking_plan_title` / O2 快照）；`CANCELLED` 顯示（含已取消標示）。由主流程回寫 PRD-008 §4.6 步驟 3 |
 | CQ-12（原 CQ-7 改寫） | 底部導覽是否在本次做成全站 5 項，或只加「行程」入口？ | 只加「行程」入口（保母 `/sitter/visits`、飼主 `/owner/visits`），掛在現有導覽；全站 `BottomNav` 另於 SD-FRONTEND-SPEC 定義後再做 |
+
+---
+
+## 第 2 輪（2026-11-22，對照 commit 8ea5e86）
+
+> 範圍同第 1 輪（追溯、API、錯誤碼順序、前端、測試），外加：PRD-022 新 AC / EX（CQ-19~22、BR-5、BR-28、EX-28~32）與 SD-FULFILL 的對應；SD-ORDER E2 `completionHint` / `serverTime`、E30 `serverMonth`；兩份 SD 之間的殘留矛盾。資料 / 併發 / 遷移仍由另一位審查員負責。
+> 行號為 8ea5e86 的 `docs/sd/SD-FULFILL.md`（1246 行）與 `docs/sd/SD-ORDER.md`。
+
+### 結論
+
+**Needs Clarification**：1 項阻擋、4 項重要、6 項建議；不新增待使用者回答的 CQ（皆可由作者 / 主流程直接修正）。
+
+- 第 1 輪 B1、I1–I9、S1–S14 共 24 項：**22 項已修好**、S8 部分修好（SD-FULFILL 端改了、SD-ORDER 端未跟上，升為本輪 #B2）、I2 依使用者決定以不同方式解決（保留物件、直接重打 F18，PRD-022 AC-3.7 情境 4 已同步）。
+- AC 點數不變：79 / 79（PRD-022 仍為 24 條，新增的是既有 AC 內的情境）。
+- PRD-022 新增 / 改寫的 AC 情境與 EX-5、EX-11~15、EX-17、EX-19、EX-21、EX-22、EX-28~32，在 SD-FULFILL 都有對應端點、錯誤碼與判斷順序（見下方對照表），只差 #I10、#I12 兩處。
+- SD-ORDER E2 `completionHint` 涵蓋 PRD-009 §4.1 i–v，與 `allowedActions`、`disputeWindowEndsAt` 用同一個 `serverTime`、同一次讀取計算（SD-ORDER 第 1441–1442 行），符合 CQ-10。
+- 主要問題：PRD-009 的 22 條 AC 改由 SD-ORDER 承接後端測試，但 SD-ORDER §10.3 沒有任何對應的測試類別（#B2）。
+
+### 第 1 輪逐項驗證
+
+| # | 結果 | 新位置 / 說明 |
+|---|------|--------------|
+| B1 | 已修 | CQ-5 改列 (a)–(f) 行為差異（第 1228 行）；§4.4「與 PRD-022 原字面的差異」；PRD-022 已加註 CQ-19~22、BR-5、BR-28、EX-28~32，退回 In Review。§11 決策 1 已把 Firebase Hosting 限制標為「未查證」（第 1202 行） |
+| I1 | 已修 | F17 錯誤鏈：`COMPLETED` → `alreadyCompleted=true` 先於逾期判斷，`FAILED` 回存下的錯誤（第 820–824 行）；§4.4 冪等段落；`VisitCareLogIdempotencyIntegrationTest` 加「超過 31 分鐘同 key 走完 F16→F17→F18」 |
+| I2 | 已修（依使用者決定改採另一方案） | F18 `ORDER_BUSY` / 5xx 保留物件、槽位維持 `PENDING`，前端同槽位直接重打 F18（§3.3 表第 279 行起；§9.3 重試表第 1131 行起）；PRD-022 AC-3.7 情境 4、CQ-20 同步 |
+| I3 | 已修 | 不讀 HTTP `Date`；改用 E2 `serverTime` / `completionHint`、E30 `serverMonth`（§9.2 第 1101–1114 行；SD-ORDER 第 1441–1442、1624 行） |
+| I4 | 已修 | F-M21 `findOrdersReadyForAutoComplete` 刪除（第 1048 行；SD-ORDER M26 已補）；F-M22 改由 SD-ORDER M32 + 本 SD `CareLogMediaRetentionPort.hasUnpurgedMedia`（§2.3.2 第 174 行），協調者改寫由本 SD 認領 |
+| I5 | 已修 | §2.3.1 命名規則（第 165 行）：不用 `CareLog*` 類別名，改 `VisitServiceReport*` / `ServiceReport*` / `VisitCareLog*`；ArchUnit 清單同步；`FulfillAggregateArchTest` 守護 |
+| I6 | 已修 | F-M15 / F-M16 補兩個 hook；F-M20 補兩個後端測試；F-M24 補 3 支 spec；F-M25 認領兩支 journey 的行程步驟（SD-ORDER M33 對應認領訂單步驟） |
+| I7 | 已修 | 保母詳情行程區塊任何狀態都顯示（第 1076 行，CQ-11）。PRD-008 §4.6 步驟 3 尚未回寫，見 #S20 |
+| I8 | 已修 | local 上傳端點改 `/local-storage/**`、`permitAll`、HMAC 簽名（第 962 行）。Vite 代理缺這條路徑，見 #S19 |
+| I9 | 已修 | 表頭改為「需 SD-ORDER 配合修訂，SD-ORDER 已退回 In Review，兩份一起核准」（第 9、14 行）；SD-ORDER C7 簽名（第 1837 行）、§9.1 `/owner/orders` 空狀態（第 1987 行）已修 |
+| S1 | 已修 | 「操作 × 錯誤碼 → 文案」表（第 1073–1085 行）。兩處文案與 PRD-022 不一致，見 #I10 |
+| S2 | 已修 | §6.1「DTO 型別」（第 663 行）；F16 `durationSeconds` half-up |
+| S3 | 已修 | 簽名網址 TTL = min(15m, 剩餘)、剩餘 < 2 分鐘回 409（第 273 行）、FC2 寬限期最終清除 |
+| S4 | 已修 | 結案區塊只在 `IN_PROGRESS` 顯示（第 1103 行）；iii 已過時改「即將自動結案」措辭，見 #S16 |
+| S5 | 已修 | FT1 加訂單狀態限制與 `closedAt`；FT2 加 `CLOSED_AT`、整群組平移、呼叫順序說明（第 838–851 行） |
+| S6 | 已修 | 飼主檢核項空狀態「保母未設定檢核項」（第 1075 行）；單項 testid 列 CQ-14 交主流程補 PRD-028 |
+| S7 | 已修 | SD-FRONTEND-SPEC §6.4 第 198 行已移除 `CONFIRMED`、補「系統自動結束」 |
+| S8 | **部分** | SD-FULFILL §10.1 第 1147 行寫「C7 測試歸本 SD、SD-ORDER `ZombieVisitCronIntegrationTest` 併入或刪除；PRD-009 API 行為由 SD-ORDER 測試承接」，但 SD-ORDER §10.3 沒有跟上，見 #B2、#I13 |
+| S9 | 已修 | F13「已知邊界」（第 790 行）與 `VisitCareLogAuthorizationIntegrationTest` 斷言 |
+| S10 | 已修 | §4.4 冪等段落、§10.2 註明限冪等紀錄 24h 內 |
+| S11 | 已修 | §9.3 不得用 `maxLength` |
+| S12 | 已修 | §4.4 檔案檢驗：magic bytes 與宣告 `contentType` 不同 → 422；§11 決策 3（第 1204 行） |
+| S13 | 已修 | §7.2 FC1 列註明不合併的理由 |
+| S14 | 已修 | §8.1「分工」（第 953 行） |
+
+### PRD-022 新 AC / EX 對應
+
+| PRD-022 | SD-FULFILL 對應 | 結果 |
+|---------|----------------|------|
+| §3 第 9 步 `CARE_LOG_UPLOAD_EXPIRED`（只在確認，位於 `CARE_LOG_STATE_CONFLICT` 之後） | F18 錯誤鏈：`CARE_LOG_STATE_CONFLICT` → `CARE_LOG_UPLOAD_EXPIRED` → `DEADLINE_PASSED`（第 826 行起）；§6.5 | 一致。F17 另會回此碼（剩餘 < 2 分鐘），PRD 未列，見 #S15 |
+| §3 確認時實際檔案：503 → 400 `field=file` → 422（格式 → 大小 → 時長 → 額度） | F18：503 → 400 `reason=OBJECT_MISSING` / `SHA256_MISMATCH` → 422 `CARE_LOG_MEDIA_TYPE_UNSUPPORTED` → `_TOO_LARGE` → `_VIDEO_DURATION_INVALID` → `_QUOTA_EXCEEDED` → L | 一致；`reason` 為 SD 補充欄位，PRD 只要求 `field=file`，相容 |
+| §4.3-4 (a) 申請：401 → 回放 → 授權 → 400 → 冪等衝突 → 409 預檢 → 422 宣告值 / 額度 → 取得傳檔位置（503） | F16 + F17（§1.3 第 76 行「申請上傳 = F16 + F17」）；F16 錯誤鏈第 804 行起；F17 503 | 一致（PRD 的 503 在 F17）。EX-21 (1)「不記冪等結果」與 SD 不同，見 #S18 |
+| §4.3-4 (c) 確認第 2 步：已成功回放 201、已作廢回放錯誤（不看期限 / 30 分鐘） | F18 `COMPLETED` → 201、`FAILED` → 回存下的錯誤，排在狀態預檢之前；F17 同 | 一致 |
+| (c) 第 4 步：讀取失敗 503 保留、檔案不存在 400 仍有效、雜湊不符 400 作廢刪檔、內容不符 422 作廢刪檔 | §3.3 表：503 → `PENDING`、`OBJECT_MISSING` → `PENDING`、`SHA256_MISMATCH` / 422 → 條件式 `FAILED` + 提早刪除 | 一致 |
+| (c) 第 7 步：鎖後重驗失敗刪檔作廢（EX-22） | §3.3 表「鎖前或鎖後的確定性錯誤」 | 一致 |
+| (c) 第 8 步：`ORDER_BUSY` 保留檔案（CQ-20） | §3.3 表最後一列、§9.3 | 一致 |
+| BR-5：期限以申請時間、30 分鐘以確認收到時間 | §2.5 第 9 點、§3.3「槽位逾期判斷」、§4.4「期限」 | 一致 |
+| AC-1.6 情境 3（02:59:59 申請、03:29:58 確認 → 201） | F18 `receivedAt < expires_at`、期限以槽位 `received_at` | 一致；測試缺 30 分鐘邊界，見 #S17 |
+| AC-1.6 情境 6（確認於 +30 分 → 409；新 key 重申請 → `DEADLINE_PASSED`） | F18 `receivedAt ≥ expires_at` → 409；新 F16 以新 `receivedAt` 判期限 | 一致；測試未列，見 #S17 |
+| AC-2.3 情境 6 前半（宣告 JPEG 實為 GIF → 422 `TYPE_UNSUPPORTED`） | F18 magic bytes | 一致 |
+| AC-2.3 情境 6 後半（宣告 900 KB 實傳 1,048,576 bytes → 422 `TOO_LARGE`） | F17 簽 `x-goog-content-length-range={declared},{declared}`（第 822 行）→ GCS 在 PUT 階段就拒絕 | **正式環境無法重現**，見 #I11 |
+| AC-2.4 情境 6（宣告 20 秒實為 14 秒 → 422） | F18 `mvhd` 時長 | 一致 |
+| AC-2.8 情境 1 / 2（申請時 503，同 key 重試 201） | F17 503；F16 回放同一槽位 → F17 → PUT → F18 | 一致（測試在 F17 注入失敗） |
+| AC-2.8 情境 4（瀏覽器傳檔失敗，畫面「上傳失敗，請稍候重試」） | §9.3 重試表第 1131 行、§7.3 第 933 行寫「儲存服務暫時無法使用，請稍候重試」 | **文案不符**，見 #I10；且 §10.1 前端互動清單未列此情境，見 #S17 |
+| AC-3.6 情境 1 / 3（重跑回放 201，期限與 30 分鐘已過亦同） | F16 回放 → F17 `alreadyCompleted` → F18 `COMPLETED` → 201 | 一致（限冪等 TTL 24h） |
+| AC-3.7 情境 4（`ORDER_BUSY` 保留檔案，直接重試確認 201） | §3.3、§9.3、`VisitCareLogConcurrencyIntegrationTest` | 一致 |
+| EX-29「上傳逾時，請重新上傳」、EX-30 雜湊不符「檔案上傳不完整，請重新選擇檔案」 | §9.1 表第 1085 行為「上傳逾時，請重新選擇檔案」；雜湊不符無文案 | **不符 / 缺**，見 #I10 |
+| EX-31、EX-32 | §3.3 表 503 列、`FAILED` 列 | 一致 |
+
+### SD-ORDER E2 `completionHint` 審查
+
+| 檢查 | 結果 |
+|------|------|
+| 涵蓋 PRD-009 §4.1 i–v、取第一個成立者 | (i) `MODIFICATION_IN_PROGRESS` → (ii) `VISITS_NOT_FINISHED` → (iii) `CARE_LOG_EXPIRED`（`autoCompleteAt` = `completion_basis_at + AUTO_COMPLETE_HOURS`）→ (iv) `CARE_LOG_PENDING` → (v) null 且 `allowedActions` 含 `COMPLETE`（SD-ORDER 第 1442 行），完整 |
+| 與 `allowedActions` 同時間點 | 第 1441 行：`completionHint`、`allowedActions`、`disputeWindowEndsAt` 以同一 `serverTime`、同一次讀取計算；畫面不得用瀏覽器時間或 `Date` 標頭。符合 |
+| 回傳條件 | 只對 OWNER、訂單 `IN_PROGRESS`；與 SD-FULFILL §9.2「只在 `IN_PROGRESS` 顯示」一致 |
+| iii 的時間與 BR-21 同值 | `autoCompleteAt` 與 `disputeWindowEndsAt` 同為 `completion_basis_at + 48h`（`AUTO_COMPLETE_HOURS` = `DISPUTE_WINDOW_HOURS`），符合 PRD-009 4.1 iii「與 BR-21 同值」 |
+| 欄位形狀 | SD-ORDER 為物件 `{ "code", "autoCompleteAt" } \| null`；SD-FULFILL §2.4、§9.2 表直接寫 `completionHint` = 列舉值，前端型別容易寫錯，見 #S14b |
+| 後端測試 | SD-ORDER §10.3 沒有任何類別測 `completionHint` / `serverTime` / `serverMonth`，見 #B2 |
+
+### 問題清單（第 2 輪）
+
+| # | 嚴重度 | 位置 | 問題 | 建議 |
+|---|-------|------|------|------|
+| B2 | 阻擋 | SD-FULFILL §1.4（第 93–124 行）、§10.1 第 1147 行；SD-ORDER §10.3（約第 2026–2081 行） | SD-FULFILL 把 PRD-009 的 E25 / E26 / C8 / E30 / E3 後端測試移交 SD-ORDER，§1.4 測試欄寫「SD-ORDER E25 測試」「SD-ORDER E30 測試」等，沒有類別名。SD-ORDER §10.3 只有 `CompletionIntegrationTest`（對應 PRD-024 AC-2.6）與 `CompletionBasisIntegrationTest`（PRD-024 AC-2.7），**沒有任何列對應 PRD-009 AC**，也沒有帳務（E30 計算例 A–L、月份邊界、`serverMonth`）、飼主歷史（E3 分頁 / 篩選 / 排序）、E2 `completionHint` 的測試。結果是 PRD-009 有 22 條 AC（1.1–1.6、2.1–2.8、3.1–3.8）在兩份 SD 裡都找不到具名的後端測試類別，追溯斷鏈（doc-conventions「AC → 後端測試」） | SD-ORDER §10.3 補 PRD-009 對應：例 `OwnerCompleteIntegrationTest`（AC-1.1–1.6）、`AutoCompleteCronIntegrationTest`（AC-2.1–2.4）、`ServiceDisputeIntegrationTest`（AC-2.5–2.8）、`SitterLedgerIntegrationTest`（AC-3.1–3.5、3.8，含 `serverMonth`）、`OwnerHistoryIntegrationTest`（AC-3.6–3.7）、`OrderDetailCompletionHintTest`（E2 i–v 與 `allowedActions` 同次計算）；或沿用 SD-FULFILL 第 1 版的 5 個類別，把「涵蓋 AC」欄搬過去。SD-FULFILL §1.4 測試欄改填具名類別 |
+| I10 | 重要 | §9.3 重試表第 1131 行、§7.3 第 933 行、§9.1 表第 1085 行 | 文案與 PRD-022 不一致：(1) 瀏覽器傳檔失敗，PRD-022 EX-21 (2)、AC-2.8 情境 4 為「上傳失敗，請稍候重試」，SD 寫「儲存服務暫時無法使用，請稍候重試」（那是 EX-21 (1) 申請時 503 的文案）；(2) `CARE_LOG_UPLOAD_EXPIRED`，PRD-022 EX-29 為「上傳逾時，請重新上傳」，SD 寫「上傳逾時，請重新選擇檔案」；(3) 400 `SHA256_MISMATCH` 的「檔案上傳不完整，請重新選擇檔案」（EX-30）沒列。AC-2.8 情境 4 斷言畫面文字，照 SD 實作 E2E 會失敗 | 三處改用 PRD-022 字面；§9.1 日誌列「其他」欄補 `SHA256_MISMATCH` 文案；`OBJECT_MISSING` 不顯示文案（EX-30「前端自動補傳後再確認」，§9.3 已寫自動重做） |
+| I11 | 重要 | §4.4、F17 第 822 行（`x-goog-content-length-range = {declared_size},{declared_size}`）；PRD-022 AC-2.3 情境 6 後半 | 簽名網址把長度綁死在宣告大小，GCS 會在 PUT 階段拒絕「宣告 900 KB、實傳 1,048,576 bytes」，F18 只會看到物件不存在（400 `OBJECT_MISSING`），不可能得到 AC 要求的 422 `CARE_LOG_MEDIA_TOO_LARGE`。另外，就算只用 fake 預置物件，若宣告的 `sha256` 是 900 KB 檔案的雜湊，也會先回 400 `SHA256_MISMATCH`（雜湊檢查排在大小前）。這一半情境只能用「宣告大小錯、宣告雜湊與實際檔案相同、fake 不擋長度」的整合測試造出，正式環境的 E2E 無法重現。設計本身比 AC 更嚴（大小不符根本進不了 GCS），不是安全問題 | 擇一：(a) 由主流程在 PRD-022 AC-2.3 情境 6 後半加註「實際大小以後端整合測試驗證（儲存服務已在傳檔階段拒絕大小不符）」，§10.1 `VisitCareLogMediaUploadIntegrationTest` 寫明造法；(b) 把 AC 改為「實傳大小與宣告不符 → 傳檔失敗，確認回 400 `field=file`」。建議 (a)，不改設計 |
+| I12 | 重要 | 表頭第 7 行「全部 Approved 2026-11-22」 | PRD-022 已退回 In Review（PRD-022 第 5 行）。依硬性規則 2，SD 只能依 Approved PRD；表頭說法不正確，且本 SD 核准須在 PRD-022 再核准之後 | 表頭改為「PRD-008 / 009 / 028 Approved；PRD-022 In Review（CQ-19~22 直傳修訂，待使用者再核准）」；核准順序：PRD-022 → SD-ORDER + SD-FULFILL 同批 |
+| I13 | 重要 | SD-FULFILL §10.1 第 1147 行 vs SD-ORDER §10.3 `ZombieVisitCronIntegrationTest`（約第 2075 行，並計入其「46 個測試類別」） | SD-FULFILL 說 C7 測試歸本 SD、SD-ORDER 該類別「併入或刪除」（引 CQ-4，標「已決定」），SD-ORDER 仍保留該類別與相同必測重點（O9 另寫 SYSTEM 列、基準重算），兩份文件對同一端點的測試歸屬互相矛盾 | SD-ORDER §10.3 刪除 `ZombieVisitCronIntegrationTest`（或改為一句「見 SD-FULFILL `CloseZombieVisitsIntegrationTest`」），類別數同步 |
+| S14b | 建議 | §2.4 第 190 行、§9.2 表第 1105 行起 | `completionHint` 在 SD-ORDER 是 `{ code, autoCompleteAt }` 物件，SD-FULFILL 寫成列舉值 | §9.2 表頭改 `completionHint.code`，iii 列寫 `completionHint.autoCompleteAt` |
+| S15 | 建議 | §3.3 第 273 行、F17 第 824 行 | F17「剩餘不足 2 分鐘 → 409 `CARE_LOG_UPLOAD_EXPIRED`」是 SD 自訂規則，PRD-022 BR-28 / EX-29 只定義確認時 ≥ 申請 + 30 分鐘才逾時。可觀察影響：PRD-022 AC-2.8 情境 4「傳檔失敗後同 key 重試 → 201」若重試發生在申請後 28 分鐘以上會得 409。規則合理（避免必然失敗的 PUT），但需 PRD 出處 | 由主流程在 PRD-022 BR-28 (2) 補一句「距申請已逾 28 分鐘時重試需重新申請（新 key）」，或 CQ-22 一併確認；§9.3 重試表補「F17 `CARE_LOG_UPLOAD_EXPIRED` → 換新 key」（目前只寫在合併列） |
+| S16 | 建議 | §9.2 第 1109 行 iii 列 | 「保母未於期限內送出照護日誌，即將自動結案」是 SD 自擬文案；PRD-009 BR-21 只規定兩個 testid 改「即將自動結案」，未規定 iii 的提示文字 | 由主流程回寫 PRD-009 4.1 iii（或 BR-21）此措辭；回寫前列為待釐清 |
+| S17 | 建議 | §10.1 `VisitCareLogDeadlineIntegrationTest`（第 1159 行附近）、第 1172 行前端互動清單 | (1) PRD-022 AC-1.6 情境 6（F18 `receivedAt` = `expires_at` → 409；新 key 重申請 → `DEADLINE_PASSED`）未列入必測；(2) AC-2.8 情境 4（瀏覽器傳檔失敗，純前端）未列入「由 TS 驗證」的清單 | 補兩項 |
+| S18 | 建議 | F16 第 804 行起；PRD-022 EX-21 (1) | PRD-022 寫「申請時無法取得傳檔位置 → 503，不記冪等結果」；SD 的申請分兩支：F16 已記錄 201（含槽位），503 來自 F17。外部可觀察結果相同（同 key 重試回放同一槽位、無媒體、額度不變），但字面不同，TS-022 照 EX-21 斷言冪等紀錄時會不符 | §4.4 或 CQ-5 補一句「EX-21 (1) 的『不記冪等結果』在本設計等價於『F16 已記錄、F17 可重試』」；或請主流程把 EX-21 (1) 改為「不建立媒體紀錄，同 key 重試可繼續」 |
+| S19 | 建議 | §8.2 第 962 行 | local 簽名網址指向 `/local-storage/**`，但 `frontend/vite.config.ts` 只代理 `/api` 與 `/local-media`；若網址為相對路徑會打到 Vite 而不是後端，若為絕對路徑 `http://localhost:8080/...` 則需後端 CORS 允許 `x-goog-content-length-range`、`x-goog-if-generation-match`（現行 `SecurityConfig.corsConfigurationSource` 只允許 4 個標頭） | 寫明網址為相對路徑，並在 F-M10 加「`vite.config.ts` 新增 `/local-storage` 代理」 |
+| S20 | 建議 | §9.1 第 1076 行、§12 CQ-11、CQ-14 | 兩項需主流程回寫 PRD 的決定尚未回寫：PRD-008 §4.6 步驟 3（保母詳情行程區塊任何狀態顯示，CQ-11）、PRD-028 §9（單項 testid，CQ-14）。SD 目前引用的是「使用者決定」而非 PRD 條文 | 主流程回寫後，SD 出處改引 PRD 條文；回寫前 TS-008 不得斷言保母 `PENDING` 訂單的行程列 |
+
+### 兩份 SD 之間的殘留矛盾
+
+| 項目 | SD-FULFILL | SD-ORDER | 處置 |
+|------|-----------|---------|------|
+| PRD-009 後端測試 | §1.4、§10.1：歸 SD-ORDER | §10.3 沒有 | #B2 |
+| C7 測試 | `CloseZombieVisitsIntegrationTest` 涵蓋 C7，SD-ORDER 類別併入或刪除 | 仍保留 `ZombieVisitCronIntegrationTest` | #I13 |
+| `completionHint` 形狀 | 列舉值 | `{ code, autoCompleteAt }` | #S14b |
+| 冪等套件路徑 | CQ-2 寫「例 `application/service/common/idempotency`」 | SD-GLOBAL-SPEC §2.4 定為 `application/common/idempotency` | 以 GLOBAL 為準；SD-FULFILL CQ-2 的「例」可刪，避免實作時照抄 |
+| SD-ORDER 表頭 | — | 狀態 In Review，但仍有「核准｜使用者，2026-11-22」列 | 建議 SD-ORDER 把該列改為歷史紀錄或移到變更紀錄，避免誤讀為已核准 |
+
+已確認一致（第 1 輪列出的矛盾已消除）：C7 呼叫簽名（SD-ORDER 第 1837 行）、`findOrdersReadyForAutoComplete` 刪除（M26）、`findOrdersPendingMediaExpiryWarning` 拆分（M32 / F-M22）、兩支 journey 分界（M33 / F-M25）、`/owner/orders` 歷史空狀態（SD-ORDER 第 1987 行）、23505 才對映 `ORDER_BUSY`（SD-ORDER 第 1667 行、GLOBAL §2.6）、§10.4 `force-status` 改引 FT1 / FT2、`plans[].defaultTasks`、cleanup 交易邊界、SD-FRONTEND-SPEC §6.4。
