@@ -8,6 +8,7 @@ import {
   registerBiometricCredential,
   type WebAuthnCredentialSummary
 } from '../../api/webauthnApi';
+import type { LegacyHttpError } from '../../api/apiError';
 
 export const AccountSettings: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
@@ -30,7 +31,8 @@ export const AccountSettings: React.FC = () => {
     try {
       const data = await listBiometricCredentials();
       setCredentials(data);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setCredentialsError(err.response?.data?.message || err.message || '無法載入生物辨識裝置清單');
     } finally {
       setCredentialsLoading(false);
@@ -38,6 +40,7 @@ export const AccountSettings: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     refreshCredentials();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -48,7 +51,8 @@ export const AccountSettings: React.FC = () => {
     try {
       await registerBiometricCredential();
       await refreshCredentials();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setCredentialsError(
         err.response?.data?.message || err.message || '生物辨識裝置註冊失敗，請稍後再試'
       );
@@ -62,7 +66,8 @@ export const AccountSettings: React.FC = () => {
     try {
       await deleteBiometricCredential(id);
       await refreshCredentials();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setCredentialsError(err.response?.data?.message || err.message || '移除失敗，請稍後再試');
     }
   };
@@ -79,7 +84,8 @@ export const AccountSettings: React.FC = () => {
       localStorage.removeItem('authMode');
 
       window.location.href = '/login';
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setLogoutAllError(err.response?.data?.message || err.message || '登出失敗，請稍後再試');
       setLogoutAllLoading(false);
     }
@@ -98,7 +104,8 @@ export const AccountSettings: React.FC = () => {
       localStorage.removeItem('authMode');
 
       window.location.href = '/login';
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       const status = err.response?.status;
       if (status === 403) {
         setError('密碼錯誤，請重新輸入');

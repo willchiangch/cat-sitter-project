@@ -3,11 +3,11 @@ package com.petsitter.application.service;
 import com.petsitter.application.dto.CreateReferralRequest;
 import com.petsitter.application.dto.ReferralCandidateDto;
 import com.petsitter.application.exception.TrustCircleException;
-import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.ReferralLog;
 import com.petsitter.domain.model.TrustRelationship;
 import com.petsitter.domain.model.User;
-import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.application.exception.OrderException;
+import com.petsitter.application.service.order.OrderQueryService;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.ReferralLogRepository;
 import com.petsitter.domain.repository.TrustRelationshipRepository;
@@ -30,7 +30,7 @@ public class ReferralService {
 
     private final TrustRelationshipRepository trustRelationshipRepository;
     private final ReferralLogRepository referralLogRepository;
-    private final OrderRepository orderRepository;
+    private final OrderQueryService orderQueryService;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final GatekeeperService gatekeeperService;
@@ -61,18 +61,28 @@ public class ReferralService {
             throw new TrustCircleException(HttpStatus.BAD_REQUEST, "MSG_DATA_INVALID_INPUT", "請至少選擇一位推薦對象");
         }
 
-        Order order = null;
+        UUID orderId = null;
         UUID ownerId;
         User referringSitter = userRepository.findById(referringSitterId)
                 .orElseThrow(() -> new TrustCircleException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到使用者資料"));
 
         if (request.getOrderId() != null) {
-            order = orderRepository.findById(request.getOrderId())
-                    .orElseThrow(() -> new TrustCircleException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到訂單"));
-            if (!order.getSitter().getId().equals(referringSitterId)) {
+            // SD-ORDER M21：經 OrderQueryService.getParticipants，不直讀訂單聚合
+            OrderQueryService.OrderParticipants participants;
+            try {
+                participants = orderQueryService.getParticipants(request.getOrderId());
+            } catch (OrderException e) {
+                throw new TrustCircleException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到訂單");
+            }
+            if (!participants.sitterId().equals(referringSitterId)) {
                 throw new TrustCircleException(HttpStatus.FORBIDDEN, "FORBIDDEN", "無權操作此訂單");
             }
-            ownerId = order.getOwner().getId();
+            // PRD-027 BR-3 / SD-ORDER M21：訂單關聯轉介只限保母婉拒的訂單（CANCELLED、cancelledBy=SITTER、有 ORDER_REJECTED log）
+            if (!orderQueryService.isDeclinedBySitter(request.getOrderId(), referringSitterId)) {
+                throw new TrustCircleException(HttpStatus.CONFLICT, "STATE_CONFLICT", "只有已婉拒的訂單可以轉介");
+            }
+            orderId = request.getOrderId();
+            ownerId = participants.ownerId();
         } else {
             if (request.getOwnerId() == null) {
                 throw new TrustCircleException(HttpStatus.BAD_REQUEST, "MSG_DATA_INVALID_INPUT", "請指定要通知的飼主");
@@ -97,9 +107,9 @@ public class ReferralService {
             User recommendedSitter = relationship.getRequester().getId().equals(recommendedSitterId)
                     ? relationship.getRequester() : relationship.getTarget();
 
-            referralLogRepository.save(ReferralLog.builder()
+            referralLogRepository.insert(ReferralLog.builder()
                     .referringSitter(referringSitter)
-                    .order(order)
+                    .orderId(orderId)
                     .owner(owner)
                     .recommendedSitter(recommendedSitter)
                     .message(request.getMessage())

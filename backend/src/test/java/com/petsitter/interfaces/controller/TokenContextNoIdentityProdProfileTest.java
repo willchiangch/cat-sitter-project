@@ -53,6 +53,7 @@ class TokenContextNoIdentityProdProfileTest {
         registry.add("spring.flyway.url", postgres::getJdbcUrl);
         registry.add("spring.flyway.user", postgres::getUsername);
         registry.add("spring.flyway.password", postgres::getPassword);
+        registry.add("app.security.cors.allowed-origins", () -> "https://prod-test.web.app");
         registry.add("app.security.jwt-secret",
                 () -> "v9y$B&E)H@McQfTjWnZr4u7x!A%C*F-JaNdRgUkXp2s5v8y/B?E(G+KbPeShVmYq");
     }

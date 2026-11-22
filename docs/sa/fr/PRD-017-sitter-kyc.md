@@ -53,7 +53,10 @@
 
 | 情境 | 預期行為 |
 |------|---------|
-| 圖片檔案過大或格式不符 | 前端限制僅能上傳 JPG/PNG，大小限制 5MB 以下，超過則提示錯誤。 |
+| 圖片檔案過大或格式不符 | 前端限制僅能上傳 JPG/PNG，大小限制 5MB 以下，超過則提示錯誤。後端不信任前端，仍以檔案內容（magic bytes）判斷格式並檢查大小：非 JPEG / PNG（含 HTML、SVG 偽裝成 `.jpg` 或宣告 `image/jpeg`）或 > 5,242,880 bytes → 422（模組碼由 SD-TRUST 定），不建立 KYC Record、不留下 GCS 物件。 |
+| 單檔 > 20 MB 或整個請求 > 21 MB（multipart） | 400 `VALIDATION_FAILED`（NFR-003 SEC-FILE-4.4），不建立任何資料。 |
+| 非本人且非 ADMIN 讀取他人 KYC 證件（BOLA） | 他人的保母 → 403 `FORBIDDEN`；OWNER 角色 → 403 `ROLE_MISMATCH`；不簽發簽名網址。 |
+| GCS 上傳或簽發失敗 | 503 `STORAGE_UNAVAILABLE`（baseline §3.7），不建立 KYC Record、狀態不變。 |
 | 審核期間嘗試開啟接單狀態 | 系統維持阻擋，顯示「資料審核中，請耐心等候 (約需 1-3 個工作天)」。 |
 | 已認證保母被檢舉或違規 | 管理員可於後台強制將狀態改為 `SUSPENDED` (停權)，預約網頁立即失效。 |
 
@@ -66,7 +69,11 @@
   - `REJECTED` (退件)：需重新提交。
   - `SUSPENDED` (停權)：強制終止服務資格。
 - **接單資格卡控 (KYC Gating)**：在任何狀態下，只要保母的認證狀態不是 `VERIFIED`，其公開的預約網頁應立即失效，飼主點擊時顯示「保母尚未完成實名認證」。
-- **個資保護**：身分證照片上傳至 GCP Bucket 時必須設定嚴格的存取權限 (Private ACL)，僅限系統後台與特定管理員可讀取，嚴禁對外公開。
+- **個資保護**（2026-11-22 依 NFR-003 改寫）：
+  - 身分證照片存為私有物件、放在私有 bucket，嚴禁對外公開（NFR-003 SEC-FILE-1）。
+  - 可讀者為**本人與 ADMIN**（baseline §1.2「KYC 證件」；取代舊稿「僅限管理員」，NFR-003 X-2）；其他保母 → 403 `FORBIDDEN`，OWNER 角色 → 403 `ROLE_MISMATCH`。
+  - 讀取只用每次授權檢查後產生的簽名網址，`X-Goog-Expires=300`（NFR-003 CQ-18）；API 回應不含未簽名網址；簽名網址不寫入 DB。
+- **檔案檢查（後端）**：格式白名單 JPEG、PNG，以檔案內容（magic bytes）判斷，不採信客戶端 `Content-Type` 與副檔名；物件的 `Content-Type` 與物件鍵副檔名由伺服器依判定格式設定；單檔 ≤ 5 MB（5,242,880 bytes）。不符 → 422（模組碼由 SD-TRUST 定），不建立 KYC Record、不留下 GCS 物件（NFR-003 SEC-FILE-3、SEC-FILE-4.3）。
 
 ---
 
@@ -76,7 +83,8 @@
 - [ ] **AC-2 (後台審核)**：管理員能在後台執行核准或退件操作，且保母端會收到對應的通知。
 - [ ] **AC-3 (退件重提)**：被退件的保母能看到退件原因，並允許重新上傳資料發起新的 KYC 請求。
 - [ ] **AC-4 (資格卡控)**：模擬飼主進入一個非 `VERIFIED` 狀態保母的預約網頁，必須被系統完全阻擋並顯示適當訊息。
-- [ ] **AC-5 (安全防護)**：嘗試直接透過 URL 存取其他保母上傳的身分證圖片網址，必須回傳 `403 Forbidden`。
+- [ ] **AC-5 (安全防護與可讀者)**：情境 1：When 以未簽名網址 `https://storage.googleapis.com/{bucket}/{objectKey}` 匿名 GET 任一 KYC 證件，Then 401 或 403，body 不含物件內容。情境 2：Given 保母 S1 已提交 KYC，When S1 本人讀取自己的 KYC，Then 200，證件網址帶 `X-Goog-Signature` 且 `X-Goog-Expires=300`；When ADMIN 讀取，Then 同上。情境 3：When 保母 S2 讀取 S1 的 KYC，Then 403 `FORBIDDEN`；When 以 OWNER token 讀取，Then 403 `ROLE_MISMATCH`；兩者回應皆不含任何網址。
+- [ ] **AC-6 (後端格式與大小檢查)**：情境 1：When 繞過前端上傳內容為 HTML、宣告 `Content-Type: image/jpeg`、檔名 `a.jpg` 的檔案，Then 422（SD-TRUST 模組碼），無新 KYC Record、無新 GCS 物件、認證狀態不變。情境 2：When 上傳 5,242,881 bytes 的 JPEG，Then 422；When 上傳 5,242,880 bytes 的 JPEG，Then 成功、狀態 `PENDING_REVIEW`。情境 3：When 上傳 PNG 內容但宣告 `image/jpeg`、檔名 `a.jpg`，Then 成功，物件 `Content-Type` 為 `image/png`、物件鍵副檔名為 `.png`。
 
 ---
 
@@ -95,3 +103,12 @@
 
 - **PRD-001 (角色檔案)**：KYC 結果直接決定保母角色檔案的可用性。
 - **PRD-005 (預約申請)**：預約網頁的顯示與否受此模組的狀態卡控。
+- **NFR-003 (安全性)**：SEC-FILE-1 ~ FILE-4、CQ-18、X-2、§15 U-10。
+
+---
+
+## 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|
+| 2026-11-22 | 「個資保護」改寫：可讀者改為本人與 ADMIN（取代「僅限管理員」）、私有 bucket、300 秒簽名網址；新增「檔案檢查（後端）」：magic bytes 判斷 JPEG / PNG、≤ 5,242,880 bytes、伺服器設定 `Content-Type` 與副檔名，不符 422（SD-TRUST 模組碼）；例外表補後端檢查、multipart 上限、BOLA、GCS 失敗；AC-5 改寫為 3 個情境，新增 AC-6，AC 5 → 6 條。狀態維持 Draft | NFR-003 核准回寫（§15 U-10、X-2），使用者 2026-11-22 同意 |

@@ -34,7 +34,7 @@
 
 | 動作 | OWNER | SITTER | ADMIN | 匿名 | 方案限制 |
 |------|-------|--------|-------|------|---------|
-| 檢視評估頁（含問卷答案快照） | ✗ 403 `ROLE_MISMATCH`（飼主看自己的訂單詳情） | 本人訂單 | ✗ 403 `ROLE_MISMATCH`（保母專用端點；ADMIN 讀 `DISPUTED` / 有 OPEN 待辦的訂單走 PRD-007 / PRD-020 端點） | ✗ 401 | 無；訂閱鎖定不擋（BR-14） |
+| 檢視評估頁（含問卷答案快照） | ✗ 403 `ROLE_MISMATCH`（飼主看自己的訂單詳情） | 本人訂單 | ✗ 403 `ROLE_MISMATCH`（保母專用端點；ADMIN 讀 `DISPUTED` / 曾有任何 ADMIN 待辦的訂單走 PRD-007 / PRD-020 端點） | ✗ 401 | 無；訂閱鎖定不擋（BR-14） |
 | 原價報價 | ✗ 403 `ROLE_MISMATCH` | 本人訂單 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 全方案；訂閱鎖定 → 403 `SUBSCRIPTION_LOCKED`；月額度已滿 → 422 `MONTHLY_QUOTA_REACHED`（FREE 3 / BASIC 20 / PRO、ULTIMATE 無限） |
 | 手動調價報價（加價 / 折扣） | ✗ 403 `ROLE_MISMATCH` | 本人訂單 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | PRO / ULTIMATE；FREE / BASIC → 403 `PLAN_REQUIRED` |
 | 檢視報價明細 | 本人訂單（飼主訂單詳情） | 本人訂單（評估頁） | ✗ | ✗ | 無 |
@@ -50,9 +50,9 @@
 2. 系統檢查呼叫者為該訂單的 sitter → 回傳：行程清單（日期、每日次數、方案名稱、方案單價）、目前原始試算 `base_amount`、飼主顯示名稱、熟客標記（`sitter-order-eval-regular-badge`，BR-3）、各日期群組綁定的毛孩基本資料（`sitter-order-eval-pet-{petId}`，已刪除者另顯示 `sitter-order-eval-pet-deleted-label-{petId}`「已刪除」，BR-21）、問卷區塊（BR-2）、`review_expires_at`（`sitter-order-eval-review-expires-at`，Asia/Taipei 顯示）。
 3. 報價預檢提示（`sitter-order-eval-precheck-banner`；後端仍於報價時強制檢查，見 4.3）：
    - 保母訂閱鎖定 / 停權 → 「您的訂閱已到期或遭停權，暫時無法接新訂單」。
-   - 本月額度已滿（BR-12）→ 「本月額度已滿」。
+   - 本月額度已滿（BR-12）→ 「本月額度已滿」與升級入口（`sitter-order-eval-precheck-upgrade-link`，連到訂閱方案頁，PRD-012）。
    - 未設定收款帳號（BR-20）→ 「請先設定收款帳號」與設定頁連結（PRD-025）。
-   - 任一成立時停用「原價接單」「調整價格」「送出報價」；「婉拒預約」（PRD-027）不受影響。
+   - 任一成立時三顆報價按鈕「原價接單」「調整價格」「送出報價」全部停用；此停用優先於方案不足的鎖頭提示（EX-6、AC-3.2）：預檢阻擋時 FREE / BASIC 的「調整價格」也是停用，點擊不出現「手動調價為專業版功能」。「婉拒預約」（PRD-027）不受影響。
 4. 畫面不出現任何執行工項清單或 SOP 欄位（工項見 PRD-021）。
 
 ### 4.2 問卷區塊（唯讀）
@@ -66,10 +66,10 @@
 
 1. 保母按「原價接單」（`sitter-order-eval-btn-quote-original`），或（PRO+）按「調整價格」（`sitter-order-eval-btn-quote-adjust`）在 `sitter-order-eval-input-surcharge`、`sitter-order-eval-input-discount`、`sitter-order-eval-input-pricing-notes` 輸入加價金額、折扣金額與原因後按「送出報價」（`sitter-order-eval-btn-quote-submit`）。前端同時送出畫面上的原始試算金額 `expectedAmount` 與 `Idempotency-Key`。
 2. 系統依 baseline §3.7 判斷順序檢查（第一個不符者決定回應的錯誤碼；BR-22）：
-   1. 冪等回放：同 key 同內容 → 回放第一次的狀態碼與 body。
-   2. 未登入 → 401 `UNAUTHENTICATED`；`currentRole` 不是 SITTER（含 ADMIN）→ 403 `ROLE_MISMATCH`。
+   1. 未登入 → 401 `UNAUTHENTICATED`（先於冪等回放，baseline §3.7）。
+   2. 冪等回放：同使用者同 key 同內容 → 回放第一次的狀態碼與 body；否則 `currentRole` 不是 SITTER（含 ADMIN）→ 403 `ROLE_MISMATCH`。
    3. 訂單不存在 → 404 `NOT_FOUND`；不是該訂單 sitter → 403 `FORBIDDEN`。
-   4. 格式 → 400 `VALIDATION_FAILED`：缺 `Idempotency-Key`（`field=Idempotency-Key`）或缺 `expectedAmount`；加價 / 折扣不是 0–999,999 的整數；任一 > 0 但原因去除前後空白後為空或 > 200 字。
+   4. 格式 → 400 `VALIDATION_FAILED`：缺 `Idempotency-Key`（`field=Idempotency-Key`）或缺 `expectedAmount`；加價 / 折扣不是 0–999,999 的整數；任一 > 0 但原因去除前後空白（含全形空白，定義見 SD-GLOBAL-SPEC）後為空或 > 200 字。
    5. 同 key 不同內容 → 422 `IDEMPOTENCY_KEY_REUSED`；處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`。
    6. 鎖訂單列（baseline §3.6，逾時 409 `ORDER_BUSY`）後：訂單不是 `PENDING` → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。
    7. `now ≥ review_expires_at` → 409 `DEADLINE_PASSED`（payload `deadline=REVIEW_EXPIRES_AT`、`deadlineAt`）。
@@ -106,12 +106,12 @@
 | BR-8 | 報價時快照：各行程方案的單價與名稱、保母當下訂閱等級的媒體額度、媒體保留期限；PRD-005 於 O1 寫入的群組單價只用於送單試算，報價後一律以本快照為準。之後保母改方案價格或升降級只影響新訂單（媒體保留展延例外見 PRD-013） | baseline §2.2、CQ-20 |
 | BR-9 | 報價前置：`now < review_expires_at`（否則 409 `DEADLINE_PASSED`，payload `deadline=REVIEW_EXPIRES_AT`、`deadlineAt` = `review_expires_at` 值）；首個行程日期 ≥ 今天 Asia/Taipei（否則 409 `FIRST_VISIT_DATE_PASSED`）；以時間判斷，不等排程 | baseline O2、§3.2、§3.7、CQ-45、CQ-46、CQ-71 |
 | BR-10 | 報價同交易建立首次收款 payment：`CHARGE` / `INITIAL` / `UNPAID`，`amount = total_amount`；`due_at = max(首日 − 24h, 報價時間 + URGENT_WINDOW_HOURS)`、`escalate_at = max(首日, due_at) + URGENT_WINDOW_HOURS`；收款帳號快照。報價不會因付款期限太近而被拒（緊急單允許） | baseline O2、§3.3、§5、CQ-9、CQ-10、CQ-23、CQ-44 |
-| BR-11 | 報價通知：通知飼主「保母已報價 NT${total_amount}，請於 {due_at} 前完成付款」（Asia/Taipei `YYYY-MM-DD HH:mm`）；站內必寫，Email 依 PRD-014 偏好。`quoted_at ≥ 首日 − 48h` 時同一則通知附付款提醒，此時該通知屬付款提醒類，Email 不可關閉。分工：本卡寫入 `quoted_at`，不寫任何「已提醒」標記；PRD-007 的付款提醒排程以 `quoted_at < 首日 − 48h` 判斷是否需要另發（報價已附提醒者排程不發） | baseline O2、§3.6（CQ-73 付款提醒不可關閉）、§5（付款提醒）；BR §3.2；主流程一致性決定 #6 |
-| BR-12 | 月接單上限在報價（O2）時檢查：計數 = 該保母於報價時間所屬 Asia/Taipei 自然月內進入 `CONFIRMED` 的訂單數（之後取消不返還；`PENDING_PAYMENT` 不計）；上限取報價當下訂閱等級：FREE 3、BASIC 20、PRO / ULTIMATE 無限。計數 ≥ 上限 → 422 `MONTHLY_QUOTA_REACHED`，不寫入任何資料。已報價、待付款的訂單不受影響：之後飼主付款、保母核對（O5，PRD-007）照常成立，即使使當月確認數超過上限。評估頁顯示「本月額度已滿」並停用報價按鈕；婉拒（PRD-027）不受影響。原「報價不檢查、只顯示額度已滿」作廢 | baseline §2.1、§2.2、O2、O5、CQ-5、CQ-21、CQ-62；使用者決定 2026-11-21 |
+| BR-11 | 報價通知：通知飼主「保母已報價 {total_amount}，請於 {due_at} 前完成付款」（金額格式 `$ 1,800`，SD-FRONTEND-SPEC §6.4.1；時間 Asia/Taipei `YYYY-MM-DD HH:mm`）；站內必寫，Email 依 PRD-014 偏好。`quoted_at ≥ 首日 − 48h` 時同一則通知附付款提醒，此時該通知屬付款提醒類，Email 不可關閉。分工：本卡寫入 `quoted_at`，不寫任何「已提醒」標記；PRD-007 的付款提醒排程以 `quoted_at < 首日 − 48h` 判斷是否需要另發（報價已附提醒者排程不發） | baseline O2、§3.6（CQ-73 付款提醒不可關閉）、§5（付款提醒）；BR §3.2；主流程一致性決定 #6 |
+| BR-12 | 月接單上限在報價（O2）時檢查：計數 = 該保母於報價時間所屬 Asia/Taipei 自然月內進入 `CONFIRMED` 的訂單數（之後取消不返還；`PENDING_PAYMENT` 不計）；上限取報價當下訂閱等級：FREE 3、BASIC 20、PRO / ULTIMATE 無限。計數 ≥ 上限 → 422 `MONTHLY_QUOTA_REACHED`，不寫入任何資料。已報價、待付款的訂單不受影響：之後飼主付款、保母核對（O5，PRD-007）照常成立，即使使當月確認數超過上限。評估頁顯示「本月額度已滿」與升級入口 `sitter-order-eval-precheck-upgrade-link`，三顆報價按鈕全部停用（優先於 BR-6 方案不足的鎖頭提示）；婉拒（PRD-027）不受影響。原「報價不檢查、只顯示額度已滿」作廢 | baseline §2.1、§2.2、O2、O5、CQ-5、CQ-21、CQ-62；使用者決定 2026-11-21 |
 | BR-13 | 報價後（`PENDING_PAYMENT` 起）訂單行程、方案、金額不可再編輯；不提供改價 API；要改內容由飼主撤回重下（PRD-026），`CONFIRMED` 後走變更協商（PRD-016） | baseline §3.2、CQ-3、CQ-13；沿用原 PRD-006「不可逆性」 |
 | BR-14 | 保母訂閱鎖定 / 停權時：報價 → 403 `SUBSCRIPTION_LOCKED`；檢視評估頁不擋（baseline 列舉的鎖定範圍不含讀取），頁首顯示「您的訂閱已到期或遭停權，暫時無法接新訂單」；婉拒不擋（PRD-027） | baseline §2.2、CQ-19；文案為審查第 1 輪 #7 |
 | BR-15 | 訂單內容只載明行程時間、方案、數量、加價、折扣、原因與最終金額，不含執行工項清單 | 沿用原 PRD-006「訂單內容範圍」；PRD-021 |
-| BR-16 | 飼主訂單詳情顯示報價明細（`owner-order-detail-quote-breakdown`）：原始試算、加價、折扣、原因與最終總額；保母輸入原因時欄位標示「飼主會看到」 | 沿用原 PRD-006 B.5（2026-10-25 fix-batch12 U6） |
+| BR-16 | 飼主訂單詳情顯示報價明細（`owner-order-detail-quote-breakdown`）；保母訂單詳情也顯示同一元件的三段內容（使用者決定 2026-11-22），分三段：(1)「原報價」：基本價（`base_amount`）、加價、折扣、原因、原總額（O2 報價時的 `total_amount`，`order-detail-quote-original-total`）；(2) 每筆已結算（`SETTLED`）變更一列（`order-detail-quote-modification-{modificationId}`）：結算日期（Asia/Taipei `YYYY-MM-DD`）、增減內容、差額（該變更造成的總額變動 = 變更後總額 − 變更前總額，正數前加「+」、負數前加「−」）；補款逾時重算總額（baseline §3.4 CQ-53，變更 `EXPIRED`）也列一列；系統建立的退款變更（`initiatedBy=SYSTEM`）`SETTLED` 時總額不變，不列入。依結算 / 重算時間升冪，無任何列時此段不顯示（變更流程見 PRD-016 / PRD-023）；(3)「目前總額」（訂單目前 `total_amount`，`order-detail-quote-current-total`）。金額格式 `$ 1,800`；保母輸入原因時欄位標示「飼主會看到」。同頁的付款區塊（PRD-007 BR-1）不顯示總額，總額只在本報價明細出現，兩者不衝突 | 沿用原 PRD-006 B.5（2026-10-25 fix-batch12 U6）；金額格式 SD-FRONTEND-SPEC §6.4.1；與 PRD-007 BR-1 的分工為使用者 2026-11-22 同意之核准後回寫；三段結構與 testid 為使用者決定 2026-11-22 |
 | BR-17 | 不做容量 / 檔期控管：同日已有其他訂單不影響報價。只保證同一張訂單只會轉出 `PENDING` 一次（鎖訂單列，後到者 409 `ORDER_STATE_CONFLICT`） | 已定案產品決策（doc-conventions）；baseline §3.6 |
 | BR-18 | 報價須帶 `Idempotency-Key`（缺少 → 400 `VALIDATION_FAILED`，`field=Idempotency-Key`）與 `expectedAmount`（缺少 → 400 `VALIDATION_FAILED`）；依 baseline §3.6 回放 | baseline §3.6、§3.7 |
 | BR-19 | T1 寫一筆 `order_logs`，與狀態變更同交易；通知以 outbox 同交易寫入（站內），Email 依 PRD-014 偏好由排程寄送（附付款提醒時不可關閉，BR-11） | baseline §3.6、CQ-73 |
@@ -130,12 +130,12 @@
 | EX-5 | 未登入 | 拒絕 | 401 `UNAUTHENTICATED` | 導向登入頁 |
 | EX-6 | FREE / BASIC 帶加價或折扣 | 拒絕，不改資料 | 403 `PLAN_REQUIRED` | `sitter-order-eval-btn-quote-adjust` 顯示鎖頭，點擊提示「手動調價為專業版功能」與升級入口（沿用原 PRD-006） |
 | EX-7 | 保母訂閱逾期 / 停權時報價 | 拒絕 | 403 `SUBSCRIPTION_LOCKED` | `sitter-order-eval-precheck-banner`「您的訂閱已到期或遭停權，暫時無法接新訂單」；「原價接單」「送出報價」停用 |
-| EX-8 | 總額 < 1（含折扣 ≥ 原始試算） | 拒絕 | 422 `INVALID_QUOTE_AMOUNT` | 「報價總額至少需 NT$1」 |
+| EX-8 | 總額 < 1（含折扣 ≥ 原始試算） | 拒絕 | 422 `INVALID_QUOTE_AMOUNT` | 「報價總額至少需 $ 1」 |
 | EX-9 | 加價 / 折扣為負數、非整數、> 999,999；有調整但原因去空白後為空或 > 200 字；總額 > 999,999；缺 `expectedAmount` / `Idempotency-Key` | 拒絕 | 400 `VALIDATION_FAILED`（payload `field`） | 欄位下方錯誤訊息 |
 | EX-10 | 已過 `review_expires_at`（排程尚未取消） | 拒絕 | 409 `DEADLINE_PASSED`（`deadline=REVIEW_EXPIRES_AT`、`deadlineAt`） | 「此預約已超過評估期限」，報價按鈕停用（婉拒仍可，PRD-027） |
 | EX-11 | 首個行程日期 < 今天 | 拒絕 | 409 `FIRST_VISIT_DATE_PASSED` | 「首個行程日期已過，無法報價，請婉拒或請飼主重新預約」 |
 | EX-12 | 本月接單額度已滿（BR-12） | 拒絕，不改資料 | 422 `MONTHLY_QUOTA_REACHED` | 「本月接單額度已滿」與升級入口；報價按鈕停用 |
-| EX-13 | 畫面上的原始試算已過期（保母於評估期間改了方案單價） | 拒絕，不寫入 | 409 `PRICE_CHANGED`（payload `baseAmount`、`totalAmount`） | 重新載入金額，提示「訂單金額已更新為 NT${baseAmount}，請確認後再送出」 |
+| EX-13 | 畫面上的原始試算已過期（保母於評估期間改了方案單價） | 拒絕，不寫入 | 409 `PRICE_CHANGED`（payload `baseAmount`、`totalAmount`） | 重新載入金額，提示「訂單金額已更新為 {baseAmount}，請確認後再送出」（金額格式 `$ 2,100`，SD-FRONTEND-SPEC §6.4.1） |
 | EX-14 | 保母未設定收款帳號 | 拒絕，不改資料 | 422 `PAYOUT_ACCOUNT_REQUIRED` | 「請先設定收款帳號」與設定頁連結（PRD-025） |
 | EX-15 | 狀態不允許：訂單已非 `PENDING`（已報價、飼主已撤回、已逾期取消、已婉拒） | 拒絕 | 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`） | 「訂單狀態已變更，請重新整理」 |
 | EX-16 | 跨角色併發：飼主撤回（PRD-026）與保母報價同時送出 | 鎖訂單列序列化，先到者生效，後到者看到 EX-15 | 409 `ORDER_STATE_CONFLICT` | 同 EX-15 |
@@ -155,12 +155,12 @@
 - [ ] **AC-1.2 (問卷答案快照)**：Given 訂單 `questionnaire_status = COMPLETED`，飼主送單時回答 3 題。情境 1：When A 開啟評估頁，Then `sitter-order-eval-questionnaire-answers` 依題目順序顯示這 3 題送單時的題目文字與答案，頁面沒有「要求填寫問卷」「改為免填」或任何編輯問卷的按鈕。情境 2：Given A 之後在 PRD-004 修改第 1 題文字、停用第 2 題，When A 再開啟評估頁，Then 仍顯示送單時的題目文字與答案。對應：BR-1、BR-4
 - [ ] **AC-1.3 (免填顯示與熟客標記)**：情境 1：Given 訂單 `NOT_REQUIRED`、`questionnaire_exempt_reason = REGULAR_OWNER`（飼主 O 送單時已與 A 有 1 筆 `COMPLETED` 訂單），When A 開啟評估頁，Then `sitter-order-eval-questionnaire-exempt-label` 顯示「免填：熟客」，出現 `sitter-order-eval-regular-badge`「熟客」。情境 2：Given 訂單 `NOT_REQUIRED`、`questionnaire_exempt_reason = NO_ACTIVE_QUESTIONS`、O 非熟客，When A 開啟，Then 顯示「免填：保母無題目」、無 `sitter-order-eval-regular-badge`。情境 3：Given O 與 A 只有 `CANCELLED` 訂單，When A 開啟，Then 無 `sitter-order-eval-regular-badge`。對應：BR-2、BR-3
 - [ ] **AC-1.4 (評估頁越權)**：Given 訂單屬於 SITTER A。情境 1：When SITTER B 讀取，Then 403 `FORBIDDEN`。情境 2：When A 以 OWNER 角色讀取，Then 403 `ROLE_MISMATCH`。情境 3：When ADMIN 讀取，Then 403 `ROLE_MISMATCH`。情境 4：When 未登入，Then 401 `UNAUTHENTICATED`。情境 5：When 訂單 id 不存在，Then 404 `NOT_FOUND`。對應：EX-1–EX-5
-- [ ] **AC-1.5 (報價預檢提示)**：情境 1：Given A 訂閱已鎖定，When 開啟評估頁，Then 200、`sitter-order-eval-precheck-banner` 顯示「您的訂閱已到期或遭停權，暫時無法接新訂單」。情境 2：Given FREE 保母 A 本月（Asia/Taipei）已有 3 筆訂單進入 `CONFIRMED`，When 開啟，Then 200、banner 顯示「本月額度已滿」。情境 3：Given A 沒有收款帳號，When 開啟，Then 200、banner 顯示「請先設定收款帳號」與設定頁連結。三個情境中 `sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-btn-quote-submit` 皆停用，「婉拒預約」可用。對應：BR-12、BR-14、BR-20
+- [ ] **AC-1.5 (報價預檢提示)**：情境 1：Given A 訂閱已鎖定，When 開啟評估頁，Then 200、`sitter-order-eval-precheck-banner` 顯示「您的訂閱已到期或遭停權，暫時無法接新訂單」。情境 2：Given FREE 保母 A 本月（Asia/Taipei）已有 3 筆訂單進入 `CONFIRMED`，When 開啟，Then 200、banner 顯示「本月額度已滿」並出現升級入口 `sitter-order-eval-precheck-upgrade-link`。情境 3：Given A 沒有收款帳號，When 開啟，Then 200、banner 顯示「請先設定收款帳號」與設定頁連結。三個情境中 `sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-btn-quote-submit` 三顆皆停用，「婉拒預約」可用；FREE / BASIC 保母時 `sitter-order-eval-btn-quote-adjust` 同樣是停用，點擊不出現「手動調價為專業版功能」（預檢阻擋優先於 AC-3.2）。對應：BR-6、BR-12、BR-14、BR-20
 
 ### 子模組 2：報價成立與快照
 
-- [ ] **AC-2.1 (原價接單)**：Given FREE 保母 A（本月 0 筆 `CONFIRMED`、已設收款帳號）的訂單 `PENDING`、`base_amount = 1800`、首個行程 2026-12-10、飼主訂單類 Email 偏好開啟。情境 1：When A 於 2026-12-01 10:00（Asia/Taipei）按 `sitter-order-eval-btn-quote-original`，Then 200；訂單 `PENDING_PAYMENT`；`surcharge_amount = 0`、`discount_amount = 0`、`total_amount = 1800`；寫 `order_logs`（`ORDER_QUOTED`，payload 含四個金額）；飼主有 1 則站內通知「保母已報價 NT$1800，請於 2026-12-09 00:00 前完成付款」與 1 筆 Email 投遞紀錄。情境 2：Given 飼主訂單類 Email 偏好關閉，When A 原價接單，Then 飼主有 1 則站內通知、無 Email 投遞紀錄。問卷 `COMPLETED` 或 `NOT_REQUIRED` 結果相同。對應：T1、BR-1、BR-5、BR-6、BR-11
-- [ ] **AC-2.2 (PRO 手動調價)**：Given PRO 保母、`base_amount = 1800`，When 在 `sitter-order-eval-input-surcharge` 填 300、`sitter-order-eval-input-discount` 填 100、`sitter-order-eval-input-pricing-notes` 填「車馬費；首次優惠」後按 `sitter-order-eval-btn-quote-submit`，Then `total_amount = 2000`；飼主訂單詳情 `owner-order-detail-quote-breakdown` 顯示「原始試算 NT$1800 / 加價 NT$300 / 折扣 NT$100 / 原因：車馬費；首次優惠 / 總額 NT$2000」；保母端原因欄位標示「飼主會看到」。ULTIMATE 保母同樣成功。對應：BR-5、BR-6、BR-16
+- [ ] **AC-2.1 (原價接單)**：Given FREE 保母 A（本月 0 筆 `CONFIRMED`、已設收款帳號）的訂單 `PENDING`、`base_amount = 1800`、首個行程 2026-12-10、飼主訂單類 Email 偏好開啟。情境 1：When A 於 2026-12-01 10:00（Asia/Taipei）按 `sitter-order-eval-btn-quote-original`，Then 200；訂單 `PENDING_PAYMENT`；`surcharge_amount = 0`、`discount_amount = 0`、`total_amount = 1800`；寫 `order_logs`（`ORDER_QUOTED`，payload 含四個金額）；飼主有 1 則站內通知「保母已報價 $ 1,800，請於 2026-12-09 00:00 前完成付款」與 1 筆 Email 投遞紀錄。情境 2：Given 飼主訂單類 Email 偏好關閉，When A 原價接單，Then 飼主有 1 則站內通知、無 Email 投遞紀錄。問卷 `COMPLETED` 或 `NOT_REQUIRED` 結果相同。對應：T1、BR-1、BR-5、BR-6、BR-11
+- [ ] **AC-2.2 (PRO 手動調價)**：Given PRO 保母、`base_amount = 1800`，When 在 `sitter-order-eval-input-surcharge` 填 300、`sitter-order-eval-input-discount` 填 100、`sitter-order-eval-input-pricing-notes` 填「車馬費；首次優惠」後按 `sitter-order-eval-btn-quote-submit`，Then `total_amount = 2000`；飼主訂單詳情 `owner-order-detail-quote-breakdown` 的「原報價」段顯示「基本價 $ 1,800 / 加價 $ 300 / 折扣 $ 100 / 原因：車馬費；首次優惠」，`order-detail-quote-original-total` 顯示「$ 2,000」，無 `order-detail-quote-modification-*` 列，`order-detail-quote-current-total` 顯示「$ 2,000」；保母端原因欄位標示「飼主會看到」。ULTIMATE 保母同樣成功。對應：BR-5、BR-6、BR-16
 - [ ] **AC-2.3 (報價快照)**：Given PRO 保母以方案 P（單價 600）報價成功，When 之後保母把 P 改為 800、並降級為 BASIC，Then 該訂單的方案單價仍為 600、方案名稱為報價時名稱、媒體額度仍為 PRO（10 照片 + 2 影片）、保留期限仍為 90 天；新訂單才套用新值。對應：BR-8
 - [ ] **AC-2.4 (首次收款建立與期限—一般單)**：Given 首個行程 2026-12-10，When 於 2026-12-01 10:00（Asia/Taipei）報價 `total_amount = 2000`，Then 訂單 `quoted_at = 2026-12-01T02:00:00Z`；同交易建立一筆 payment：`direction=CHARGE`、`purpose=INITIAL`、`UNPAID`、`amount = 2000`、`due_at = 2026-12-08T16:00:00Z`（12-09 00:00 台北）、`escalate_at = 2026-12-09T18:00:00Z`（12-10 02:00 台北）、含收款帳號快照；報價通知不附付款提醒（`quoted_at` < 首日 − 48h = 2026-12-07T16:00:00Z）。對應：T2、BR-10、BR-11、BR-20
 - [ ] **AC-2.5 (首次收款期限—緊急單)**：情境 1：Given 飼主於 2026-12-10 08:00（台北）送出首個行程為 2026-12-10 的預約（`review_expires_at` = 12-10 10:00 台北 = 2026-12-10T02:00:00Z），When 保母於 12-10 09:00 台北報價，Then 200，`due_at = 2026-12-10T03:00:00Z`（11:00 台北）、`escalate_at = 2026-12-10T05:00:00Z`（13:00 台北）。情境 2：Given 飼主於 2026-12-08 10:00（台北）送出首個行程為 2026-12-11 的預約（`review_expires_at` = 12-11 00:00 台北），When 保母於 12-10 23:30 台北報價，Then 200，`due_at = 2026-12-10T17:30:00Z`（12-11 01:30 台北）、`escalate_at = 2026-12-10T19:30:00Z`（12-11 03:30 台北）。情境 3：Given 情境 1 或 2 且飼主訂單類 Email 偏好關閉，When 報價，Then 報價通知附付款提醒，飼主有 1 則站內通知與 1 筆 Email 投遞紀錄（付款提醒類不可關閉），且無另一則獨立的付款提醒通知。對應：BR-10、BR-11
@@ -170,12 +170,12 @@
 ### 子模組 3：報價前置檢查
 
 - [ ] **AC-3.1 (報價越權)**：Given 訂單屬於 SITTER A。情境 1：When SITTER B 報價，Then 403 `FORBIDDEN`。情境 2：When A 以 OWNER 角色報價，Then 403 `ROLE_MISMATCH`。情境 3：When ADMIN 報價，Then 403 `ROLE_MISMATCH`。情境 4：When 訂單不存在，Then 404 `NOT_FOUND`。以上訂單維持 `PENDING`、無 payment。對應：EX-1、EX-2、EX-4
-- [ ] **AC-3.2 (方案不足調價)**：Given FREE 或 BASIC 保母、其他條件皆符合。情境 1：When 開啟評估頁，Then `sitter-order-eval-btn-quote-adjust` 顯示鎖頭，點擊顯示「手動調價為專業版功能」與升級入口。情境 2：When 直接呼叫 API 帶 `surcharge_amount = 100` 或 `discount_amount = 100`，Then 403 `PLAN_REQUIRED`，訂單維持 `PENDING`。對應：BR-6、EX-6
+- [ ] **AC-3.2 (方案不足調價)**：Given FREE 或 BASIC 保母、報價預檢通過（未鎖定、本月額度未滿、已設收款帳號；預檢阻擋時依 AC-1.5 三顆按鈕全部停用）、其他條件皆符合。情境 1：When 開啟評估頁，Then `sitter-order-eval-btn-quote-adjust` 顯示鎖頭，點擊顯示「手動調價為專業版功能」與升級入口。情境 2：When 直接呼叫 API 帶 `surcharge_amount = 100` 或 `discount_amount = 100`，Then 403 `PLAN_REQUIRED`，訂單維持 `PENDING`。對應：BR-6、EX-6
 - [ ] **AC-3.3 (金額與欄位驗證)**：Given PRO 保母、`base_amount = 1800`。情境 1：When 折扣 1800，Then 422 `INVALID_QUOTE_AMOUNT`。情境 2：When 折扣 1799，Then 200、`total_amount = 1`。情境 3：When 加價 -100、加價 100.5、加價 1,000,000、加價 100 但原因只有空白、或原因去空白後 201 字，Then 400 `VALIDATION_FAILED`。情境 4：When 加價 999,000（總額 1,000,800），Then 400 `VALIDATION_FAILED`（`field=totalAmount`）。情境 5：When 不帶 `expectedAmount` 或不帶 `Idempotency-Key`，Then 400 `VALIDATION_FAILED`。以上失敗時訂單維持 `PENDING`。對應：BR-5、BR-18、EX-8、EX-9
 - [ ] **AC-3.4 (評估期限與首個行程日)**：情境 1：Given `review_expires_at = 2026-12-10T16:00:00Z` 且排程尚未取消，When 保母於 `2026-12-10T16:05:00Z` 報價，Then 409 `DEADLINE_PASSED`（payload `deadline=REVIEW_EXPIRES_AT`、`deadlineAt=2026-12-10T16:00:00Z`）。情境 2：Given 同上，When 於 `2026-12-10T16:00:00Z` 整報價，Then 409 `DEADLINE_PASSED`。情境 3：Given 飼主於 2026-12-10 23:30（台北）送出首個行程為 12-10 的預約（`review_expires_at` = 12-11 01:30 台北），When 保母於 12-11 00:30 報價，Then 409 `FIRST_VISIT_DATE_PASSED`。情境 4：Given 首個行程日期 = 今天且 `now < review_expires_at`，When 報價，Then 200。對應：BR-9、EX-10、EX-11
 - [ ] **AC-3.5 (月接單額度)**：Given 以下訂單首個行程皆為 2027-01-05（`review_expires_at` = 2027-01-04T16:00:00Z，報價時尚未到期）。情境 1：Given FREE 保母 A 於 2026-12（Asia/Taipei）已有 3 筆訂單進入 `CONFIRMED`（其中 1 筆之後已取消），When A 於 2026-12-20 報價，Then 422 `MONTHLY_QUOTA_REACHED`，訂單維持 `PENDING`、無 payment。情境 2：Given 同上，When A 於 `2026-12-31T16:00:00Z`（2027-01-01 00:00 台北）之後報價，Then 200。情境 3：Given FREE 保母本月 2 筆 `CONFIRMED`、另有 3 筆 `PENDING_PAYMENT`，When 報價，Then 200（待付款不計數）。情境 4：Given BASIC 本月 20 筆，Then 422；PRO 或 ULTIMATE 本月 50 筆，Then 200；PRO 本月 5 筆後降級為 FREE，Then 422。對應：BR-12、EX-12
 - [ ] **AC-3.6 (訂閱鎖定)**：Given 保母訂閱到期日隔天 00:00（Asia/Taipei）後未續訂，或被 ADMIN 停權，其他條件皆符合。情境 1：When 原價接單或調價報價，Then 403 `SUBSCRIPTION_LOCKED`，訂單維持 `PENDING`。情境 2：When 同一保母讀評估頁，Then 200，`sitter-order-eval-precheck-banner` 顯示「您的訂閱已到期或遭停權，暫時無法接新訂單」。對應：BR-14、EX-7
-- [ ] **AC-3.7 (畫面金額過期)**：情境 1：Given 保母開啟評估頁時 `base_amount = 1800`，之後把方案單價由 600 改為 700（重算為 2100），When 以 `expectedAmount = 1800`、無調整送出，Then 409 `PRICE_CHANGED`（payload `baseAmount = 2100`、`totalAmount = 2100`），訂單維持 `PENDING`，畫面顯示「訂單金額已更新為 NT$2100，請確認後再送出」；When 以 `expectedAmount = 2100` 重送（新 key），Then 200。情境 2：Given 方案 P 於評估期間被停用，When 報價，Then 仍以 P 的單價重算，200。對應：BR-7、EX-13
+- [ ] **AC-3.7 (畫面金額過期)**：情境 1：Given 保母開啟評估頁時 `base_amount = 1800`，之後把方案單價由 600 改為 700（重算為 2100），When 以 `expectedAmount = 1800`、無調整送出，Then 409 `PRICE_CHANGED`（payload `baseAmount = 2100`、`totalAmount = 2100`），訂單維持 `PENDING`，畫面顯示「訂單金額已更新為 $ 2,100，請確認後再送出」；When 以 `expectedAmount = 2100` 重送（新 key），Then 200。情境 2：Given 方案 P 於評估期間被停用，When 報價，Then 仍以 P 的單價重算，200。對應：BR-7、EX-13
 - [ ] **AC-3.8 (未設定收款帳號)**：情境 1：Given 保母沒有任何收款帳號，When 報價，Then 422 `PAYOUT_ACCOUNT_REQUIRED`，訂單維持 `PENDING`、無 payment；畫面顯示「請先設定收款帳號」與設定頁連結。情境 2：Given 保母之後設定收款帳號（PRD-025），When 再報價，Then 200，payment 含該帳號快照。對應：BR-20、EX-14
 
 ## 9. 影響範圍
@@ -183,7 +183,7 @@
 | 面向 | 內容 |
 |------|------|
 | 資料 | 訂單：`base_amount`（報價時重算覆寫）、`surcharge_amount`、`discount_amount`、`pricing_notes`、`total_amount`、`quoted_at`（新欄位，PRD-007 提醒排程讀取）；訂單快照（單價、方案名稱、媒體額度、保留期限）；首次收款 payment（欄位定義見 PRD-007）；`order_logs` 動作 `ORDER_QUOTED`。本卡只讀：`questionnaire_status`、`questionnaire_exempt_reason`、問卷答案快照（PRD-005 寫入）、毛孩（含已邏輯刪除者）、當月 `CONFIRMED` 計數、收款帳號。不寫任何「已提醒」標記。DDL 在 SD-ORDER |
-| 畫面 | 保母：`/sitter/orders/{id}` 評估頁（評估資訊 / 問卷答案唯讀 / 報價區塊）；飼主：`/owner/orders/{id}` 訂單詳情的報價明細（實際路徑以 SD-FRONTEND-SPEC 為準）。testid：`sitter-order-eval-review-expires-at`、`sitter-order-eval-pet-{petId}`、`sitter-order-eval-pet-deleted-label-{petId}`、`sitter-order-eval-regular-badge`、`sitter-order-eval-questionnaire-answers`、`sitter-order-eval-questionnaire-exempt-label`、`sitter-order-eval-precheck-banner`、`sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-input-surcharge`、`sitter-order-eval-input-discount`、`sitter-order-eval-input-pricing-notes`、`sitter-order-eval-btn-quote-submit`、`owner-order-detail-quote-breakdown`（命名依 SD-FRONTEND-SPEC §4） |
+| 畫面 | 保母：`/sitter/orders/{id}` 評估頁（評估資訊 / 問卷答案唯讀 / 報價區塊）；飼主：`/owner/orders/{id}` 訂單詳情的報價明細；保母訂單詳情也顯示同一報價明細元件（三段，BR-16）（實際路徑以 SD-FRONTEND-SPEC 為準）。testid：`sitter-order-eval-review-expires-at`、`sitter-order-eval-pet-{petId}`、`sitter-order-eval-pet-deleted-label-{petId}`、`sitter-order-eval-regular-badge`、`sitter-order-eval-questionnaire-answers`、`sitter-order-eval-questionnaire-exempt-label`、`sitter-order-eval-precheck-banner`、`sitter-order-eval-precheck-upgrade-link`、`sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-input-surcharge`、`sitter-order-eval-input-discount`、`sitter-order-eval-input-pricing-notes`、`sitter-order-eval-btn-quote-submit`、`owner-order-detail-quote-breakdown`、`order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`、`order-detail-quote-current-total`（命名依 SD-FRONTEND-SPEC §4；後三者不帶角色前綴為使用者決定 2026-11-22） |
 | 通知 | 報價 → OWNER → 站內 + Email（依 PRD-014 偏好）；附付款提醒時屬付款提醒類，Email 不可關閉（baseline CQ-73） |
 | 排程 | 本卡無。評估逾期（O4）在 PRD-027；付款逾期 / 提醒 / 待核對升級在 PRD-007，以本卡寫入的 `due_at`、`escalate_at`、`quoted_at` 為基準（提醒排程以 `quoted_at < 首日 − 48h` 判斷是否另發） |
 | API | 讀評估頁、報價（原價與調價同一端點，調整欄位為 0 即原價），皆為保母角色專用端點。不提供要求問卷、改為免填、送出問卷答案的端點。契約在 SD-ORDER |
@@ -209,6 +209,8 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。(1) BR-16 報價明細改為三段：「原報價」（基本價、加價、折扣、原因、原總額）、每筆 `SETTLED` 變更的差額列（日期、增減內容、差額；補款逾時重算也列一列，系統建立的退款變更不列）、「目前總額」，雙方訂單詳情都顯示（同一元件）；新增 testid `order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`、`order-detail-quote-current-total`（AC-2.2、§9 同步）；(2) §3 ADMIN 可讀範圍用詞改「曾有任何 ADMIN 待辦」（baseline CQ-84）。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22 |
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) 報價預檢（使用者選 A）：§4.1 步驟 3、BR-12、AC-1.5 註明預檢阻擋（鎖定 / 額度滿 / 無收款帳號）時三顆報價按鈕全部停用，優先於方案不足鎖頭提示；AC-3.2 Given 補「報價預檢通過」；「本月額度已滿」附升級入口 `sitter-order-eval-precheck-upgrade-link`（§9 testid 同步）；(2) BR-16 註明同頁付款區塊不顯示總額、報價明細可顯示（與 PRD-007 BR-1 分工）；(3) 畫面與通知金額改為 SD-FRONTEND-SPEC §6.4.1 格式（BR-11、EX-8、EX-13、AC-2.1、AC-2.2、AC-3.7）；(4) §4.3 步驟 2.1–2.2 改為 401 先於冪等回放（baseline §3.7）；(5) §4.3 步驟 2.4「去除前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | EX-22 `@Version` 衝突改回 409 `ORDER_BUSY`，與 PRD-007 一致（核准後修訂，SD-ORDER CQ-2） | 使用者核准 2026-11-22 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 第 1 輪審查修正總覽：處理全部 15 項（重要 5、建議 10）；CQ-11 已決並寫入正文；錯誤判斷順序改依 baseline §3.7（§4.3 步驟 2 重排，新增 BR-22）；`expectedBaseAmount` 改名 `expectedAmount`；補 testid；狀態 Needs Clarification → In Review。子模組 5 / 7 / 8 = 20 條 AC。飼主撤回現屬 PRD-026（舊列「移至 PRD-005」已過時） | `docs/reviews/PRD-006-order-evaluation.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-70、71、73、74；主流程一致性決定 2026-11-21 |

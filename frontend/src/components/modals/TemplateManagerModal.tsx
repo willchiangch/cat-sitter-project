@@ -7,6 +7,7 @@ import {
   useDeleteTemplateMutation
 } from '../../hooks/useCareNote';
 import type { CareTemplate, CareNoteItemDto } from '../../api/careApi';
+import type { LegacyHttpError } from '../../api/apiError';
 
 interface TemplateManagerModalProps {
   isOpen: boolean;
@@ -100,7 +101,8 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
           onSuccess: () => {
             resetForm();
           },
-          onError: (err: any) => {
+          onError: (caught: unknown) => {
+            const err = caught as LegacyHttpError;
             if (err.response?.status === 409) {
               alert('請求重複提交中，請稍候');
             } else {
@@ -120,7 +122,8 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
           onSuccess: () => {
             resetForm();
           },
-          onError: (err: any) => {
+          onError: (caught: unknown) => {
+            const err = caught as LegacyHttpError;
             if (err.response?.status === 409) {
               alert('請求重複提交中，請稍候');
             } else {
@@ -146,7 +149,8 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
         onSuccess: () => {
           delete deleteKeyRef.current[templateId];
         },
-        onError: (err: any) => {
+        onError: (caught: unknown) => {
+          const err = caught as LegacyHttpError;
           if (err.response?.status === 409) {
             alert('請求重複提交中，請稍候');
           } else {
@@ -295,9 +299,7 @@ const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({ isOpen, onC
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                         <select
                           value={item.sectionType}
-                          onChange={(e) =>
-                            handleItemChange(index, 'sectionType', e.target.value as any)
-                          }
+                          onChange={(e) => handleItemChange(index, 'sectionType', e.target.value)}
                           style={{
                             padding: '0.5rem',
                             borderRadius: 'var(--radius-sm)',

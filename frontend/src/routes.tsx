@@ -1,7 +1,8 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import App from './App';
 import RequireAuth from './components/auth/RequireAuth';
 import RequireRole from './components/auth/RequireRole';
+import PublicPageShell from './components/layout/PublicPageShell';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -11,19 +12,22 @@ import PublicSitterProfilePage from './pages/public/PublicSitterProfilePage';
 
 import SitterOrders from './pages/sitter/SitterOrders';
 import SitterLedger from './pages/sitter/SitterLedger';
-import OrderEvalView from './pages/sitter/OrderEvalView';
+import SitterOrderDetail from './pages/sitter/SitterOrderDetail';
 import PublicBookingPage from './pages/client/PublicBookingPage';
 import CareNoteManager from './pages/sitter/CareNoteManager';
 import CareNoteView from './pages/client/CareNoteView';
-import VisitReportManager from './pages/sitter/VisitReportManager';
-import VisitReportView from './pages/client/VisitReportView';
+import VisitPanel from './pages/sitter/VisitPanel';
+import SitterVisitsDashboard from './pages/sitter/SitterVisitsDashboard';
+import OwnerVisitsToday from './pages/client/OwnerVisitsToday';
+import CareLogViewPage from './pages/shared/CareLogViewPage';
+import LegacyVisitLinkPage from './pages/shared/LegacyVisitLinkPage';
 import OwnerOrders from './pages/client/OwnerOrders';
 import FavoriteSitters from './pages/client/FavoriteSitters';
 import OwnerOrderDetail from './pages/client/OwnerOrderDetail';
-import AdminResolvePanel from './pages/admin/AdminResolvePanel';
+import AdminOrderPage from './pages/admin/AdminOrderPage';
+import AdminTasksPage from './pages/admin/AdminTasksPage';
 import OrderModificationWizard from './pages/client/OrderModificationWizard';
-import SitterModificationQuote from './pages/sitter/SitterModificationQuote';
-import OwnerModificationConfirm from './pages/client/OwnerModificationConfirm';
+import ModificationDetailPage from './pages/shared/ModificationDetailPage';
 import SitterPlans from './pages/sitter/SitterPlans';
 import SitterQuestionManager from './pages/sitter/SitterQuestionManager';
 import SitterTrustCircle from './pages/sitter/SitterTrustCircle';
@@ -46,7 +50,8 @@ import AccountSettings from './pages/shared/AccountSettings';
 
 function BookingRoute() {
   const { sitterId } = useParams<{ sitterId: string }>();
-  return <PublicBookingPage sitterId={sitterId} />;
+  // key：換保母時重新掛載，暫存草稿依 sitterId 還原（PRD-005 EX-1）
+  return <PublicBookingPage key={sitterId} sitterId={sitterId} />;
 }
 
 function CareNoteManagerRoute() {
@@ -59,25 +64,31 @@ function CareNoteViewRoute() {
   return <CareNoteView sitterId={sitterId!} ownerId={ownerId!} />;
 }
 
-function VisitReportManagerRoute() {
-  const { visitId } = useParams<{ visitId: string }>();
-  // key：換行程時重新掛載，未暫存文字的保留邏輯（fix-batch10 H4）不會把上一筆行程的文字帶過去
-  return <VisitReportManager key={visitId} visitId={visitId!} />;
+function VisitPanelRoute() {
+  const { orderId, visitId } = useParams<{ orderId: string; visitId: string }>();
+  // key：換行程時重新掛載，未暫存的日誌文字不會帶到下一筆行程
+  return <VisitPanel key={visitId} orderId={orderId!} visitId={visitId!} />;
 }
 
-function VisitReportViewRoute() {
-  const { visitId } = useParams<{ visitId: string }>();
-  return <VisitReportView visitId={visitId!} />;
+function CareLogViewRoute() {
+  const { orderId, visitId } = useParams<{ orderId: string; visitId: string }>();
+  return <CareLogViewPage key={visitId} orderId={orderId!} visitId={visitId!} />;
 }
 
 function OwnerOrderDetailRoute() {
   const { orderId } = useParams<{ orderId: string }>();
-  return <OwnerOrderDetail orderId={orderId!} />;
+  return <OwnerOrderDetail key={orderId} orderId={orderId!} />;
 }
 
-function AdminResolvePanelRoute() {
+function AdminOrderRoute() {
   const { orderId } = useParams<{ orderId: string }>();
-  return <AdminResolvePanel orderId={orderId!} />;
+  return <AdminOrderPage key={orderId} orderId={orderId!} />;
+}
+
+/** 舊路由轉址（SD-ORDER §9.1：`/sitter/eval/:orderId`、`/admin/resolve/:orderId` 等改到新路由） */
+function RedirectWithOrderId({ to }: { to: (orderId: string) => string }) {
+  const { orderId } = useParams<{ orderId: string }>();
+  return <Navigate to={to(orderId!)} replace />;
 }
 
 function OrderModificationWizardRoute() {
@@ -85,24 +96,30 @@ function OrderModificationWizardRoute() {
   return <OrderModificationWizard orderId={orderId!} />;
 }
 
-function SitterModificationQuoteRoute() {
+function SitterOrderDetailRoute() {
   const { orderId } = useParams<{ orderId: string }>();
-  return <SitterModificationQuote orderId={orderId!} />;
+  return <SitterOrderDetail key={orderId} orderId={orderId!} />;
 }
 
-function OrderEvalViewRoute() {
-  const { orderId } = useParams<{ orderId: string }>();
-  return <OrderEvalView orderId={orderId!} />;
+function ModificationDetailRoute() {
+  const { orderId, modificationId } = useParams<{ orderId: string; modificationId: string }>();
+  return (
+    <ModificationDetailPage
+      key={modificationId}
+      orderId={orderId!}
+      modificationId={modificationId!}
+    />
+  );
 }
 
+/** 婉拒後轉介帶 `?orderId=`（PRD-027 BR-3，SitterOrderDetail 婉拒對話框）；無 orderId 為非訂單關聯轉介 */
 function SitterReferralRoute() {
   const { ownerId } = useParams<{ ownerId: string }>();
-  return <SitterReferral ownerId={ownerId!} />;
-}
-
-function OwnerModificationConfirmRoute() {
-  const { orderId } = useParams<{ orderId: string }>();
-  return <OwnerModificationConfirm orderId={orderId!} />;
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('orderId') || undefined;
+  return (
+    <SitterReferral key={`${ownerId}|${orderId ?? ''}`} ownerId={ownerId!} orderId={orderId} />
+  );
 }
 
 function AdminKycDetailRoute() {
@@ -119,6 +136,12 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/sitter/:sitterId/profile" element={<PublicSitterProfilePage />} />
 
+      {/* 公開預約頁：匿名 / 任一角色可瀏覽，送出才要求登入且為飼主（PRD-005 AC-1.1、EX-1；SD-ORDER §9.1） */}
+      <Route element={<PublicPageShell />}>
+        <Route path="/booking" element={<BookingRoute />} />
+        <Route path="/booking/:sitterId" element={<BookingRoute />} />
+      </Route>
+
       <Route element={<RequireAuth />}>
         <Route element={<App />}>
           <Route path="/" element={<Navigate to="/demo" replace />} />
@@ -127,7 +150,11 @@ function AppRoutes() {
           <Route element={<RequireRole roles={['sitter']} />}>
             <Route path="/sitter/orders" element={<SitterOrders />} />
             <Route path="/sitter/ledger" element={<SitterLedger />} />
-            <Route path="/sitter/eval/:orderId" element={<OrderEvalViewRoute />} />
+            <Route path="/sitter/orders/:orderId" element={<SitterOrderDetailRoute />} />
+            <Route
+              path="/sitter/eval/:orderId"
+              element={<RedirectWithOrderId to={(id) => `/sitter/orders/${id}`} />}
+            />
             <Route path="/sitter/plans" element={<SitterPlans />} />
             <Route path="/sitter/questions" element={<SitterQuestionManager />} />
             <Route path="/sitter/trust-circle" element={<SitterTrustCircle />} />
@@ -136,33 +163,57 @@ function AppRoutes() {
             <Route path="/sitter/payment-settings" element={<SitterPaymentInfoSettings />} />
             <Route path="/sitter/kyc" element={<SitterKycSubmit />} />
             <Route path="/sitter/profile-settings" element={<SitterProfileSettings />} />
-            <Route path="/sitter/orders/:orderId/quote" element={<SitterModificationQuoteRoute />} />
-            <Route path="/care-notes/manage/:sitterId/:ownerId" element={<CareNoteManagerRoute />} />
-            <Route path="/visit-reports/manage/:visitId" element={<VisitReportManagerRoute />} />
+            <Route
+              path="/sitter/orders/:orderId/quote"
+              element={<RedirectWithOrderId to={(id) => `/sitter/orders/${id}`} />}
+            />
+            <Route
+              path="/care-notes/manage/:sitterId/:ownerId"
+              element={<CareNoteManagerRoute />}
+            />
+            <Route path="/sitter/visits" element={<SitterVisitsDashboard />} />
+            <Route path="/sitter/orders/:orderId/visits/:visitId" element={<VisitPanelRoute />} />
+            <Route path="/visit-reports/manage/:visitId" element={<LegacyVisitLinkPage />} />
           </Route>
 
           <Route element={<RequireRole roles={['client']} />}>
-            <Route path="/booking" element={<BookingRoute />} />
-            <Route path="/booking/:sitterId" element={<BookingRoute />} />
             <Route path="/pets" element={<PetManager />} />
             <Route path="/owner/orders" element={<OwnerOrders />} />
             <Route path="/owner/favorites" element={<FavoriteSitters />} />
+            <Route path="/owner/orders/:orderId" element={<OwnerOrderDetailRoute />} />
             <Route
               path="/owner/orders/:orderId/modification-confirm"
-              element={<OwnerModificationConfirmRoute />}
+              element={<RedirectWithOrderId to={(id) => `/owner/orders/${id}`} />}
             />
             <Route path="/care-notes/view/:sitterId/:ownerId" element={<CareNoteViewRoute />} />
-            <Route path="/visit-reports/view/:visitId" element={<VisitReportViewRoute />} />
+            <Route path="/owner/visits" element={<OwnerVisitsToday />} />
+            <Route path="/visit-reports/view/:visitId" element={<LegacyVisitLinkPage />} />
           </Route>
 
-          {/* 訂單詳情頁後端為 hasAnyRole('OWNER','SITTER')，飼主/保母皆可查看，非飼主獨有 */}
+          {/* 變更精靈與協商頁飼主 / 保母共用（SD-ORDER §9.1）；訂單詳情改為各角色各自路由 */}
           <Route element={<RequireRole roles={['client', 'sitter']} />}>
-            <Route path="/owner/orders/:orderId" element={<OwnerOrderDetailRoute />} />
             <Route path="/orders/:orderId/modify" element={<OrderModificationWizardRoute />} />
+            <Route
+              path="/orders/:orderId/modifications/:modificationId"
+              element={<ModificationDetailRoute />}
+            />
+          </Route>
+
+          {/* 照護日誌檢視：飼主與可讀範圍 ADMIN（F13，SD-FULFILL §9.1） */}
+          <Route element={<RequireRole roles={['client', 'admin']} />}>
+            <Route
+              path="/orders/:orderId/visits/:visitId/care-log"
+              element={<CareLogViewRoute />}
+            />
           </Route>
 
           <Route element={<RequireRole roles={['admin']} />}>
-            <Route path="/admin/resolve/:orderId" element={<AdminResolvePanelRoute />} />
+            <Route path="/admin/orders/:orderId" element={<AdminOrderRoute />} />
+            <Route path="/admin/tasks" element={<AdminTasksPage />} />
+            <Route
+              path="/admin/resolve/:orderId"
+              element={<RedirectWithOrderId to={(id) => `/admin/orders/${id}`} />}
+            />
             <Route path="/admin/kyc" element={<AdminKycList />} />
             <Route path="/admin/trust-scores" element={<AdminTrustScores />} />
             <Route path="/admin/kyc/:kycRecordId" element={<AdminKycDetailRoute />} />

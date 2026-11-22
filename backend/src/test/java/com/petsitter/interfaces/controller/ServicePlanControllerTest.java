@@ -1,8 +1,6 @@
 package com.petsitter.interfaces.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.petsitter.application.dto.BookingItemRequest;
-import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.dto.ServicePlanDto;
 import com.petsitter.application.dto.ServicePlanSortRequest;
 import com.petsitter.domain.model.CareLog;
@@ -89,7 +87,7 @@ class ServicePlanControllerTest {
 
     @BeforeEach
     void setUp() {
-        careLogRepository.deleteAll();
+        // 稽核表 append-only（GLOBAL §4.3）：不提供 deleteAll；DatabaseCleanupListener 每個測試前已清空
         servicePlanRepository.deleteAll();
         subscriptionRepository.deleteAll();
         profileRepository.deleteAll();
@@ -264,7 +262,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_CONCURRENCY_CONFLICT"))
+                .andExpect(jsonPath("$.code").value("MSG_DATA_CONCURRENCY_CONFLICT"))
                 .andExpect(jsonPath("$.message").value(containsString("內容已被更新")));
 
         // 驗證 DB 中依然為更新過的名字且 version 為 1
@@ -347,7 +345,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto1)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 
         // 2. price = 0
         ServicePlanDto dto2 = ServicePlanDto.builder()
@@ -360,7 +358,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto2)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
 
     @Test
@@ -380,7 +378,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("AUTH_PLAN_LIMIT"));
+                .andExpect(jsonPath("$.code").value("AUTH_PLAN_LIMIT"));
 
         // 驗證失敗日誌寫入 care_logs
         List<CareLog> logs = careLogRepository.findAll();
@@ -482,56 +480,6 @@ class ServicePlanControllerTest {
     }
 
     @Test
-    @DisplayName("Scenario 10: 預約送單日期超出方案生效區間拒絕 (422 PLAN_NOT_IN_RANGE)")
-    void ts003_10_should_RejectBooking_When_DateOutOfRange() throws Exception {
-        // 飼主身分取自 token（fix-batch11 I2）
-        TokenContext.setUserId(ownerA.getId());
-        // P4 在有效區間內的方案 (相對日期：now - 5 ~ now + 5)
-        ServicePlan p4 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P4").price(500L)
-                .startDate(LocalDate.now().minusDays(5))
-                .endDate(LocalDate.now().plusDays(5))
-                .isDeleted(false).build());
-
-        // 1. 預約過早日期 (now - 10)
-        BookingRequest earlyReq = BookingRequest.builder()
-                .sitterId(sitterC.getId())
-                .items(List.of(BookingItemRequest.builder()
-                        .planId(p4.getId())
-                        .dates(List.of(LocalDate.now().minusDays(10)))
-                        .timesPerDay(1)
-                        .build()))
-                .build();
-
-        mockMvc.perform(post("/api/orders/booking")
-                        .with(user(ownerA.getId().toString()).roles("OWNER"))
-                        .header("Idempotency-Key", "key-early")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(earlyReq)))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_IN_RANGE"))
-                .andExpect(jsonPath("$.message").value("方案目前不在生效區間"));
-
-        // 2. 預約過晚日期 (now + 10)
-        BookingRequest lateReq = BookingRequest.builder()
-                .sitterId(sitterC.getId())
-                .items(List.of(BookingItemRequest.builder()
-                        .planId(p4.getId())
-                        .dates(List.of(LocalDate.now().plusDays(10)))
-                        .timesPerDay(1)
-                        .build()))
-                .build();
-
-        mockMvc.perform(post("/api/orders/booking")
-                        .with(user(ownerA.getId().toString()).roles("OWNER"))
-                        .header("Idempotency-Key", "key-late")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(lateReq)))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_IN_RANGE"));
-    }
-
-    @Test
     @DisplayName("Scenario 11: 越權防禦 — 編輯/刪除非自己擁有的方案 (403)")
     void ts003_11_should_RejectEditAndDelete_When_NotOwner() throws Exception {
         // P1 屬於 Sitter A
@@ -554,13 +502,13 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
         // 2. Sitter B 嘗試刪除 P1
         mockMvc.perform(delete("/api/sitter/plans/{planId}", p1.getId())
                         .with(user(sitterB.getId().toString()).roles("SITTER")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -582,13 +530,13 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_FOUND"));
 
         // 2. DELETE 404
         mockMvc.perform(delete("/api/sitter/plans/{planId}", nonExistentId)
                         .with(user(sitterA.getId().toString()).roles("SITTER")))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_FOUND"));
     }
 
     @Test

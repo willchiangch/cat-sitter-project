@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../../components/ui/Card';
 import { getSitterKycStatus, submitKyc, getSitterMediaUrl } from '../../api/kycApi';
 import type { KycStatusDto } from '../../api/kycApi';
@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { KYC_STATUS_QUERY_KEY } from '../../hooks/useKyc';
 import { profileKycStatusLabel } from '../../components/ui/statusLabels';
 import { STATUS_TONE_STYLE, SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const SitterKycSubmit: React.FC = () => {
   const queryClient = useQueryClient();
@@ -16,16 +17,13 @@ const SitterKycSubmit: React.FC = () => {
   const [selfie, setSelfie] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [idempotencyKey, setIdempotencyKey] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState(
+    () => Math.random().toString(36).substring(2, 15) + Date.now()
+  );
   const [submittedFrontUrl, setSubmittedFrontUrl] = useState('');
   const [submittedSelfieUrl, setSubmittedSelfieUrl] = useState('');
 
-  useEffect(() => {
-    setIdempotencyKey(Math.random().toString(36).substring(2, 15) + Date.now());
-    fetchStatus();
-  }, []);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getSitterKycStatus();
@@ -45,13 +43,19 @@ const SitterKycSubmit: React.FC = () => {
           console.error('Failed to fetch submitted media URLs:', mediaErr);
         }
       }
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setErrorMsg('取得實名認證狀態失敗');
     } finally {
       setLoading(false);
     }
-  };
+  }, [queryClient]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
+    fetchStatus();
+  }, [fetchStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +83,8 @@ const SitterKycSubmit: React.FC = () => {
       setSuccessMsg('實名認證資料提交成功，已進入審核程序');
       await fetchStatus();
       setIdempotencyKey(Math.random().toString(36).substring(2, 15) + Date.now());
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       const msg = err.response?.data?.message || '認證提交失敗，請稍後再試';
       setErrorMsg(msg);

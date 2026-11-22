@@ -15,7 +15,7 @@ const decodeJwt = (token: string): { userId?: string; role?: string } | null => 
         .join('')
     );
     return JSON.parse(jsonPayload);
-  } catch (e) {
+  } catch {
     return null;
   }
 };

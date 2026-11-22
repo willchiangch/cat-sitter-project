@@ -1,9 +1,10 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.application.dto.CareMediaDto;
 import com.petsitter.application.service.CareMediaService;
 import com.petsitter.application.service.CareRelationshipGuard;
-import com.petsitter.application.service.IdempotencyService;
+import com.petsitter.application.service.LegacyIdempotencyService;
 import com.petsitter.infrastructure.security.TokenContext;
 import com.petsitter.infrastructure.security.gating.PlanTier;
 import com.petsitter.infrastructure.security.gating.RequirePlan;
@@ -22,10 +23,12 @@ import java.util.UUID;
 @RequestMapping("/api/care-media")
 @RequiredArgsConstructor
 @RequirePlan(PlanTier.FREE)
+// SD-GLOBAL-SPEC §3.4.1：不在匿名白名單的 handler 必須掛 @PreAuthorize（EndpointAccessRuleArchTest）
+@PreAuthorize("isAuthenticated()")
 public class CareMediaController {
 
     private final CareMediaService careMediaService;
-    private final IdempotencyService idempotencyService;
+    private final LegacyIdempotencyService legacyIdempotencyService;
     private final CareRelationshipGuard careRelationshipGuard;
 
     // GET /api/care-media/{sitterId}/{ownerId}
@@ -55,7 +58,7 @@ public class CareMediaController {
         
         careRelationshipGuard.requireWritable(sitterId, ownerId);
         
-        idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
         
         try {
             CareMediaDto dto = careMediaService.uploadMedia(sitterId, ownerId, caption, mediaType, file);
@@ -81,7 +84,7 @@ public class CareMediaController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         
         UUID sitterId = TokenContext.getUserId();
-        idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
         
         careMediaService.deleteMedia(sitterId, mediaId);
 

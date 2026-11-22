@@ -1,5 +1,6 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.SubscriptionRepository;
@@ -32,6 +33,8 @@ import java.util.UUID;
 @Profile("local")
 @RequestMapping("/api/sitter/gatekeeper")
 @RequiredArgsConstructor
+// SD-GLOBAL-SPEC §3.4.1：不在匿名白名單的 handler 必須掛 @PreAuthorize（EndpointAccessRuleArchTest）
+@PreAuthorize("isAuthenticated()")
 public class GatekeeperDevSubscriptionController {
 
     private final SubscriptionRepository subscriptionRepository;

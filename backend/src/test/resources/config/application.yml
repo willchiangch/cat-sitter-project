@@ -1,0 +1,11 @@
+# 測試專用設定（只在測試 classpath，不進 prod image）。放在 config/ 以「疊加」而非取代 main 的 application.yml。
+# SD-ORDER §8.3 D1 / D2：main 已移除 APP_CRYPTO_KEY / INTERNAL_CRON_SECRET 預設值，這裡提供測試值（非正式金鑰）。
+app:
+  security:
+    internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}
+    # NFR-003 G-12：main 已移除 JWT 預設值；測試專用簽章金鑰（非正式金鑰，≥ 512 bits）
+    jwt-secret: ${APP_SECURITY_JWT_SECRET:test-only-jwt-signing-key-not-for-production-0123456789abcdef0123456789abcdef}
+  crypto:
+    key: ${APP_CRYPTO_KEY:dGVzdC1vbmx5LWtleS1ub3QtZm9yLXByb2R1Y3Rpb24=}
+  local-cron:
+    enabled: false

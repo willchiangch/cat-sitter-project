@@ -96,7 +96,7 @@ class SitterPublicProfileControllerTest {
         sitterTagRepository.deleteAll();
         sitterServiceAreaRepository.deleteAll();
         forbiddenKeywordRepository.deleteAll();
-        userActionLogRepository.deleteAll();
+        // 稽核表 append-only（GLOBAL §4.3）：不提供 deleteAll；DatabaseCleanupListener 每個測試前已清空
         profileRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -215,7 +215,7 @@ class SitterPublicProfileControllerTest {
                         .content(objectMapper.writeValueAsString(request))
                         .with(user(sitterUser.getEmail()).roles("SITTER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_INPUT"))
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_INPUT"))
                 .andExpect(jsonPath("$.message").value("內容包含敏感詞彙"));
     }
 
@@ -238,7 +238,7 @@ class SitterPublicProfileControllerTest {
                         .content(objectMapper.writeValueAsString(request))
                         .with(user(sitterUser.getEmail()).roles("SITTER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_CONCURRENCY_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_CONCURRENCY_CONFLICT"));
     }
 
     @Test
@@ -264,7 +264,7 @@ class SitterPublicProfileControllerTest {
                         .content(objectMapper.writeValueAsString(request))
                         .with(user(sitterUser.getEmail()).roles("SITTER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER")); // 經由 Validation 校驗攔截
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER")); // 經由 Validation 校驗攔截
     }
 
     @Test
@@ -430,7 +430,7 @@ class SitterPublicProfileControllerTest {
 
         mockMvc.perform(get("/api/sitter/profile/" + deletedSitter.getId()))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_F11"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_F11"));
     }
 
     @Test
@@ -455,7 +455,7 @@ class SitterPublicProfileControllerTest {
                         .content("{\"keyword\":\"買賣\"}")
                         .with(user(adminUser.getEmail()).roles("ADMIN")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_CONCURRENCY_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_CONCURRENCY_CONFLICT"));
 
         // 3. 查詢 (帶關鍵字)
         mockMvc.perform(get("/api/admin/forbidden-keywords?q=買")

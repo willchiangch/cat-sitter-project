@@ -59,6 +59,24 @@
 - **永久保留例外**：頂級版方案之檔案僅在使用者主動註銷帳號時，才隨帳號資料一併移除。
 - **不可逆原則**：檔案一旦過期移除，系統不提供任何形式的還原或垃圾桶機制，此條款需列入保母付費條款。
 
+### 4. 媒體儲存分類（2026-11-22 依 NFR-003 回寫）
+
+公開物件與私有物件分開存放在兩個 bucket：公開 bucket 只放保母頭像，其餘媒體全部放私有 bucket（NFR-003 SEC-FILE-1、CQ-17）。
+
+| 媒體 | 存放 | 可讀者 | 讀取方式 | 出處 |
+|------|------|--------|---------|------|
+| 保母頭像 | 公開 bucket | 匿名可讀（保母公開檔案） | 公開網址 | NFR-003 CQ-17 |
+| 毛孩頭像 | 私有 bucket | 依 baseline §1.2「毛孩」：owner；與該 owner 有過任何狀態訂單的 sitter | 簽名網址 `X-Goog-Expires=900` | NFR-003 CQ-17、CQ-18 |
+| PRD-021 照護媒體 | 私有 bucket | 依 PRD-021 配對關係 | 簽名網址 `X-Goog-Expires=900` | NFR-003 CQ-17、CQ-18；PRD-021 |
+| 照護日誌媒體 | 私有 bucket | 依 baseline §1.2「照護日誌與日誌媒體」 | 簽名網址 `X-Goog-Expires=900` | PRD-022 BR-18 |
+| 付款 / 退款憑證 | 私有 bucket | 依 baseline §1.2 | 簽名網址 `X-Goog-Expires=300` | PRD-007 BR-17 |
+| KYC 證件 | 私有 bucket | 本人與 ADMIN | 簽名網址 `X-Goog-Expires=300` | PRD-017；NFR-003 CQ-18 |
+
+- 私有物件上傳不得設定 `allUsers` 讀取權限；API 回應中私有物件的網址一律帶 `X-Goog-Signature`；拒絕存取時不簽發網址；簽名網址不寫入 DB。
+- 私有 bucket 啟用 uniform bucket-level access 與 public access prevention = enforced，但必須依 NFR-003 CQ-17 的順序在搬遷完成後才啟用：(1) 建公開 bucket，保母頭像寫入改到該 bucket；(2) 照護媒體、毛孩頭像改私有上傳，既有物件移除 `allUsers` ACL；(3) 確認私有 bucket 已無公開上傳與公開物件；(4) 啟用。每步雲端變更需使用者當次同意。
+- 保留期限（本卡 §1–§3）只適用照護日誌媒體；分類表不改變任何媒體的保留期限。
+- 本分類不依 SaaS 方案區分（FREE / BASIC / PRO / ULTIMATE 相同；ULTIMATE 即本卡 §1 舊稱的頂級版 Premium，baseline §2.1）。
+
 ---
 
 ## 驗收標準（AC）
@@ -68,6 +86,8 @@
 - [ ] **AC-3 (自動移除驗證)**：模擬日期到達移除日後，檔案連結應無法再開啟，且頁面顯示逾期提示。
 - [ ] **AC-4 (升級展延驗證)**：體驗版保母升級為專業版後，其尚未被刪除之舊照片，移除日期應自動變更為結案日 + 90 天。
 - [ ] **AC-5 (降級隔離驗證)**：保母方案降級後，降級前產生的照片移除日期不可被縮短，仍依原合約保留。
+- [ ] **AC-6 (毛孩頭像私有)**：情境 1：Given 飼主 O 的毛孩 A 有頭像，When O 讀取毛孩 A，Then 回應中頭像網址帶 `X-Goog-Signature` 且 `X-Goog-Expires=900`；When 與 O 有訂單的保母 S 讀取，Then 同上；When 與 O 沒有任何訂單的保母 T 讀取，Then 403 `FORBIDDEN`、回應不含網址。情境 2：When 以未簽名網址 `https://storage.googleapis.com/{bucket}/{objectKey}` 匿名 GET 該頭像，Then 401 或 403，body 不含物件內容。
+- [ ] **AC-7 (公開與私有 bucket 分離)**：情境 1：Given 保母上傳頭像，When 匿名以公開網址 GET，Then 200 取得圖片，且該物件位於公開 bucket。情境 2：Given 毛孩頭像、照護媒體、照護日誌媒體、付款憑證、KYC 證件各上傳 1 個，Then 5 個物件都位於私有 bucket，公開 bucket 中沒有任何一個。情境 3：Given 搬遷完成，When 執行 `gcloud storage buckets describe` 私有 bucket，Then uniform bucket-level access 為啟用、public access prevention 為 `enforced`（MAN）。
 
 ---
 
@@ -78,6 +98,7 @@
 | 業務流程 | 檔案生命週期的起算與終止。 |
 | 使用者介面 | 報告頁面的效期提示。 |
 | 通知系統 | 新增「檔案過期預警」通知類型。 |
+| 儲存 | 拆成公開 / 私有兩個 bucket（§4）。現況（2026-11-22 程式碼）公開與私有物件混在同一 bucket，毛孩頭像（`pet-avatars/`）、保母頭像（`avatars/`）、照護媒體為公開物件（NFR-003 §11 G-2、G-3）；直接啟用 UBLA + PAP 會讓現有公開上傳全部失敗，須依 §4 順序搬遷 |
 
 ---
 
@@ -85,3 +106,14 @@
 
 - **PRD-008 (服務執行)**：定義照片與影片的產生。
 - **PRD-012 (訂閱方案)**：定義保留規則的門檻。
+- **PRD-002 (毛孩資料)**：毛孩頭像上傳；讀取改為簽名網址需由 PRD-002 同步（卡外）。
+- **PRD-021 (照護媒體)**：照護媒體私有存取規則。
+- **NFR-003 (安全性)**：SEC-FILE-1、FILE-2、CQ-17、CQ-18、§15 U-11。
+
+---
+
+## 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|
+| 2026-11-22 | 新增 §4「媒體儲存分類」：公開 bucket 只放保母頭像，毛孩頭像、照護媒體與其他媒體放私有 bucket 並以簽名網址讀取（毛孩頭像、照護媒體 900 秒），UBLA + PAP 啟用順序；新增 AC-6（毛孩頭像私有）、AC-7（bucket 分離），AC 5 → 7 條；影響範圍補儲存與現況落差；相依功能補 PRD-002、PRD-021、NFR-003。狀態維持 Draft | NFR-003 核准回寫（§15 U-11、CQ-17、CQ-18），使用者 2026-11-22 同意 |

@@ -71,7 +71,7 @@ class TrustCircleAndReferralTest {
     @BeforeEach
     void setUp() {
         notificationRepository.deleteAll();
-        referralLogRepository.deleteAll();
+        // 稽核表 append-only（GLOBAL §4.3）：不提供 deleteAll；DatabaseCleanupListener 每個測試前已清空
         trustRelationshipRepository.deleteAll();
         profileRepository.deleteAll();
         userRepository.deleteAll();

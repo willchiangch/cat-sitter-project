@@ -2,11 +2,14 @@ spring:
   datasource:
     # Supabase Transaction Pooler (Supavisor, port 6543)：Cloud Run 多實例 serverless 用這條，
     # 但 pgbouncer transaction mode 不支援 server-side prepared statement，務必加 prepareThreshold=0
-    url: jdbc:postgresql://${SUPABASE_POOLER_HOST}:6543/postgres?prepareThreshold=0&sslmode=require
+    url: jdbc:postgresql://${SUPABASE_POOLER_HOST}:6543/postgres?prepareThreshold=0&sslmode=require&reWriteBatchedInserts=true
     username: ${SPRING_DATASOURCE_USERNAME}   # 格式為 postgres.<project-ref>
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
+      # SD-ORDER §8.3 D8：pool 滿時 5 秒內失敗（D5 連線預算以此為前提）
       maximum-pool-size: 3
+      minimum-idle: 1
+      connection-timeout: 5000
   jpa:
     hibernate:
       ddl-auto: none
@@ -23,3 +26,13 @@ app:
   security:
     jwt-secret: ${APP_SECURITY_JWT_SECRET}
     jwt-expiration: 86400000
+    cors:
+      # SD-GLOBAL-SPEC §3.5：prod 缺值 → 啟動失敗（https://{PROJECT_ID}.web.app,https://{PROJECT_ID}.firebaseapp.com）
+      allowed-origins: ${APP_SECURITY_CORS_ALLOWED_ORIGINS}
+
+# SD-GLOBAL-SPEC §6.2（NFR-003 U-3、SEC-LOG-3、CQ-31）：prod 停用 OpenAPI / Swagger
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

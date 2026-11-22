@@ -73,33 +73,10 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Auto-complete: 不帶 Secret Header 應回傳 401")
-    void should_Return401_When_NoSecretHeader() throws Exception {
-        mockMvc.perform(post("/api/internal/cron/orders/auto-complete"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("Auto-complete: 帶入正確 Secret Header 應回傳 200")
-    void should_Return200_When_CorrectSecretHeader() throws Exception {
-        mockMvc.perform(post("/api/internal/cron/orders/auto-complete")
-                .header("X-Internal-Secret", "local-secret-123"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("Auto-complete: 帶入錯誤 Secret Header 應回傳 401")
-    void should_Return401_When_WrongSecretHeader() throws Exception {
-        mockMvc.perform(post("/api/internal/cron/orders/auto-complete")
-                .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("Notifications cleanup: 不帶 Secret 應回傳 401")
+    @DisplayName("Notifications cleanup: 不帶 Secret 應回傳 403")
     void should_Return401_When_NoSecretHeader_NotificationCleanup() throws Exception {
         mockMvc.perform(post("/api/internal/cron/notifications/cleanup"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -113,11 +90,11 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Notifications cleanup: 帶錯誤 Secret 應回傳 401")
+    @DisplayName("Notifications cleanup: 帶錯誤 Secret 應回傳 403")
     void should_Return401_When_WrongSecretHeader_NotificationCleanup() throws Exception {
         mockMvc.perform(post("/api/internal/cron/notifications/cleanup")
                 .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -131,11 +108,11 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Media cleanup: 帶錯誤 Secret 應回傳 401")
+    @DisplayName("Media cleanup: 帶錯誤 Secret 應回傳 403")
     void should_Return401_When_WrongSecretHeader_MediaCleanup() throws Exception {
         mockMvc.perform(post("/api/internal/cron/media/cleanup")
                 .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -149,11 +126,11 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Media expiry warning: 帶錯誤 Secret 應回傳 401")
+    @DisplayName("Media expiry warning: 帶錯誤 Secret 應回傳 403")
     void should_Return401_When_WrongSecretHeader_MediaExpiryWarning() throws Exception {
         mockMvc.perform(post("/api/internal/cron/media/expiry-warning")
                 .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 }
 

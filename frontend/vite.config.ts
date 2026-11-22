@@ -31,6 +31,9 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // 預設只 precache js/css/html；自託管字型（public/fonts/*.woff2，SD-FRONTEND-SPEC §2.6 CQ-21）
+        // 一併納入，離線與 SW 接管後字型不必再回網路（§2.2「僅快取靜態資源 … Fonts」）
+        globPatterns: ['**/*.{js,css,html,woff2}'],
         // 核心防雷：絕對不要快取 /api/ 的網路請求（SD-FRONTEND-SPEC §2.2）。
         // - 導覽：/api 開頭的整頁導覽不回 precache 的 index.html（比對的是 pathname，有效）
         // - fetch/XHR：刻意「不」寫 runtimeCaching。SW 沒有任何 route 命中 /api 時不會 respondWith，

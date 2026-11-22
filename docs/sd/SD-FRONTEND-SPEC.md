@@ -8,14 +8,14 @@
 ### 1.1 核心技術棧
 | 類別 | 技術 | 規範與限制 |
 |:---|:---|:---|
-| 框架 | **Vite + React 19 (SPA)** | Build 後透過 nginx:alpine 部署，不使用 SSR。 |
+| 框架 | **Vite + React 19 (SPA)** | Build 產出 `frontend/dist`，由 Firebase Hosting 提供（`/api/**` rewrite 到 Cloud Run，SD-GLOBAL-SPEC §1.2），不使用 SSR。 |
 | 語言 | **TypeScript** | 嚴格模式開啟。 |
 | 樣式 | **Vanilla CSS (CSS Variables)** | 禁止使用 Tailwind。採雙主題 (Amber/Blue) 動態切換。 |
 | 伺服器狀態 | **React Query (TanStack)** | 唯一負責管理所有從 API 取得的非同步資料與 Cache。 |
 | UI 狀態 | **Context API** | 僅管理純前端狀態（如：角色切換、Modal 開關），禁止將 API 回傳結果存入 Context。 |
 | HTTP 客戶端 | **Axios** | 需封裝攔截器，處理 Auth 重試邏輯。 |
 | PWA 支援 | **vite-plugin-pwa** | 需配置 Service Worker 處理離線快取（如：媒體庫暫存）。 |
-| 測試 | **Playwright** (E2E) <br> **Vitest** (Unit) | E2E 測試放置於 `frontend/e2e/` 與原始碼同倉管理。 |
+| 測試 | **Playwright** (E2E)；**Vitest** (Unit) | E2E 測試放置於 `frontend/e2e/` 與原始碼同倉管理。 |
 | 代碼風格 | **ESLint + Prettier** | 單引號、無尾隨逗號，遵循後端統一排版精神。 |
 
 ---
@@ -32,8 +32,19 @@
   - 當第一個 401 發生時，將 `isRefreshing` 設為 true，暫停後續攔截。
   - 將後續遇到 401 的請求封裝成 Promise 存入 Queue 中。
   - 待 Refresh API 成功取得新 Token 後，統一更新 Header 並依次 Resolve 釋放 Queue 中的請求重試。
-  - **Refresh 失敗時只清「還是自己那顆」的 token（2026-10 backlog G2）**：送出 refresh 前記下當下的 `refreshToken`；失敗時若 localStorage 的 `refreshToken` 已不是那顆（別的分頁在這期間重新登入、寫入新 token——SD-000 單一 session 下舊 refresh token 隨即失效，refresh 必然 401），**不清除**，改用 localStorage 現有的 access token 重試原請求並放行 Queue。只有仍是同一顆（或為空）時才清除 `accessToken`/`refreshToken` 並 reject。過去無條件清除，會把別分頁剛拿到的新 token 一起清掉，兩個分頁一起被登出。迴歸：`e2e/axios-refresh-cross-tab.spec.ts`。
-  - **session 失效一律導去登入（2026-10-24，驗收 N16）**：遇 401 時 localStorage 沒有 `refreshToken` 就**不送** `/auth/refresh`；refresh 失敗或沒有 refresh token 時清除 token 並 `window.dispatchEvent(new Event('auth:session-expired'))`（`SESSION_EXPIRED_EVENT`），`RequireAuth` 監聽此事件重新判斷 token、導向 `/login?redirect=<目前路徑>`（與未登入直接開受保護頁同一條路；公開頁沒有掛 `RequireAuth`，不會被導走）。`main.tsx` 的 `QueryClient` 預設 `retry` 對 401 不重試，其餘錯誤維持最多 3 次。過去 token 清掉後停在原頁「$ 0 + 載入失敗」，且 React Query 重試再送 3 次 `{ refreshToken: null }`。
+  - **Refresh 失敗時只清「還是自己那顆」的 token（2026-10 backlog G2）**與 **session 失效一律導去登入（2026-10-24，驗收 N16）**：以 localStorage `refreshToken` 為前提的舊規則，隨 §2.1.1 改為 cookie 後**作廢**，由 §2.1.1 取代；`SESSION_EXPIRED_EVENT`、`RequireAuth` 導向 `/login?redirect=<目前路徑>`、`QueryClient` 對 401 不重試的行為保留。迴歸 `e2e/axios-refresh-cross-tab.spec.ts` 依 §2.1.1 改寫。
+
+#### 2.1.1 token 存放與換發（2026-11-22，NFR-003 U-12、SEC-AUTH-4、CQ-3、CQ-5）
+- **存放**：refresh token 只存在 `__session` cookie（`HttpOnly; Secure; SameSite=Strict; Path=/`，host-only，由後端 `Set-Cookie` 下發；名稱必須是 `__session`，Firebase Hosting 轉發 Cloud Run 時只保留這個 cookie）。access token **只放記憶體**（`src/api/tokenStore.ts` 的模組變數，供 axios 攔截器與 `AuthContext` 讀取）。**禁止**把 access / refresh token 寫入 `localStorage`、`sessionStorage`、IndexedDB 或非 httpOnly cookie；登入、換發回應 body 不含 refresh token。現況寫 localStorage 的位置（NFR-003 G-6：`axiosClient.ts`、`LoginPage.tsx`、`RoleContext.tsx`、`manualRoleSwitch.ts`、`RequireAuth.tsx`、`useCurrentUser.ts`）全部改讀 `tokenStore` / `AuthContext`。
+- **登入提示旗標**：JS 讀不到 httpOnly cookie，為避免匿名訪客每次開公開頁都打一次 refresh（白白吃掉匿名限流額度、製造 401），登入成功時寫 `localStorage.authHint = '1'`（不含任何 token 或身分資料），logout / session 失效時移除。
+- **開站（bootstrap）**：`AuthContext` 初始狀態 `bootstrapping`；有 `authHint` → 呼叫一次 `POST /api/auth/refresh`（無 body，cookie 自動帶上）→ 200 取得 access token 進入 `authenticated`，401 → 移除 `authHint`、進入 `anonymous`；無 `authHint` → 直接 `anonymous`。`RequireAuth` 在 `bootstrapping` 時顯示載入狀態，不得先導去登入。
+- **401 攔截**：沿用 §2.1 的 `isRefreshing` 單一飛行與 Request Queue（同一分頁內只送一次 refresh）。refresh 成功 → 更新 `tokenStore`、重試佇列；refresh 401 → 清 `tokenStore`、移除 `authHint`、`dispatchEvent(SESSION_EXPIRED_EVENT)`。不再有「比對 localStorage 那顆是否還是自己的」分支。
+- **跨分頁換發**：所有分頁共用同一顆 cookie。換發以 Web Locks API `navigator.locks.request('auth-refresh', ...)` 跨分頁序列化：取得鎖後才送 refresh，後到的分頁拿到的是前一個分頁換發後的新 cookie，不會用到已輪替的舊 token。瀏覽器不支援 Web Locks 時不加鎖，靠後端 CQ-3 寬限（30 秒內同一顆舊 token 最多換發 3 次、兄弟 token 標 `SUPERSEDED`）容錯。
+- **跨分頁身分變更**：分頁 B 以另一帳號登入會覆寫共用 cookie，分頁 A 下次換發會拿到**另一位使用者**的 access token。因此 refresh 成功後比對新 token 的 `userId` 與 `tokenStore` 原值，不同 → 清除 React Query 快取並整頁重新載入到該角色首頁；另以 `BroadcastChannel('auth')` 廣播 `login`（含 userId）與 `logout`，其他分頁收到 `logout` → 清記憶體 token 並導去登入，收到不同 userId 的 `login` → 同上重新載入。
+- **登出**：呼叫 `POST /api/auth/logout`（後端以 `Max-Age=0` 清 cookie），不論結果都清 `tokenStore`、移除 `authHint`、廣播 `logout`。
+- **請求設定**：前端經 Firebase rewrite（prod）或 Vite proxy（local）同源呼叫 API，cookie 自動帶上，axios 不需 `withCredentials`；refresh / logout 會被後端檢查 `Origin`（同源 POST 瀏覽器會自動帶）。
+- **E2E**：(1) 以 Playwright `request` API 直接呼叫 `/api/auth/refresh`、`/api/auth/logout` 時**必須自行帶 `Origin: <BASE_URL 的 origin>`**（`request` 預設不帶，會被 SEC-AUTH-4.6 擋成 403）；(2) 登入後斷言 `localStorage`、`sessionStorage` 無 `accessToken` / `refreshToken` 鍵、`document.cookie` 不含 `__session`；(3) mock spec 的 `mockDemoSession` 不能再把假 token 塞進 localStorage，改為寫 `authHint` 並以 `page.route` 讓 `/api/auth/refresh` 回 200 假 access token（§4.1 的「refresh 一律 401 `E2E_MOCK_REFRESH` 並記錄」改為只在 `mockSessionApis` 匿名模式適用）。
+- **上線順序**：cookie 方案與後端（SD-IDENTITY）同一次發布；不得以「token 在 localStorage + CSP 只是 Report-Only」上線（CQ-22，§2.6）。
 
 - **登入後的角色（`localStorage.userRole`）以回應 `role` 為準（2026-10-25，fix-batch12 J5）**：`/auth/login`、`/auth/google`、`/auth/register/verify-otp`、WebAuthn 登入成功後一律呼叫 `src/contexts/loginRole.ts` 的 `applyLoginRole(data)`：先用回應的 `role`（`OWNER`/`CLIENT`→`client`、`SITTER`→`sitter`、`ADMIN`→`admin`），沒有可辨識的值才退回 JWT `role` claim（`decodeTokenRole`），**兩者都解不出就移除 `userRole`**，不得沿用。過去只看 JWT claim、解不出時不動 `userRole`，而 session 失效時攔截器只清 token、不清 `userRole`，下一位登入者就沿用上一位的角色。迴歸：`e2e/login-role-resolution.spec.ts`（保母登入 → session 失效 → 飼主以不可解碼 token 登入，舊版仍顯示「貓咪保母」）。
 
@@ -59,7 +70,7 @@
     - `var(--color-surface)`: 基座底層 (#f6f7f5)。
     - `var(--color-surface-low)`: 次要區塊或分段。
     - `var(--color-surface-lowest)`: 互動卡片或容器 (純白)。
-  - **`--color-primary-container` 底上的文字一律用 `--color-on-primary-container`（2026-10-24，驗收 N18）**：sitter `#5c4300`（對 `#ffbf00` 5.6:1）、client `#00528c`（對 `#b3d4ff` 5.3:1）、admin `#334155`。過去直接用 `--color-primary`：sitter `#765600` 對 `#ffbf00` 只有 4.1:1、client 4.44:1，都未達 AA。適用：日誌頁「暫存草稿」、「已送出 / 已完工 (已送出)」徽章、訂單列表選中分頁、爭議類別選中鈕、門禁設定範圍鈕與鎖頭圖示、預約頁保母頭像佔位。迴歸：`e2e/ui-layout-contrast.spec.ts` N18（保母「暫存草稿」、飼主「進行中」分頁，舊版兩支紅）。
+  - **`--color-primary-container` 底上的文字一律用 `--color-on-primary-container`（2026-10-24，驗收 N18）**：sitter `#5c4300`（對 `#ffbf00` 5.6:1）、client `#00528c`（對 `#b3d4ff` 5.3:1）、admin `#334155`。過去直接用 `--color-primary`：sitter `#765600` 對 `#ffbf00` 只有 4.1:1、client 4.44:1，都未達 AA。適用：日誌頁「暫存草稿」、「已送出 / 已完工 (已送出)」徽章、訂單列表選中分頁、爭議類別選中鈕、門禁設定範圍鈕與鎖頭圖示、預約頁保母頭像佔位。迴歸：`e2e/ui-layout-contrast.spec.ts` N18（保母「暫存草稿」、飼主「進行中」分頁，舊版兩支紅）。2026-11-22 起日誌編輯移到服務執行面板 `/sitter/orders/:orderId/visits/:visitId`（SD-FULFILL §9.1，取代 `/visit-reports/manage/:visitId`），N18 的「暫存草稿」斷言隨 SD-FULFILL 同發布改以新面板為對象。
 
 ---
   - **Admin Theme**（2026-10-24，驗收 N7）：`--color-primary` #334155、漸層 `#1e293b → #475569`、`--color-on-primary` #f8fafc（對漸層兩端皆 ≥ 4.5:1）。`RoleContext` 一直會設 `data-theme="admin"`，過去 CSS 沒有這組變數，管理員畫面所有 `.btn-primary` 都是無底色的純文字。
@@ -91,6 +102,40 @@ AppShell 內容區只有 390 − 48 = 342px，`<main>` 自己 `overflow:auto`。
   - 已知未修（設計系統層，待設計決策）：sitter / client 主題的 `.btn-primary` 漸層亮端與 `--color-on-primary` 對比度不足（sitter `#fff1db` 對 `#ffbf00` 約 1.45:1、client `#edf3ff` 對 `#b3d4ff` 約 1.4:1），影響全站主要按鈕，不在個別頁面修補。
 
 
+### 2.5 站內導頁（開放重導防護，2026-11-22，NFR-003 SEC-WEB-5）
+- 由網址參數（`/login?redirect=`、`/register?redirect=`）或 API 回應決定的導頁目標，一律經 `src/utils/safeRedirect.ts` 的 `getSafeRedirectTarget(raw, fallback)`：須以 `/` 開頭、**第二字元不是 `/` 也不是 `\`**、不含控制字元（U+0000–U+001F、U+007F）與空白，且 `new URL(target, location.origin).origin === location.origin`；任一不符 → 回 `fallback`（該角色首頁）。輸入值以 `URLSearchParams.get` 取得（已解碼一次，`%2F%2Fevil.example` 會變成 `//evil.example` 而被擋），之後不再自行 `decodeURIComponent`。
+- 取代現況 `LoginPage.tsx` / `RegisterPage.tsx` 的 `/^\/(?!\/)/`（`/\evil.example` 會通過，瀏覽器把 `\` 視為 `/`，NFR-003 G-9）；全站不得另寫導頁判斷。
+- 測試：Vitest `safeRedirect.test.ts` 與 E2E 以 `//evil.example`、`/\evil.example`、`https://evil.example`、`javascript:alert(1)`、`/%09/evil.example`、`%2F%2Fevil.example` 為 `redirect`，登入後 URL 的 origin 仍為站內；合法的 `/sitter/orders?tab=x` 照常導回。
+
+### 2.6 前端頁面資安標頭與 CSP（Firebase Hosting，2026-11-22，NFR-003 SEC-WEB-2、CQ-21 ~ 23）
+- **由 `firebase.json` 的 `hosting.headers` 下發**（Spring 只管 API 回應，SD-GLOBAL-SPEC §3.5）。套用前端所有路徑（首頁、SPA 深層路徑、`/assets/*.js`、`/sw.js`、manifest）：
+
+| 標頭 | 值 |
+|------|----|
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self'; img-src 'self' data: blob: https://storage.googleapis.com https://*.googleusercontent.com; media-src 'self' blob: https://storage.googleapis.com; connect-src 'self' https://storage.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self'; manifest-src 'self'` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `X-Frame-Options` | `DENY` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
+
+- **CSP 相依的前端約束**：`script-src` 不允許 `'unsafe-inline'` / `'unsafe-eval'`，故 `index.html` 不得有 inline script、不得用 `eval` / `new Function`；PWA 註冊維持 `injectRegister: false` + 程式內 `virtual:pwa-register`（不注入 inline script）。`style-src` 保留 `'unsafe-inline'` 以容許 React `style` 屬性。`connect-src` 含 `storage.googleapis.com` 供照護日誌直傳 PUT（SD-FULFILL §4.4）。`Permissions-Policy camera=()` 只封鎖 `getUserMedia`，不影響 `<input type="file" accept="image/*" capture>` 叫起系統相機（推測，實作時以 iOS Safari / Android Chrome 實測確認）。
+- **字型自行託管**（CQ-21）：移除 `src/styles/global.css` 第 1 行對 `fonts.googleapis.com` 的 `@import`；Plus Jakarta Sans（400 / 600 / 700）、Manrope（400 / 500 / 600）的 woff2 放 `frontend/public/fonts/`，以 `@font-face`（`font-display: swap`）宣告；§6.3 字體規範不變。
+- **`/api/**` 不疊加前端標頭**：經 rewrite 的 API 回應只能帶 Spring 那組。Firebase 的 `headers` 是否套到 rewrite 回應未查證（推測會）；先以 preview channel 部署後 `curl -sI https://{site}/api/sitters/{id}/plans` 確認，若被套用則以 Firebase glob 排除 `/api/**`（可行寫法於 preview channel 驗證後寫回本節；Firebase 的 `regex` 為 RE2，不支援負向前瞻）。
+- **上線方式**（CQ-22）：先以 `Content-Security-Policy-Report-Only` 部署 7 天（E2E 監聽違規），**Report-Only 期必須在正式上線日前結束並改為強制**；不建 report 收集端點。
+- **驗收**：(1) CI：Vitest `firebaseHeaders.test.ts` 解析根目錄 `firebase.json`，缺任一標頭、CSP 含 `'unsafe-inline'` / `'unsafe-eval'` 於 `script-src`、缺 `frame-ancestors 'none'` / `object-src 'none'` / `base-uri 'self'` 即失敗；(2) E2E 黃金路徑（登入、預約、上傳憑證、看日誌媒體、Google 登入、WebAuthn）以 `page.on('console')` 與注入的 `securitypolicyviolation` 監聽器計數，違規數 = 0；(3) MAN：`curl -sI` 首頁、任一深層路徑、`/assets/*.js` 皆帶上表標頭。
+- **使用者內容**（SEC-WEB-6、SEC-FILE-5）：禁止 `dangerouslySetInnerHTML` / `innerHTML` 呈現使用者內容（ESLint `react/no-danger` = error）；憑證與媒體只以後端提供的簽名網址放進 `img` / `video`，使用者輸入的網址不做成可點擊連結、不放入 `src`。
+
+### 2.7 照片上傳前重新編碼（移除 EXIF，2026-11-22，NFR-003 SEC-FILE-5.3、CQ-19）
+- **所有照片上傳**（付款 / 退款憑證、照護日誌照片、KYC、保母 / 毛孩頭像、照護媒體）上傳前一律在前端以 canvas 重繪後輸出新檔，藉此移除 EXIF（含 GPS）。共用純函式 `src/utils/imageReencode.ts`：先以 `createImageBitmap(file, { imageOrientation: 'from-image' })` 套用 EXIF 方向（否則重繪後直拍照片會轉 90 度），再 `canvas.toBlob`。
+- **輸出格式**：模組 SD 有指定者依模組（SD-FULFILL §9.3 日誌照片：長邊 2048 px、WebP、品質 0.9 → 0.5）；未指定者維持原格式（JPEG / WebP 品質 0.92，PNG 無損重繪，避免轉帳截圖文字被有損壓縮糊掉）。重新編碼後超過模組上限 → 顯示該模組的「檔案過大」文案，不送出。
+- 需要宣告雜湊或大小的流程（照護日誌 F16 的 `sha256` / `sizeBytes`）一律以**重新編碼後**的 bytes 計算。後端不解析 EXIF；影片 metadata MVP 不處理。
+- 測試：Vitest 以帶 GPS EXIF 的測試圖驗證輸出檔不含 `Exif` APP1 區段、方向已套用。
+
+### 2.8 密碼規則即時提示（2026-11-22，NFR-003 SEC-AUTH-11、CQ-39）
+- 註冊、重設密碼、改密碼三處共用 `src/utils/passwordRules.ts` 與元件 `PasswordRuleHint`：長度 8–64 個字元（以 code point 計，`[...pwd].length`）且 UTF-8 ≤ 72 bytes（`new TextEncoder().encode(pwd).length`），與後端同一規則；不強制字元類型。
+- 輸入時即時顯示兩條規則的達成狀態：`auth-password-rule-length`「8–64 個字元」、`auth-password-rule-bytes`「長度上限以位元組計（全中文約 24 字）」；未達成時送出鈕停用。後端回 400 `VALIDATION_FAILED`（`field=password`，payload `minLength` / `maxLength` / `maxBytes`）時以同一元件標示，不顯示後端原始訊息。
+
 ## 3. 目錄與元件架構
 
 ```text
@@ -100,7 +145,7 @@ frontend/
 │   ├── api/
 │   │   └── axiosClient.ts       # 實作 401 Queue 與 Refresh 邏輯
 │   ├── components/
-│   │   ├── layout/              # AppShell, AppHeader, BottomNav
+│   │   ├── layout/              # AppShell, AppHeader, BottomNav（尚未實作，見下方待辦）
 │   │   ├── modals/              # BottomSheet (共用骨架), PetFormModal 等
 │   │   └── ui/                  # Button, Card, StatusBadge (Design System 元件)
 │   ├── contexts/
@@ -112,6 +157,8 @@ frontend/
 │   │   └── shared/              # 共用畫面 (PetProfile, Booking Wizard)
 │   └── hooks/                   # React Query custom hooks (如 useOrders, usePets)
 ```
+
+**待辦：全站底部導覽 `BottomNav`（2026-11-22 使用者決定，SD-FULFILL CQ-12）**：BR §2.1 / §2.2 定義保母五項（行程、訂單、收款、通知、我的）、飼主五項（行程、訂單、保母、通知、我的）底部導覽，現況只有 `AppShell` 預留 80px 空間。SD-FULFILL 本次只在現有導覽加「行程」入口（保母 `/sitter/visits`、飼主 `/owner/visits`）；全站 `BottomNav` 的項目、路由對應與全域 testid（例 `nav-bottom-{item}`，需在 §4 登記為全域元件例外）於本文件另行定義後再實作。
 
 ---
 
@@ -141,7 +188,7 @@ frontend/
 CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/api/**` 轉 Cloud Run）。漏 mock 的 API 過去會帶假 token 打到正式後端：401 → `/api/auth/refresh` 401/400 → token 被清 → 截圖停在錯誤畫面，斷言卻只看 URL 所以照樣綠（驗收 R1/R3），每次 CI 還在正式站製造假 401/400 噪音。規範：
 
 - 以假 token 進站的 mock spec 一律用 `e2e/support/mockSession.ts` 的 `mockDemoSession(page, role)`；要自己控制登入流程（例如從匿名開始數 login 次數）的用 `mockSessionApis(page)`。
-- 兩者都會在 **context 層**註冊 `/api/` catch-all：沒被任何 `page.route` 接手的請求一律回 **501 `E2E_UNMOCKED_API`** 並記錄，不會送到任何後端（`page.route` 永遠優先於 `context.route`，與註冊順序無關）。`/api/auth/refresh` 也攔下回 401 `E2E_MOCK_REFRESH` 並記錄；要測 refresh 行為的 spec 自行 `page.route` 覆蓋。
+- 兩者都會在 **context 層**註冊 `/api/` catch-all：沒被任何 `page.route` 接手的請求一律回 **501 `E2E_UNMOCKED_API`** 並記錄，不會送到任何後端（`page.route` 永遠優先於 `context.route`，與註冊順序無關）。`/api/auth/refresh` 也攔下回 401 `E2E_MOCK_REFRESH` 並記錄；要測 refresh 行為的 spec 自行 `page.route` 覆蓋。（2026-11-22：access token 改只放記憶體後，每次載入都要換發，`mockDemoSession` 改為讓 refresh 回 200 假 access token，見 §2.1.1 E2E 第 (3) 點；本規則只留給 `mockSessionApis` 匿名模式。）
 - spec 必須 `test.afterEach(({ page }) => assertNoUnmockedApi(page))`，有任何漏 mock 或走到 refresh 就紅。`npm run e2e:lint` 會擋「用了 mockDemoSession / mockSessionApis 卻沒呼叫 assertNoUnmockedApi」的 spec。
 - 導頁後的落地頁也要 mock（例如 `mockOwnerOrderDetail()`、`mockOwnerOrderList()`），並在截圖前斷言業務內容（如 `order-status-badge`）已渲染，不能只斷言 URL。
 - 尚未改用 mockSession 的舊 spec（不在上述機制內）見 `.e2e-runs/20261024-backlog/fix-batch6.md`「另外發現」。
@@ -186,20 +233,27 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 ### 6.3 字體規範 (Typography)
 *   **Display & Headlines**: `Plus Jakarta Sans` - 用於品牌時刻與大標題，展現權威與親和力。
 *   **Body & Labels**: `Manrope` - 高功能性無襯線字體，優化長時間閱讀保母日誌的清晰度。
+*   **字型來源**（2026-11-22，NFR-003 CQ-21）：自行託管於 `frontend/public/fonts/`，不從 Google Fonts 載入（§2.6）。
 
 ### 6.4 狀態顯示文字（中文對照表，2026-10）
 畫面上任何狀態碼都不得直接顯示英文，一律經由 `src/components/ui/statusLabels.ts` 轉換；新增狀態碼時只改這個檔案。查無對照時顯示「未知狀態」。訂單徽章元件 `StatusBadge`（`data-testid="order-status-badge"`、`data-status=<狀態碼>`）只負責顏色。
 
 | 類別 | 狀態碼 → 顯示文字 |
 | :--- | :--- |
-| 訂單 `orders.status` | `PENDING` 待評估、`PENDING_PAYMENT` 待付款、`PAID` 已付款、`CONFIRMED` 已確認、`IN_PROGRESS` 服務進行中、`MODIFYING` 變更協商中、`REFUND_VERIFY` 待確認退款、`COMPLETED` 已結案、`CANCELLED` 已取消、`DISPUTED` 爭議處理中 |
-| 行程 `visits.status` | `PENDING`/`CONFIRMED` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消 |
+| 訂單 `orders.status` | `PENDING` 待評估、`PENDING_PAYMENT` 待付款、`CONFIRMED` 已確認、`IN_PROGRESS` 服務進行中、`DISPUTED` 爭議處理中、`COMPLETED` 已結案、`CANCELLED` 已取消（baseline §3.1 七個主狀態；2026-11-22 刪除已廢止的 `PAID`、`MODIFYING`、`REFUND_VERIFY`，baseline CQ-1） |
+| 付款 `payments.status` | `UNPAID` 待付款、`SUBMITTED` 待核對、`VERIFIED` 已確認、`VOID` 已作廢（baseline §3.3） |
+| 憑證 `payment_submissions.status` | `SUBMITTED` 待核對、`ACCEPTED` 已確認、`REJECTED` 已駁回（baseline §3.3） |
+| 變更 `modification_requests.status` | `REQUESTED` 待保母報價、`QUOTED` 待飼主回應、`AWAITING_SUPPLEMENT` 待補款、`AWAITING_REFUND` 待退款、`SETTLED` 已生效、`REJECTED` 已拒絕、`WITHDRAWN` 已撤回、`EXPIRED` 已逾期（baseline §3.4） |
+| 照護日誌 `visit_service_reports.status` | `DRAFT` 草稿、`SUBMITTED` 已送出；逾期為衍生「已逾期，未送出」（PRD-022） |
+| 行程 `visits.status` | `PENDING` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消（2026-11-22 移除舊值 `CONFIRMED`，baseline §6）；`DONE` 且完成來源 `SYSTEM` 時另加註「系統自動結束」（PRD-008 BR-17、SD-FULFILL） |
 | 保母認證 `profiles.kyc_status` | `UNVERIFIED` 未認證、`PENDING_REVIEW` 審核中、`VERIFIED` 已認證、`REJECTED` 被駁回、`SUSPENDED` 已停權 |
 | KYC 申請 `kyc_records.status`（管理端） | `PENDING` 待審核、`APPROVED` 已通過、`REJECTED` 被駁回 |
 
-2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。迴歸：`e2e/order-status-labels.spec.ts`（10 種訂單狀態逐一比對、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
+2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。子流程狀態（付款、憑證、變更、照護日誌）的顯示文字經使用者 2026-11-22 確認；PRD 畫面另有字面時以 PRD 為準並回寫本表。迴歸：`e2e/order-status-labels.spec.ts`（原 10 種訂單狀態逐一比對，2026-11-22 起改為 7 種主狀態、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
 
 ### 6.4.1 金額顯示（2026-10-24，驗收 N15）
+PRD 文字中的「NT$ 2,900」等寫法一律以本節 `formatMoney` 格式（`$ 2,900`）呈現，不另加 `NT` 前綴（使用者 2026-11-22 決定，PRD-009 帳務 / 歷史畫面適用；SD-FULFILL §9.2）。
+
 畫面上所有金額一律經由 `src/utils/money.ts` 的 `formatMoney(amount)` 輸出 `$ 1,200`（負數 `-$ 600`：負號在幣別符號前，2026-10-26 fix-batch13 起；過去是 `$ -600`，與 TS-JOURNEY-04 寫的 `-$600` 不一致。選負號在前是因為 en-US 慣例與 `Intl.NumberFormat('en-US', {style:'currency'})` 都是 `-$600.00`，`$ -600` 讀起來像「幣別後接負數」。迴歸：`order-modification.spec.ts` 飼主確認頁差額整段 `-$ 600 (負值為退款)` + code point `[-, $, U+00A0]`、Journey D 退款 5-6），不得在頁面自己寫 `$ {x.toLocaleString()}` 或直接印 `$ {plan.price}`。千分位固定 `en-US`，不跟瀏覽器語系（無參數 `toLocaleString()` 在 de-DE 會是 `1.200`）。過去方案卡（`SitterPlans`）、預約頁方案價格是沒有千分位的 `$ 1200`，公開頁是 `NT$ 600`，其餘頁面 `$ 1,200`。迴歸：`e2e/service-plans.spec.ts` 新增方案卡斷言 `$ 1,200`；Journey A 步驟 8 公開頁斷言 `$ 600` / `$ 900`。
 
 `$` 與數字之間是不斷行空白 U+00A0（`MONEY_SEPARATOR`，2026-10-25 fix-batch12 U2）：一般空白在窄欄會斷成「$ / 1,200」（驗收截圖 D1 08/11/12、D2 14 的「總額: $ / 1,200」「應補款 $ / 600」）。E2E 的 `toHaveText('$ 1,200')` 會把 U+00A0 正規化成空白，既有斷言不受影響；要驗分隔字元請比對 code point。迴歸：`ui-layout-contrast.spec.ts` U2（1px 寬容器內仍為 1 行）。
@@ -226,3 +280,10 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 - **實心狀態色按鈕（2026-10-26 fix-batch13 K9）**：白字不要配 Tailwind 500 階（`#ef4444` 3.76:1、`#10b981` 2.54:1）。紅底用 `--color-error` + `--color-on-error`（6.7:1），綠底用 `#047857`（`SUCCESS_TEXT_COLOR`，白字 5.48:1）。管理端 KYC 停權工具「執行停權」「解除停權」過去即為前者（驗收 A-04 08、11）。迴歸：`ui-layout-contrast.spec.ts` K9（舊版 3.76，紅）。
 - 破壞性主要按鈕（實心紅底，例如帳號設定「確認註銷」）：`background: var(--color-error)` + `color: var(--color-on-error)`（`#ffffff`，約 6.7:1）。`--color-on-error` 在 2026-10-25 前未定義，`color` 失效改繼承父層深色字，呈現深紅底配深色字（對比 2:1，驗收截圖新問題 2 / fix-batch12 U1）。迴歸：`ui-layout-contrast.spec.ts` U1。
 
+---
+
+## 7. 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§1.1 部署改 Firebase Hosting、移除表格內 HTML 標籤；§2.1 舊 localStorage refresh 規則作廢，新增 §2.1.1 refresh 改 `__session` httpOnly cookie、access token 只放記憶體、`authHint` 旗標、Web Locks 跨分頁換發與 CQ-3 寬限、跨分頁身分變更、E2E 直接呼叫 refresh / logout 須帶 `Origin`（U-12）；新增 §2.5 站內導頁擋 `//` 與 `/\`（SEC-WEB-5）、§2.6 Firebase Hosting 下發 CSP 與資安標頭、字型自行託管、Report-Only 上線方式（SEC-WEB-2、CQ-21 ~ 23）、§2.7 照片重新編碼移除 EXIF（CQ-19）、§2.8 密碼規則即時提示（SEC-AUTH-11）；§4.1 mock refresh 規則配合調整；§6.3 字型來源 | NFR-003 核准回寫，使用者 2026-11-22 同意 |

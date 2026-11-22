@@ -8,7 +8,7 @@
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-016 |
 | 相依 PRD | PRD-023（飼主同意 / 拒絕、補款、退款與結清，接續本卡的 `QUOTED`）；PRD-024（款項爭議、協商期間對結案的限制、DISPUTED 凍結、訂閱鎖定不擋變更）；PRD-005（送單的方案可預約區間與數量上限，本卡新增行程同規則）；PRD-006（報價時的單價快照與 surcharge / discount 欄位、金額上限）；PRD-003（方案可預訂日期區間的設定）；PRD-008（行程開始 / 系統關閉，影響「可減少的行程」）；PRD-014（通知管道） |
-| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.1、§1.2（角色、資源歸屬、ADMIN 可讀「`DISPUTED` 或有 OPEN 待辦」）；§2.1（CQ-22 變更自訂新總額、CQ-68 方案可預約區間只在 PRO / ULTIMATE 且未鎖定時套用）；§2.2（方案即時查詢、快照、訂閱鎖定）；§3.1（主狀態、有效行程）；O1（每個日期群組至少綁 1 隻毛孩，CQ-60）；§3.2（`CONFIRMED` 後只能透過變更改內容、期限以時間判斷、DISPUTED 凍結、鎖定期間的變更計價 CQ-66）；§3.4（變更類型、可發起時機 CQ-69、報價、計價範圍、新增行程日期、差額、撤回、逾時、訂閱鎖定）；§3.6（鎖、稽核、通知 outbox、冪等、排程）；§3.7（錯誤碼、判斷順序 CQ-70、payload 共通欄位 CQ-71）；§4（已收淨額、變更差額、金額上限 CQ-74）；§5（`MODIFICATION_TIMEOUT_HOURS`、`completion_basis_at` 只看 SETTLED 變更 CQ-69、時區、排程頻率） |
+| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.1、§1.2（角色、資源歸屬、ADMIN 可讀「`DISPUTED` 或曾有任何 ADMIN 待辦」，CQ-84）；§2.1（CQ-22 變更自訂新總額、CQ-68 方案可預約區間只在 PRO / ULTIMATE 且未鎖定時套用）；§2.2（方案即時查詢、快照、訂閱鎖定）；§3.1（主狀態、有效行程）；O1（每個日期群組至少綁 1 隻毛孩，CQ-60）；§3.2（`CONFIRMED` 後只能透過變更改內容、期限以時間判斷、DISPUTED 凍結、鎖定期間的變更計價 CQ-66）；§3.4（變更類型、可發起時機 CQ-69、報價、計價範圍、新增行程日期、差額、撤回、逾時、訂閱鎖定）；§3.6（鎖、稽核、通知 outbox、冪等、排程）；§3.7（錯誤碼、判斷順序 CQ-70、payload 共通欄位 CQ-71）；§4（已收淨額、變更差額、金額上限 CQ-74）；§5（`MODIFICATION_TIMEOUT_HOURS`、`completion_basis_at` 只看 SETTLED 變更 CQ-69、時區、排程頻率） |
 
 > 一張 PRD = 一個可獨立驗收的功能。子模組 AC ≤ 8 條，子模組 > 3 個就拆卡。
 > 共用概念（角色、SaaS 額度、訂單狀態、時間起算點）只能**引用** DOMAIN-BASELINE，不得在這裡重新定義；要改就改 baseline。
@@ -41,7 +41,7 @@
 | 拒絕 `REQUESTED` | ✗ | 本人訂單 | ✗ | ✗ | 無；訂閱鎖定不擋 |
 | 拒絕或改價 OWNER 發起的 `QUOTED` | ✗ | ✗（409 `MODIFICATION_STATE_CONFLICT`，BR-8） | ✗ | ✗ | — |
 | 撤回 | 本人發起、仍為 `REQUESTED` / `QUOTED` 的請求 | 同左 | ✗ | ✗ | 無 |
-| 檢視變更請求與歷史 | 本人訂單 | 本人訂單 | 唯讀，限 BASELINE §1.2 可讀訂單（`DISPUTED` 或有 OPEN 待辦的訂單） | ✗ | 無 |
+| 檢視變更請求與歷史 | 本人訂單 | 本人訂單 | 唯讀，限 BASELINE §1.2 可讀訂單（`DISPUTED` 或曾有任何 ADMIN 待辦的訂單，不論狀態；CQ-84） | ✗ | 無 |
 
 - 「本人訂單」以 token 身分判斷：訂單存在但不屬於呼叫者 → 403 `FORBIDDEN`；不存在 → 404 `NOT_FOUND`（BASELINE §1.2）。
 - token 的 `currentRole` 必須是端點要求的角色，否則 403 `ROLE_MISMATCH`，即使該帳號是此訂單另一方（BASELINE §1.1）。ADMIN 呼叫本卡寫入端點一律 403 `ROLE_MISMATCH`。
@@ -71,7 +71,7 @@
 3. 新總額：
    - FREE / BASIC，或保母訂閱鎖定 / 停權（不論鎖定前等級）：`新總額 = Σ(新內容中每個有效行程的快照單價)`，不可輸入（CQ-22、BASELINE CQ-66）；
    - PRO / ULTIMATE 且未鎖定：`新總額 = 系統計算值 + 加價 − 折扣`，加價、折扣各 0–999,999，任一 > 0 時必填調整原因 1–200 字（CQ-22、BR-10）；
-   - 0 ≤ 新總額 ≤ 999,999；畫面顯示 `差額 = 新總額 − 已收淨額`：> 0「應補款 NT$X」、< 0「應退款 NT$X」、= 0「無差額」。
+   - 0 ≤ 新總額 ≤ 999,999；畫面顯示 `差額 = 新總額 − 已收淨額`：> 0「應補款 $ X」、< 0「應退款 $ X」、= 0「無差額」（X 為差額絕對值，格式 `$ 1,800`，SD-FRONTEND-SPEC §6.4.1）。
 4. 送出報價 → `REQUESTED → QUOTED`，`expires_at` 重設為 `now + MODIFICATION_TIMEOUT_HOURS`，通知 OWNER。
 5. 或點「拒絕變更」並填原因（必填，1–200 字，BR-8）→ `REQUESTED → REJECTED`，同交易記錄結束時間 = 轉移時間，通知 OWNER（含拒絕原因）；訂單、行程、金額不變。
 6. 報價送出（`QUOTED`）後，SITTER 不能再拒絕或改價；要改內容或金額，須等該變更結束（OWNER 拒絕、OWNER 撤回或逾時）後由 SITTER 重新發起（4.2）（BR-8）。
@@ -124,7 +124,7 @@
 | BR-2 | 可發起時機：訂單 `CONFIRMED` / `IN_PROGRESS`、至少還有 1 個 `PENDING` 行程，且無未結束（非 `SETTLED` / `REJECTED` / `WITHDRAWN` / `EXPIRED`）變更。`PENDING` / `PENDING_PAYMENT` / `DISPUTED` / `COMPLETED` / `CANCELLED` → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）；已有未結束變更 → 409 `MODIFICATION_IN_PROGRESS`；已無 `PENDING` 行程（含只想新增行程的 `CHANGE`）→ 409 `MODIFICATION_NOT_ALLOWED`。此條只在發起（T1、T2）檢查；報價（T3）時 `PENDING` 已全部開始，依 BR-24 判斷 | BASELINE §3.4 可發起時機（CQ-17、CQ-69）、§3.2（DISPUTED 凍結）、§3.7 |
 | BR-3 | 付款前要改內容 → 撤回重下，不走本流程 | BASELINE §3.2、CQ-3 |
 | BR-4 | 雙方皆可發起；OWNER 發起建立為 `REQUESTED`，SITTER 發起同時報價、建立為 `QUOTED` | BASELINE §3.4 狀態圖；沿用原 PRD-016 |
-| BR-5 | 發起時原因必填（OWNER 與 SITTER），去前後空白後 1–200 字，否則 400 `VALIDATION_FAILED` | 沿用原 PRD-016 A.3、C.2；使用者決定 2026-11-21（本卡 CQ-10） |
+| BR-5 | 發起時原因必填（OWNER 與 SITTER），去前後空白（含全形空白，定義見 SD-GLOBAL-SPEC）後 1–200 字，否則 400 `VALIDATION_FAILED` | 沿用原 PRD-016 A.3、C.2；使用者決定 2026-11-21（本卡 CQ-10） |
 | BR-6 | 只能減少 `PENDING` 行程；減少目標為 `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED` → 409 `VISIT_ALREADY_STARTED`（payload 帶行程 id）；行程不屬於本訂單 → 400 `VALIDATION_FAILED` | BASELINE §3.4、§3.7；沿用原 PRD-016（已完成行程不可刪改） |
 | BR-7 | 新內容與新總額一律由 SITTER 給定；OWNER 發起時填的內容是「期望內容」，報價時預填、SITTER 可調整；`CANCEL_ALL` 的減少目標固定為報價當下的所有 `PENDING` 行程 | BASELINE §3.4 |
 | BR-8 | SITTER 可拒絕任何變更（含整筆取消）；拒絕只能在 `REQUESTED`，拒絕原因去前後空白後 1–200 字（不符 → 400 `VALIDATION_FAILED`），原因隨通知帶給 OWNER。OWNER 發起的變更進入 `QUOTED` 後，SITTER 不能拒絕、不能再報價或改價（→ 409 `MODIFICATION_STATE_CONFLICT`）；SITTER 要改，須等該變更結束（OWNER 拒絕、OWNER 撤回或逾時）後由 SITTER 重新發起 | BASELINE §3.4、CQ-41、§3.4 狀態圖；使用者決定 2026-11-21（本卡 CQ-5、CQ-6、CQ-10） |
@@ -165,7 +165,7 @@
 | EX-10 | 減少目標已非 `PENDING`（保母已開始、系統已關閉） | 拒絕 | 409 `VISIT_ALREADY_STARTED`（payload 帶行程 id） | 「部分行程已開始，無法取消」 |
 | EX-11 | 新增行程日期 < 明天（發起或報價時），或保母當下為 PRO / ULTIMATE 未鎖定且日期不在方案可預約區間 | 拒絕，不建立 / 不改變更 | 422 `INVALID_VISIT_DATE`（不在區間時 payload `reason=PLAN_NOT_IN_RANGE`） | 「新增日期需為明天以後，且在方案開放日期內」 |
 | EX-12 | 新總額 < 0 | 拒絕 | 422 `INVALID_MODIFICATION_AMOUNT`（模組碼） | 「新總額不可小於 0」 |
-| EX-13 | 跨角色併發（OWNER 撤回與 SITTER 報價同時；SITTER 開始行程與 SITTER / OWNER 送出含該行程的變更同時） | 鎖訂單列序列化；後到者依新狀態重驗 | 後到者 409 `MODIFICATION_STATE_CONFLICT` / `VISIT_ALREADY_STARTED` | 同 EX-8 / EX-10 |
+| EX-13 | 跨角色併發（OWNER 撤回與 SITTER 報價同時；SITTER 開始行程與 SITTER / OWNER 送出含該行程的變更同時） | 鎖訂單列序列化；後到者依新狀態重驗（撤回 vs 報價：撤回先 → 報價 409；報價先 → 撤回 `QUOTED` 仍合法、成功，見 AC-3.6） | 後到者依新狀態不合法時 409 `MODIFICATION_STATE_CONFLICT` / `VISIT_ALREADY_STARTED` | 同 EX-8 / EX-10 |
 | EX-14 | 鎖等待逾時 | 不改資料 | 409 `ORDER_BUSY` + `Retry-After: 1` | 「訂單處理中，請稍後再試」（前端自動重試一次） |
 | EX-15 | 重複送出（同 `Idempotency-Key`） | 回放第一次結果，不重複建立 | 同第一次（例 201） | 同第一次 |
 | EX-16 | 同 key 不同內容 / 同 key 處理中 | 拒絕 | 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` | 「請重新送出」 |
@@ -197,8 +197,8 @@
 
 - [ ] **AC-2.1 (FREE / BASIC 系統計價)**：Given AC-1.1 的 `REQUESTED` 變更（減少 V3、新增 1 次）、BASIC 保母，When SITTER 送出報價（不帶加減、毛孩維持預填），Then 200，`status=QUOTED`，新總額 = 1500（V1 + V2 + 新增 = 3 × 500），差額 = 0，畫面顯示「無差額」；`expires_at` 重設為報價時間 + 72h；OWNER 收到通知「保母已回覆變更報價」。對應：T3、BR-9、BR-12、BR-16
 - [ ] **AC-2.2 (FREE / BASIC 不可自訂)**：Given FREE 或 BASIC 保母、`REQUESTED` 變更，When 報價帶加價 200 或折扣 100，Then 403 `PLAN_REQUIRED`，變更仍為 `REQUESTED`、`expires_at` 不變。When 報價帶加價 0 與折扣 0，Then 200、`QUOTED`、新總額 = 系統計算值。When 報價帶加價 200 且新增日期為今天，Then 422 `INVALID_VISIT_DATE`（先於 `PLAN_REQUIRED`）。對應：BR-9、BR-28、EX-5
-- [ ] **AC-2.3 (PRO 自訂並附原因)**：Given PRO 保母、`CONFIRMED` 訂單的 `REQUESTED` 變更（減少 V3、新增 2 次，系統計算值 2000）。When 報價加價 300、原因「節日加成」，Then 200，新總額 = 2300、差額 = +800，畫面顯示「應補款 NT$800」。When 加價 300、原因空白，Then 400 `VALIDATION_FAILED`、仍 `REQUESTED`。When 折扣 2000、附原因，Then 200，新總額 = 0、畫面顯示「應退款 NT$1500」。When 折扣 2001、附原因，Then 422 `INVALID_MODIFICATION_AMOUNT`、仍 `REQUESTED`。對應：BR-10、BR-11、EX-12、EX-19
-- [ ] **AC-2.4 (計價範圍含 DONE 與 CLOSED_BY_SYSTEM)**：Given `IN_PROGRESS` 訂單 V1 `DONE`、V2 `CLOSED_BY_SYSTEM`、V3 `PENDING` 的 `CANCEL_ALL`、BASIC 保母，When 報價，Then 200，減少目標 = {V3}、新總額 = 1000、差額 = −500（「應退款 NT$500」）。Given `CONFIRMED` 訂單（三個皆 `PENDING`）的 `CANCEL_ALL`，When 報價，Then 200，新總額 = 0、差額 = −1500。Given `CANCEL_ALL` 於 `REQUESTED` 期間最後一個 `PENDING` 行程已被開始，When 報價，Then 422 `MODIFICATION_EMPTY`、變更仍 `REQUESTED`、畫面顯示「此訂單已無可取消的行程，請拒絕此變更」。對應：BR-7、BR-12、BR-24、EX-21
+- [ ] **AC-2.3 (PRO 自訂並附原因)**：Given PRO 保母、`CONFIRMED` 訂單的 `REQUESTED` 變更（減少 V3、新增 2 次，系統計算值 2000）。When 報價加價 300、原因「節日加成」，Then 200，新總額 = 2300、差額 = +800，畫面顯示「應補款 $ 800」。When 加價 300、原因空白，Then 400 `VALIDATION_FAILED`、仍 `REQUESTED`。When 折扣 2000、附原因，Then 200，新總額 = 0、畫面顯示「應退款 $ 1,500」。When 折扣 2001、附原因，Then 422 `INVALID_MODIFICATION_AMOUNT`、仍 `REQUESTED`。對應：BR-10、BR-11、EX-12、EX-19
+- [ ] **AC-2.4 (計價範圍含 DONE 與 CLOSED_BY_SYSTEM)**：Given `IN_PROGRESS` 訂單 V1 `DONE`、V2 `CLOSED_BY_SYSTEM`、V3 `PENDING` 的 `CANCEL_ALL`、BASIC 保母，When 報價，Then 200，減少目標 = {V3}、新總額 = 1000、差額 = −500（「應退款 $ 500」）。Given `CONFIRMED` 訂單（三個皆 `PENDING`）的 `CANCEL_ALL`，When 報價，Then 200，新總額 = 0、差額 = −1500。Given `CANCEL_ALL` 於 `REQUESTED` 期間最後一個 `PENDING` 行程已被開始，When 報價，Then 422 `MODIFICATION_EMPTY`、變更仍 `REQUESTED`、畫面顯示「此訂單已無可取消的行程，請拒絕此變更」。對應：BR-7、BR-12、BR-24、EX-21
 - [ ] **AC-2.5 (新增日期下限與方案區間)**：Given 2026-11-21 23:30，When OWNER 發起或 SITTER 報價新增 2026-11-21，Then 422 `INVALID_VISIT_DATE`、不建立 / 不改變更；When 新增 2026-11-22，Then 201 / 200。Given PRO 未鎖定保母，方案 P 可預約區間 2026-12-01 ~ 2026-12-31、原訂單行程皆在 11 月，When 報價新增 2026-11-30，Then 422 `INVALID_VISIT_DATE`（payload `reason=PLAN_NOT_IN_RANGE`）、仍 `REQUESTED`；When 新增 2026-12-05，Then 200（原 11 月日期不被檢查）。Given 同一區間但報價當下保母為 BASIC，或為訂閱鎖定 / 停權中的 PRO，When 報價新增 2026-11-30，Then 200、`QUOTED`。對應：T1、T3、BR-13、BR-14、EX-11
 - [ ] **AC-2.6 (保母拒絕)**：Given `REQUESTED` 變更，When SITTER 點「拒絕變更」並填原因「當週無法服務」，Then 200，`status=REJECTED`、結束時間 = 拒絕時間；行程、`total_amount`、訂單狀態不變；OWNER 收到通知含拒絕原因；之後雙方可再發起新變更（201）。When 拒絕原因空白，Then 400 `VALIDATION_FAILED`、仍 `REQUESTED`。Given OWNER 發起且已 `QUOTED`，When SITTER 填原因呼叫拒絕，Then 409 `MODIFICATION_STATE_CONFLICT`、仍 `QUOTED`。Given OWNER 已拒絕該報價（PRD-023），When SITTER 以新內容與金額發起變更，Then 201、新變更 `QUOTED`、`initiatedBy=SITTER`。對應：T2、T4、BR-8、EX-8、EX-19
 - [ ] **AC-2.7 (金額與原因上限)**：Given PRO 保母、`REQUESTED` 變更（減少 V3，系統計算值 1000）。When 加價 1,000,000，Then 400 `VALIDATION_FAILED`。When 加價 999,000（新總額 1,000,000）附原因，Then 400 `VALIDATION_FAILED`。When 加價 998,999（新總額 999,999）附原因，Then 200、新總額 = 999,999。When 加價 100、原因 201 字，Then 400 `VALIDATION_FAILED`；原因 200 字，Then 200。以上失敗變更皆仍 `REQUESTED`。對應：BR-10、BR-11、EX-19
@@ -211,7 +211,7 @@
 - [ ] **AC-3.3 (逾時排程)**：Given `REQUESTED` 變更 `expires_at=2026-11-24T02:00:00Z`，When 排程於 2026-11-24 10:00 之後第一次執行（≤ 15 分鐘內），Then `status=EXPIRED`、結束時間 = 排程寫入時間、寫 `order_logs`（操作者 SYSTEM）、雙方收到通知「變更請求已逾期」；訂單狀態與行程不變。Given `QUOTED` 變更已過 `expires_at`，When 排程執行，Then 同上。Given 排程候選列在鎖住時已是 `EXPIRED`（重跑），When 處理該筆，Then 略過，`order_logs` 與通知不重複。對應：T6、BR-15、BR-16、EX-20
 - [ ] **AC-3.4 (期限以時間判斷)**：Given `REQUESTED` 變更已過 `expires_at=2026-11-24T02:00:00Z` 但排程尚未執行（狀態仍 `REQUESTED`），When SITTER 報價、SITTER 拒絕或 OWNER 撤回，Then 409 `DEADLINE_PASSED`（payload `deadline=MODIFICATION_EXPIRES_AT`、`deadlineAt=2026-11-24T02:00:00Z`），狀態不變。Given `QUOTED` 變更已過 `expires_at` 且排程未執行，When 發起者撤回，Then 同一 409 與 payload。兩種情況協商頁皆隱藏動作按鈕、顯示「此變更請求已逾期」。對應：BR-15、EX-9
 - [ ] **AC-3.5 (協商頁可執行動作與歷史)**：Given §4.6 每一列的狀態與發起者，When OWNER 與 SITTER 分別開啟協商頁，Then 只出現該列列出的按鈕（例：OWNER 發起的 `QUOTED`，SITTER 頁面沒有「送出報價」「拒絕變更」，只顯示報價金額與到期時間）；終態只顯示唯讀結果。Given 訂單有 3 筆已結束變更，When 開啟變更歷史，Then 依 `created_at` 倒序列出 3 筆；Given 訂單沒有任何變更，Then 顯示「尚無變更紀錄」。對應：§4.6
-- [ ] **AC-3.6 (跨角色併發)**：Given OWNER 發起的 `REQUESTED` 變更，When OWNER 撤回與 SITTER 報價同時送出，Then 恰有一個成功；另一個 409 `MODIFICATION_STATE_CONFLICT`，最終狀態為 `WITHDRAWN` 或 `QUOTED` 其一，`order_logs` 只有成功那一筆；鎖等待超過 3 秒的請求 → 409 `ORDER_BUSY` + `Retry-After: 1`。對應：EX-13、EX-14
+- [ ] **AC-3.6 (跨角色併發)**：Given OWNER 發起的 `REQUESTED` 變更，When OWNER 撤回與 SITTER 報價同時送出，Then 依取得訂單鎖的先後：撤回先 → 撤回 200、報價 409 `MODIFICATION_STATE_CONFLICT`，`order_logs` 只新增 `MODIFICATION_WITHDRAWN`；報價先 → 報價 200（`QUOTED`），之後撤回 `QUOTED` 變更仍合法（§4.4 步驟 1 撤回限 `REQUESTED` / `QUOTED`）→ 撤回 200，`order_logs` 依序新增 `MODIFICATION_QUOTED`、`MODIFICATION_WITHDRAWN`；兩種順序最終狀態皆為 `WITHDRAWN`；鎖等待超過 3 秒的請求 → 409 `ORDER_BUSY` + `Retry-After: 1`。對應：EX-13、EX-14
 - [ ] **AC-3.7 (發起與報價冪等)**：Given OWNER 以 `Idempotency-Key=K1` 發起成功（201），When 同 key 同內容重送，Then 201 與相同 `modificationId`、只有一筆變更；When 同 key 不同內容，Then 422 `IDEMPOTENCY_KEY_REUSED`；When 換 key 重送，Then 409 `MODIFICATION_IN_PROGRESS`。Given SITTER 以 K2 報價成功、變更 `QUOTED`，When 同 key 同內容重送，Then 回放 200 與相同 body；When 換 key 再報價，Then 409 `MODIFICATION_STATE_CONFLICT`、新總額不變。Given 呼叫發起端點未帶 key，Then 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。對應：BR-22、EX-15、EX-16
 - [ ] **AC-3.8 (寄信失敗不影響轉移)**：Given Resend 回 5xx，When OWNER 發起變更，Then 201、變更 `REQUESTED` 已提交、SITTER 站內通知已存在；Email 由排程重試，最多 5 次。對應：EX-17
 
@@ -220,7 +220,7 @@
 | 面向 | 內容 |
 |------|------|
 | 資料 | `modification_requests`（SD-ORDER）：類型、發起者（OWNER / SITTER / SYSTEM）、狀態、原因、期望內容（OWNER）、報價內容（減少的行程 id、新增行程的日期 / 方案 / 每日次數 / 綁定毛孩）、系統計算值、加價 / 折扣與原因、新總額、報價當下的已收淨額與差額（同意時以 PRD-023 重算值回寫）、`expires_at`、結束時間（每個終態都記；只有 `SETTLED` 的結束時間供 `completion_basis_at`，CQ-69）、拒絕原因；`order_logs` 每次轉移一筆。本卡不改 `orders`、`visits`、`payments` |
-| 畫面 | 訂單詳情「申請變更 / 提出變更」入口（OWNER / SITTER；無 `PENDING` 行程時隱藏入口）；變更精靈（選類型、選行程、新增日期 / 次數 / 毛孩（預設全選），保母當下為 PRO / ULTIMATE 未鎖定時顯示方案可預約區間）；協商頁（雙方，§4.6）；變更歷史列表（`created_at` 倒序、空狀態）；ADMIN 訂單唯讀頁顯示變更歷史。路徑由 SD-FRONTEND-SPEC 定 |
+| 畫面 | 訂單詳情「申請變更 / 提出變更」入口（OWNER / SITTER；無 `PENDING` 行程時隱藏入口）；變更精靈（選類型、選行程、新增日期 / 次數 / 毛孩（預設全選），保母當下為 PRO / ULTIMATE 未鎖定時顯示方案可預約區間）；有未結束變更時訂單詳情顯示「查看進行中變更」入口進協商頁；協商頁（雙方，§4.6）；變更結算後訂單詳情報價明細分三段（原報價：基本價、加價、折扣、原總額；每筆 `SETTLED` 變更的差額列：日期、增減內容、差額，補款逾時重算也列一列、系統建立的退款變更不列；目前總額），定義見 PRD-006 BR-16；變更歷史列表（`created_at` 倒序、空狀態）；ADMIN 訂單唯讀頁顯示變更歷史。路徑由 SD-FRONTEND-SPEC 定 |
 | 通知 | 發起 → 對方；報價 → OWNER；拒絕 → OWNER；撤回 → 對方；逾時 → 雙方。管道：站內 + Email（outbox，BASELINE §3.6；沿用原 PRD-016「請求送出、保母回覆、最終確認皆需通知」；範本見 PRD-014） |
 | 排程 | 有：變更逾時（每 15 分鐘，`now ≥ expires_at`，鎖住後重驗，BASELINE §3.6、§5） |
 | API | 飼主發起、保母發起、保母報價、保母拒絕、撤回、查詢變更（含歷史，`created_at` 倒序）；契約在 SD-ORDER |
@@ -232,13 +232,19 @@
 |------|--------|
 | 變更類型選擇（CHANGE / CANCEL_ALL） | `order-modify-type-{type}` |
 | 要減少的行程勾選 | `order-modify-visit-checkbox-{visitId}` |
+| 訂單詳情變更入口（SD-ORDER §9.3） | `owner-order-detail-btn-modify`（「申請變更」）、`sitter-order-detail-btn-modify`（「提出變更」）；依 `allowedActions` 含 `REQUEST_MODIFICATION` 顯示；整筆取消在精靈內選 `order-modify-type-CANCEL_ALL` |
+| 訂單詳情「查看進行中變更」按鈕（文案即「查看進行中變更」；有未結束變更 `REQUESTED` / `QUOTED` / `AWAITING_SUPPLEMENT` / `AWAITING_REFUND` 時顯示，點擊進該變更的協商頁；使用者決定 2026-11-22） | `owner-order-detail-btn-open-modification`、`sitter-order-detail-btn-open-modification` |
+| 精靈「新增行程」按鈕（每按一次多一列 `order-modify-add-item-{index}`；使用者決定 2026-11-22） | `order-modify-btn-add-item` |
 | 新增行程列 | `order-modify-add-item-{index}` |
+| 新增行程列子元件（SD-ORDER §9.3） | `order-modify-add-item-{index}-date`、`order-modify-add-item-{index}-plan`、`order-modify-add-item-{index}-daily-count`、`order-modify-add-item-{index}-pet-checkbox-{petId}` |
+| 變更報價 / 發起時的調整輸入（SD-ORDER §9.3；FREE / BASIC 或鎖定時停用） | `modification-input-surcharge`、`modification-input-discount`、`modification-input-adjustment-reason` |
 | 原因輸入 | `order-modify-input-reason` |
 | 送出變更 | `order-modify-btn-submit` |
 | 協商頁差額 / 期限 | `modification-detail-diff`、`modification-detail-expires-at` |
 | 保母報價 / 拒絕 / 拒絕原因 | `modification-btn-quote`、`modification-btn-reject`、`modification-input-reject-reason` |
 | 撤回 | `modification-btn-withdraw` |
 | 變更歷史列 / 空狀態 | `modification-history-item-{modificationId}`、`modification-history-empty` |
+| 變更結算後訂單詳情報價明細（PRD-006 BR-16 三段：原報價、每筆 `SETTLED` 變更差額列、目前總額；使用者決定 2026-11-22） | `order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`、`order-detail-quote-current-total` |
 
 ## 10. 待釐清事項
 
@@ -260,6 +266,9 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後小修，使用者決定 2026-11-22：AC-3.6 與 EX-13 原寫「恰有一個成功、最終 `WITHDRAWN` 或 `QUOTED` 其一」有誤——報價先成功後，發起者撤回 `QUOTED` 變更本就合法（§3 權限表、§4.4 步驟 1），改為依鎖先後：撤回先 → 報價 409；報價先 → 兩者皆成功；兩種順序最終皆 `WITHDRAWN`。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22；實作 `ModificationIntegrationTest` PRD-016 AC-3.6 已依此斷言 |
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。(1) §9 畫面與 testid 表補變更結算後報價明細三段（PRD-006 BR-16）與 `order-detail-quote-original-total` / `-modification-{modificationId}` / `-current-total`；(2) §9 補 `owner-order-detail-btn-open-modification` / `sitter-order-detail-btn-open-modification`（有進行中變更時顯示，按鈕文案「查看進行中變更」，進協商頁）與 `order-modify-btn-add-item`；(3) §3 ADMIN 可讀範圍改「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）。AC 不變，狀態維持 Approved | 使用者決定 2026-11-22 |
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) 畫面金額改為 SD-FRONTEND-SPEC §6.4.1 格式（§4.3 差額文案「應補款 $ X」、AC-2.3、AC-2.4）；(2) BR-5「去前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）；(3) §9 testid 表補 SD-ORDER §9.3 補定的變更入口、新增行程子元件、變更報價調整輸入。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 依新範本與 DOMAIN-BASELINE 全文重寫；拆出 PRD-023（同意與結清）、PRD-024（款項爭議與協商限制），本卡保留發起、報價、拒絕、撤回、逾時 | 對齊 BASELINE（Approved 2026-11-21）；處理 `docs/reviews/00-DOMAIN-BASELINE.prd.review.md` 第 1 輪 #43–#55、第 2 輪 PRD 衝突 #5、#6，逐項見下列 |
 | 2026-11-21 | 第 1 輪 #43：發起條件改為訂單 `CONFIRMED` / `IN_PROGRESS`，其他狀態 409 `ORDER_STATE_CONFLICT`（BR-2、AC-1.4）；刪除舊的「已付款」主狀態 | 第 1 輪 #43 |

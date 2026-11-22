@@ -35,19 +35,38 @@
 
 ## NFR-003: 安全性 (Security)
 
-### 身份認證
-- 密碼儲存一律採用 bcrypt 或 Argon2 雜湊，禁止明文。
-- JWT Token 應設定合理的有效期限 (建議 ≤ 24 小時)，並支援 Refresh Token 機制。
-- 連續登入失敗 5 次需鎖定帳號 10 分鐘。
+> 完整規格：`docs/sa/nfr/03-SECURITY.md`（Approved，使用者核准 2026-11-22，CQ-1 ~ CQ-52 採建議值）。本段只是摘要，與該文件不一致時以該文件為準。所有限制不依 SaaS 方案等級區分。
 
-### 資料保護
-- KYC 身分證照片必須儲存於私有權限的儲存空間，僅限後台管理員存取。
-- 所有 API 傳輸一律強制使用 HTTPS。
-- 個資欄位 (如身分證號、銀行帳號) 需在系統內進行加密處理 (AES-256 或同等強度)。
+### 身份認證（SEC-AUTH）
+- 密碼只存加鹽單向雜湊（BCrypt cost ≥ 10 或 Argon2id）；密碼 8–64 字元且 UTF-8 ≤ 72 bytes。
+- access token 15 分鐘、演算法固定 HS256、payload 不含方案與個資；refresh token 7 天、每次換發輪替、同一 family 30 天絕對上限，改存 httpOnly cookie；refresh token、重設憑證、OTP 只存雜湊。
+- 連續登入失敗 5 次以 Email 維度鎖定 10 分鐘（不存在的 Email 也鎖，429 `ACCOUNT_LOCKED`），跑假雜湊避免帳號列舉。
+- Google 登入驗證 `iss`、`aud`、`email_verified`；WebAuthn challenge 單次使用、限白名單 origin。
+- ADMIN 為獨立無密碼帳號，只能以 WebAuthn 登入，不能經切換角色取得。
+- 改密碼須帶目前密碼、綁定 WebAuthn 前須再驗證；改密碼、重設密碼、登出所有裝置、停用帳號後撤銷 session。
 
-### 權限控管
-- 所有 API 必須驗證操作者身分與角色 (保母/飼主/管理員)，防止越權存取。
-- 敏感操作 (修改密碼、綁定生物辨識、銀行帳戶變更) 需進行二次驗證。
+### 授權（SEC-AZ）
+- 身分一律取自 token；越權統一回 403 `FORBIDDEN` / `ROLE_MISMATCH`、401、404（判斷順序依 baseline §3.7）；每支端點明確宣告存取規則，匿名白名單逐條列出。
+- 方案權限即時查詢，不放進 token。
+
+### 資料保護（SEC-DATA、SEC-SECRET、SEC-FILE）
+- 收款帳號與快照以 AES-256-GCM 加密；金鑰與所有 secret 只經 Secret Manager 注入、無預設值。
+- 公開與私有物件分 bucket：只有保母頭像公開；KYC（本人與 ADMIN 可讀）、付款 / 退款憑證、照護日誌媒體、照護媒體、毛孩頭像皆私有，以短效簽名網址讀取（憑證與 KYC 300 秒，日誌媒體、照護媒體、毛孩頭像 900 秒）。
+- 上傳以 magic bytes 判斷格式、伺服器端強制大小上限。
+- **修改收款帳號不要求再驗證**（使用者 2026-11-22 決定；取代本段舊稿「銀行帳戶變更需二次驗證」），改以不可關閉的變更通知偵測盜改。
+
+### 傳輸與網頁（SEC-WEB）
+- 全站 HTTPS；前端與 API 各自下發資安標頭（CSP、HSTS 等）；CORS 白名單；前端導頁只允許站內相對路徑；使用者內容輸出端轉義。
+
+### 濫用防護（SEC-INPUT）
+- 全域限流：匿名每 IP 每分鐘 60 次、登入者每身分每分鐘 300 次，超過 429 `RATE_LIMITED` + `Retry-After`；寄信類匿名端點每 Email 每小時 5 封、每 IP 20 封。
+- 請求 body、分頁筆數、數值範圍、regex 輸入長度皆有上限；後端不對使用者提供的 URL 發請求。
+
+### 日誌、稽核與供應鏈（SEC-LOG、SEC-AUDIT、SEC-INT、SEC-SCA）
+- log 遮蔽 token、密碼、secret、完整帳號；錯誤回應不洩漏內部細節。
+- 稽核與主操作同交易、append-only、交易相關稽核保存 ≥ 5 年。
+- `/api/internal/**` 只認 `X-Internal-Secret`；測試端點不得觸及真實使用者資料。
+- CI 依賴漏洞掃描、Critical 7 天 / High 30 天修補、框架在官方支援期內、Actions 釘 SHA。
 
 ---
 
@@ -133,3 +152,11 @@
 ### 時區與貨幣
 - 時區：系統固定使用 `Asia/Taipei`。
 - 貨幣：統一使用新台幣 (TWD)，金額計算使用 `BigDecimal(18,4)`。
+
+---
+
+## 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|
+| 2026-11-22 | NFR-003 段改為 `03-SECURITY.md` 摘要並以該文件為準：補 refresh 輪替與 30 天上限、Email 維度鎖定與 `ACCOUNT_LOCKED`、Google / WebAuthn、ADMIN 獨立帳號、bucket 拆分與簽名網址時效、KYC 可讀者改本人與 ADMIN、全域限流 `RATE_LIMITED`、日誌稽核供應鏈；移除「銀行帳戶變更需二次驗證」（使用者 2026-11-22 決定不重驗）。其他 NFR 段未改，本檔狀態維持 Draft | NFR-003 核准回寫（§15 U-14、X-7），使用者 2026-11-22 同意 |

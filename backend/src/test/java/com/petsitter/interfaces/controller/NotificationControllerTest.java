@@ -129,7 +129,7 @@ class NotificationControllerTest {
         mockMvc.perform(post("/api/notifications/{id}/read", noti.getId())
                 .with(user(userSitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_F11"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_F11"));
     }
 
     @Test
@@ -161,6 +161,6 @@ class NotificationControllerTest {
                 .content(objectMapper.writeValueAsString(badRequest))
                 .with(user(userOwner.getId().toString()).roles("OWNER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_INPUT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_INPUT"));
     }
 }

@@ -9,6 +9,8 @@ export interface NotificationDto {
   createdAt: string;
   linkUrl: string;
   roleTarget: 'SITTER' | 'OWNER' | 'ALL';
+  /** 通知類型代碼（SD-ORDER / SD-FULFILL §7.2，SD-GLOBAL-SPEC §4.4）；舊通知為 null → 不輸出 */
+  type?: string;
 }
 
 export interface NotificationListResponse {
@@ -31,7 +33,7 @@ export const getNotifications = async (
   isRead?: boolean,
   role?: string
 ): Promise<NotificationListResponse> => {
-  const params: Record<string, any> = { page, size };
+  const params: Record<string, string | number | boolean> = { page, size };
   if (isRead !== undefined) params.isRead = isRead;
   if (role !== undefined) params.role = role;
 
@@ -40,7 +42,7 @@ export const getNotifications = async (
 };
 
 export const getUnreadCount = async (role?: string): Promise<number> => {
-  const params: Record<string, any> = {};
+  const params: Record<string, string> = {};
   if (role !== undefined) params.role = role;
 
   const response = await axiosClient.get('/notifications/unread-count', { params });
@@ -52,7 +54,7 @@ export const markAsRead = async (id: string): Promise<void> => {
 };
 
 export const markAllAsRead = async (role?: string): Promise<void> => {
-  const params: Record<string, any> = {};
+  const params: Record<string, string> = {};
   if (role !== undefined) params.role = role;
   await axiosClient.post('/notifications/read-all', null, { params });
 };

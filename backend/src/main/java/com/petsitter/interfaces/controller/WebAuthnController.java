@@ -1,5 +1,6 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.application.dto.AuthResponse;
 import com.petsitter.application.dto.WebAuthnCredentialSummary;
 import com.petsitter.application.dto.WebAuthnLoginOptionsRequest;
@@ -37,6 +38,7 @@ public class WebAuthnController {
 
     private final WebAuthnService webAuthnService;
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/register/options")
     public ResponseEntity<String> startRegistration() {
         UUID userId = requireAuthenticatedUserId();
@@ -44,6 +46,7 @@ public class WebAuthnController {
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(optionsJson);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/register/verify")
     public ResponseEntity<Map<String, String>> finishRegistration(@Valid @RequestBody WebAuthnVerifyRequest request) {
         UUID userId = requireAuthenticatedUserId();
@@ -51,6 +54,7 @@ public class WebAuthnController {
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "生物辨識裝置已成功註冊"));
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/credentials")
     public ResponseEntity<List<WebAuthnCredentialSummary>> listCredentials() {
         UUID userId = requireAuthenticatedUserId();
@@ -64,6 +68,7 @@ public class WebAuthnController {
         return ResponseEntity.ok(summaries);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @DeleteMapping("/credentials/{id}")
     public ResponseEntity<Map<String, String>> deleteCredential(@PathVariable UUID id) {
         UUID userId = requireAuthenticatedUserId();

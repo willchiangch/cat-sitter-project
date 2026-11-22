@@ -1,4 +1,5 @@
 import axiosClient from './axiosClient';
+import { reencodeImageFile } from '../utils/imageReencode';
 import type { Pet, PetEditLog } from '../types/pet';
 
 export const getPets = async (): Promise<Pet[]> => {
@@ -40,7 +41,8 @@ export const getPetEditLogs = async (petId: string): Promise<PetEditLog[]> => {
 
 export const uploadPetAvatar = async (petId: string, file: File): Promise<string> => {
   const formData = new FormData();
-  formData.append('file', file);
+  // SD-FRONTEND-SPEC §2.7：上傳前重新編碼移除 EXIF
+  formData.append('file', await reencodeImageFile(file));
   const response = await axiosClient.post(`/pets/${petId}/avatar`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'

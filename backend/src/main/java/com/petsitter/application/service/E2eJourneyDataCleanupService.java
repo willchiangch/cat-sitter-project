@@ -6,14 +6,13 @@ import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
  * 硬刪除 frontend/e2e/journeys/ 真後端 journey 測試在正式站產生的假資料。
- * 只認 email 網域 @e2e-journey.test（見 E2eJourneyAccountProvisioningService），
+ * 只認 email 網域 @e2e-journey.test（見 E2eTestSetupService），
  * 不影響其他任何真實使用者或既有種子測試帳號（sitter@test.com/owner@test.com，
  * 那批由既有的 TestDataCleanupService 處理，兩者職責分開）。
  *
@@ -40,25 +39,59 @@ public class E2eJourneyDataCleanupService {
     private EntityManager entityManager;
 
     private final MediaStorageService mediaStorageService;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
-    @Transactional
+    /**
+     * SD-ORDER §10.4 三段：(1) 唯讀收集 GCS 物件鍵 → (2) 單一 DB 交易依 FK 順序硬刪除 → (3) commit 後在交易外逐一刪物件
+     * （失敗只記 log）。
+     */
     public int cleanup() {
-        List<UUID> userIds = findTestUserIds();
-        if (userIds.isEmpty()) {
+        org.springframework.transaction.support.TransactionTemplate tx =
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        List<UUID> userIds = tx.execute(s -> findTestUserIds());
+        if (userIds == null || userIds.isEmpty()) {
             log.info("[E2eJourneyDataCleanupService] No @e2e-journey.test accounts found, nothing to clean up");
             return 0;
         }
+        List<String> objectKeys = tx.execute(s -> collectObjectKeys(userIds));
+        Integer deleted = tx.execute(s -> deleteRows(userIds));
+        objectKeys.stream().filter(java.util.Objects::nonNull).distinct().forEach(this::deleteMediaSafely);
+        return deleted == null ? 0 : deleted;
+    }
 
-        deleteOrphanedMedia(userIds);
+    private int deleteRows(List<UUID> userIds) {
 
-        nativeDelete("DELETE FROM order_logs WHERE order_id IN "
-                + "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))", userIds);
-        nativeDelete("DELETE FROM order_snapshots WHERE order_id IN "
-                + "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))", userIds);
-        nativeDelete("DELETE FROM visits WHERE order_id IN "
-                + "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))", userIds);
+        // SD-ORDER §10.4 Cleanup：依 FK 順序硬刪除訂單聚合與行程 / 日誌（必須在 service_plans、pets 之前）
+        String orders = "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))";
+        String payments = "(SELECT id FROM payments WHERE order_id IN " + orders + ")";
+        String visits = "(SELECT id FROM visits WHERE order_id IN " + orders + ")";
+        nativeDelete("DELETE FROM payment_submissions WHERE payment_id IN " + payments, userIds);
+        nativeDelete("DELETE FROM admin_tasks WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM payments WHERE source_payment_id IS NOT NULL AND order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM payments WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM service_report_media WHERE report_id IN (SELECT id FROM visit_service_reports "
+                + "WHERE visit_id IN " + visits + ")", userIds);
+        nativeDelete("DELETE FROM care_log_media_uploads WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM visit_service_reports WHERE visit_id IN " + visits, userIds);
+        nativeDelete("DELETE FROM visit_checklist_items WHERE visit_id IN " + visits, userIds);
+        nativeDelete("DELETE FROM visits WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_item_pets WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id IN "
+                + orders + ")", userIds);
+        nativeDelete("DELETE FROM order_items WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM modification_requests WHERE initiated_by = 'SYSTEM' AND order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM modification_requests WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_answers WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_plan_snapshots WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_snapshots WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_logs WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM referral_logs WHERE order_id IN " + orders, userIds);
         nativeDelete("DELETE FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids)", userIds);
+        nativeDelete("DELETE FROM idempotency_records WHERE user_id IN (:ids)", userIds);
 
+        nativeDelete("DELETE FROM referral_logs WHERE referring_sitter_id IN (:ids) OR owner_id IN (:ids) OR recommended_sitter_id IN (:ids)", userIds);
+        nativeDelete("DELETE FROM favorite_sitters WHERE owner_id IN (:ids) OR sitter_id IN (:ids)", userIds);
+        nativeDelete("DELETE FROM trust_relationships WHERE requester_id IN (:ids) OR target_id IN (:ids)", userIds);
+        nativeDelete("DELETE FROM sitter_questions WHERE sitter_id IN (:ids)", userIds);
         nativeDelete("DELETE FROM gatekeeper_rules WHERE sitter_id IN (:ids) OR target_user_id IN (:ids)", userIds);
         nativeDelete("DELETE FROM kyc_records WHERE sitter_id IN (:ids)", userIds);
         nativeDelete("DELETE FROM service_plans WHERE sitter_id IN (:ids)", userIds);
@@ -86,23 +119,28 @@ public class E2eJourneyDataCleanupService {
         return rows.stream().map(row -> UUID.fromString(row.toString())).toList();
     }
 
-    /**
-     * 刪除 DB 紀錄前先把對應的 GCS 媒體物件清掉，單一物件刪除失敗不中斷整個清理流程
-     * （沿用 deleteMedia 可同時接受完整 URL 或 GCS object key 的既有行為）
-     */
-    private void deleteOrphanedMedia(List<UUID> userIds) {
+    /** 第 (1) 段：唯讀收集要刪的物件鍵（KYC、毛孩頭像、付款憑證、日誌上傳槽位、日誌媒體）。 */
+    private List<String> collectObjectKeys(List<UUID> userIds) {
+        List<String> keys = new java.util.ArrayList<>();
         selectStrings("SELECT id_card_front_key FROM kyc_records WHERE sitter_id IN (:ids)", userIds)
-                .forEach(this::deleteMediaSafely);
+                .forEach(keys::add);
         selectStrings("SELECT selfie_key FROM kyc_records WHERE sitter_id IN (:ids)", userIds)
-                .forEach(this::deleteMediaSafely);
+                .forEach(keys::add);
         selectStrings("SELECT photo_url FROM pets WHERE owner_id IN (:ids) AND photo_url IS NOT NULL", userIds)
-                .forEach(this::deleteMediaSafely);
-        selectStrings("SELECT srm.media_url FROM service_report_media srm "
+                .forEach(keys::add);
+        selectStrings("SELECT proof_object_key FROM payment_submissions ps JOIN payments p ON p.id = ps.payment_id "
+                + "JOIN orders o ON o.id = p.order_id WHERE o.owner_id IN (:ids) OR o.sitter_id IN (:ids)", userIds)
+                .forEach(keys::add);
+        selectStrings("SELECT u.object_key FROM care_log_media_uploads u JOIN orders o ON o.id = u.order_id "
+                + "WHERE o.owner_id IN (:ids) OR o.sitter_id IN (:ids)", userIds)
+                .forEach(keys::add);
+        selectStrings("SELECT srm.object_key FROM service_report_media srm "
                 + "JOIN visit_service_reports vsr ON srm.report_id = vsr.id "
                 + "JOIN visits v ON vsr.visit_id = v.id "
                 + "JOIN orders o ON v.order_id = o.id "
                 + "WHERE o.owner_id IN (:ids) OR o.sitter_id IN (:ids)", userIds)
-                .forEach(this::deleteMediaSafely);
+                .forEach(keys::add);
+        return keys;
     }
 
     private void deleteMediaSafely(String mediaUrlOrKey) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   useCareNoteQuery,
   useSaveCareNoteMutation,
@@ -15,6 +15,7 @@ import BottomSheet from '../../components/modals/BottomSheet';
 import TemplateManagerModal from '../../components/modals/TemplateManagerModal';
 import type { CareNoteItemDto } from '../../api/careApi';
 import { PAGE_PADDING } from '../../components/layout/pageLayout';
+import type { LegacyHttpError } from '../../api/apiError';
 
 interface CareNoteManagerProps {
   sitterId: string;
@@ -62,8 +63,11 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
   const deleteKeyRef = useRef<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 載入記事本資料並平鋪為前端 state
-  useEffect(() => {
+  // 載入記事本資料並平鋪為前端 state：careNote（查詢結果）換新時於 render 期間同步
+  // （React「依 props 調整 state」寫法，取代 effect 內 setState，行為不變）
+  const [syncedCareNote, setSyncedCareNote] = useState<typeof careNote>(undefined);
+  if (careNote !== syncedCareNote) {
+    setSyncedCareNote(careNote);
     if (careNote?.sections) {
       const flatItems: CareNoteItemDto[] = [];
       const sectionKeys: (keyof typeof SECTION_LABELS)[] = [
@@ -88,7 +92,7 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
       });
       setItems(flatItems);
     }
-  }, [careNote]);
+  }
 
   const handleAddItem = (type: CareNoteItemDto['sectionType']) => {
     setItems((prev) => [...prev, { sectionType: type, title: '', content: '' }]);
@@ -148,7 +152,8 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           saveKeyRef.current = null;
           alert('記事本儲存成功');
         },
-        onError: (err: any) => {
+        onError: (caught: unknown) => {
+          const err = caught as LegacyHttpError;
           if (err.response?.status === 409) {
             alert('重複請求處理中，請稍候');
           } else {
@@ -173,7 +178,8 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           setIsTemplateSheetOpen(false);
           alert('範本套用成功 (追加至各分區末尾)');
         },
-        onError: (err: any) => {
+        onError: (caught: unknown) => {
+          const err = caught as LegacyHttpError;
           if (err.response?.status === 409) {
             alert('重複請求處理中，請稍候');
           } else {
@@ -218,7 +224,8 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           setNewTemplateName('');
           alert('另存範本成功');
         },
-        onError: (err: any) => {
+        onError: (caught: unknown) => {
+          const err = caught as LegacyHttpError;
           if (err.response?.status === 409) {
             alert('重複請求處理中，請稍候');
           } else {
@@ -274,7 +281,8 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           }
           alert('圖片上傳成功');
         },
-        onError: (err: any) => {
+        onError: (caught: unknown) => {
+          const err = caught as LegacyHttpError;
           if (err.response?.status === 409) {
             alert('重複請求處理中，請稍候');
           } else {
@@ -301,7 +309,8 @@ const CareNoteManager: React.FC<CareNoteManagerProps> = ({ sitterId, ownerId }) 
           // 主動清理 key 以防洩漏
           delete deleteKeyRef.current[mediaId];
         },
-        onError: (err: any) => {
+        onError: (caught: unknown) => {
+          const err = caught as LegacyHttpError;
           if (err.response?.status === 409) {
             alert('重複請求處理中，請稍候');
           } else {

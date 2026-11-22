@@ -1,182 +1,120 @@
-import React, { useState } from 'react';
-import Card from '../../components/ui/Card';
+import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
+import StatusBadge from '../../components/ui/StatusBadge';
+import { LoadingBlock, PageContainer, QueryErrorBlock } from '../../components/orders/common';
 import { useSitterLedgerQuery } from '../../hooks/useOrders';
 import { formatMoney } from '../../utils/money';
+import { formatDateTime, toTaipeiMonth } from '../../utils/datetime';
 
-const formatDate = (iso?: string) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('zh-TW', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+const shiftMonth = (ym: string, delta: number) => {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
 };
 
-const currentYearMonth = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
-
-const shiftMonth = (yearMonth: string, delta: number) => {
-  const [year, month] = yearMonth.split('-').map(Number);
-  const date = new Date(year, month - 1 + delta, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-};
-
-// fix-batch14 L2：過去是原生 <button>（左右各 1rem 內距），390px 殼內「← 上個月」「下個月 →」被擠成兩行
-// （驗收 20261026-1517 ui 80df3 01）。改用 Button secondary、不換行、不被壓縮
-const MONTH_NAV_STYLE: React.CSSProperties = {
-  padding: '0.5rem 0.875rem',
-  fontSize: '0.875rem',
-  whiteSpace: 'nowrap',
-  flexShrink: 0
-};
-
+/**
+ * 保母帳務（SD-ORDER E30、SD-FULFILL §9.2）：首次以瀏覽器 Asia/Taipei 月份查詢，回應 `serverMonth` 不同時
+ * 改選 `serverMonth` 並重查一次（PRD-009 AC-3.4）。收入 = 該月進入終態訂單的已收淨額。
+ */
 const SitterLedger: React.FC = () => {
-  const [month, setMonth] = useState(currentYearMonth());
-  const { data, isLoading, error } = useSitterLedgerQuery(month);
+  const navigate = useNavigate();
+  const browserMonth = useMemo(() => toTaipeiMonth(new Date()), []);
+  const [picked, setPicked] = useState<string | null>(null);
+  // 先以瀏覽器月份查一次；回應 serverMonth 不同時預設改用 serverMonth（同 key 由 React Query 快取，不重複呼叫）
+  const probe = useSitterLedgerQuery(browserMonth);
+  const month = picked ?? probe.data?.serverMonth ?? browserMonth;
+  const setMonth = (m: string) => setPicked(m);
+  const { data, isLoading, error, refetch } = useSitterLedgerQuery(month);
 
   return (
-    <div
-      style={{
-        padding: '2rem 1.5rem',
-        fontFamily: 'var(--font-sans)',
-        maxWidth: '640px',
-        margin: '0 auto'
-      }}
-    >
-      <h2
-        style={{
-          fontSize: '2rem',
-          fontWeight: '700',
-          color: 'var(--color-on-surface)',
-          fontFamily: 'var(--font-display)',
-          margin: '0 0 2rem'
-        }}
-      >
-        帳務總覽
-      </h2>
-
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.75rem',
-          marginBottom: '1.5rem'
-        }}
-      >
+    <PageContainer>
+      <h2 style={{ margin: 0, color: 'var(--color-on-surface)' }}>收款</h2>
+      <div className="btn-row" style={{ alignItems: 'flex-end', gap: '0.75rem' }}>
         <Button
           variant="secondary"
-          onClick={() => setMonth((m) => shiftMonth(m, -1))}
+          onClick={() => setMonth(shiftMonth(month, -1))}
+          style={{ padding: '0.5rem 0.875rem', whiteSpace: 'nowrap', flexShrink: 0 }}
           data-testid="ledger-prev-month-btn"
-          style={MONTH_NAV_STYLE}
         >
           ← 上個月
         </Button>
-        <span
-          data-testid="ledger-current-month"
-          style={{
-            fontSize: '1.1rem',
-            fontWeight: '700',
-            minWidth: '80px',
-            textAlign: 'center',
-            whiteSpace: 'nowrap'
-          }}
-        >
-          {month}
-        </span>
+        <div style={{ flex: '1 1 8rem', minWidth: 0 }}>
+          <label className="field-label" htmlFor="ledger-month">
+            月份
+          </label>
+          <input
+            id="ledger-month"
+            type="month"
+            className="form-input"
+            value={month}
+            onChange={(e) => e.target.value && setMonth(e.target.value)}
+            data-testid="sitter-ledger-select-month"
+          />
+        </div>
         <Button
           variant="secondary"
-          onClick={() => setMonth((m) => shiftMonth(m, 1))}
+          onClick={() => setMonth(shiftMonth(month, 1))}
+          style={{ padding: '0.5rem 0.875rem', whiteSpace: 'nowrap', flexShrink: 0 }}
           data-testid="ledger-next-month-btn"
-          style={MONTH_NAV_STYLE}
         >
           下個月 →
         </Button>
       </div>
 
-      <Card style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div
-          style={{
-            fontSize: '0.875rem',
-            color: 'var(--color-on-surface-variant)',
-            marginBottom: '0.5rem'
-          }}
-        >
-          本月總收入 (依結案日統計)
-        </div>
-        <div
-          data-testid="ledger-total-revenue"
-          style={{ fontSize: '2.25rem', fontWeight: '800', color: 'var(--color-primary)' }}
-        >
-          {formatMoney(data?.totalRevenue ?? 0)}
-        </div>
-      </Card>
-
       {isLoading ? (
-        <div
-          style={{
-            textAlign: 'center',
-            padding: '40px 0',
-            color: 'var(--color-on-surface-variant)'
-          }}
-        >
-          載入中...
-        </div>
-      ) : error ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-error)' }}>
-          載入失敗，請稍後再試
-        </div>
-      ) : data && data.entries.length > 0 ? (
-        <div
-          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-          data-testid="ledger-entry-list"
-        >
-          {data.entries.map((entry) => (
-            <Card key={entry.orderId} data-testid={`ledger-entry-${entry.orderId}`}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: '0.75rem'
-                }}
-              >
-                <span style={{ fontWeight: '700' }}>{entry.ownerName}</span>
-                <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>
-                  {formatMoney(entry.totalAmount)}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.25rem',
-                  fontSize: '0.8rem',
-                  color: 'var(--color-on-surface-variant)'
-                }}
-              >
-                <div>付款日：{formatDate(entry.paidAt)}</div>
-                <div>結案日：{formatDate(entry.completedAt)}</div>
-                <div>預計撥款日：{formatDate(entry.payoutAt)}</div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <LoadingBlock />
+      ) : error || !data ? (
+        <QueryErrorBlock error={error} onRetry={() => refetch()} />
       ) : (
-        <div
-          data-testid="ledger-empty"
-          style={{
-            textAlign: 'center',
-            padding: '40px 0',
-            color: 'var(--color-on-surface-variant)'
-          }}
-        >
-          本月尚無已結案訂單
-        </div>
+        <>
+          <section className="card-layered stack" style={{ padding: '1.25rem' }}>
+            <span className="muted">本月收入</span>
+            <span
+              style={{ fontSize: '1.75rem', fontWeight: 700 }}
+              data-testid="sitter-ledger-total-income"
+            >
+              {formatMoney(data.totalIncome)}
+            </span>
+          </section>
+          {data.orders.length === 0 ? (
+            <p className="muted" style={{ textAlign: 'center' }} data-testid="sitter-ledger-empty">
+              本月沒有已結束的訂單
+            </p>
+          ) : (
+            data.orders.map((o) => (
+              <div
+                key={o.orderId}
+                className="card-layered stack"
+                style={{ padding: '1rem', cursor: 'pointer', gap: '0.375rem' }}
+                role="link"
+                tabIndex={0}
+                onClick={() => navigate(`/sitter/orders/${o.orderId}`)}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(`/sitter/orders/${o.orderId}`)}
+                data-testid={`sitter-ledger-item-${o.orderId}`}
+              >
+                <div
+                  className="btn-row"
+                  style={{ justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <strong>#{o.orderId.slice(0, 8).toUpperCase()}</strong>
+                  <StatusBadge status={o.status} />
+                </div>
+                <span className="muted" style={{ overflowWrap: 'anywhere' }}>
+                  {o.ownerDisplayName ?? '—'}・{o.firstServiceDate ?? ''}
+                  {o.lastServiceDate && o.lastServiceDate !== o.firstServiceDate
+                    ? ` ~ ${o.lastServiceDate}`
+                    : ''}
+                </span>
+                <div className="kv-row">
+                  <span>結束於 {formatDateTime(o.terminalAt)}</span>
+                  <span>{formatMoney(o.netPaid)}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

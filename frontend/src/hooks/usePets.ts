@@ -11,11 +11,12 @@ import {
 } from '../api/petApi';
 import type { Pet, PetEditLog } from '../types/pet';
 
-export const usePetsQuery = () => {
+export const usePetsQuery = (enabled = true) => {
   return useQuery<Pet[], Error>({
     queryKey: ['pets'],
     queryFn: getPets,
-    staleTime: 5 * 60 * 1000
+    staleTime: 5 * 60 * 1000,
+    enabled
   });
 };
 

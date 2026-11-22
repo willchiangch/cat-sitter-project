@@ -22,13 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # 1. 登入 Google Cloud (透過 WIF OIDC)
       # 請在 GitHub Secrets 中設定 GCP_PROJECT_NUMBER
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-actions-deployer@wd-pet-sitter.iam.gserviceaccount.com'
@@ -36,15 +35,15 @@ jobs:
 
       # 2. 設定 Google Cloud CLI
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
         with:
           project_id: ${{ env.PROJECT_ID }}
 
       # 3. 建置前端靜態檔案 (獨立部署到 Firebase Hosting，不再內嵌進 backend)
       - name: Set up Node.js and Build Frontend
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -56,7 +55,7 @@ jobs:
 
       # 4. 執行後端單元/整合測試 (擋在 Docker build 之前，失敗就不部署)
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: 'temurin'
           java-version: '21'
@@ -93,8 +92,8 @@ jobs:
             --memory=1Gi \
             --cpu=1 \
             --cpu-boost \
-            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }},SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }},FRONTEND_BASE_URL=https://${{ env.PROJECT_ID }}.web.app \
-            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest,INTERNAL_CRON_SECRET=INTERNAL_CRON_SECRET:latest,RESEND_API_KEY=resend-api:latest \
+            --set-env-vars=^##^SPRING_PROFILES_ACTIVE=prod##SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }}##SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }}##FRONTEND_BASE_URL=https://${{ env.PROJECT_ID }}.web.app##APP_SECURITY_CORS_ALLOWED_ORIGINS=https://${{ env.PROJECT_ID }}.web.app,https://${{ env.PROJECT_ID }}.firebaseapp.com \
+            --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest,INTERNAL_CRON_SECRET=INTERNAL_CRON_SECRET:latest,RESEND_API_KEY=resend-api:latest,APP_CRYPTO_KEY=APP_CRYPTO_KEY:latest \
             --allow-unauthenticated \
             --quiet
 
@@ -119,14 +118,6 @@ jobs:
           # 使用 Firebase Hosting 網址作為測試目標 (真實入口，/api 會經 rewrite 打到 Cloud Run)
           BASE_URL=${{ env.BASE_URL }} npx playwright test
 
-      # 10. 清理 E2E 種子測試帳號累積的訂單資料 (Supabase 持久化，避免清單越跑越髒)
-      - name: Cleanup E2E Test Orders
-        if: always()
-        run: |
-          curl -sf -X POST \
-            -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}" \
-            "${{ env.BASE_URL }}/api/internal/cron/test-data/cleanup-seed-orders"
-
       # 10.1 清理 frontend/e2e/journeys/ 真後端 journey 測試產生的 @e2e-journey.test 假帳號與關聯資料
       - name: Cleanup E2E Journey Test Data
         if: always()
@@ -138,7 +129,7 @@ jobs:
       # 11. 上傳 Playwright 測試報告 (僅保留 3 天以防佔用額度)
       - name: Upload Playwright Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           # test-results/ 內有 evidence/（逐步截圖+manifest.jsonl），給 e2e-triage / e2e-acceptance agent 用

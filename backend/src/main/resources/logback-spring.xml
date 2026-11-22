@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SD-GLOBAL-SPEC §2.9（NFR-003 SEC-LOG-5、使用者 2026-11-22 決定採 logback %replace）：
+  沿用 Spring Boot 預設 console 格式，只把訊息段 %m 的 CR、LF 換成字面 \r、\n（堆疊段 %wEx 不受影響），
+  使用者輸入（email、名稱、路徑參數）因此無法偽造新行。
+-->
+<configuration>
+	<property name="CONSOLE_LOG_PATTERN" value="%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}){} %clr(${PID:-}){magenta} %clr(--- %esb(){APPLICATION_NAME}%esb{APPLICATION_GROUP}[%15.15t] ${LOG_CORRELATION_PATTERN:-}){faint}%clr(%-40.40logger{39}){cyan} %clr(:){faint} %replace(%replace(%m){'\r','\\r'}){'\n','\\n'}%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"/>
+	<include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+	<include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+	<root level="INFO">
+		<appender-ref ref="CONSOLE"/>
+	</root>
+</configuration>

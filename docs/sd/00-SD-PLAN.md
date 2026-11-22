@@ -6,8 +6,8 @@ SD 改為依業務模組撰寫，一份涵蓋同一聚合 / 狀態機的多張 P
 
 | 模組 SD | 檔案 | 涵蓋 PRD | 擁有的主要 Table | 取代舊 SD | 重建順序 | 狀態 |
 |---------|------|---------|-----------------|----------|---------|------|
-| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016、023、024、026、027（全部 Approved 2026-11-22） | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`、`idempotency_records`（舊 `idempotency_keys` 暫留給尚未重建的模組，見 SD-ORDER §11）；保母帳務總覽 API（由 payments 加總） | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | Approved 2026-11-22（未實作；與 SD-FULFILL 同一次實作發布，CQ-21） |
-| SD-FULFILL 服務履約 | `SD-FULFILL.md` | PRD-008、009、022 | `visits`、`visit_service_reports`、`service_report_media`、爭議相關 | SD-008、009、022 | 2 | 未開始 |
+| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016、023、024、026、027（全部 Approved 2026-11-22） | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`（`idempotency_records` 改由 SD-GLOBAL-SPEC §2.4 擁有；舊 `idempotency_keys` 暫留給尚未重建的模組）；保母帳務總覽 API（由 payments 加總） | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | Approved 2026-11-22（再核准，與 SD-FULFILL 同批；未實作，同一次實作發布，CQ-21） |
+| SD-FULFILL 服務履約 | `SD-FULFILL.md` | PRD-008、009（畫面；API 屬 SD-ORDER）、022、028（全部 Approved 2026-11-22） | `visits`、`visit_checklist_items`、`visit_service_reports`、`service_report_media`、`care_log_media_uploads`（爭議 / 結案資料屬 SD-ORDER） | SD-008、009、022 | 2 | Approved 2026-11-22（未實作；與 SD-ORDER 同一次實作發布） |
 | SD-IDENTITY 帳號身分 | `SD-IDENTITY.md` | PRD-000、001 | `users`、`refresh_tokens`、WebAuthn、OTP | SD-000、001 | 3 | 未開始 |
 | SD-TRUST 信任風控 | `SD-TRUST.md` | PRD-010、017、020 | 信任圈、轉介、KYC、信用分數 | SD-010、017、020 | 4 | 未開始 |
 | SD-CARE 照護資料 | `SD-CARE.md` | PRD-002、021、013 | `pets`、照護記事、照護媒體、媒體保存 | SD-002、021、013 | 5 | 未開始 |
@@ -18,6 +18,7 @@ SD 改為依業務模組撰寫，一份涵蓋同一聚合 / 狀態機的多張 P
 
 - **SD-ORDER 擁有 O1–O17 全部訂單主狀態轉移的 API 與排程**（含 O11–O13 結案 / 爭議、O15 / O17 ADMIN 調解結案）；PRD-009（結案）與 PRD-020（ADMIN 後台）重寫後只負責畫面與操作流程，呼叫 SD-ORDER 的端點（使用者核准 2026-11-22）。
 - Table 名稱以重建時實際 schema 為準，本表只示意歸屬；同一 table 不得出現在兩列。
+- **SD-NOTIFY 待接手的過渡契約**（2026-11-22）：通知列表 `GET /api/notifications` 回傳 `type` 的過渡契約與 4 項待辦寫在 `SD-GLOBAL-SPEC.md` §4.4；SD-NOTIFY 撰寫時正式定義並刪除該節。
 - 重建順序理由：SD-ORDER 是所有交易資料的匯聚點，鎖、稽核、冪等、交易邊界的共通問題（`reports/rereview/00-sample-SD-007.md` #2–#6）在此一次解決，其餘模組沿用。
 - 以下 §1 之後為舊版規劃，**已被 `docs/sa/00-DOMAIN-BASELINE.md` 取代**（特別是 §3 不可變性與 §4 狀態機），僅供對照，衝突時以 baseline 為準。
 

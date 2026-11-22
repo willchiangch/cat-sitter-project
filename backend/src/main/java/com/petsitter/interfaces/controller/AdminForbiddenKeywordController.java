@@ -32,7 +32,9 @@ public class AdminForbiddenKeywordController {
             @RequestParam(value = "q", required = false) String q,
             @PageableDefault(size = 10) Pageable pageable) {
         
-        log.info("Admin querying forbidden keywords, q: {}, pageable: {}", q, pageable);
+        // GLOBAL §2.8：size 上限 100，超過 400（spring.data.web.pageable.max-page-size 只會靜默截斷）
+        com.petsitter.application.common.validation.PageParams.of(pageable.getPageNumber(), pageable.getPageSize());
+        log.info("Admin querying forbidden keywords, pageable: {}", pageable);
         Page<ForbiddenKeywordDto> result = publicProfileService.getForbiddenKeywords(q, pageable);
         return ResponseEntity.ok(result);
     }

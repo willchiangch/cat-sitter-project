@@ -2,7 +2,6 @@ package com.petsitter.interfaces.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.exception.KycException;
-import com.petsitter.application.service.BookingService;
 import com.petsitter.application.service.KycService;
 import com.petsitter.application.service.MediaStorageService;
 import com.petsitter.domain.model.KycRecord;
@@ -175,7 +174,7 @@ class KycControllerTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .with(user(sitter.getEmail()).roles("SITTER")))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_STATE_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_STATE_CONFLICT"));
     }
 
     @Test
@@ -200,7 +199,7 @@ class KycControllerTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .with(user(sitter.getEmail()).roles("SITTER")))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_STATE_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_STATE_CONFLICT"));
     }
 
     @Test
@@ -239,7 +238,7 @@ class KycControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("isOpen", true))))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_STATUS"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_STATUS"));
     }
 
     @Test

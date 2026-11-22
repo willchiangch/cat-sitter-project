@@ -1,5 +1,6 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.application.dto.AuthResponse;
 import com.petsitter.application.dto.DeactivateAccountRequest;
 import com.petsitter.application.dto.ForgotPasswordRequest;
@@ -74,14 +75,16 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "密碼已成功重設，請重新登入"));
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/switch-role")
     public ResponseEntity<AuthResponse> switchRole(@Valid @RequestBody SwitchRoleRequest request) {
         UUID userId = TokenContext.getUserId();
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到使用者資訊"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到使用者資訊"));
         return ResponseEntity.ok(authService.switchRole(user, request.getTargetRole()));
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/deactivate")
     public ResponseEntity<Map<String, String>> deactivate(@Valid @RequestBody DeactivateAccountRequest request) {
         UUID userId = TokenContext.getUserId();
@@ -89,6 +92,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "帳號已成功註銷"));
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/logout-all-devices")
     public ResponseEntity<Map<String, String>> logoutAllDevices() {
         UUID userId = TokenContext.getUserId();

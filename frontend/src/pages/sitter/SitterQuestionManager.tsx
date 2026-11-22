@@ -10,6 +10,7 @@ import {
   sortQuestions
 } from '../../api/questionApi';
 import type { SitterQuestion, QuestionAnswerType } from '../../api/questionApi';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const ANSWER_TYPE_LABELS: Record<QuestionAnswerType, string> = {
   RADIO: '單選',
@@ -58,6 +59,7 @@ const SitterQuestionManager: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     fetchQuestions();
   }, []);
 
@@ -135,7 +137,8 @@ const SitterQuestionManager: React.FC = () => {
       }
       cancelEdit();
       await fetchQuestions();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setFormError(err.response?.data?.message || '儲存失敗，請稍後再試');
     } finally {

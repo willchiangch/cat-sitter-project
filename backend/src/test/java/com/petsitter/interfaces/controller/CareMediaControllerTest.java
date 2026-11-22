@@ -3,10 +3,10 @@ package com.petsitter.interfaces.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.service.CareMediaService;
 import com.petsitter.application.service.MediaStorageService;
-import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.model.User;
-import com.petsitter.domain.repository.OrderRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
+import testsupport.order.OrderFixtures;
 import com.petsitter.domain.repository.SubscriptionRepository;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.infrastructure.security.TokenContext;
@@ -66,7 +66,7 @@ class CareMediaControllerTest {
     private SubscriptionRepository subscriptionRepository;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private MediaStorageService mediaStorageService;
@@ -77,7 +77,6 @@ class CareMediaControllerTest {
 
     @BeforeEach
     void setUp() {
-        orderRepository.deleteAll();
         subscriptionRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -89,8 +88,7 @@ class CareMediaControllerTest {
 
         ownerA = userRepository.save(User.builder().email("ownerA@test.com").passwordHash("hash").role("OWNER").build());
         // J1：記事本 / 媒體存取前提是雙方有過訂單（SD-021 §1.3）
-        orderRepository.save(Order.builder().owner(ownerA).sitter(sitterA).status("PENDING")
-                .items(List.of()).planId(UUID.randomUUID()).build());
+        new OrderFixtures(jdbcTemplate).order(ownerA.getId(), sitterA.getId(), "PENDING");
     }
 
     @AfterEach

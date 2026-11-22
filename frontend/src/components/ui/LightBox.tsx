@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 
 interface LightBoxProps {
@@ -9,14 +9,8 @@ interface LightBoxProps {
 }
 
 const LightBox: React.FC<LightBoxProps> = ({ isOpen, onClose, mediaUrl, caption }) => {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    return () => setMounted(false);
-  }, []);
-
-  if (!isOpen || !mounted) return null;
+  // SPA 無 SSR，document.body 恆存在，不需「掛載後才 portal」的 mounted 旗標
+  if (!isOpen) return null;
 
   return createPortal(
     <div

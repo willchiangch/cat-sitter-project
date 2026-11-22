@@ -8,6 +8,7 @@ import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,9 +18,9 @@ import java.util.UUID;
 public class JpaAuditingConfig {
 
     @Bean
-    public DateTimeProvider dateTimeProvider() {
-        // 明確指定使用 OffsetDateTime.now()，解決 Auditing 自動填充的型別轉換問題
-        return () -> Optional.of(OffsetDateTime.now());
+    public DateTimeProvider dateTimeProvider(Clock clock) {
+        // 明確指定 OffsetDateTime，解決 Auditing 自動填充的型別轉換問題；時間來源為注入的 Clock（SD-ORDER §11.4）
+        return () -> Optional.of(OffsetDateTime.now(clock));
     }
 }
 

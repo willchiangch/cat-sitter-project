@@ -16,11 +16,6 @@ public interface MediaStorageService {
     String uploadMedia(UUID sitterId, UUID ownerId, UUID mediaId, MultipartFile file);
 
     /**
-     * 上傳服務日誌多媒體檔案 (SD-022)
-     */
-    String uploadReportMedia(String planTier, String date, UUID orderId, UUID mediaId, MultipartFile file);
-
-    /**
      * 上傳寵物大頭照 (SD-002)
      */
     String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file);
@@ -68,6 +63,12 @@ public interface MediaStorageService {
     String generateSignedUrl(String objectKey, java.time.Duration ttl);
 
     /**
+     * V4 簽名 GET，另簽入 {@code response-content-type={contentType}} 與 {@code response-content-disposition=inline}
+     * （SD-FULFILL §8.2、NFR-003 U-7）：GCS 回應型別固定為伺服器判定的格式，不受物件 metadata 影響。
+     */
+    String generateSignedUrl(String objectKey, java.time.Duration ttl, String contentType);
+
+    /**
      * 將 DB 內存放的媒體參照轉為 Object Key。2026-10 之前的付款憑證存的是公開網址
      * (https://storage.googleapis.com/{bucket}/payment-proofs/...)，新資料存的是 Object Key，
      * 讀取端一律先過這裡再簽名，兩種格式都能相容。
@@ -89,4 +90,47 @@ public interface MediaStorageService {
      * @return 是否真的有移除（原本就不是公開的回 false）
      */
     boolean revokePublicRead(String objectKey);
+
+    // ------------------------------------------------------------------ SD-ORDER §3.6.6 付款憑證（私有物件）
+
+    /** 物件清單項目（C10 孤兒檔掃描用）。 */
+    record StoredObject(String key, java.time.OffsetDateTime createdAt) {
+    }
+
+    /**
+     * 上傳私有物件，{@code doesNotExist} 前置條件：物件已存在（接手的重試）視為已上傳，不覆寫。
+     * 失敗拋 {@link com.petsitter.application.exception.StorageUnavailableException}。
+     */
+    void uploadPrivateIfAbsent(String objectKey, byte[] content, String contentType);
+
+    /** best-effort 刪除私有物件；回傳是否刪除（不存在 → false）。失敗拋例外由呼叫端記 log。 */
+    boolean deleteObject(String objectKey);
+
+    /** 列出前綴下物件與建立時間。 */
+    java.util.List<StoredObject> listObjects(String prefix);
+
+    // ------------------------------------------------------------------ SD-FULFILL §8.2 日誌媒體直傳（私有物件）
+
+    /** 私有物件串流（交易外讀取一次；呼叫端負責關閉）。 */
+    interface PrivateObject extends java.io.Closeable {
+        long generation();
+
+        java.io.InputStream stream();
+    }
+
+    /**
+     * V4 簽名 PUT：綁定 {@code Content-Type}、{@code x-goog-content-length-range: {exactBytes},{exactBytes}}、
+     * {@code x-goog-if-generation-match: 0}；不帶 {@code x-goog-acl}（套 bucket 預設）。失敗拋
+     * {@link com.petsitter.application.exception.StorageUnavailableException}。
+     */
+    String createSignedUploadUrl(String objectKey, String contentType, long exactBytes, java.time.Duration ttl);
+
+    /** 串流讀取並回傳 generation；不存在回空；讀取失敗拋 {@link com.petsitter.application.exception.MediaInspectionException}。 */
+    java.util.Optional<PrivateObject> openPrivateObject(String objectKey);
+
+    /**
+     * 刪除私有物件；{@code generation} 非 null 時帶前置條件（物件已被重寫則不刪、回 false）；不存在視為成功（回 true）。
+     * 其他失敗拋例外，由呼叫端記 log 或計次。
+     */
+    boolean deletePrivateObject(String objectKey, Long generation);
 }

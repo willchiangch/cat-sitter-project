@@ -55,6 +55,8 @@ public class AdminSubscriptionController {
         return ResponseEntity.ok(res);
     }
 
+    // SD-GLOBAL-SPEC §4.3：帳號類稽核 MANDATORY 同交易；未重建模組無 Service 層，暫以 controller 方法界定交易（SD-BILLING 重建時移入 Service）
+    @org.springframework.transaction.annotation.Transactional
     @PostMapping("/{sitterId}")
     public ResponseEntity<Map<String, Object>> setSubscription(
             @PathVariable UUID sitterId,

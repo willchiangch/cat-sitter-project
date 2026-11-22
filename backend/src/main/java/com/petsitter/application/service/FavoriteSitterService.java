@@ -85,6 +85,27 @@ public class FavoriteSitterService {
         favoriteSitterRepository.save(FavoriteSitter.builder().owner(owner).sitter(sitter).build());
     }
 
+    /**
+     * 送單後自動加入（PRD-005 BR-14、SD-ORDER §2.4.2）：已存在、已達上限或保母不存在都回 false，不拋例外、不通知保母。
+     * 由 SD-ORDER 協調者在主交易 commit 後另開短交易呼叫。
+     */
+    @Transactional
+    public boolean addIfAbsent(UUID ownerId, UUID sitterId) {
+        if (favoriteSitterRepository.findByOwnerIdAndSitterIdAndIsDeletedFalse(ownerId, sitterId).isPresent()) {
+            return false;
+        }
+        if (favoriteSitterRepository.countByOwnerIdAndIsDeletedFalse(ownerId) >= MAX_FAVORITES_PER_OWNER) {
+            return false;
+        }
+        User sitter = userRepository.findById(sitterId).filter(u -> !u.isDeleted()).orElse(null);
+        User owner = userRepository.findById(ownerId).orElse(null);
+        if (sitter == null || owner == null) {
+            return false;
+        }
+        favoriteSitterRepository.save(FavoriteSitter.builder().owner(owner).sitter(sitter).build());
+        return true;
+    }
+
     @Transactional
     public void removeFavorite(UUID ownerId, UUID sitterId) {
         FavoriteSitter favorite = favoriteSitterRepository.findByOwnerIdAndSitterIdAndIsDeletedFalse(ownerId, sitterId)

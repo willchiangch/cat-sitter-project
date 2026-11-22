@@ -73,6 +73,14 @@ class WebAuthnControllerTest {
 
     private User testUser;
 
+    @Autowired
+    private com.petsitter.infrastructure.security.JwtUtils jwtUtils;
+
+    private String bearer(User user) {
+        return "Bearer " + jwtUtils.generateToken(user.getEmail(), user.getRole(),
+                java.util.Map.<String, Object>of("userId", user.getId().toString()), 3_600_000L);
+    }
+
     @BeforeEach
     void setUp() {
         testUser = userRepository.save(User.builder()
@@ -98,9 +106,9 @@ class WebAuthnControllerTest {
     @Test
     @DisplayName("已登入呼叫 register/options 應回傳含 challenge/rp/user 的合法選項")
     void should_ReturnValidOptions_When_StartRegistration_Authenticated() throws Exception {
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
-        mockMvc.perform(post("/api/auth/webauthn/register/options"))
+        mockMvc.perform(post("/api/auth/webauthn/register/options").header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.publicKey.challenge").exists())
                 .andExpect(jsonPath("$.publicKey.rp.id").exists())
@@ -110,28 +118,28 @@ class WebAuthnControllerTest {
     @Test
     @DisplayName("register/verify 帶入無效憑證 JSON 應回傳 400 WEBAUTHN_REGISTRATION_FAILED")
     void should_Return400_When_FinishRegistration_InvalidCredential() throws Exception {
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
         // 先正常呼叫一次 options，確保有有效的挑戰紀錄可比對
-        mockMvc.perform(post("/api/auth/webauthn/register/options"))
+        mockMvc.perform(post("/api/auth/webauthn/register/options").header("Authorization", auth))
                 .andExpect(status().isOk());
 
         WebAuthnVerifyRequest request = new WebAuthnVerifyRequest();
         request.setCredentialJson("{\"not\":\"a valid webauthn credential\"}");
 
-        mockMvc.perform(post("/api/auth/webauthn/register/verify")
+        mockMvc.perform(post("/api/auth/webauthn/register/verify").header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_REGISTRATION_FAILED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_REGISTRATION_FAILED"));
     }
 
     @Test
     @DisplayName("register/verify 挑戰已過期應回傳 400 WEBAUTHN_CHALLENGE_EXPIRED")
     void should_Return400_When_FinishRegistration_ChallengeExpired() throws Exception {
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
-        mockMvc.perform(post("/api/auth/webauthn/register/options"))
+        mockMvc.perform(post("/api/auth/webauthn/register/options").header("Authorization", auth))
                 .andExpect(status().isOk());
 
         WebAuthnChallenge challenge = webAuthnChallengeRepository
@@ -143,11 +151,11 @@ class WebAuthnControllerTest {
         WebAuthnVerifyRequest request = new WebAuthnVerifyRequest();
         request.setCredentialJson("{\"irrelevant\":\"json\"}");
 
-        mockMvc.perform(post("/api/auth/webauthn/register/verify")
+        mockMvc.perform(post("/api/auth/webauthn/register/verify").header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_CHALLENGE_EXPIRED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_CHALLENGE_EXPIRED"));
     }
 
     @Test
@@ -215,7 +223,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_LOGIN_FAILED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_LOGIN_FAILED"));
     }
 
     @Test
@@ -229,7 +237,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_LOGIN_FAILED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_LOGIN_FAILED"));
     }
 
     @Test
@@ -246,7 +254,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("AUTH_FAILED"));
+                .andExpect(jsonPath("$.code").value("AUTH_FAILED"));
     }
 
     @Test
@@ -265,9 +273,9 @@ class WebAuthnControllerTest {
                 .publicKeyCose("ZmFrZS1jb3NlLWtleQ")
                 .signCount(0)
                 .build());
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
-        mockMvc.perform(get("/api/auth/webauthn/credentials"))
+        mockMvc.perform(get("/api/auth/webauthn/credentials").header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(1)));
     }
@@ -275,11 +283,11 @@ class WebAuthnControllerTest {
     @Test
     @DisplayName("刪除不存在的憑證應回傳 404")
     void should_Return404_When_DeleteCredential_NotFound() throws Exception {
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
-        mockMvc.perform(delete("/api/auth/webauthn/credentials/" + UUID.randomUUID()))
+        mockMvc.perform(delete("/api/auth/webauthn/credentials/" + UUID.randomUUID()).header("Authorization", auth))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_CREDENTIAL_NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_CREDENTIAL_NOT_FOUND"));
     }
 
     @Test
@@ -298,9 +306,9 @@ class WebAuthnControllerTest {
                 .signCount(0)
                 .build());
 
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
-        mockMvc.perform(delete("/api/auth/webauthn/credentials/" + credential.getId()))
+        mockMvc.perform(delete("/api/auth/webauthn/credentials/" + credential.getId()).header("Authorization", auth))
                 .andExpect(status().isForbidden());
 
         assertTrue(webAuthnCredentialRepository.findById(credential.getId()).isPresent());
@@ -316,9 +324,9 @@ class WebAuthnControllerTest {
                 .signCount(0)
                 .build());
 
-        TokenContext.setUserId(testUser.getId());
+        String auth = bearer(testUser); // 真 JWT（GLOBAL §3.4.1：需身分的 auth 端點走 authenticated()）
 
-        mockMvc.perform(delete("/api/auth/webauthn/credentials/" + credential.getId()))
+        mockMvc.perform(delete("/api/auth/webauthn/credentials/" + credential.getId()).header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUCCESS"));
 

@@ -1,4 +1,5 @@
 import axiosClient from './axiosClient';
+import { reencodeImageFile } from '../utils/imageReencode';
 
 export interface CareNoteItemDto {
   sectionType: 'SERVICE' | 'CONTACT' | 'WARNING' | 'PREFERENCE' | 'HOSPITAL' | 'OTHER';
@@ -128,8 +129,10 @@ export const uploadMedia = async (
   caption: string,
   idempotencyKey: string
 ): Promise<{ mediaId: string; mediaUrl: string }> => {
+  // SD-FRONTEND-SPEC §2.7：照片上傳前重新編碼移除 EXIF（影片原樣）
+  const upload = await reencodeImageFile(file);
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', upload);
   formData.append('caption', caption);
   formData.append('mediaType', file.type.startsWith('video') ? 'VIDEO' : 'IMAGE');
 

@@ -40,7 +40,7 @@ public class KycServiceImpl implements KycService {
     private final ProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final MediaStorageService mediaStorageService;
-    private final IdempotencyService idempotencyService;
+    private final LegacyIdempotencyService legacyIdempotencyService;
     private final UserActionLogRepository userActionLogRepository;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
@@ -60,7 +60,7 @@ public class KycServiceImpl implements KycService {
         }
 
         // 2. 冪等性校驗
-        idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
 
         // 3. 檔案校驗
         validateFile(idCardFrontFile);
@@ -91,7 +91,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(record.getId())
                 .targetTable("kyc_records")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         log.info("Successfully submitted KYC for sitter: {}, record: {}", sitterId, record.getId());
         return record;
@@ -159,7 +159,7 @@ public class KycServiceImpl implements KycService {
     public void reviewKyc(UUID recordId, UUID adminId, String action, String rejectReason, String idempotencyKey) {
         log.info("Reviewing KYC record: {} by admin: {}, action: {}", recordId, adminId, action);
 
-        idempotencyService.checkAndConsume(idempotencyKey, adminId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, adminId);
 
         KycRecord record = kycRecordRepository.findById(recordId)
                 .orElseThrow(() -> new KycException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到該 KYC 紀錄"));
@@ -200,7 +200,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(record.getId())
                 .targetTable("kyc_records")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         // 發布非同步通知事件
         eventPublisher.publishEvent(new KycReviewedEvent(record.getId(), record.getSitterId(), record.getStatus(), record.getRejectReason()));
@@ -212,7 +212,7 @@ public class KycServiceImpl implements KycService {
     public void suspendSitter(UUID sitterId, UUID adminId, String reason, String idempotencyKey) {
         log.info("Suspending sitter: {} by admin: {}, reason: {}", sitterId, adminId, reason);
 
-        idempotencyService.checkAndConsume(idempotencyKey, adminId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, adminId);
 
         Profile profile = profileRepository.findByUserIdAndType(sitterId, "SITTER")
                 .orElseThrow(() -> new KycException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到該保母資料"));
@@ -237,7 +237,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(profile.getId())
                 .targetTable("profiles")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         eventPublisher.publishEvent(new SitterSuspendedEvent(sitterId, reason));
         log.info("Successfully suspended sitter: {}", sitterId);
@@ -248,7 +248,7 @@ public class KycServiceImpl implements KycService {
     public void unsuspendSitter(UUID sitterId, UUID adminId, String idempotencyKey) {
         log.info("Unsuspending sitter: {} by admin: {}", sitterId, adminId);
 
-        idempotencyService.checkAndConsume(idempotencyKey, adminId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, adminId);
 
         Profile profile = profileRepository.findByUserIdAndType(sitterId, "SITTER")
                 .orElseThrow(() -> new KycException(HttpStatus.NOT_FOUND, "MSG_DATA_F11", "找不到該保母資料"));
@@ -269,7 +269,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(profile.getId())
                 .targetTable("profiles")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         eventPublisher.publishEvent(new SitterUnsuspendedEvent(sitterId));
         log.info("Successfully unsuspended sitter: {}", sitterId);
@@ -331,7 +331,7 @@ public class KycServiceImpl implements KycService {
     public void adjustTrustScore(UUID sitterId, UUID adminId, int delta, String reason, String idempotencyKey) {
         log.info("Adjusting trust score for sitter: {} by admin: {}, delta: {}", sitterId, adminId, delta);
 
-        idempotencyService.checkAndConsume(idempotencyKey, adminId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, adminId);
 
         if (reason == null || reason.trim().isEmpty()) {
             throw new KycException(HttpStatus.BAD_REQUEST, "MSG_DATA_INVALID_INPUT", "異動原因不可為空");

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PAGE_PADDING } from '../../components/layout/pageLayout';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import {
   useNotificationsQuery,
   useMarkAsReadMutation,
@@ -9,6 +9,8 @@ import {
 } from '../../hooks/useNotifications';
 import type { NotificationDto } from '../../api/notificationApi';
 import { resolveNotificationLink } from '../../components/notifications/resolveNotificationLink';
+import { notificationTypeLabel } from '../../components/notifications/notificationTypes';
+import { formatDateTime } from '../../utils/datetime';
 
 export const NotificationsPage: React.FC = () => {
   const { currentRole } = useRole();
@@ -137,6 +139,8 @@ export const NotificationsPage: React.FC = () => {
         >
           {data.content.map((noti) => {
             const styles = getCategoryStyles(noti.category);
+            // SD-GLOBAL-SPEC §4.4：有已定義標籤才顯示類型；缺 type 時只顯示 category 與 title
+            const typeLabel = notificationTypeLabel(noti.type);
             return (
               <div
                 key={noti.id}
@@ -207,8 +211,20 @@ export const NotificationsPage: React.FC = () => {
                     >
                       {getCategoryLabel(noti.category)}
                     </span>
+                    {typeLabel && (
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--color-primary)'
+                        }}
+                        data-testid={`${currentRole}-notifications-type-${noti.id}`}
+                      >
+                        {typeLabel}
+                      </span>
+                    )}
                     <span style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
-                      {new Date(noti.createdAt).toLocaleString()}
+                      {formatDateTime(noti.createdAt)}
                     </span>
                   </div>
 

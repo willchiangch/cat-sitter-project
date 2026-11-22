@@ -45,7 +45,7 @@
    - 未設定 → 200 `{ "configured": false }`（不是錯誤狀態），畫面顯示「尚未設定收款帳號」與設定表單。
    - 已設定 → 200 `{ "configured": true, "bankCode", "branch", "accountNumber", "accountName", "updatedAt" }`，畫面顯示目前值與修改表單。
 2. 填寫銀行代碼（3 位數字）、分行（1–30 字）、帳號（10–16 位數字）、戶名（1–50 字），四欄皆必填，以 PUT 整筆送出（BR-1）。
-3. 前端與後端皆先正規化再驗證：帳號移除所有空白與「-」；分行、戶名去除前後空白；儲存正規化後的值（BR-1）。
+3. 前端與後端皆先正規化再驗證：帳號移除所有空白與「-」；分行、戶名去除前後空白（含全形空白，定義見 SD-GLOBAL-SPEC）；儲存正規化後的值（BR-1）。
 4. 系統驗證欄位 → 比對正規化後的四欄與目前值：
    - **首次設定**（由無到有）：加密存放 → 寫稽核紀錄（變更前為空）→ `enqueue` 通知保母本人「收款帳號已設定」（BR-8、BR-11）。
    - **修改且四欄任一不同**：加密存放 → 寫稽核紀錄 → `enqueue` 通知保母本人「收款帳號已變更」（BR-8）。
@@ -108,7 +108,7 @@ SD-ORDER 建立 CHARGE payment（PRD-006 O2、PRD-023 補款）時呼叫 SD-SUPP
 
 ### 子模組 1：收款帳號設定
 
-- [ ] **AC-1.1 (首次設定)**：Given 保母尚未設定收款帳號，When 呼叫 GET，Then 200 且 body 為 `{ "configured": false }`，畫面顯示「尚未設定收款帳號」；When 填入銀行代碼「812」、分行「台北分行」、帳號「12345678901」、戶名「王小明」並送出，Then 200，重新讀取回傳 `configured: true` 與相同四個值；新增 1 筆稽核紀錄（變更前為空、變更後「812 / …78901」）；保母收到「收款帳號已設定」站內通知 1 則並排入 Email 1 封；Given 該保母仍未設定帳號時對 PENDING 訂單報價，Then 422 `PAYOUT_ACCOUNT_REQUIRED`、訂單仍 `PENDING`（PRD-006 驗收，本卡僅確認碼名一致），設定完成後同一報價可成功。對應：BR-1、BR-2、BR-8、BR-9、BR-11、EX-10、EX-13
+- [ ] **AC-1.1 (首次設定)**：Given 保母尚未設定收款帳號，When 呼叫 GET，Then 200 且 body 為 `{ "configured": false }`，畫面顯示「尚未設定收款帳號」；When 填入銀行代碼「812」、分行「台北分行」、帳號「12345678901」、戶名「王小明」並送出，Then 200，重新讀取回傳 `configured: true` 與相同四個值；新增 1 筆稽核紀錄（變更前為空、變更後「812 / …78901」）；保母收到「收款帳號已設定」站內通知 1 則並排入 Email 1 封；Given 該保母仍未設定帳號時對 PENDING 訂單報價，Then 422 `PAYOUT_ACCOUNT_REQUIRED`、訂單仍 `PENDING`（PRD-006 驗收，本卡僅確認碼名一致），設定完成後同一報價以新的 `Idempotency-Key` 重新送出可成功（前端每次按送出產生新 key；同 key 重送會回放先前的 422，baseline §3.6 冪等）。對應：BR-1、BR-2、BR-8、BR-9、BR-11、EX-10、EX-13
 - [ ] **AC-1.2 (欄位驗證與正規化)**：When 銀行代碼「81」或「8123」、分行空白或 31 字、帳號 9 位或 17 位或含非數字、戶名空白或 51 字任一，Then 400 `VALIDATION_FAILED`，已存帳號不變；When 銀行代碼「812」、分行 30 字、帳號 10 位與 16 位、戶名 50 字，Then 200；When 帳號輸入「1234-5678 901」、分行「 台北分行 」，Then 200，重新讀取帳號為「12345678901」、分行為「台北分行」；When 已存帳號為「12345678901」時送出「123-4567-8901」（其餘三欄相同），Then 200 且不新增稽核、不發通知。對應：BR-1、BR-8、EX-4、EX-7
 - [ ] **AC-1.3 (權限)**：When 以 OWNER 角色 token 讀或寫收款帳號，Then 403 `ROLE_MISMATCH`；When ADMIN 呼叫，Then 403 `ROLE_MISMATCH`；When 未登入，Then 401 `UNAUTHENTICATED`；Given token 為 SITTER 但保母 profile 不存在，When 讀或寫，Then 404 `NOT_FOUND`，且資料庫未新增保母 profile。對應：BR-2、EX-1、EX-2、EX-12
 - [ ] **AC-1.4 (修改只影響新款項)**：Given 訂單 A 的 INITIAL payment `UNPAID` 快照帳號 X，When 保母把帳號改為 Y，Then A 的付款頁仍顯示 X（PRD-007 AC-1.1）；When 之後保母對訂單 B 報價，Then B 的 INITIAL payment 快照為 Y 的四個欄位（銀行代碼、分行、帳號、戶名皆來自 Y）。對應：BR-3、BR-12
@@ -145,6 +145,8 @@ SD-ORDER 建立 CHARGE payment（PRD-006 O2、PRD-023 補款）時呼叫 SD-SUPP
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋——AC-1.1 註明設定後重新報價需新 `Idempotency-Key`（同 key 回放 422） | TS-025 §5 |
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：§4.1 步驟 3「去除前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。本卡畫面與通知無金額，金額格式不需改。狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 依審查第 1 輪逐項修正（11 / 11）：#1 GET 未設定回 200 `{ "configured": false }`（§4.1、BR-2、新增 EX-13），AC-1.1 補 API 斷言；#2 「值有變動」定義為正規化後四欄任一不同，呈現依 CQ-5（BR-8、AC-1.5 補只改銀行代碼案例）；#3 通知歸不可關閉類別（BR-8、AC-1.6，baseline CQ-73）；#4 BR-4 補 NFR-03（AES-256、金鑰隔離、無預設值、未設定啟動失敗），金鑰驗證列為 SD-SUPPLY 驗證項（§9），AC-1.5 維持；#5 首次設定寫稽核並發「收款帳號已設定」（新增 BR-11，AC-1.1）；#6 刪除「SD-PLAN 尚未列入」過時註記，相依 PRD-016 改 PRD-023；#7 405 補錯誤碼 `METHOD_NOT_ALLOWED`（BR-6、EX-11、AC-1.8）；#8 無保母 profile → 404 `NOT_FOUND`、不自動建立（§3、新增 EX-12、AC-1.3）；#9 帳號先移除空白與「-」再驗證、分行 / 戶名存去前後空白值（BR-1、§4.1、AC-1.2）；#10 快照單次讀取同一筆紀錄四欄（新增 §4.3、BR-12、EX-14，AC-1.4）；#11 BR-6 補帳號註銷依 PRD-000。§3 補錯誤判斷順序（baseline §3.7 CQ-70）。寫回 CQ-5~8（使用者 2026-11-21 全部採建議預設值；CQ-8 = baseline CQ-75，新增 BR-10）。AC 數不變（1 子模組 8 條）；狀態 Needs Clarification → In Review | `docs/reviews/PRD-025-sitter-payout-account.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-70、CQ-72、CQ-73、CQ-75 |
 | 2026-11-21 | 寫回 CQ-1~4 決定（全部採建議預設值）：BR-1 寫入欄位格式；新增 BR-8（變更通知只顯示後五碼）、BR-9（未設帳號不能報價，引用 baseline O2 / §3.7 `PAYOUT_ACCOUNT_REQUIRED`，由 PRD-006 檢查）；新增 §4.2、EX-11，改寫 EX-10；§3 ADMIN 欄改引用 baseline §1.2（CQ-66）；更新 AC-1.1、1.2、1.6、1.8（AC 數不變，8 條）；影響範圍補對外 Service；狀態維持 In Review | 使用者決定 2026-11-21；baseline 第 2 版修訂 CQ-63、CQ-66 |

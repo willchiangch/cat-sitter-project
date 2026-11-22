@@ -3,12 +3,12 @@
 | 項目 | 內容 |
 |------|------|
 | 狀態 | Approved |
-| 核准 | 使用者，第 1 版 2026-11-21；第 2 版 2026-11-22 |
+| 前次核准 | 使用者，第 1 版 2026-11-21；第 2 版 2026-11-22（第 3 版修訂中：依 FULFILL PRD 重寫回饋補充，見 §7 CQ-78~83） |
 | 建立日期 | 2026-11-21 |
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
 | 適用 | 所有 PRD / SD / TS。本文件定義的概念，其他文件只能引用、不得重新定義；要改就改這份並走核准 |
 
-> §7 CQ-1~77 已全部由使用者決定，第 2 版已核准（2026-11-22）。之後修改規格內容需退回 In Review。
+> §7 CQ-1~85 已全部由使用者決定（CQ-85 來自 NFR-003 核准）。第 2 版已核准；CQ-78~83 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
 > 「現況」欄是 2026-11-21 程式碼的實際行為，只當證據，不代表正確。
 > 標「提案值」的參數（`URGENT_WINDOW_HOURS` 2h、排程頻率 15 分鐘、CLOSED_BY_SYSTEM 計價）已隨核准確認。
 
@@ -34,12 +34,13 @@
 
 | 資源 | 可讀 | 可寫 |
 |------|------|------|
-| 訂單 | 該訂單的 owner 與 sitter；ADMIN 唯讀 `DISPUTED` 訂單與有 OPEN 待辦的訂單（CQ-18） | 依 §3 轉移表的觸發者 |
+| 訂單 | 該訂單的 owner 與 sitter；ADMIN 唯讀 `DISPUTED` 訂單與曾有任何 ADMIN 待辦的訂單（`admin_tasks` 不論 OPEN / RESOLVED，不論訂單狀態）（CQ-18、CQ-84）。ADMIN 的寫入不因此擴大：作廢（O16）仍限有 OPEN 首次付款待核對待辦，調解結案（O15、O17）仍限訂單 `DISPUTED` | 依 §3 轉移表的觸發者 |
 | 毛孩 | owner；與該 owner 有過任何狀態訂單的 sitter | owner（照護備註依 PRD-021 協作規則） |
 | 保母方案、問卷、公開檔案 | 公開資訊匿名可讀 | 該 sitter |
 | 保母收款帳號 | 該 sitter；收款帳號在 payment 建立時快照，該 payment 的付款方可讀快照（CQ-23）；ADMIN 於可讀訂單範圍內唯讀快照（CQ-66） | 該 sitter |
 | 付款 / 退款憑證 | 該 payment 的雙方；ADMIN 於可讀訂單範圍內 | 上傳者 |
 | KYC 證件 | 本人與 ADMIN | 本人 |
+| 照護日誌與日誌媒體 | 該訂單 sitter；owner 與 ADMIN（可讀訂單範圍內）只能讀已送出的日誌，未送出 → 404 `NOT_FOUND`（CQ-81） | 該訂單 sitter |
 
 - 呼叫者身分一律取自 token。存在但不屬於呼叫者 → **403** `FORBIDDEN`；不存在 → **404** `NOT_FOUND`（SD-GLOBAL-SPEC §3.4）。
 
@@ -123,9 +124,9 @@ stateDiagram-v2
 | O16 | `PENDING_PAYMENT` → `CANCELLED` | ADMIN（作廢） | 首次收款 payment 為 `SUBMITTED` 且有 OPEN 的付款待核對 ADMIN 待辦。**ADMIN 不能代為確認收款**（CQ-43） | payment → VOID；待辦 RESOLVED；通知雙方：款項由雙方自行處理 | 409 `PAYMENT_STATE_CONFLICT`（鎖定後重驗失敗）；待辦已關閉 → 403 `FORBIDDEN` |
 | O9 | `CONFIRMED` → `IN_PROGRESS` | SITTER（開始行程）/ SYSTEM（殭屍清理） | 任一行程 `PENDING → IN_PROGRESS` 或 `PENDING → CLOSED_BY_SYSTEM`，同一交易（CQ-28）；因變更而 `CANCELLED` 不觸發（CQ-56） | — | — |
 | O10 | `CONFIRMED` → `CANCELLED` | SYSTEM | 變更請求結束（SETTLED；補款 EXPIRED 且不需系統退款；或補款 EXPIRED 後系統退款 SETTLED）後，訂單已無有效行程（CQ-41） | — | — |
-| O11 | `IN_PROGRESS` → `COMPLETED` | OWNER（確認結案） | 所有行程為 `DONE`（日誌已送出）或 `CLOSED_BY_SYSTEM`（CQ-27）；無未結束變更 | — | 409 `VISITS_NOT_FINISHED` / `MODIFICATION_IN_PROGRESS` |
-| O12 | `IN_PROGRESS` → `COMPLETED` | SYSTEM（自動結案） | 所有行程為 `DONE` 或 `CLOSED_BY_SYSTEM`（**不看日誌**，CQ-40）；無未結束變更；`now ≥ completion_basis_at + AUTO_COMPLETE_HOURS` | — | — |
-| O13 | `IN_PROGRESS` → `DISPUTED` | OWNER（回報問題） | 同 O12 的行程條件；無未結束變更（CQ-17）；`now < completion_basis_at + DISPUTE_WINDOW_HOURS` | 暫停自動結案；ADMIN 待辦 | 409 |
+| O11 | `IN_PROGRESS` → `COMPLETED` | OWNER（確認結案） | 所有行程為 `DONE`（日誌已送出）或 `CLOSED_BY_SYSTEM`（CQ-27）；無未結束變更 | 通知保母（CQ-82） | 409 `VISITS_NOT_FINISHED` / `MODIFICATION_IN_PROGRESS` |
+| O12 | `IN_PROGRESS` → `COMPLETED` | SYSTEM（自動結案） | 所有行程為 `DONE` 或 `CLOSED_BY_SYSTEM`（**不看日誌**，CQ-40）；無未結束變更；`now ≥ completion_basis_at + AUTO_COMPLETE_HOURS` | 通知雙方（CQ-82） | — |
+| O13 | `IN_PROGRESS` → `DISPUTED` | OWNER（回報問題） | 同 O12 的行程條件；無未結束變更（CQ-17）；`now < completion_basis_at + DISPUTE_WINDOW_HOURS` | 暫停自動結案；ADMIN 待辦（`type=SERVICE_DISPUTE`，不通知 ADMIN）；通知保母（CQ-82） | 409 `MODIFICATION_IN_PROGRESS` / `VISITS_NOT_FINISHED` / `DEADLINE_PASSED`（`deadline=DISPUTE_WINDOW_ENDS_AT`） |
 | O14 | `CONFIRMED` / `IN_PROGRESS` → `DISPUTED` | OWNER / SITTER（款項爭議） | 變更請求為 `AWAITING_REFUND`（CQ-30）；或補款 payment 為 `SUBMITTED` 且自**目前這筆 submission 上傳時間**起超過 `MODIFICATION_TIMEOUT_HOURS` 未核對（CQ-42、CQ-64） | 暫停自動結案；ADMIN 待辦 | 409 `ORDER_STATE_CONFLICT` / `MODIFICATION_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT`（未滿 72h，payload 帶可申報時間） |
 | O15 | `DISPUTED` → `COMPLETED` | ADMIN（調解結案） | 無 `IN_PROGRESS` 行程；有任何 `DONE` / `CLOSED_BY_SYSTEM` 行程（CQ-57） | 剩餘 `PENDING` 行程取消；可登記一筆 `ADMIN_ADJUSTMENT` 退款（≤ 已收淨額，附依據）；未結束變更 → `REJECTED`；未結束 payment → `VOID`（CQ-18、CQ-34、CQ-48） | — |
 | O17 | `DISPUTED` → `CANCELLED` | ADMIN（調解結案） | 無 `IN_PROGRESS` 行程；無任何 `DONE` / `CLOSED_BY_SYSTEM` 行程（CQ-57） | 同 O15；`cancelledBy=ADMIN` | — |
@@ -240,7 +241,7 @@ stateDiagram-v2
 
 | 規則 | 內容 |
 |------|------|
-| 鎖 | 改變訂單主狀態、payment、變更請求、行程狀態的操作，先 `SELECT ... FOR NO KEY UPDATE` 鎖訂單列，`SET LOCAL lock_timeout = '3s'`；逾時 → 409 `ORDER_BUSY` + `Retry-After: 1`（CQ-50）。子實體一律透過鎖父訂單序列化；其他模組（例如 SD-FULFILL 改行程）必須呼叫 SD-ORDER 提供的鎖入口 |
+| 鎖 | 改變訂單主狀態、payment、變更請求、行程狀態的操作，先 `SELECT ... FOR NO KEY UPDATE` 鎖訂單列，`SET LOCAL lock_timeout = '3s'`；逾時 → 409 `ORDER_BUSY` + `Retry-After: 1`（CQ-50）。子實體一律透過鎖父訂單序列化；其他模組（例如 SD-FULFILL 改行程、照護日誌的暫存 / 上傳 / 刪除 / 送出，CQ-81）必須呼叫 SD-ORDER 提供的鎖入口 |
 | 版本 | 實體保留 `@Version` 作為最後防線；不接受客戶端傳入 version。畫面過期時以關鍵值比對（例：客戶端帶 `expectedAmount`，與目前值不符 → 409 `PRICE_CHANGED`）（CQ-35） |
 | 稽核 | 每次轉移寫一筆 `order_logs`（action、操作者、payload），**與狀態變更同一交易**（不使用 `REQUIRES_NEW`） |
 | 通知 | **不可關閉的類別**：付款提醒（含併入報價通知的提醒）、付款逾期取消、憑證駁回、ADMIN 作廢、收款帳號變更（帳號安全）；其餘依 PRD-014 偏好（CQ-73）。outbox = `notifications` 表（歸 SD-NOTIFY）：轉移交易內呼叫 `NotificationService.enqueue()`（`MANDATORY` 交易傳播）寫入站內通知與投遞欄位；Email 由排程搶單寄送，Resend 帶 `Idempotency-Key = notification.id`，最多 5 次指數退避，4xx 直接判失敗（CQ-33、CQ-52） |
@@ -265,7 +266,8 @@ stateDiagram-v2
 | 409 | `MODIFICATION_IN_PROGRESS` | 有未結束變更請求 |
 | 409 | `MODIFICATION_STATE_CONFLICT` | 變更請求狀態不允許此操作 |
 | 409 | `MODIFICATION_NOT_ALLOWED` | 已無未開始行程，不能發起變更 |
-| 409 | `VISITS_NOT_FINISHED` | 行程未全部結束 |
+| 409 | `VISITS_NOT_FINISHED` | 行程未全部結束（含 DONE 行程日誌未送出，O11） |
+| 409 | `VISIT_STATE_CONFLICT` | 行程狀態不允許此操作（payload `currentVisitStatus`；SD-FULFILL 與照護日誌共用，CQ-80） |
 | 409 | `VISIT_ALREADY_STARTED` | 要減少的行程已不是 PENDING |
 | 409 | `PAYMENT_ALREADY_SUBMITTED` | 已上傳憑證後撤回 / 取消 |
 | 409 | `DEADLINE_PASSED` | 已過期限（payload 帶期限名稱） |
@@ -279,6 +281,7 @@ stateDiagram-v2
 | 422 | `INVALID_QUOTE_AMOUNT` | 報價總額 < 1 |
 | 422 | `INVALID_VISIT_DATE` | 行程日期不符規則 |
 | 422 | `PAYOUT_ACCOUNT_REQUIRED` | 保母未設定收款帳號就報價 |
+| 429 | `RATE_LIMITED` | 請求頻率超過上限：全域限流（NFR-003 SEC-INPUT-6）或會寄信的匿名端點寄送上限（SEC-INPUT-7）；回應帶 `Retry-After` 標頭（整數秒），body 仍為 SD-GLOBAL-SPEC §2.6 錯誤格式（CQ-85） |
 
 - 當事人做不屬於自己方向的動作（例：保母上傳 CHARGE 憑證、飼主駁回退款）→ 403 `FORBIDDEN`。
 - **判斷順序**（多個錯誤同時成立時回第一個，CQ-70、CQ-76）：
@@ -290,14 +293,17 @@ stateDiagram-v2
   6. 400 `VALIDATION_FAILED`（含缺 `Idempotency-Key`）
   7. 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`
   8. 409 `ORDER_STATE_CONFLICT`
-  9. 409 `MODIFICATION_IN_PROGRESS` → `MODIFICATION_NOT_ALLOWED` → `MODIFICATION_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT`
+  9. 409 `MODIFICATION_IN_PROGRESS` → `MODIFICATION_NOT_ALLOWED` → `MODIFICATION_STATE_CONFLICT` / `PAYMENT_STATE_CONFLICT` / `VISIT_STATE_CONFLICT` → `VISITS_NOT_FINISHED`；模組自訂的狀態類 409 碼（例：`CARE_LOG_STATE_CONFLICT`）緊接在本步之後
   10. 409 `DEADLINE_PASSED`
   11. 409 `VISIT_ALREADY_STARTED`、`PRICE_CHANGED`
   12. 422 業務規則（含模組碼）
   13. 403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED`
   - 需要讀取當下資料才能判斷的上限檢查（例：依目前題目判斷答案字數、後端重算後的 `base_amount` / `total_amount` 上限）雖回 400 `VALIDATION_FAILED`，判斷時點歸在第 12 步。
   - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
-- **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
+  - 429 `RATE_LIMITED` 的位置（CQ-85）：(a) 全域限流在 filter 層判斷，**先於第 1 步**：帶有效 token 的請求以 token 身分計數，無 token 或 token 無效以來源 IP 計數（SEC-INPUT-6）；超過上限即回 429，不再做認證、冪等與其他檢查，也不寫冪等紀錄；`/api/internal/**` 不套用。(b) 會寄信的匿名端點（註冊 OTP、重送 OTP、忘記密碼）的每 email / 每 IP 寄送上限需讀取當下計數，判斷時點歸在第 12 步；超過時不寄信。
+  - 登入鎖定 429 `ACCOUNT_LOCKED` 是 SD-IDENTITY 的模組碼（NFR-003 CQ-45），不屬本表，判斷時點歸第 12 步。
+- **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT` / `VISIT_ZOMBIE_AT` / `CARE_LOG_EDIT_ENDS_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
+- 503 `STORAGE_UNAVAILABLE`：GCS 等檔案儲存暫時無法使用（跨模組共用，只在以上檢查全部通過後的外部呼叫發生）。
 - 非業務錯誤：未預期的程式錯誤一律 500 `INTERNAL_ERROR`（不列入判斷順序，回應不含內部細節，帶 `traceId`）。
 - 需要 `Idempotency-Key` 的端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。
 
@@ -332,10 +338,12 @@ stateDiagram-v2
 | 付款提醒 | 首日 − 48h | 同首日 | 提醒 OWNER；報價時已過提醒點則隨報價通知一併提醒 | BR §3.2 | 未實作 |
 | `MODIFICATION_TIMEOUT_HOURS` | 72 | `modification_requests.expires_at` = 進入 `REQUESTED` / `QUOTED` 的時間 + 72h；補款 `payments.due_at` = 同意時間 + 72h | §3.4 逾時；補款 `SUBMITTED` 超過 72h 未核對 → 可申報 O14 | CQ-15、CQ-42 | 未實作 |
 | `VISIT_ZOMBIE_HOURS` | 72 | 行程日期 00:00（Asia/Taipei） | 訂單為 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` 且仍 `PENDING` 的行程 → `CLOSED_BY_SYSTEM`（同交易觸發 O9）；不處理 `PENDING_PAYMENT` 訂單（CQ-56） | CQ-24 | 已實作（範圍未限） |
+| `VISIT_IN_PROGRESS_TIMEOUT_HOURS` | 24 | 行程 `started_at` | 仍 `IN_PROGRESS` → 系統轉 `DONE`（`completed_at` = 處理時刻、完成來源 `SYSTEM`），通知保母；保母仍有 `CARE_LOG_EDIT_HOURS` 可送日誌（CQ-78） | CQ-78 | 未實作 |
+| 行程可開始時間 | — | 行程日期 00:00（Asia/Taipei） | 之前開始 → 422 `VISIT_DATE_NOT_REACHED`（SD-FULFILL 模組碼）；超過 `VISIT_ZOMBIE_HOURS` → 409 `DEADLINE_PASSED`（`VISIT_ZOMBIE_AT`）（CQ-79） | CQ-79 | 未實作 |
 | `orders.completion_basis_at` | — | `max(各有效行程的結束時間, 最後一筆 SETTLED 變更請求的結束時間)`（拒絕 / 撤回 / 逾時的變更不推遲，CQ-69）；`DONE` 行程的結束時間 = `completed_at + CARE_LOG_EDIT_HOURS`，`CLOSED_BY_SYSTEM` 的結束時間 = 被關閉的時間（CQ-17、CQ-40） | — | CQ-17、CQ-40 | 未實作 |
 | `AUTO_COMPLETE_HOURS` | 48 | `completion_basis_at` | O12 | CQ-24 | 已實作 |
 | `DISPUTE_WINDOW_HOURS` | 48 | `completion_basis_at` | 視窗內可 O13 | CQ-24 | 已實作 |
-| `CARE_LOG_EDIT_HOURS` | 24 | 行程 `completed_at` | 照護日誌鎖定 | PRD-022 | 已實作 |
+| `CARE_LOG_EDIT_HOURS` | 24 | 行程 `completed_at` | 伺服器收到請求時間 `≥ completed_at + 24h` 即鎖定（`deadline=CARE_LOG_EDIT_ENDS_AT`） | PRD-022 | 已實作 |
 | `IDEMPOTENCY_KEY_TTL_HOURS` | 24 | key 建立時間 | 失效；同 key 視為新請求 | §3.6 | 已實作，但清除排程在正式站未啟用 |
 | 媒體保留 | §2.1 | 訂單結案日 | 刪除實體檔，保留紀錄；付款 / 退款憑證不在此範圍（永久保存） | PRD-013 | 已實作 |
 
@@ -347,7 +355,7 @@ stateDiagram-v2
 
 | 名詞 | 定義 |
 |------|------|
-| 行程（visit） | 一次到府服務；狀態 `PENDING → IN_PROGRESS → DONE`，或 `CLOSED_BY_SYSTEM`、`CANCELLED`。`DONE` 的觸發條件由 SD-FULFILL 定義，必須同時滿足 PRD-008 與 PRD-022（目前兩者互為前提，重寫 PRD 時解決）。**SD-FULFILL 必須定義 `IN_PROGRESS` 行程的逾時出口**（例如開始後超過 N 小時未完成 → 系統完成或關閉），否則 O11 / O12 / O15 會被一個未完成的行程永久卡住 |
+| 行程（visit） | 一次到府服務；狀態 `PENDING → IN_PROGRESS → DONE`，或 `CLOSED_BY_SYSTEM`、`CANCELLED`。保母按「開始行程」→ `IN_PROGRESS`；按「結束行程」→ `DONE`（寫 `completed_at`），之後 `CARE_LOG_EDIT_HOURS` 內可送出照護日誌；`IN_PROGRESS` 超過 `VISIT_IN_PROGRESS_TIMEOUT_HOURS` 由系統轉 `DONE`（CQ-78）。打勾與日誌都不影響 `DONE` |
 | 照護日誌 | 一個行程對應一份，保母填寫並送出給飼主（PRD-022） |
 | 熟客 | 與該保母有過 `COMPLETED` 訂單的飼主（CQ-6）；與白名單無關 |
 | 首日 | 首個行程日期 00:00 Asia/Taipei |
@@ -379,7 +387,7 @@ stateDiagram-v2
 | CQ-15 | 變更無逾時 / 撤回 | 可撤回；`REQUESTED` / `QUOTED` / `AWAITING_SUPPLEMENT` 72h 逾時；`AWAITING_REFUND` 依 CQ-30 | §3.4 |
 | CQ-16 | 協商期間行程衝突 | 採 CQ-32 | §3.4 |
 | CQ-17 | 變更與爭議互斥、起算點 | 互斥（`AWAITING_REFUND` 例外）；結案基準時間 = max(最後行程結束, 最後變更結束) | O13、§5 |
-| CQ-18 | ADMIN 調解 | 不改 `total_amount`，登記調解退款；ADMIN 唯讀爭議訂單 | O15、§1.2 |
+| CQ-18 | ADMIN 調解 | 不改 `total_amount`，登記調解退款；ADMIN 唯讀爭議訂單（可讀範圍 2026-11-22 擴為「`DISPUTED` 或曾有任何 ADMIN 待辦」，見 CQ-84） | O15、§1.2 |
 | CQ-19 | 訂閱逾期範圍 | 只擋新生意，既有訂單照常 | §2.2 |
 | CQ-20 | 快照時點 | 報價時 | §2.2 |
 | CQ-21 | 月額度返還 | 不返還；上限取檢查當下等級 | §2.2 |
@@ -425,7 +433,7 @@ stateDiagram-v2
 | CQ-64 | 補款待核對 72h 起算點 | 目前這筆 submission 的上傳時間；駁回後重傳重新起算 | O14 |
 | CQ-65 | 取消時行程與 payment | 同交易轉 `CANCELLED` / `VOID` | §3.2 |
 | CQ-67 | 免填原因無從分辨（PRD-006 CQ-10） | 送單時寫入 `questionnaire_exempt_reason` | §3.5 |
-| CQ-66 | 鎖定期間變更計價；ADMIN 讀收款帳號快照；O14 / O16 / 方向不符錯誤碼 | 依 FREE 規則計價；ADMIN 可唯讀；錯誤碼見 O14、O16、§3.7 | §1.2、§3.2、§3.7 |
+| CQ-66 | 鎖定期間變更計價；ADMIN 讀收款帳號快照；O14 / O16 / 方向不符錯誤碼 | 依 FREE 規則計價；ADMIN 於可讀訂單範圍內可唯讀（範圍依 CQ-84）；錯誤碼見 O14、O16、§3.7 | §1.2、§3.2、§3.7 |
 | CQ-68 | 方案可預約區間是否看等級（PRD-016 與 PRD-005 / §2.1 相反） | 只在當下 PRO / ULTIMATE 且未鎖定時套用；預約與變更一致 | §2.1 |
 | CQ-69 | 反覆發起再撤回變更可無限延後結案 | 發起變更需至少 1 個 PENDING 行程；只有 SETTLED 變更推遲 `completion_basis_at` | §3.4、§5 |
 | CQ-70 | 多錯誤同時成立的判斷順序 | 見 §3.7 判斷順序 | §3.7 |
@@ -436,6 +444,14 @@ stateDiagram-v2
 | CQ-75 | 修改收款帳號是否重新驗證身分 | MVP 不要求，改後立即發不可關閉的通知 | §3.6（PRD-025） |
 | CQ-76 | 判斷順序修正：冪等回放須在認證後；權限類 403 應先於狀態類 409；`MODIFICATION_*` 內部順序與 `VISIT_ALREADY_STARTED` 位置（PRD-016 CQ-11） | 見 §3.7 判斷順序 | §3.7 |
 | CQ-77 | 行程全部開始後能否以變更加訂（CQ-69 的副作用） | **不能**（使用者選 A），延長服務一律另開新單 | §3.4 |
+| CQ-78 | 行程 `IN_PROGRESS` 的逾時出口 | 開始後 24h 系統轉 `DONE`，通知保母，仍可在 24h 內送日誌 | §5、§6 |
+| CQ-79 | 能否在行程日期前開始 | 不能（422 `VISIT_DATE_NOT_REACHED`）；日期已過未滿 72h 可補開始 | §5 |
+| CQ-80 | 行程狀態衝突碼與新期限名稱 | `VISIT_STATE_CONFLICT` 提升為跨模組碼；新增 `VISIT_ZOMBIE_AT`、`CARE_LOG_EDIT_ENDS_AT` | §3.7 |
+| CQ-81 | 照護日誌的歸屬與鎖 | owner / ADMIN 只能讀已送出的；日誌寫入經訂單鎖 | §1.2、§3.6 |
+| CQ-83 | 模組狀態類 409 的判斷位置；`STORAGE_UNAVAILABLE` 歸屬（PRD-022 寫回回饋，技術細節） | 緊接第 9 步之後；`STORAGE_UNAVAILABLE` 提升為跨模組碼 | §3.7 |
+| CQ-82 | O11–O13 的通知與 O13 錯誤碼 | O11 通知保母、O12 通知雙方、O13 通知保母（可關閉類別）；O13 錯誤碼與 `SERVICE_DISPUTE` 待辦；`VISITS_NOT_FINISHED` 列入判斷順序第 9 步 | §3.2、§3.7 |
+| CQ-84 | ADMIN 唯讀範圍是否涵蓋待辦已關閉的訂單（journey TS 回饋） | 訂單 `DISPUTED`，或曾有任何 ADMIN 待辦（不論待辦與訂單狀態）即可唯讀；寫入不擴大：O16 仍限有 OPEN 首次付款待核對待辦，O15 / O17 仍限 `DISPUTED`（使用者決定 2026-11-22） | §1.2 |
+| CQ-85 | 限流的跨模組錯誤碼與判斷位置（NFR-003 CQ-28、CQ-41，§15 U-5） | 新增 429 `RATE_LIMITED` + `Retry-After`（整數秒）；全域限流在 filter 層、先於判斷順序第 1 步；寄信類匿名端點上限歸第 12 步；登入鎖定 429 `ACCOUNT_LOCKED` 為 SD-IDENTITY 模組碼（NFR-003 CQ-45）。NFR-003 核准（CQ 全數採建議值）使用者 2026-11-22；寄信上限與 `ACCOUNT_LOCKED` 歸第 12 步為回寫時依 SEC-INPUT-7、SEC-AUTH-5 推定的技術細節（需讀取當下計數才能判斷，比照第 12 步的上限檢查） | §3.7 |
 
 ---
 
@@ -443,6 +459,10 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 核准後回寫（NFR-003 §15 U-5）：§3.7 新增跨模組碼 429 `RATE_LIMITED`（含 `Retry-After`）；判斷順序補 429 的位置（全域限流先於第 1 步、寄信上限歸第 12 步）與 `ACCOUNT_LOCKED` 屬模組碼；新增 CQ-85。使用者同意之核准後修訂，狀態維持 Approved | NFR-003 核准回寫，使用者 2026-11-22 同意 |
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。§1.2 訂單列 ADMIN 唯讀範圍擴為「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」，寫入不擴大（O16 限 OPEN 首次付款待核對待辦、O15 / O17 限 `DISPUTED`）；CQ-18、CQ-66 加註；新增 CQ-84。使用者同意之核准後修訂 2026-11-22，狀態維持 Approved | 使用者決定 2026-11-22 |
+| 2026-11-22 | 使用者核准：狀態 In Review → Approved（第 3 版） | 使用者 2026-11-22 |
+| 2026-11-22 | 第 3 版修訂：CQ-78~82（行程逾時出口、開始時間限制、`VISIT_STATE_CONFLICT` 與新期限名稱、照護日誌歸屬與鎖、O11–O13 通知與錯誤碼、§6 行程定義定案）；狀態退回 In Review | FULFILL PRD 重寫回饋 + 使用者決定（全部採建議） |
 | 2026-11-22 | §3.7 新增期限名稱 `DISPUTE_WINDOW_ENDS_AT`（O13）；`@Version` 衝突回 `ORDER_BUSY`（核准後修訂，SD-ORDER CQ-2、CQ-5） | 使用者核准 2026-11-22 |
 | 2026-11-22 | CQ-77（行程全部開始後不能加訂，另開新單）；第 2 版核准，狀態 Approved | 使用者決定與核准 |
 | 2026-11-22 | CQ-76：§3.7 判斷順序改為逐步清單（冪等回放移到 401 後、權限類 403 先於狀態類、補 `MODIFICATION_*` 內部順序與 `VISIT_ALREADY_STARTED`） | PRD-007 / PRD-016 修正回饋（技術細節，主流程決定） |

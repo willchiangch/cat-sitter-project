@@ -18,5 +18,15 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // SD-FRONTEND-SPEC §2.6（SEC-WEB-6）：禁止以 dangerouslySetInnerHTML 呈現內容（等同 react/no-danger，未安裝 eslint-plugin-react）
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message: '禁止使用 dangerouslySetInnerHTML（SD-FRONTEND-SPEC §2.6）',
+        },
+      ],
+    },
   },
 ])

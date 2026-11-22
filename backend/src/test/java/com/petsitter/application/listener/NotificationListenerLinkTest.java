@@ -1,19 +1,10 @@
 package com.petsitter.application.listener;
 
-import com.petsitter.application.event.VisitNotificationEvent;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.event.KycReviewedEvent;
 import com.petsitter.domain.event.MediaExpiryWarningEvent;
-import com.petsitter.domain.event.OrderCancelledByOwnerEvent;
-import com.petsitter.domain.event.OrderRejectedBySitterEvent;
-import com.petsitter.domain.event.PaymentProofSubmittedEvent;
-import com.petsitter.domain.event.PaymentRejectedEvent;
-import com.petsitter.domain.event.PaymentVerifiedEvent;
 import com.petsitter.domain.event.SitterSuspendedEvent;
 import com.petsitter.domain.event.SitterUnsuspendedEvent;
-import com.petsitter.domain.model.Order;
-import com.petsitter.domain.model.User;
-import com.petsitter.domain.repository.OrderRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,7 +21,6 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,7 +29,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * 迴歸 (Backlog 第 3 批 D1)：通知的 linkUrl 必須是前端真的存在的路由。
@@ -55,8 +44,6 @@ class NotificationListenerLinkTest {
 
     @Mock
     private NotificationService notificationService;
-    @Mock
-    private OrderRepository orderRepository;
     @InjectMocks
     private NotificationListener listener;
 
@@ -80,15 +67,6 @@ class NotificationListenerLinkTest {
         orderId = UUID.randomUUID();
     }
 
-    private void stubOrder() {
-        Order order = Order.builder()
-                .id(orderId)
-                .owner(User.builder().id(UUID.randomUUID()).build())
-                .sitter(User.builder().id(UUID.randomUUID()).build())
-                .build();
-        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
-    }
-
     private String capturedLink() {
         ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
         verify(notificationService).createNotification(any(), anyString(), anyString(), anyString(),
@@ -104,76 +82,6 @@ class NotificationListenerLinkTest {
     }
 
     @Test
-    @DisplayName("付款確認（首次/補款）→ 飼主訂單詳情 /owner/orders/{orderId}")
-    void paymentVerifiedLinksToOwnerOrderDetail() {
-        stubOrder();
-        listener.onPaymentVerified(new PaymentVerifiedEvent(orderId, UUID.randomUUID(), false));
-        String link = capturedLink();
-        assertThat(link).isEqualTo("/owner/orders/" + orderId);
-        assertIsFrontendRoute(link);
-    }
-
-    @Test
-    @DisplayName("飼主撤單（fix-batch10 H5）→ 通知保母，ORDER_AFFAIR，連到保母訂單管理 /sitter/orders")
-    void orderCancelledByOwnerNotifiesSitter() {
-        stubOrder();
-        UUID sitterId = orderRepository.findById(orderId).orElseThrow().getSitter().getId();
-        listener.onOrderCancelledByOwner(new OrderCancelledByOwnerEvent(orderId, UUID.randomUUID(), "PENDING"));
-
-        ArgumentCaptor<String> category = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> role = ArgumentCaptor.forClass(String.class);
-        verify(notificationService).createNotification(org.mockito.ArgumentMatchers.eq(sitterId),
-                org.mockito.ArgumentMatchers.eq("飼主已取消預約"), anyString(), category.capture(), link.capture(),
-                role.capture());
-        assertThat(category.getValue()).isEqualTo("ORDER_AFFAIR");
-        assertThat(role.getValue()).isEqualTo("SITTER");
-        assertThat(link.getValue()).isEqualTo("/sitter/orders");
-        assertIsFrontendRoute(link.getValue());
-    }
-
-    @Test
-    @DisplayName("保母婉拒（fix-batch13 K1）→ 通知飼主，ORDER_AFFAIR，內容含原因，連到飼主訂單詳情")
-    void orderRejectedBySitterNotifiesOwnerWithReason() {
-        stubOrder();
-        UUID ownerId = orderRepository.findById(orderId).orElseThrow().getOwner().getId();
-        listener.onOrderRejectedBySitter(new OrderRejectedBySitterEvent(orderId, UUID.randomUUID(), "當週檔期已滿"));
-
-        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> category = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> role = ArgumentCaptor.forClass(String.class);
-        verify(notificationService).createNotification(org.mockito.ArgumentMatchers.eq(ownerId),
-                org.mockito.ArgumentMatchers.eq("預約已婉拒"), content.capture(), category.capture(), link.capture(),
-                role.capture());
-        assertThat(content.getValue()).isEqualTo(
-                "保母已婉拒您的預約（訂單 #" + orderId.toString().substring(0, 8) + "），原因：當週檔期已滿");
-        assertThat(category.getValue()).isEqualTo("ORDER_AFFAIR");
-        assertThat(role.getValue()).isEqualTo("OWNER");
-        assertThat(link.getValue()).isEqualTo("/owner/orders/" + orderId);
-        assertIsFrontendRoute(link.getValue());
-    }
-
-    @Test
-    @DisplayName("付款憑證被退回 → 飼主訂單詳情（在詳情頁重傳憑證）")
-    void paymentRejectedLinksToOwnerOrderDetail() {
-        stubOrder();
-        listener.onPaymentRejected(new PaymentRejectedEvent(orderId, UUID.randomUUID(), "金額不符"));
-        String link = capturedLink();
-        assertThat(link).isEqualTo("/owner/orders/" + orderId);
-        assertIsFrontendRoute(link);
-    }
-
-    @Test
-    @DisplayName("照護日誌回報（Check-in/Check-out）→ 飼主訂單詳情")
-    void visitNotificationLinksToOwnerOrderDetail() {
-        listener.handleVisitNotification(new VisitNotificationEvent(UUID.randomUUID(), orderId, "msg"));
-        String link = capturedLink();
-        assertThat(link).isEqualTo("/owner/orders/" + orderId);
-        assertIsFrontendRoute(link);
-    }
-
-    @Test
     @DisplayName("照護影像即將過期 → 飼主訂單詳情（過去是不存在的 /visits/report?orderId=）")
     void mediaExpiryLinksToOwnerOrderDetail() {
         listener.onMediaExpiryWarning(new MediaExpiryWarningEvent(orderId, UUID.randomUUID(), OffsetDateTime.now()));
@@ -183,12 +91,8 @@ class NotificationListenerLinkTest {
     }
 
     @Test
-    @DisplayName("保母端：收到付款憑證 → /sitter/orders；KYC 結果/停權/復權 → /sitter/kyc，皆為真實路由")
+    @DisplayName("保母端：KYC 結果/停權/復權 → /sitter/kyc，皆為真實路由")
     void sitterLinksAreFrontendRoutes() {
-        stubOrder();
-        listener.onPaymentProofSubmitted(new PaymentProofSubmittedEvent(orderId, UUID.randomUUID(), "k"));
-        assertThat(capturedLink()).isEqualTo("/sitter/orders");
-
         for (Runnable r : List.<Runnable>of(
                 () -> listener.onKycReviewed(new KycReviewedEvent(UUID.randomUUID(), UUID.randomUUID(), "APPROVED", null)),
                 () -> listener.onSitterSuspended(new SitterSuspendedEvent(UUID.randomUUID(), "r")),

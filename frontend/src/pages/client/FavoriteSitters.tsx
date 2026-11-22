@@ -8,6 +8,7 @@ import {
   removeFavoriteSitter
 } from '../../api/favoriteApi';
 import type { FavoriteSitter, SitterSearchResult } from '../../api/favoriteApi';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const FavoriteSitters: React.FC = () => {
   const navigate = useNavigate();
@@ -37,6 +38,7 @@ const FavoriteSitters: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     fetchFavorites();
   }, []);
 
@@ -55,7 +57,8 @@ const FavoriteSitters: React.FC = () => {
     try {
       const result = await searchSitterForFavorite(searchQuery.trim());
       setSearchResult(result);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setSearchError(err.response?.data?.message || '查無此保母，請確認 ID 是否正確');
     } finally {
       setSearching(false);
@@ -69,7 +72,8 @@ const FavoriteSitters: React.FC = () => {
       await addFavoriteSitter(searchResult.sitterId);
       setIsSearchOpen(false);
       await fetchFavorites();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setSearchError(err.response?.data?.message || '加入收藏失敗');
     } finally {
       setAdding(false);

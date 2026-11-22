@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { useRole, type Role } from '../../contexts/RoleContext';
+import { useRole, type Role } from '../../contexts/useRole';
 
 interface RequireRoleProps {
   roles: Role[];
