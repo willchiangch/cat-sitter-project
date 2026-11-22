@@ -20,6 +20,18 @@ class OrderHistoryIntegrationTest extends OrderIntegrationTestBase {
     }
 
     @Test
+    @DisplayName("SD-ORDER E3 / E4 serverMonth：注入 Clock 換算 Asia/Taipei 當下月份（UTC 仍在上月最後一天 16:00 起即為台北新月份），三個分頁籤皆回傳")
+    void serverMonthFromInjectedClock() throws Exception {
+        clock.freezeAt(java.time.Instant.parse("2027-01-31T15:59:59Z"));
+        assertThat(list("/api/orders/owner", ownerToken(), "tab=HISTORY").get("serverMonth").asString()).isEqualTo("2027-01");
+        clock.freezeAt(java.time.Instant.parse("2027-01-31T16:00:00Z"));
+        for (String tab : java.util.List.of("EVALUATING", "ACTIVE", "HISTORY")) {
+            assertThat(list("/api/orders/owner", ownerToken(), "tab=" + tab).get("serverMonth").asString()).as(tab).isEqualTo("2027-02");
+            assertThat(list("/api/orders/sitter", sitterToken(), "tab=" + tab).get("serverMonth").asString()).as(tab).isEqualTo("2027-02");
+        }
+    }
+
+    @Test
     @DisplayName("PRD-009 AC-3.6 分頁籤歸屬：EVALUATING / ACTIVE / HISTORY 只含本人訂單，created_at 倒序，每批 20 筆可載入更多")
     void tabsAndPaging() throws Exception {
         UUID confirmed = confirmedOrder(today().plusDays(4));

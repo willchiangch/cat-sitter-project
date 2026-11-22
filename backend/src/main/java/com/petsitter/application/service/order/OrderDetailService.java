@@ -4,7 +4,7 @@ import com.petsitter.application.common.validation.PageParams;
 import com.petsitter.application.dto.order.EvaluationResponse;
 import com.petsitter.application.dto.order.OrderCard;
 import com.petsitter.application.dto.order.OrderDetailResponse;
-import com.petsitter.application.dto.order.PageResponse;
+import com.petsitter.application.dto.order.OrderListResponse;
 import com.petsitter.application.dto.order.PaymentView;
 import com.petsitter.application.exception.OrderException;
 import com.petsitter.application.port.PayoutAccountQuery;
@@ -344,7 +344,7 @@ public class OrderDetailService {
 
     // ------------------------------------------------------------------ E3 / E4
 
-    public PageResponse<OrderCard> list(boolean asOwner, String tab, String status, String month, Integer page, Integer size) {
+    public OrderListResponse list(boolean asOwner, String tab, String status, String month, Integer page, Integer size) {
         CurrentActor actor = CurrentActor.fromToken();
         Set<OrderStatus> statuses = switch (tab == null ? "" : tab) {
             case "EVALUATING" -> EVALUATING;
@@ -386,7 +386,8 @@ public class OrderDetailService {
                 orders = asOwner ? orderRepository.findByOwnerIdAndStatusIn(actor.userId(), fs, pr)
                         : orderRepository.findBySitterIdAndStatusIn(actor.userId(), fs, pr);
             }
-            return new PageResponse<>(cards(orders.getContent(), asOwner, history), p, sz, orders.getTotalElements());
+            return new OrderListResponse(cards(orders.getContent(), asOwner, history), p, sz, orders.getTotalElements(),
+                    clock.monthTaipei().toString());
         });
     }
 

@@ -4,11 +4,10 @@ import com.petsitter.application.common.idempotency.Idempotent;
 import com.petsitter.application.dto.order.CreateOrderRequest;
 import com.petsitter.application.dto.order.CreateOrderResponse;
 import com.petsitter.application.dto.order.EvaluationResponse;
-import com.petsitter.application.dto.order.OrderCard;
+import com.petsitter.application.dto.order.OrderListResponse;
 import com.petsitter.application.dto.order.OrderCommandRequests;
 import com.petsitter.application.dto.order.OrderCommandResponses;
 import com.petsitter.application.dto.order.OrderDetailResponse;
-import com.petsitter.application.dto.order.PageResponse;
 import com.petsitter.application.service.order.BookingOrchestrator;
 import com.petsitter.application.service.order.OrderCancelService;
 import com.petsitter.application.service.order.OrderDetailService;
@@ -98,7 +97,7 @@ public class OrderController {
     /** E3 飼主訂單列表。 */
     @GetMapping("/owner")
     @PreAuthorize("hasRole('OWNER')")
-    public PageResponse<OrderCard> ownerOrders(@RequestParam(required = false) String tab,
+    public OrderListResponse ownerOrders(@RequestParam(required = false) String tab,
                                                @RequestParam(required = false) String status,
                                                @RequestParam(required = false) String month,
                                                @RequestParam(required = false) Integer page,
@@ -109,7 +108,7 @@ public class OrderController {
     /** E4 保母訂單列表。 */
     @GetMapping("/sitter")
     @PreAuthorize("hasRole('SITTER')")
-    public PageResponse<OrderCard> sitterOrders(@RequestParam(required = false) String tab,
+    public OrderListResponse sitterOrders(@RequestParam(required = false) String tab,
                                                 @RequestParam(required = false) String status,
                                                 @RequestParam(required = false) String month,
                                                 @RequestParam(required = false) Integer page,

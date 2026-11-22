@@ -1499,7 +1499,7 @@ Response 200：`{ "orderId", "status", "role": "OWNER|SITTER", "counterpart": { 
 
 Query：`tab` = `EVALUATING`（`PENDING`、`PENDING_PAYMENT`）/ `ACTIVE`（`CONFIRMED`、`IN_PROGRESS`、`DISPUTED`）/ `HISTORY`（`COMPLETED`、`CANCELLED`），對應 baseline §3.1；`page`、`size`（預設 20，前端「載入更多」）。`tab=HISTORY` 另可帶：`status`（`COMPLETED` / `CANCELLED`，選填）、`month`（`YYYY-MM`，依終態時間 `completed_at` / `cancelled_at` 的 Asia/Taipei 自然月，選填；預設不篩月份）（PRD-009 BR-23）。
 
-Response 200（分頁）：`content[]` = `{ "orderId", "status", "counterpartName", "firstServiceDate", "lastServiceDate", "baseAmount", "totalAmount", "hasOpenModification", "initialPaymentStatus", "createdAt", "terminalAt", "netPaid" }`。`terminalAt` = `completed_at` 或 `cancelled_at`、`netPaid` = 已收淨額，只在 `tab=HISTORY` 回傳。排序：`EVALUATING` / `ACTIVE` 依 `created_at` 倒序；`HISTORY` 依 `terminalAt` 新到舊（索引 `ix_orders_owner_terminal` / `ix_orders_sitter_terminal`）。`content` 為空時前端顯示 PRD-009 定義的空狀態。錯誤：G1、G3、400（`tab` / `status` / `month` / 分頁參數）。
+Response 200（分頁）：`{ "content", "page", "size", "totalElements", "serverMonth" }`；`content[]` = `{ "orderId", "status", "counterpartName", "firstServiceDate", "lastServiceDate", "baseAmount", "totalAmount", "hasOpenModification", "initialPaymentStatus", "createdAt", "terminalAt", "netPaid" }`。`serverMonth`（`YYYY-MM`）= 注入 `Clock` 換算 Asia/Taipei 的當下月份，語意同 E30，所有 `tab` 都回傳。`terminalAt` = `completed_at` 或 `cancelled_at`、`netPaid` = 已收淨額，只在 `tab=HISTORY` 回傳。排序：`EVALUATING` / `ACTIVE` 依 `created_at` 倒序；`HISTORY` 依 `terminalAt` 新到舊（索引 `ix_orders_owner_terminal` / `ix_orders_sitter_terminal`）。`content` 為空時前端顯示 PRD-009 定義的空狀態。錯誤：G1、G3、400（`tab` / `status` / `month` / 分頁參數）。
 
 #### E5 `GET /api/orders/{orderId}/evaluation`
 
@@ -2124,7 +2124,7 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 - 時間顯示一律 Asia/Taipei `YYYY-MM-DD HH:mm`；金額顯示依 SD-FRONTEND-SPEC §6.4.1。
 - 付款頁只顯示 `amount`，不顯示訂單總額（PRD-007 BR-1）。
 - 金額一律依 SD-FRONTEND-SPEC §6.4.1 格式（`$ 1,800`），PRD 字面的「NT$」與「3,000」都以此格式顯示（使用者決定 2026-11-22）。
-- 「今天」、日期選擇器範圍、期限與預檢一律以後端回傳的 `serverTime`（E2 / E5 / E31）或 `serverMonth`（E30）為準。
+- 「今天」、日期選擇器範圍、期限與預檢一律以後端回傳的 `serverTime`（E2 / E5 / E31）或 `serverMonth`（E3 / E4 / E30）為準。歷史分頁的月份篩選選單列出 E3 / E4 回應 `serverMonth` 起往前 12 個月（含當月），不以瀏覽器時間計算。
 - 文字欄位去頭尾空白一律依 SD-GLOBAL-SPEC §2.7（等同 Java `String.strip()`，含 U+3000、U+00A0），前端計數與後端一致。
 - 回應中值為 null 的欄位不輸出（§6.1），前端型別以可選欄位表示。
 - **變更金額一律取伺服器試算**（使用者 2026-11-22 決定）：變更精靈（E17 前）呼叫 E32、協商頁保母報價表單（E20 前）呼叫 E33，畫面上的系統計價、新總額、差額與「新總額不可小於 0 / 超過上限」提示全部取自試算回應或其錯誤碼；前端**不得**以 E2 `visits[]` 加總快照單價（移除現行 `estimateSystemAmount`）。觸發時機：減少目標、新增項目、加減金額任一變動後防抖 400 ms 呼叫一次，只採用最後一次請求的回應（較早的回應晚到則丟棄）；OWNER 的 `reason` 變動不觸發；SITTER 的 `reason` / `adjustmentReason` 變動也要觸發（保母試算會驗證文字欄位，未填時金額區顯示該欄錯誤）。CQ-50：OWNER 精靈金額標「預估新總額 $ X（以保母報價為準）」，差額同樣標「預估」；SITTER 不加「預估」。試算回應前與試算失敗時送出鈕停用；送出成功後以 E17 / E20 回應的金額為準。OWNER 精靈的新總額旁標示為系統計價（文案見 §12 待釐清）。
@@ -2225,7 +2225,7 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 | `OrderLockServiceTest` | 共用（§3.6.1） | `lock_timeout` 3s → `OrderBusyException`；`SKIP LOCKED` 回空；`MANDATORY` 無交易時拋例外 |
 | `OrderLogWriterTest` | 共用（§3.6.3） | 主交易回滾後 log 不存在；`transitions[]` 內容 |
 | `OrphanProofSweepIntegrationTest` | 共用（C10） | 只刪無引用、> 24h、非 `PROCESSING` 的物件 |
-| `OrderHistoryIntegrationTest` | PRD-009 AC-3.6、AC-3.7 | E3 `tab=HISTORY`：`status` / `month`（終態時間 Asia/Taipei 月）篩選、`terminalAt` 新到舊排序、每批 20 筆分頁、`netPaid` / `lastServiceDate`、空結果；評估中 / 進行中分頁歸屬 |
+| `OrderHistoryIntegrationTest` | PRD-009 AC-3.6、AC-3.7 | E3 `tab=HISTORY`：`status` / `month`（終態時間 Asia/Taipei 月）篩選、`terminalAt` 新到舊排序、每批 20 筆分頁、`netPaid` / `lastServiceDate`、空結果；評估中 / 進行中分頁歸屬；E3 / E4 `serverMonth`（注入 `Clock`，台北跨月邊界） |
 | `SitterLedgerIntegrationTest` | PRD-009 AC-3.1–3.5、AC-3.8 | E30：收入 = 已收淨額（計算例含 PRD-009 J / K / L）、月份邊界、非終態不計、淨額 0 的 `CANCELLED` 不列但 `COMPLETED` 列、排序、`serverMonth`（注入 `Clock`）、空狀態 `totalIncome = 0` / `orders = []`、`month` 缺漏或格式錯 400、權限 |
 | `OrderDetailCompletionHintIntegrationTest` | PRD-009 AC-1.2、AC-1.3、AC-1.8、AC-2.2 | E2 `completionHint` i–v 各一例（含 iii 的 `autoCompleteAt`）、`serverTime` 與 `allowedActions` / `disputeWindowEndsAt` 為同一時間點同次計算（邊界：`serverTime = completed_at + 24h` 剛好轉 iii、`allowedActions` 同時無 `COMPLETE`）、`visits[].careLogSubmitted` |
 | `InternalTestDataIntegrationTest` | 共用（§10.4） | `inspect` 只對測試帳號訂單回應、其他 404；回應含 `order_logs` / 通知 / 待辦 / payment 時間欄 / `completion_basis_at` / `totalAmount`；C1–C10 帶 `orderId` 只處理該訂單、計數只算該訂單、非測試訂單 404；自動觸發跳過測試帳號訂單；`sitter-setup` 重複呼叫覆寫；cleanup 後各表無殘留 |
@@ -2408,3 +2408,4 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 | 2026-11-22 | 使用者同意之核准後修訂：journey TS 回饋（狀態維持 Approved）。E2 報價明細三段（`quote.original`、`quote.adjustments[]`、`quote.totalAmount`）與 testid；ADMIN 唯讀範圍放寬為「`DISPUTED` 或曾有任何待辦」（`AdminOrderAccessPolicy`、`adminReadable`、E27、`ix_admin_tasks_order` 改全索引），寫入仍限 OPEN 待辦 / `DISPUTED`；§9.3 補進行中變更入口、`order-modify-btn-add-item`、變更歷史可點；E2 列出 `cancellation.reasonCode` 列舉、`groups[].bookableFrom` / `bookableTo`、SITTER 限定 `sitterTier` / `modificationPricingMode`；§9.1 O2 後就地重新渲染；inspect `payments[]` 補 `direction` / `purpose` / `amount`、`fulfill.visits` 含 `serviceDate` / `planId`、`emailStatus` 加 `SUPPRESSED_TEST`（C11 對測試收件者不呼叫 Resend）；§10 註明 `DISPUTED` 時以 inspect 計算爭議視窗 | TS-JOURNEY-02 / 03 / 04 §5；使用者 2026-11-22 決定 A、B |
 | 2026-11-22 | TS 同步回饋小修（狀態維持 Approved）：報價明細 `amountChange = 0` 的事件不列；`groups[].bookableFrom/To` 雙方都回（等級欄位仍只回 SITTER） | TS-016 MQ-14、TS-023 SS-06 |
 | 2026-11-22 | 實作審查回饋（狀態維持 Approved）：E15 註明 `ADMIN_ADJUSTMENT` 跳過 G5 方向檢查、回 409 `PAYMENT_STATE_CONFLICT`，PRD-007 AC-2.4「403 先於 409」範圍限 `MODIFICATION_REFUND` | `docs/reviews/IMPL-ORDER-FULFILL.review.md` #2 |
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：E3 / E4 回應新增 `serverMonth`（注入 `Clock`、Asia/Taipei、`YYYY-MM`，語意同 E30）；§9.2 歷史分頁月份篩選改為自 `serverMonth` 往前 12 個月 | `docs/reviews/IMPL-ORDER-FULFILL.review.md` #10；使用者 2026-11-22 決定 |
