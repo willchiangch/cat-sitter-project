@@ -77,6 +77,10 @@ public class ReferralService {
             if (!participants.sitterId().equals(referringSitterId)) {
                 throw new TrustCircleException(HttpStatus.FORBIDDEN, "FORBIDDEN", "無權操作此訂單");
             }
+            // PRD-027 BR-3 / SD-ORDER M21：訂單關聯轉介只限保母婉拒的訂單（CANCELLED、cancelledBy=SITTER、有 ORDER_REJECTED log）
+            if (!orderQueryService.isDeclinedBySitter(request.getOrderId(), referringSitterId)) {
+                throw new TrustCircleException(HttpStatus.CONFLICT, "STATE_CONFLICT", "只有已婉拒的訂單可以轉介");
+            }
             orderId = request.getOrderId();
             ownerId = participants.ownerId();
         } else {
