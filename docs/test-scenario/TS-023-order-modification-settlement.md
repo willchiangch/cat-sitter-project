@@ -131,13 +131,13 @@
 | AC / EX | 原因 | 由誰覆蓋 |
 |---------|------|---------|
 | AC-1.2（`due_at=2026-11-24T02:00:00Z` 精確值）、AC-1.6（結束時間 `2026-11-22T01:00:00Z`） | 需固定時鐘；E2E 以夾值斷言 | `ModificationSettlementIntegrationTest`、`ModificationLifecycleIntegrationTest`（注入 `Clock`） |
-| AC-1.5（指定先後的兩種結果都要驗） | `Promise.all` 只能驗「恰一方成功且結果一致」，無法保證兩種先後都出現 | `ModificationConcurrencyIntegrationTest`（`CountDownLatch` 控制先後） |
+| AC-1.5（指定先後的兩種結果都要驗） | `Promise.all` 只能驗「恰一方成功且結果一致」，無法保證兩種先後都出現 | `ModificationIntegrationTest`（`CountDownLatch` 控制先後） |
 | AC-2.1（保母當月接單計數不變） | 計數無讀取端點（`inspect` 未含） | `ModificationSettlementIntegrationTest` |
 | AC-2.3（報價後跨日、新增日期已過仍可同意且仍建立行程） | 測試端點無法平移變更內容中的新增日期；正式站無法等待跨日 | `ModificationSettlementIntegrationTest`（注入 `Clock` 跨日） |
 | AC-2.4（正式排程於 `due_at` 後 ≤ 15 分鐘內執行） | 頻率屬 Cloud Scheduler 設定，且自動排程跳過測試帳號訂單 | 手動驗證 Cloud Scheduler job `modifications/supplement-expiry` 每 15 分鐘；`SupplementExpiryIntegrationTest` |
 | AC-3.2（退款 `UNPAID` / `SUBMITTED` 超過 30 天仍不逾時） | 退款無 `due_at`，無可平移的時間欄位 | `ModificationSettlementIntegrationTest`（注入 `Clock` +30 天後跑全部排程） |
 | EX-9（C6 補款逾時 vs SITTER 確認補款同時） | 無法在正式站控制排程與請求交錯 | `SupplementExpiryIntegrationTest`（SD-ORDER §10.3 已列兩種先後） |
-| EX-10（鎖等待逾時 `ORDER_BUSY`） | 正式站無法持鎖 3 秒 | `ModificationConcurrencyIntegrationTest`、`OrderLockServiceTest` |
+| EX-10（鎖等待逾時 `ORDER_BUSY`） | 正式站無法持鎖 3 秒 | `ModificationIntegrationTest`、`OrderLockServiceTest` |
 | EX-16（GCS 上傳失敗） | 正式站無法注入 GCS 故障 | `PaymentSubmissionConcurrencyIntegrationTest`、TS-007 |
 | EX-17（Resend 寄信失敗） | Resend 測試模式只寄專案擁有者信箱，無法注入失敗 | `ModificationSettlementIntegrationTest`（Resend mock）；真實寄信手動驗證 |
 | EX-18（補款逾時單筆失敗整筆回滾） | 正式站無法注入單筆例外 | `SupplementExpiryIntegrationTest`（單筆失敗整筆回滾） |

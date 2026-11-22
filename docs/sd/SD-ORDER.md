@@ -130,7 +130,7 @@
 | PRD-016 | AC-3.3 逾時排程 | C5 `POST /api/internal/cron/modifications/expiry` | `ix_modreq_expiry` | 排程鎖 | `ModificationCronIntegrationTest` |
 | PRD-016 | AC-3.4 期限以時間判斷 | E20 / E21 / E22 409 `DEADLINE_PASSED`（`MODIFICATION_EXPIRES_AT`） | `expires_at` | 訂單鎖 | `ModificationLifecycleIntegrationTest` |
 | PRD-016 | AC-3.5 協商頁可執行動作與歷史 | E18 `GET /api/orders/{orderId}/modifications`（`created_at` 倒序，含 `allowedActions`）；畫面 | — | 唯讀 | `ModificationQueryIntegrationTest`；TS-016 |
-| PRD-016 | AC-3.6 跨角色併發 | E22 vs E20 | — | 訂單鎖序列化 | `ModificationConcurrencyIntegrationTest` |
+| PRD-016 | AC-3.6 跨角色併發 | E22 vs E20 | — | 訂單鎖序列化 | `ModificationIntegrationTest` |
 | PRD-016 | AC-3.7 發起與報價冪等 | E17 / E20 回放 | `idempotency_records` | 三段式 | `ModificationIdempotencyIntegrationTest` |
 | PRD-016 | AC-3.8 寄信失敗不影響轉移 | E17；outbox | `notifications` | enqueue 同交易 | `ModificationInitiateIntegrationTest` |
 
@@ -142,7 +142,7 @@
 | PRD-023 | AC-1.2 差額 > 0 建立補款；同意不重驗方案 | E23 | `payments`（`SUPPLEMENT`、`due_at`、快照） | 訂單鎖 | `ModificationSettlementIntegrationTest` |
 | PRD-023 | AC-1.3 差額 < 0 建立退款 | E23 | `payments`（`MODIFICATION_REFUND`）、`agreed_net_paid`、`agreed_diff` | 訂單鎖 | `ModificationSettlementIntegrationTest` |
 | PRD-023 | AC-1.4 減少目標已開始 | E23 409 `VISIT_ALREADY_STARTED` | — | 訂單鎖 | `ModificationSettlementIntegrationTest` |
-| PRD-023 | AC-1.5 同意的跨角色併發、O9 不觸發 | E23 vs SD-FULFILL 開始行程 / E22 | — | 訂單鎖序列化 | `ModificationConcurrencyIntegrationTest` |
+| PRD-023 | AC-1.5 同意的跨角色併發、O9 不觸發 | E23 vs SD-FULFILL 開始行程 / E22 | — | 訂單鎖序列化 | `ModificationIntegrationTest` |
 | PRD-023 | AC-1.6 飼主拒絕 | E21（OWNER，`QUOTED`） | `ended_at` | 訂單鎖 | `ModificationLifecycleIntegrationTest` |
 | PRD-023 | AC-1.7 越權、狀態與期限 | E23 403 / 409 | — | 訂單鎖 | `ModificationSettlementIntegrationTest` |
 | PRD-023 | AC-1.8 同意冪等 | E23 回放；換 key 409 | `ux_payments_per_modreq` | 三段式 | `ModificationIdempotencyIntegrationTest` |
@@ -2140,7 +2140,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `ModificationLifecycleIntegrationTest` | PRD-016 AC-2.6、AC-3.1、AC-3.2、AC-3.4；PRD-023 AC-1.6 | 拒絕（雙方各自可拒絕的狀態）、撤回權限（SYSTEM 變更 403）、期限以時間判斷、`ended_at` |
 | `ModificationCronIntegrationTest` | PRD-016 AC-3.3 | C5：同批 3 筆其中 1 筆處理拋例外 → 該筆回滾計 `failed`、其他照常、下一輪重試（PRD-016 EX-20）；`REQUESTED` / `QUOTED` 到期轉 `EXPIRED`、`ended_at`、SYSTEM log 與雙方通知；鎖後已是終態則略過、不重複 log；訂單 `DISPUTED` 略過 |
 | `ModificationQueryIntegrationTest` | PRD-016 AC-3.5 | 歷史倒序、空清單、`allowedActions` 依 §4.6 表與逾期 |
-| `ModificationConcurrencyIntegrationTest` | PRD-016 AC-3.6；PRD-023 AC-1.5 | 撤回 vs 報價（撤回先 → 報價 409 `MODIFICATION_STATE_CONFLICT`；報價先 → 報價 200、之後撤回 `QUOTED` 照常 200；兩種順序最終皆 `WITHDRAWN`，PRD-016 AC-3.6 2026-11-22 小修）；保母開始行程 vs 送出含該行程為減少目標的變更（E17 / E20）兩執行緒：開始先 → 變更 409 `VISIT_ALREADY_STARTED`，變更先 → 開始照常（變更未同意前行程仍 `PENDING`）（PRD-016 EX-13 第二種）；同意 vs 開始行程（O9 不因變更取消觸發）；同意 vs 撤回 |
+| `ModificationIntegrationTest` | PRD-016 AC-3.6；PRD-023 AC-1.5 | 撤回 vs 報價（撤回先 → 報價 409 `MODIFICATION_STATE_CONFLICT`；報價先 → 報價 200、之後撤回 `QUOTED` 照常 200；兩種順序最終皆 `WITHDRAWN`，PRD-016 AC-3.6 2026-11-22 小修）；保母開始行程 vs 送出含該行程為減少目標的變更（E17 / E20）兩執行緒：開始先 → 變更 409 `VISIT_ALREADY_STARTED`，變更先 → 開始照常（變更未同意前行程仍 `PENDING`）（PRD-016 EX-13 第二種）；同意 vs 開始行程（O9 不因變更取消觸發）；同意 vs 撤回 |
 | `ModificationIdempotencyIntegrationTest` | PRD-016 AC-3.7；PRD-023 AC-1.8 | §10.2；換 key 再同意不重建 payment（`ux_payments_per_modreq`） |
 | `ModificationSettlementIntegrationTest` | PRD-023 AC-1.1–1.4、AC-1.7、AC-2.1–2.3、AC-3.1–3.5 | 三分支；同意時重算已收淨額；`VISIT_ALREADY_STARTED` 整筆回滾；新增日期已過仍建立；O10 與其獨立 log；`IN_PROGRESS` 整筆取消不轉 `CANCELLED`；`completion_basis_at` 重算 |
 | `SupplementExpiryIntegrationTest` | PRD-023 AC-2.4–2.8、AC-3.6 | C6 vs 保母確認補款兩執行緒：確認先 → C6 鎖後重驗 payment 非 `UNPAID` 略過；C6 先 → 確認得 409 `PAYMENT_STATE_CONFLICT`（PRD-023 EX-9）；重算與下限 0；只扣本次取消；T9 系統退款列欄位逐一斷言（`type=CHANGE`、`reason`、`new_total_amount`、`system_amount`、`quoted_*` / `agreed_*`、`initiated_by_user_id=NULL`、`source_modification_id`）；flush 順序不撞 partial unique；`SUBMITTED` 不逾時；駁回後下一輪逾時；單筆失敗整筆回滾 |

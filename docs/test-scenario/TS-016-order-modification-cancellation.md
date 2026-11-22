@@ -171,11 +171,11 @@
 | AC-2.5（2026-11-21 23:30 跨日邊界） | 需固定時鐘；E2E 只驗 D / D+1 | `ModificationQuoteIntegrationTest`（注入 `Clock`，剛好 00:00 前後） |
 | AC-3.1（結束時間 = `2026-11-22T01:00:00Z`） | 需固定時鐘 | `ModificationLifecycleIntegrationTest` |
 | AC-3.3（正式排程於到期後 ≤ 15 分鐘內執行）；訂單 `DISPUTED` 時略過 | 頻率由 Cloud Scheduler 設定決定，且自動排程跳過測試帳號訂單；E2E 直接帶 `orderId` 呼叫 C5 | 手動驗證 Cloud Scheduler job `modifications/expiry` 為每 15 分鐘（SD-ORDER §8.3）；`ModificationCronIntegrationTest` |
-| AC-3.6（鎖等待 > 3 秒 → 409 `ORDER_BUSY` + `Retry-After: 1`；指定先後順序） | 正式站無法持有訂單鎖 3 秒；`Promise.all` 無法控制先後 | `ModificationConcurrencyIntegrationTest`、`OrderLockServiceTest` |
+| AC-3.6（鎖等待 > 3 秒 → 409 `ORDER_BUSY` + `Retry-After: 1`；指定先後順序） | 正式站無法持有訂單鎖 3 秒；`Promise.all` 無法控制先後 | `ModificationIntegrationTest`、`OrderLockServiceTest` |
 | AC-3.7（`IDEMPOTENCY_IN_PROGRESS`、接手） | 無法在正式站製造處理中狀態 | `ModificationIdempotencyIntegrationTest`（SD-ORDER §10.2） |
 | AC-3.8、EX-17（Resend 5xx 不影響轉移、重試 5 次） | 正式站無法注入 Resend 失敗；Resend 測試模式只寄專案擁有者信箱 | `ModificationInitiateIntegrationTest`（Resend mock）；真實寄信手動驗證 |
-| EX-13（SITTER 開始行程 vs 送出含該行程的變更同時） | 需控制先後 | `ModificationConcurrencyIntegrationTest`（SD-ORDER §10.3 已列：開始先 → 409 `VISIT_ALREADY_STARTED`；變更先 → 開始照常） |
-| EX-14（鎖等待逾時） | 同 AC-3.6 | `OrderLockServiceTest`、`ModificationConcurrencyIntegrationTest` |
+| EX-13（SITTER 開始行程 vs 送出含該行程的變更同時） | 需控制先後 | `ModificationIntegrationTest`（SD-ORDER §10.3 已列：開始先 → 409 `VISIT_ALREADY_STARTED`；變更先 → 開始照常） |
+| EX-14（鎖等待逾時） | 同 AC-3.6 | `OrderLockServiceTest`、`ModificationIntegrationTest` |
 | EX-18（GCS） | 不適用：本卡不上傳檔案 | — |
 | EX-20（排程單筆失敗回滾、其他筆照常） | 正式站無法注入單筆例外 | `ModificationCronIntegrationTest`（SD-ORDER §10.3 已列：同批 3 筆其中 1 筆拋例外） |
 

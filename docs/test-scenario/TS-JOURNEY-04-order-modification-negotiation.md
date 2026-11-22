@@ -149,8 +149,8 @@
 | PRD-016 AC-1.1 / AC-2.1、PRD-023 AC-1.2（`expires_at` / `due_at` 精確值 `2026-11-24T02:00:00Z`） | 正式站無法固定時鐘；本旅程以 `[t0+72h, t1+72h]` 夾值 | `ModificationInitiateIntegrationTest`、`ModificationSettlementIntegrationTest`（注入 `Clock`） |
 | PRD-016 AC-3.3（正式排程於到期後 ≤ 15 分鐘內執行） | 頻率屬 Cloud Scheduler 設定，且自動排程跳過 `@e2e-journey.test` 訂單；本旅程以 `C5?orderId` 直接觸發 | 手動驗證 Cloud Scheduler job `modifications/expiry` 每 15 分鐘（SD-ORDER §8.3）；`ModificationCronIntegrationTest` |
 | PRD-023 AC-2.4–AC-2.8（補款逾時重算、系統退款變更） | 主線補款在期限內完成；補款逾時分支已由模組旅程走真後端 | TS-023 SS-04~SS-11（C6 `?orderId`）；`SupplementExpiryIntegrationTest` |
-| PRD-023 AC-1.5、PRD-016 AC-3.6、PRD-024 AC-1.6 / AC-1.7（跨角色併發的兩種先後） | 旅程不做 `Promise.all` 競爭；指定先後需控制交錯 | TS-016 MW-17、TS-023 SA-09 / SA-10、TS-024 PD-13 / PD-15（恰一方成功）；`ModificationConcurrencyIntegrationTest`、`PaymentDisputeIntegrationTest`（`CountDownLatch`） |
-| 鎖等待逾時 `ORDER_BUSY`（PRD-016 EX-14、PRD-023 EX-10、PRD-024 EX-9） | 正式站無法持鎖 3 秒 | `OrderLockServiceTest`、`ModificationConcurrencyIntegrationTest` |
+| PRD-023 AC-1.5、PRD-016 AC-3.6、PRD-024 AC-1.6 / AC-1.7（跨角色併發的兩種先後） | 旅程不做 `Promise.all` 競爭；指定先後需控制交錯 | TS-016 MW-17、TS-023 SA-09 / SA-10、TS-024 PD-13 / PD-15（恰一方成功）；`ModificationIntegrationTest`、`PaymentDisputeIntegrationTest`（`CountDownLatch`） |
+| 鎖等待逾時 `ORDER_BUSY`（PRD-016 EX-14、PRD-023 EX-10、PRD-024 EX-9） | 正式站無法持鎖 3 秒 | `OrderLockServiceTest`、`ModificationIntegrationTest` |
 | GCS 上傳失敗（PRD-023 EX-16） | 正式站無法注入 GCS 故障 | `PaymentSubmissionConcurrencyIntegrationTest`、TS-007 |
 | Resend 寄信失敗與真實 Email 內容（PRD-016 EX-17、PRD-023 EX-17、PRD-024 EX-12） | Resend 帳號為測試模式，只能寄給專案擁有者信箱，無法注入失敗；測試帳號收件者不呼叫 Resend，本旅程只斷言站內通知與 `INSPECT.notifications.emailStatus=SUPPRESSED_TEST` | 後端整合測試（Resend mock）；真實寄信手動驗證：以專案擁有者信箱建立一組非 `@e2e-journey.test` 帳號走一次 J4-02 / J4-07，人工確認收信 |
 | PRD-024 AC-2.4（`SUBMITTED` 退款「已匯出 / 未匯出」與補款作廢） | 本旅程爭議發生在退款 `UNPAID`；調解畫面屬 PRD-020（待依 baseline 改寫） | TS-024 PF-05~PF-08；`MediationIntegrationTest` |
