@@ -232,7 +232,7 @@ const UploadForm: React.FC<{ orderId: string; payment: PaymentView; onDone: () =
 const PaymentBlock: React.FC<{
   orderId: string;
   payment: PaymentView;
-  serverTime?: string;
+  serverTime: string;
   refundDisputeHref?: string;
   adminCanVoid?: boolean;
 }> = ({ orderId, payment, serverTime, refundDisputeHref, adminCanVoid }) => {
@@ -271,7 +271,7 @@ const PaymentBlock: React.FC<{
 
   const startReject = () => {
     // PRD-007 BR-22：已過 due_at 先跳確認框
-    if (payment.dueAt && isPast(payment.dueAt, serverTime ?? new Date().toISOString())) {
+    if (payment.dueAt && isPast(payment.dueAt, serverTime)) {
       setOverdueOpen(true);
     } else {
       setMode('reject');
@@ -475,7 +475,7 @@ const PaymentBlock: React.FC<{
  */
 const PaymentSection: React.FC<{
   orderId: string;
-  serverTime?: string;
+  serverTime: string;
   filter?: (p: PaymentView) => boolean;
   refundDisputeHref?: string;
   adminCanVoid?: boolean;

@@ -88,8 +88,10 @@ const BookingSitterCard: React.FC<{ sitterId: string; canFavorite: boolean }> = 
           >
             <Heart
               size={22}
-              fill={isFavorited ? '#dc2626' : 'none'}
-              color={isFavorited ? '#dc2626' : 'var(--color-on-surface-variant)'}
+              fill={isFavorited ? 'currentColor' : 'none'}
+              style={{
+                color: isFavorited ? 'var(--color-error)' : 'var(--color-on-surface-variant)'
+              }}
             />
           </button>
         )}
