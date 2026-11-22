@@ -340,9 +340,9 @@ public abstract class OrderIntegrationTestBase {
     }
 
     protected void submitCareLog(UUID visitId) throws Exception {
-        // TODO(C2) 改走 F15
-        jdbc.update("INSERT INTO visit_service_reports (id, visit_id, status, content, submitted_at, version) VALUES (?, ?, 'SUBMITTED', 'ok', ?, 0)",
-                UUID.randomUUID(), visitId, java.sql.Timestamp.from(clock.instant()));
+        mvc.perform(postJson("/api/orders/{o}/visits/{v}/care-log/submit", sitterToken(), key(), Map.of("text", "ok"),
+                        visitOrder(visitId), visitId))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
     }
 
     /** 開始並結束（DONE）行程；{@code withLog} 時送出日誌。 */

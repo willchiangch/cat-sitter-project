@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public interface ServiceReportUploadRepository extends JpaRepository<ServiceReportUpload, UUID> {
 
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE care_log_media_uploads SET status = 'COMPLETED', completed_at = :now, updated_at = :now
             WHERE id = :id AND status = 'PENDING'
@@ -32,7 +32,7 @@ public interface ServiceReportUploadRepository extends JpaRepository<ServiceRepo
     int markFailed(@Param("id") UUID id, @Param("failureStatus") short failureStatus, @Param("failureCode") String failureCode,
                    @Param("failurePayload") String failurePayload, @Param("now") OffsetDateTime now);
 
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE care_log_media_uploads SET status = 'DISCARDED', updated_at = :now
             WHERE id = :id AND status = 'COMPLETED'
