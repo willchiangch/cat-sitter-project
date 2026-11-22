@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
 | 建立日期 | 2026-05-23（2026-11-22 依 DOMAIN-BASELINE 第 2 版重寫） |
 | 歸屬 SD | SD-FULFILL（`docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-022 |
@@ -292,6 +292,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | 依審查第 1 輪逐項修正：#1（阻擋）BR-4 改回單一規則——訂單非 `IN_PROGRESS` / `DISPUTED` 一律 409 `ORDER_STATE_CONFLICT`、送出後唯讀，附「O11 時日誌必已送出、O12 必晚於所有編輯期」推論，不需 SD-ORDER `completedBy`；§3 第 8 步、「唯一結果」、EX-6、§9 同步，AC-1.8 新增 O11 / O12 結案後情境。#2 / CQ-18 刪除日誌標題，改顯示 PRD-008 行程名稱（§1、US-2、§3、§4.1、§4.2、§4.5、BR-6、EX-5、§9 資料與 testid、AC-1.2 / 1.3 / 1.7 / 3.2），CQ-4 標為被取代。#3 通知改站內必寫、Email 依「訂單事務」偏好（BR-17、§9、EX-25、AC-3.1）。#4 §4.3-4 上傳流程依 §3 判斷順序重排，AC-3.8 加「逾期草稿 + 101 字說明 → 400」。#5 AC-1.6 補快照 PRO。#6 AC-3.7 拆出上傳 `ORDER_BUSY` 後同 key 重試情境。#7 AC-3.2 簽名網址有效期改以後端整合測試驗證。#8 全部多情境 AC 標「情境 n」。#9 SOP 改引 PRD-028。#10 通知文案帶行程名稱。飼主行程列 testid 對齊 PRD-008 `owner-order-detail-visit-row-{visitId}`，新增 `owner-care-log-visit-name`；`STORAGE_UNAVAILABLE` 改引 baseline §3.7（CQ-83）。§4.2-2 送出流程步驟對齊判斷順序。AC 數不變（8 / 8 / 8 = 24）。狀態 Needs Clarification → In Review | `docs/reviews/PRD-022-care-log.review.md` 第 1 輪；使用者決定 2026-11-22 |
 | 2026-11-22 | BR-4：O11 / O12 結案不鎖日誌（依編輯期判斷），只有調解結案與取消鎖定；ADMIN 提示歸 PRD-020；「查看日誌」testid 統一為 `owner-order-detail-btn-view-log-{visitId}`（與 PRD-009 一致） | 主流程（跨卡一致性） |
 | 2026-11-22 | CQ-1~17 全部已決（採建議預設值），逐條寫入正文：§3 判斷順序（`VISIT_STATE_CONFLICT` 改標 baseline §3.7 跨模組碼；`CARE_LOG_STATE_CONFLICT` / `CARE_LOG_MEDIA_QUOTA_EXCEEDED` / `CARE_LOG_CONTENT_EMPTY` 維持 SD-FULFILL 模組碼）、§4.3-3（前端 WebP < 1MB、後端仍驗證）、§4.4-3、BR-3~BR-6、BR-9~BR-16、BR-18~BR-21、BR-25、EX-7、EX-8；CQ-2 / CQ-3 / CQ-9 / CQ-10 / CQ-15 改引用 baseline §1.2 / §3.6 / §3.7 / §5（CQ-80、CQ-81）。新增系統逾時轉 `DONE` 情境：§1、§4.2-5、BR-27、EX-27、AC-1.6 併入（AC 數不變，24 條）。表頭引用基準更新為 baseline 第 3 版修訂。狀態維持 In Review | 使用者決定 2026-11-22；baseline 第 3 版修訂 CQ-78、CQ-80、CQ-81 |

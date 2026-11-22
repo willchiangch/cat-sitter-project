@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
 | 前次核准 | 使用者，第 1 版 2026-11-21；第 2 版 2026-11-22（第 3 版修訂中：依 FULFILL PRD 重寫回饋補充，見 §7 CQ-78~83） |
 | 建立日期 | 2026-11-21 |
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
@@ -454,6 +454,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者核准：狀態 In Review → Approved（第 3 版） | 使用者 2026-11-22 |
 | 2026-11-22 | 第 3 版修訂：CQ-78~82（行程逾時出口、開始時間限制、`VISIT_STATE_CONFLICT` 與新期限名稱、照護日誌歸屬與鎖、O11–O13 通知與錯誤碼、§6 行程定義定案）；狀態退回 In Review | FULFILL PRD 重寫回饋 + 使用者決定（全部採建議） |
 | 2026-11-22 | §3.7 新增期限名稱 `DISPUTE_WINDOW_ENDS_AT`（O13）；`@Version` 衝突回 `ORDER_BUSY`（核准後修訂，SD-ORDER CQ-2、CQ-5） | 使用者核准 2026-11-22 |
 | 2026-11-22 | CQ-77（行程全部開始後不能加訂，另開新單）；第 2 版核准，狀態 Approved | 使用者決定與核准 |

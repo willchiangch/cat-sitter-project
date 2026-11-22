@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
 | 建立日期 | 2026-05-09（2026-11-22 依 baseline 第 2 版全文改寫） |
 | 歸屬 SD | SD-FULFILL（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-008 |
@@ -152,7 +152,7 @@ stateDiagram-v2
 | BR-11 | 殭屍清理：`PENDING` 行程於 `行程日期 00:00（Asia/Taipei）+ VISIT_ZOMBIE_HOURS（72）` 起由系統轉 `CLOSED_BY_SYSTEM`、寫 `closed_at`，只處理 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` 訂單；結束時間 = `closed_at`；仍計價；通知保母與飼主（同訂單同批合併 1 則，BR-18），由 SD-FULFILL `closeZombieVisits` 同交易 enqueue | baseline §5、CQ-24、CQ-56、§3.4 計價範圍、CQ-17；原 PRD-008 例外「未提交則通知保母處理」；第 1 輪衝突 #28；第 2 輪 #18；飼主通知為本卡 CQ-6（已決，使用者 2026-11-22）；通知負責方為本卡 CQ-12（已決定 2026-11-22） |
 | BR-12 | `IN_PROGRESS` 逾時：`now ≥ started_at + VISIT_IN_PROGRESS_TIMEOUT_HOURS` 由系統轉 `DONE`，`completed_at` = 處理時刻、完成來源 `SYSTEM`，通知保母；排程處理前保母仍可手動結束，兩者以鎖序列化，後到者得 409 `VISIT_STATE_CONFLICT`（保母，payload `currentVisitStatus=DONE`、`completionSource=SYSTEM`）或重驗略過（排程）。逾時轉 `DONE` 而非 `CLOSED_BY_SYSTEM`，保母仍有 `CARE_LOG_EDIT_HOURS` 可送日誌 | baseline §5 `VISIT_IN_PROGRESS_TIMEOUT_HOURS = 24`、§6、CQ-78；本卡 CQ-1（已決，使用者 2026-11-22） |
 | BR-13 | 排程共通：每 15 分鐘；先唯讀查候選，再每張訂單一個獨立交易、鎖後重驗、`SKIP LOCKED`；一筆失敗不影響其他筆；可重跑；判斷以「`now ≥` 到期時間」為準（等於即處理）；端點回 200 + `processed` / `skipped` / `failed` 計數；非 Cloud Scheduler 身分 → 403 `FORBIDDEN` | baseline §3.6 排程、§5；比照 PRD-027 BR-5、BR-15 |
-| BR-14 | 行程名稱：保母可自訂，去前後空白後 0–20 字（0 字 = 清除）；未自訂時顯示預設名稱：該行程所屬方案群組每日次數 = 1 → `{方案名稱}`；> 1 → `{方案名稱} 第 {n} 次`（n = 同日序號）。`{方案名稱}` 取該方案在訂單 O2 報價快照中的名稱（baseline §2.2），不取方案現值；保母之後修改方案名稱不影響既有行程；變更新增的行程取該方案在訂單快照中的名稱。可改時機：訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`，且行程 `PENDING` / `IN_PROGRESS`，或 `DONE` 且伺服器收到請求時間 `receivedAt < completed_at + CARE_LOG_EDIT_HOURS`（逾期 409 `DEADLINE_PASSED`，`deadline=CARE_LOG_EDIT_ENDS_AT`）；`CLOSED_BY_SYSTEM` / `CANCELLED` 不可；所有行程皆可命名（不限同日多次）。行程名稱是行程與照護日誌的唯一名稱來源，日誌不另設標題（4.7 步驟 4） | BR §5.2「同一天複數個服務，保母可編輯名稱」（BR 的「日誌名稱」即本名稱）；baseline §3.7 期限名稱 `CARE_LOG_EDIT_ENDS_AT`（CQ-80）、§5 `CARE_LOG_EDIT_HOURS` 以伺服器收到請求時間判斷；長度、預設名稱、可改時機為本卡 CQ-7（已決，使用者 2026-11-22）；方案名稱來源為 CQ-9、與日誌標題合併為 CQ-10（皆已決定 2026-11-22） |
+| BR-14 | 行程名稱：保母可自訂，去前後空白後 0–20 字（0 字 = 清除）；未自訂時顯示預設名稱：該行程所屬方案群組每日次數 = 1 → `{方案名稱}`；> 1 → `{方案名稱} 第 {n} 次`（n = 同日序號）。`{方案名稱}` 取該方案在訂單 O2 報價快照中的名稱（baseline §2.2），不取方案現值；報價前（`PENDING`，尚無快照）顯示 O1 建立行程時帶入的方案名稱（CQ-15）；保母之後修改方案名稱不影響既有行程；變更新增的行程取該方案在訂單快照中的名稱。可改時機：訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`，且行程 `PENDING` / `IN_PROGRESS`，或 `DONE` 且伺服器收到請求時間 `receivedAt < completed_at + CARE_LOG_EDIT_HOURS`（逾期 409 `DEADLINE_PASSED`，`deadline=CARE_LOG_EDIT_ENDS_AT`）；`CLOSED_BY_SYSTEM` / `CANCELLED` 不可；所有行程皆可命名（不限同日多次）。行程名稱是行程與照護日誌的唯一名稱來源，日誌不另設標題（4.7 步驟 4） | BR §5.2「同一天複數個服務，保母可編輯名稱」（BR 的「日誌名稱」即本名稱）；baseline §3.7 期限名稱 `CARE_LOG_EDIT_ENDS_AT`（CQ-80）、§5 `CARE_LOG_EDIT_HOURS` 以伺服器收到請求時間判斷；長度、預設名稱、可改時機為本卡 CQ-7（已決，使用者 2026-11-22）；方案名稱來源為 CQ-9、與日誌標題合併為 CQ-10（皆已決定 2026-11-22） |
 | BR-15 | 保母「今日行程」與飼主「行程」頁的範圍、分區與排序依 4.5、4.6；保母分「今日行程」與「待處理」兩區，不做未來日期清單；排序依訂單建立時間 → 行程日期 → 方案群組 → 同日序號 | BR §2.1、§2.2；沿用原 PRD-008 A.2；分區為本卡 CQ-4（已決，使用者 2026-11-22） |
 | BR-16 | 所有時間 UTC 儲存、ISO-8601 傳輸；畫面一律 Asia/Taipei，格式 `YYYY-MM-DD HH:mm`（日期 `YYYY-MM-DD`）；「今天」以 Asia/Taipei 自然日判斷 | baseline §5 |
 | BR-17 | 狀態文字依 SD-FRONTEND-SPEC §6.4：`PENDING` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消；完成來源 `SYSTEM` 另加「系統自動結束」 | SD-FRONTEND-SPEC §6.4 |
@@ -249,12 +249,13 @@ stateDiagram-v2
 | CQ-12 | 殭屍關閉通知由誰發送：SD-ORDER C7 或 SD-FULFILL（審查第 1 輪 #6） | 由 SD-FULFILL `closeZombieVisits` 在同交易內 enqueue（每方 1 則，列出本批所有日期），類型代碼由 SD-FULFILL 定義；站內必寫，Email 依偏好 | 已決定 2026-11-22（使用者，採建議預設值）→ 4.3 步驟 3、BR-11、BR-18、§9 通知 / 卡外依賴 |
 | CQ-13 | 行程完成時間欄位名稱：`completed_at` 或 `finished_at`（審查第 1 輪 #9；SD-ORDER §2.4.2 註記 `finished_at`） | 統一 `completed_at` | 已決定 2026-11-22（使用者）→ §9 資料 / 卡外依賴 |
 | CQ-14 | 飼主訂單詳情行程列 testid：`-visit-row-` 或 `-visit-item-`（審查第 1 輪 #2；與 PRD-009 衝突） | 依 `[role]-[screen]-[element]` 統一為 `owner-order-detail-visit-row-{visitId}`，PRD-009 / PRD-022 / PRD-028 一律沿用 | 已決定 2026-11-22（使用者）→ 4.6 步驟 1、§9 畫面 |
-| CQ-15 | 訂單報價前（`PENDING`，尚無 O2 快照）若畫面需顯示行程預設名稱（例：保母審閱預約時的行程列 `sitter-order-visit-label`），`{方案名稱}` 取什麼（本次修訂發現，CQ-9 未涵蓋） | 報價前以 O1 建立行程時帶入的方案名稱（SD-ORDER `createVisits` 的 `planTitle`）顯示；O2 後改依報價快照；報價前不可命名（BR-14 可改時機已排除 `PENDING` 訂單） | 待回答 |
+| CQ-15 | 訂單報價前（`PENDING`，尚無 O2 快照）若畫面需顯示行程預設名稱（例：保母審閱預約時的行程列 `sitter-order-visit-label`），`{方案名稱}` 取什麼（本次修訂發現，CQ-9 未涵蓋） | 報價前以 O1 建立行程時帶入的方案名稱（SD-ORDER `createVisits` 的 `planTitle`）顯示；O2 後改依報價快照；報價前不可命名（BR-14 可改時機已排除 `PENDING` 訂單） | 已決定 2026-11-22（使用者採建議）→ BR-14 |
 
 ## 11. 變更紀錄
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | 依審查第 1 輪逐項修正：#1 4.7 步驟 2 改依 BR-8（400 長度在鎖前），AC-3.7 新增情境 6 組合錯誤；#2 行程列 testid 統一 `owner-order-detail-visit-row-`（CQ-14）；#3 BR-14 方案名稱取 O2 報價快照（CQ-9），AC-3.6 新增情境 5；#4 行程名稱為唯一名稱來源、日誌不另設標題（CQ-10，4.7 步驟 4、BR-14）；#5 `VISIT_STATE_CONFLICT` 於 `DONE` 時帶 `completionSource`，EX-7 文案表補 `DONE` + `SYSTEM`（CQ-11，BR-8 / 12、EX-13、AC-2.4）；#6 殭屍關閉通知由 SD-FULFILL `closeZombieVisits` 同交易 enqueue（CQ-12，4.3、BR-11 / 18、§9）；#7 4.1 步驟 3 改 401 先於冪等回放；#8 4.1 步驟 4 明定 `order_logs` 一操作一列、AC-1.1 加「無 `VISIT_STARTED`」、§9 列 `OrderLogWriter` 依賴；#9 欄位統一 `completed_at`（CQ-13）；#10 4.1 步驟 2 補已過 `VISIT_ZOMBIE_AT` 時按鈕停用與 `sitter-visit-panel-deadline-passed-message`，AC-1.3 新增情境 4；#11 權限表 ADMIN 補 403 `ROLE_MISMATCH`；#12 EX-12 改引 SD-ORDER E29 409 `VISITS_NOT_FINISHED`；#13 新增 EX-23（殭屍排程 vs 飼主同意減少），AC-2.5 擴為三情境並改標題；#14 4.2 步驟 1 n = 0 / 無檢核項不顯示，AC-1.5 新增情境 2；#15 命名期限改以伺服器收到請求時間 `receivedAt` 判斷；#16 T4 / 4.4 補訂單 `IN_PROGRESS` / `DISPUTED` 條件。新增 CQ-11~14（已決定）與 CQ-15（待回答）。AC 條數不變（8 / 6 / 7 = 21），狀態 `Needs Clarification` → `In Review` | 審查第 1 輪（`docs/reviews/PRD-008-service-execution.review.md`）；使用者決定 2026-11-22 |
 | 2026-11-22 | CQ-1~8 全部已決（採建議預設值）並寫回正文：4.1 步驟 6、4.3 步驟 3、4.4 步驟 1 / 3、4.5 步驟 1、T4、BR-3 / 4 / 8 / 12 / 14 / 15 / 18 出處改引 baseline CQ-78~80 與使用者決定；BR-11 飼主通知改寫入正文；新增 BR-20（不記位置、離線 / 背景上傳不在本卡，CQ-8）；BR-8 `VISIT_STATE_CONFLICT` 改標 baseline §3.7 跨模組碼（第 9 步），`VISIT_DATE_NOT_REACHED` 維持 SD-FULFILL 模組碼；引用基準與卡外依賴改指 baseline 第 3 版修訂。AC 未變（8 / 6 / 7 = 21 條），狀態維持 `In Review` | 使用者決定 2026-11-22；baseline 第 3 版修訂 CQ-78~80 |
 | 2026-11-22 | 依新範本與 baseline 第 2 版全文改寫，標題改為「行程生命週期：開始、結束、系統關閉與行程檢視」，歸屬 SD-FULFILL，狀態 `In Review`。子模組 8 / 6 / 7 = 21 條 AC；CQ-1~8 | baseline §6 要求解決 PRD-008 / PRD-022 互為前提、定義 `IN_PROGRESS` 逾時出口；呼叫方交辦主流程定案 2026-11-22 |

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | In Review |
+| 狀態 | Approved |
 | 建立日期 | 2026-05-09（2026-11-22 依 DOMAIN-BASELINE 第 2 版全面改寫；同日依審查第 1 輪修訂） |
 | 歸屬 SD | SD-FULFILL（畫面與流程，見 `docs/sd/00-SD-PLAN.md` §0）；**狀態轉移 API 見 SD-ORDER**：O11 = E25 `POST /api/orders/{orderId}/complete`、O13 = E26 `POST /api/orders/{orderId}/service-disputes`、O12 = 排程 C8、帳務總覽 = E30 `GET /api/orders/sitter/ledger`（使用者決定 2026-11-22） |
 | 測試情境 | TS-009 |
@@ -130,7 +130,7 @@
 | BR-3 | O12：條件同 T2；排程每 15 分鐘，到期判斷 `now ≥ completion_basis_at + AUTO_COMPLETE_HOURS`（`now` 為注入的伺服器時鐘）；先唯讀查候選，再逐筆獨立交易鎖住後重驗（`SKIP LOCKED`），一筆失敗不影響其他筆，可重跑；`completed_at` = 處理時間；端點回 200 與 `processed` / `skipped` / `failed`；非排程身分呼叫 → 403 `FORBIDDEN` | BASELINE O12、§3.6 排程、§5（`AUTO_COMPLETE_HOURS` 48，CQ-24；排程頻率）、CQ-40；SD-ORDER C1–C10 契約 |
 | BR-4 | `completion_basis_at` 只引用 BASELINE §5：`DONE` 行程結束時間 = `completed_at + CARE_LOG_EDIT_HOURS`（24h）、`CLOSED_BY_SYSTEM` = 被關閉時間、`CANCELLED` 不計，再與最後一筆 `SETTLED` 變更結束時間取最大值；`REJECTED` / `WITHDRAWN` / `EXPIRED` 變更不推遲 | BASELINE §5、CQ-17、CQ-40、CQ-69；PRD-024 BR-8 |
 | BR-5 | O13 前置條件：訂單 `IN_PROGRESS`；行程條件同 O12（不看日誌）；無未結束變更；`now < completion_basis_at + DISPUTE_WINDOW_HOURS`（48h），`now` = 取得訂單鎖後的伺服器時間（注入 `Clock`，不是收到請求的時間）。視窗以時間判斷，排程是否已跑不影響：`now ≥` 視窗終點 → 409 `DEADLINE_PASSED`（payload `deadline=DISPUTE_WINDOW_ENDS_AT`、`deadlineAt = completion_basis_at + 48h`） | BASELINE O13 錯誤碼（CQ-82）、§3.2 期限以時間判斷（CQ-46）、§3.7 payload 與期限名稱 `DISPUTE_WINDOW_ENDS_AT`（CQ-71）、§5（CQ-24）；SD-ORDER §3.1.1「期限以時間判斷」（鎖後以注入 `Clock` 比對）、CQ-5 |
-| BR-6 | O13 只收問題說明：必填，去頭尾空白後 1–500 字，字數以 Unicode code point 計（emoji 一個 code point 計 1 字），只有空白 → 400 `VALIDATION_FAILED`；前端計數與驗證同規則；不選問題類別、不可附圖；說明寫入 `order_logs` payload；同交易建立 `admin_tasks`（`type=SERVICE_DISPUTE`、`status=OPEN`、關聯訂單），`(type, order_id) WHERE status='OPEN'` 唯一；ADMIN 不收站內通知或 Email，只從待辦清單得知 | SD-ORDER CQ-5、CQ-9（使用者決定 2026-11-22）；BASELINE O13 附帶動作（CQ-82）、§3.6 ADMIN 待辦（CQ-55）；CQ-5、CQ-13（已決定 2026-11-22） |
+| BR-6 | O13 只收問題說明：必填，去頭尾空白後 1–500 字，字數以 Unicode code point 計（emoji 一個 code point 計 1 字），只有空白 → 400 `VALIDATION_FAILED`；前端計數與驗證同規則；不選問題類別、不可附圖；說明以去頭尾空白後的值寫入 `order_logs` payload（CQ-17）；同交易建立 `admin_tasks`（`type=SERVICE_DISPUTE`、`status=OPEN`、關聯訂單），`(type, order_id) WHERE status='OPEN'` 唯一；ADMIN 不收站內通知或 Email，只從待辦清單得知 | SD-ORDER CQ-5、CQ-9（使用者決定 2026-11-22）；BASELINE O13 附帶動作（CQ-82）、§3.6 ADMIN 待辦（CQ-55）；CQ-5、CQ-13（已決定 2026-11-22） |
 | BR-7 | `DISPUTED` 期間：自動結案暫停；雙方對 payment 與變更的所有操作 → 409 `ORDER_STATE_CONFLICT`；行程照常執行；只有 ADMIN 調解（O15 / O17，PRD-020）能離開 | BASELINE O13 附帶動作、§3.2 `DISPUTED` 凍結（CQ-48、CQ-57） |
 | BR-8 | `COMPLETED` 為終態：再次 O11 / O13、O14、發起變更一律 409 `ORDER_STATE_CONFLICT`（payload `currentStatus=COMPLETED`）；`completed_at` 只寫一次，重複呼叫不得改動 | BASELINE §3.1 狀態圖（`COMPLETED --> [*]`）、§3.4 可發起時機（限 `CONFIRMED` / `IN_PROGRESS`）、§3.7 |
 | BR-9 | 前端分頁：`CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 進行中；`COMPLETED` / `CANCELLED` → 歷史 | BASELINE §3.1 主狀態表 |
@@ -145,9 +145,9 @@
 | BR-18 | O11 / O12 / O13 先鎖訂單列（`lock_timeout` 3s，逾時 409 `ORDER_BUSY` + `Retry-After: 1`）；`order_logs` 與狀態變更同交易；通知經 outbox 與轉移同交易寫入，Email 由排程寄送 | BASELINE §3.6 鎖、稽核、通知 |
 | BR-19 | 行程何時成為 `DONE`、`CLOSED_BY_SYSTEM`（殭屍清理）與 `IN_PROGRESS` 行程逾時出口由 PRD-008 定義；日誌是否「已送出」由 PRD-022 定義。本卡只讀取結果 | BASELINE §6 行程 |
 | BR-20 | 通知（與轉移同交易經 outbox 寫入，BR-18）：O11 → SITTER「飼主已確認結案」；O12 → OWNER 與 SITTER 各一則「訂單已自動結案」；O13 → SITTER「飼主回報服務問題，訂單進入爭議處理」。站內通知一律寫入；Email 依收件人 PRD-014「訂單事務」類別的 Email 偏好（不在 BASELINE §3.6 不可關閉清單）；ADMIN 不通知。冪等回放、排程重跑、被略過的轉移、敗給併發對手的請求不產生通知 | BASELINE O11–O13 附帶動作、§3.6 通知（CQ-73、CQ-82）；SD-ORDER CQ-9、§7.2「站內一律寫，Email 依偏好」；CQ-1（已決，使用者 2026-11-22）；使用者決定 2026-11-22（O11 / O12 須通知；站內必寫） |
-| BR-21 | `IN_PROGRESS` 訂單所有有效行程已結束且無未結束變更時，畫面顯示 `completion_basis_at + 48h`（Asia/Taipei）：飼主端為「可回報問題至」（`owner-order-detail-dispute-window-ends-at`），保母端為「預計自動結案時間」（`sitter-order-detail-auto-complete-at`）；兩者同一時間點（`AUTO_COMPLETE_HOURS` = `DISPUTE_WINDOW_HOURS` = 48），4.1 iii 的提示也用此時間。條件不成立（行程未結束、有未結束變更、非 `IN_PROGRESS`）時不顯示 | BASELINE §5（CQ-24）；CQ-8（已決，使用者 2026-11-22）；CQ-9（已決定 2026-11-22） |
-| BR-22 | 保母帳務總覽放在保母「收款」分頁；保母訂單「歷史」分頁不另顯示總收入。列表欄位：訂單編號（`orderId` 前 8 碼大寫，點擊進入訂單詳情）、飼主稱呼、服務期間（首末有效行程日）、終態（已結案 / 已取消）、終態日期（Asia/Taipei）、已收淨額；預設當下 Asia/Taipei 月份；已收淨額為 0 的 `CANCELLED` 訂單不列出（不影響總收入），已收淨額為 0 的 `COMPLETED` 訂單照常列出；列表依終態時間新到舊排序（與 BR-23 飼主歷史一致）；不分頁，一次顯示該月全部；無資料顯示「本月沒有已結束的訂單」 | BR §2.1、§5.6.2；CQ-2、CQ-3（已決，使用者 2026-11-22）；CQ-11、CQ-12（已決定 2026-11-22） |
-| BR-23 | 飼主歷史卡片：保母名稱、服務期間（首末有效行程日）、狀態（已結案 / 已取消）、終態日期、實付淨額（已收淨額，BR-10 同算法）；排序依終態時間（`completed_at` / `cancelled_at`）新到舊；月份篩選依終態時間的 Asia/Taipei 自然月（與 BR-11 同口徑）；預設狀態全部、不篩月份；每批 20 筆，「載入更多」載入下一批；空狀態「尚無歷史訂單」（無篩選）/「沒有符合條件的訂單」（有篩選） | BR §6；CQ-4（已決，使用者 2026-11-22）；CQ-10（已決定 2026-11-22） |
+| BR-21 | `IN_PROGRESS` 訂單所有有效行程已結束且無未結束變更時，畫面顯示 `completion_basis_at + 48h`（Asia/Taipei）：飼主端為「可回報問題至」（`owner-order-detail-dispute-window-ends-at`），保母端為「預計自動結案時間」（`sitter-order-detail-auto-complete-at`）；兩者同一時間點（`AUTO_COMPLETE_HOURS` = `DISPUTE_WINDOW_HOURS` = 48），4.1 iii 的提示也用此時間。伺服器時間已過該時間點但排程尚未結案時（最長約 15 分鐘），兩處改顯示「即將自動結案」（CQ-15）。條件不成立（行程未結束、有未結束變更、非 `IN_PROGRESS`）時不顯示 | BASELINE §5（CQ-24）；CQ-8（已決，使用者 2026-11-22）；CQ-9（已決定 2026-11-22） |
+| BR-22 | 保母帳務總覽放在保母「收款」分頁；保母訂單「歷史」分頁不另顯示總收入。列表欄位：訂單編號（`orderId` 前 8 碼大寫，點擊進入訂單詳情）、飼主稱呼、服務期間（首末有效行程日）、終態（已結案 / 已取消）、終態日期（Asia/Taipei）、已收淨額；預設當下 Asia/Taipei 月份；已收淨額為 0 的 `CANCELLED` 訂單不列出（不影響總收入），已收淨額為 0 的 `COMPLETED` 訂單照常列出；列表依終態時間新到舊排序（與 BR-23 飼主歷史一致）；不分頁，一次顯示該月全部；無資料顯示「本月沒有已結束的訂單」；飼主稱呼讀當下顯示名稱，不快照（CQ-16） | BR §2.1、§5.6.2；CQ-2、CQ-3（已決，使用者 2026-11-22）；CQ-11、CQ-12（已決定 2026-11-22） |
+| BR-23 | 飼主歷史卡片：保母名稱、服務期間（首末有效行程日）、狀態（已結案 / 已取消）、終態日期、實付淨額（已收淨額，BR-10 同算法）；排序依終態時間（`completed_at` / `cancelled_at`）新到舊；月份篩選依終態時間的 Asia/Taipei 自然月（與 BR-11 同口徑）；預設狀態全部、不篩月份；每批 20 筆，「載入更多」載入下一批；空狀態「尚無歷史訂單」（無篩選）/「沒有符合條件的訂單」（有篩選）；保母名稱讀當下顯示名稱，不快照（CQ-16） | BR §6；CQ-4（已決，使用者 2026-11-22）；CQ-10（已決定 2026-11-22） |
 | BR-24 | 訂單詳情的行程清單在 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` / `COMPLETED` 顯示，`PENDING` / `PENDING_PAYMENT` / `CANCELLED` 不顯示；行程列內容依 PRD-008；「查看日誌」只對已送出日誌顯示（owner 只能讀已送出的日誌，BASELINE CQ-81） | 原 PRD-009 A.4（2026-10-26 fix-batch13 K2）；BASELINE §1.2（CQ-81）；CQ-7（已決，使用者 2026-11-22） |
 | BR-25 | 結案後沒有可編輯的照護日誌（由下列既有規則推得，不是額外規則）：日誌送出即永久唯讀（PRD-022 BR-11）；O11 成立時所有 `DONE` 行程日誌必已送出（BR-1）；O12 發生於 `completion_basis_at + 48h`，必晚於每個 `DONE` 行程的 `completed_at + CARE_LOG_EDIT_HOURS`（BR-4）。因此結案不會縮短任何日誌編輯期。訂單非 `IN_PROGRESS` / `DISPUTED` 時寫日誌一律 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`），不區分結案來源（O11 / O12 / O15） | 使用者決定 2026-11-22（取代 CQ-6 原寫法）；PRD-022 BR-11、§3 判斷順序第 8 步；BASELINE §5、CQ-27、CQ-40 |
 | BR-26 | 飼主結案區塊依 4.1 步驟 1 的 i–v 順序判斷，第一個成立者決定按鈕與提示；日誌已逾期未送出時（iii）提示自動結案時間，不顯示確認結案按鈕 | CQ-9（已決定 2026-11-22）；PRD-022 BR-5（逾期不可送出）；BASELINE CQ-40 |
@@ -260,14 +260,15 @@
 | CQ-12 | 帳務列表「訂單編號」的顯示格式（審查第 1 輪 #11；全站無人類可讀編號） | `orderId` 前 8 碼大寫，點擊進入訂單詳情 | 已決定 2026-11-22（使用者採建議）；寫入 §4.5、BR-22、AC-3.8 |
 | CQ-13 | 回報問題說明的字數規則（審查第 1 輪 #9） | 去頭尾空白後 1–500 字，以 Unicode code point 計；只有空白 → 400 `VALIDATION_FAILED` | 已決定 2026-11-22（使用者採建議）；寫入 §4.3、§5 T3、BR-6、EX-9、AC-2.8、§9 ⑦ |
 | CQ-14 | O15 / O17 / O10 結果在飼主、保母詳情的呈現歸屬（審查第 1 輪 #6） | `COMPLETED` 基本畫面（§4.4）O11 / O12 / O15 共用；調解結果區塊（結果、`ADMIN_ADJUSTMENT` 金額與依據）歸 PRD-020；`CANCELLED` 詳情：O3 / O4 / O7 見 PRD-027、O3 撤回 / O6 見 PRD-026、O10 見 PRD-023、O17 見 PRD-020 | 已決定 2026-11-22（使用者採建議）；寫入 §4.4、§4.6 |
-| CQ-15 | 爭議視窗已過、排程尚未結案的空窗（最長約 15 分鐘），`owner-order-detail-dispute-window-ends-at` 與 `sitter-order-detail-auto-complete-at` 顯示什麼（審查第 1 輪 #16） | 兩者改顯示「即將自動結案」；飼主結案區塊依 4.1 照常 | 待決 |
-| CQ-16 | 帳務列表「飼主稱呼」與飼主歷史「保母名稱」讀當下顯示名稱還是快照（審查第 1 輪 #20） | 讀當下顯示名稱，不快照（與 SD-ORDER E3 `counterpartName` 同口徑） | 待決 |
-| CQ-17 | O13 說明寫入 `order_logs` payload 時存原值還是去頭尾空白後的值 | 存去頭尾空白後的值（與驗證口徑一致） | 待決 |
+| CQ-15 | 爭議視窗已過、排程尚未結案的空窗（最長約 15 分鐘），`owner-order-detail-dispute-window-ends-at` 與 `sitter-order-detail-auto-complete-at` 顯示什麼（審查第 1 輪 #16） | 兩者改顯示「即將自動結案」；飼主結案區塊依 4.1 照常 | 已決定 2026-11-22（使用者採建議）→ BR-21 |
+| CQ-16 | 帳務列表「飼主稱呼」與飼主歷史「保母名稱」讀當下顯示名稱還是快照（審查第 1 輪 #20） | 讀當下顯示名稱，不快照（與 SD-ORDER E3 `counterpartName` 同口徑） | 已決定 2026-11-22（使用者採建議）→ BR-22、BR-23 |
+| CQ-17 | O13 說明寫入 `order_logs` payload 時存原值還是去頭尾空白後的值 | 存去頭尾空白後的值（與驗證口徑一致） | 已決定 2026-11-22（使用者採建議）→ BR-6 |
 
 ## 11. 變更紀錄
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | BR-22 補帳務列表排序（終態時間新到舊） | 主流程（跨卡一致性） |
 | 2026-05-09 | 建立 | |
 | 2026-11-22 | 依新範本全面改寫（保留編號）：3 個子模組（確認結案與結案後畫面 8 條、自動結案與服務爭議 8 條、帳務總覽與飼主歷史 7 條，共 23 條 AC）；歸屬 SD-FULFILL，O11 / O12 / O13 / 帳務查詢端點引用 SD-ORDER E25 / C8 / E26 / E30；狀態 In Review | 使用者決定 2026-11-22（SD-ORDER 擁有 O1–O17）；DOMAIN-BASELINE 第 2 版 |
