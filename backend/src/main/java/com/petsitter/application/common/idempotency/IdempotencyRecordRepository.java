@@ -103,4 +103,19 @@ class IdempotencyRecordRepository {
                  WHERE id = ? AND status = 'PROCESSING' AND claim_token = ?
                 """, id, token) == 1;
     }
+
+    /** C9：刪除一批已過期紀錄（{@code expires_at < now}），回傳刪除筆數。 */
+    int deleteExpiredBatch(OffsetDateTime now, int limit) {
+        return jdbcTemplate.update("""
+                DELETE FROM idempotency_records WHERE id IN (
+                  SELECT id FROM idempotency_records WHERE expires_at < ? ORDER BY expires_at LIMIT ?)
+                """, now, limit);
+    }
+
+    /** C10：該紀錄是否仍為 PROCESSING（處理中的上傳物件不可清除）。 */
+    boolean isProcessing(UUID id) {
+        Integer n = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM idempotency_records WHERE id = ? AND status = 'PROCESSING'", Integer.class, id);
+        return n != null && n > 0;
+    }
 }

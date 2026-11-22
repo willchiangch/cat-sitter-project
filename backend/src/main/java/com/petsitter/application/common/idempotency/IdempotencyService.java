@@ -172,6 +172,18 @@ public class IdempotencyService {
         return recordable ? IdempotencyFailOutcome.RECORDED : IdempotencyFailOutcome.DELETED;
     }
 
+    /** C9（SD-ORDER §8.1）：在自己的短交易內刪一批過期紀錄；回傳筆數（0 = 已清空）。 */
+    @Transactional(propagation = Propagation.NEVER)
+    public int purgeExpiredBatch(OffsetDateTime now, int limit) {
+        Integer n = shortTx.execute(status -> repository.deleteExpiredBatch(now, limit));
+        return n == null ? 0 : n;
+    }
+
+    /** C10：認領紀錄是否仍在處理中。 */
+    public boolean isProcessing(UUID recordId) {
+        return repository.isProcessing(recordId);
+    }
+
     /** 段 0：已完成、未過期、同 hash → 第一次的結果（單一唯讀查詢，不開交易）。 */
     public Optional<IdempotencyStoredResponse> findReplay(IdempotencyContext ctx) {
         OffsetDateTime now = now();

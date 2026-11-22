@@ -73,10 +73,10 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Notifications cleanup: 不帶 Secret 應回傳 401")
+    @DisplayName("Notifications cleanup: 不帶 Secret 應回傳 403")
     void should_Return401_When_NoSecretHeader_NotificationCleanup() throws Exception {
         mockMvc.perform(post("/api/internal/cron/notifications/cleanup"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -90,11 +90,11 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Notifications cleanup: 帶錯誤 Secret 應回傳 401")
+    @DisplayName("Notifications cleanup: 帶錯誤 Secret 應回傳 403")
     void should_Return401_When_WrongSecretHeader_NotificationCleanup() throws Exception {
         mockMvc.perform(post("/api/internal/cron/notifications/cleanup")
                 .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -108,11 +108,11 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Media cleanup: 帶錯誤 Secret 應回傳 401")
+    @DisplayName("Media cleanup: 帶錯誤 Secret 應回傳 403")
     void should_Return401_When_WrongSecretHeader_MediaCleanup() throws Exception {
         mockMvc.perform(post("/api/internal/cron/media/cleanup")
                 .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -126,11 +126,11 @@ class InternalCronControllerTest {
     }
 
     @Test
-    @DisplayName("Media expiry warning: 帶錯誤 Secret 應回傳 401")
+    @DisplayName("Media expiry warning: 帶錯誤 Secret 應回傳 403")
     void should_Return401_When_WrongSecretHeader_MediaExpiryWarning() throws Exception {
         mockMvc.perform(post("/api/internal/cron/media/expiry-warning")
                 .header("X-Internal-Secret", "wrong-secret"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 }
 

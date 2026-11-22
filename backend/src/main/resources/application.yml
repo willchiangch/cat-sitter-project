@@ -1,5 +1,7 @@
 server:
   port: ${PORT:8080}
+  tomcat:
+    max-swallow-size: 21MB
 
 spring:
   application:
@@ -8,6 +10,11 @@ spring:
     default: local # 僅在未指定任何 profile 時套用，不會覆蓋環境變數 SPRING_PROFILES_ACTIVE
   jpa:
     open-in-view: false
+  servlet:
+    multipart:
+      # SD-ORDER §6.1 / §8.3 D4：全域容器上限；E11 5 MB 由端點自行檢查（422 PROOF_FILE_TOO_LARGE）
+      max-file-size: 20MB
+      max-request-size: 21MB
   jackson:
     default-property-inclusion: non-null
     deserialization:
@@ -27,14 +34,16 @@ spring:
 
 app:
   security:
-    internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}
+    # SD-ORDER §8.3 D2：不得有預設值；prod 由 Secret Manager 注入，本機放 application-local.yml，測試放 test resources
+    internal-secret: ${INTERNAL_CRON_SECRET}
     # application-local.yml 有 .gitignore，CI checkout 後不存在該檔案；
     # 沒有這個預設值 @ActiveProfiles("local") 的測試會因為 placeholder 解析失敗
     # 而讓整個 ApplicationContext 炸掉 (影響所有 @SpringBootTest)
     jwt-secret: ${APP_SECURITY_JWT_SECRET:v9y$B&E)H@McQfTjWnZr4u7x!A%C*F-JaNdRgUkXp2s5v8y/B?E(G+KbPeShVmYq}
     jwt-expiration: 86400000 # 24 小時，與 application-prod.yml 一致，非機密不需要走環境變數
   crypto:
-    key: ${APP_CRYPTO_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+    # SD-ORDER §8.3 D1（CQ-72）：不得有預設值，缺值應用程式啟動失敗
+    key: ${APP_CRYPTO_KEY}
   email:
     resend-api-key: ${RESEND_API_KEY:}
     from-address: ${EMAIL_FROM_ADDRESS:WhiskerWatch <onboarding@resend.dev>}

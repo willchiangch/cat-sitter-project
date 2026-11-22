@@ -150,26 +150,22 @@ public class GlobalExceptionHandler {
     // ------------------------------------------------------------------
 
     /**
-     * 舊冪等（{@code LegacyIdempotencyService} / {@code idempotency_keys}）與舊訂單冪等欄位的重複送單。
+     * 舊冪等（{@code LegacyIdempotencyService} / {@code idempotency_keys}）的重複送單。
      * 依 GLOBAL §2.6：只有 SQLSTATE 23505 的列名約束可對映 409；其餘維持未重建模組現行的 400 {@code DATA_ERROR}。
-     * 舊訂單約束（{@code idx_orders_payment_idempotency}、{@code idx_mod_req_supplement_idempotency}）隨
-     * SD-ORDER 遷移刪欄後失效，B 階段刪除這兩個名稱（SD-ORDER §6.4）。
+     * 舊訂單約束 {@code idx_orders_payment_idempotency}、{@code idx_mod_req_supplement_idempotency} 已隨
+     * V20261122_01 刪除，對映一併移除（SD-ORDER §6.4）。
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         PersistenceErrorClassifier.Classification c = PersistenceErrorClassifier.classify(ex);
         String constraint = c.constraintName();
         if (c.kind() == PersistenceErrorClassifier.Kind.UNIQUE_VIOLATION && constraint != null
-                && ("idx_orders_payment_idempotency".equalsIgnoreCase(constraint)
-                || "idx_mod_req_supplement_idempotency".equalsIgnoreCase(constraint)
-                || "pk_idempotency".equalsIgnoreCase(constraint))) {
+                && "pk_idempotency".equalsIgnoreCase(constraint)) {
             return duplicateRequest();
         }
-        // 舊程式先查再拋（無 SQLSTATE）：LegacyIdempotencyService.checkAndConsume、PaymentService 的付款冪等預檢
+        // 舊程式先查再拋（無 SQLSTATE）：LegacyIdempotencyService.checkAndConsume
         String msg = ex.getMessage() != null ? ex.getMessage() : "";
-        if (c.sqlState() == null && (msg.contains("Duplicate idempotency key")
-                || msg.contains("idx_orders_payment_idempotency")
-                || msg.contains("idx_mod_req_supplement_idempotency"))) {
+        if (c.sqlState() == null && msg.contains("Duplicate idempotency key")) {
             return duplicateRequest();
         }
         return ApiErrors.of(HttpStatus.BAD_REQUEST, "DATA_ERROR", "資料處理異常");
