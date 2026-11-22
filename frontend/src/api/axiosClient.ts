@@ -1,6 +1,18 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
+/*
+ * TODO(SD-FRONTEND-SPEC §2.1.1，待 SD-IDENTITY 後端)：refresh token 改存 `__session` httpOnly cookie、
+ * access token 只放記憶體（src/api/tokenStore.ts）、`authHint` 旗標、開站 bootstrap refresh、
+ * Web Locks 跨分頁換發與 BroadcastChannel 身分變更。後端尚未提供 cookie 版 /api/auth/refresh 與
+ * /api/auth/logout，現階段維持 localStorage bearer 流程不動；不得與後端分開上線（§2.1.1「上線順序」）。
+ *
+ * 錯誤處理：一律經 `getApiError(e)`（./apiError.ts）讀回應 `code` / `payload` / `Retry-After`，
+ * 畫面文案由 ./errorMessages.ts 依 code 決定；冪等寫入走 ./idempotency.ts（ORDER_BUSY 自動重試一次、
+ * IDEMPOTENCY_IN_PROGRESS 同 key 重試）。429 RATE_LIMITED 不在此攔截器自動重試（避免放大流量），
+ * 由 React Query 依 Retry-After 延遲重試查詢（main.tsx），寫入操作顯示「請於 N 秒後再試」。
+ */
+
 const axiosClient = axios.create({
   baseURL: '/api',
   headers: {
