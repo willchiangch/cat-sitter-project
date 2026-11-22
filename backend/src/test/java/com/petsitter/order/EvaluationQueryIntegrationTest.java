@@ -6,6 +6,9 @@ import tools.jackson.databind.JsonNode;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +36,53 @@ class EvaluationQueryIntegrationTest extends OrderIntegrationTestBase {
         assertThat(pet.get("deleted").asBoolean()).isTrue();
         assertThat(r.get("reviewExpiresAt")).isNotNull();
         assertThat(r.get("serverTime")).isNotNull();
+    }
+
+    private UUID question(String text, String type, String options, boolean required, int sort) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO sitter_questions (id, sitter_id, question_text, answer_type, options, required, is_active, sort_order) "
+                + "VALUES (?, ?, ?, ?, ?::jsonb, ?, true, ?)", id, sitter, text, type, options, required, sort);
+        return id;
+    }
+
+    private static Map<String, Object> answer(UUID q, Object value) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("questionId", q.toString());
+        m.put("value", value);
+        return m;
+    }
+
+    @Test
+    @DisplayName("PRD-006 AC-1.2 問卷答案快照：依題目順序回送單時的題目文字 / 題型 / 答案；之後改題目文字、停用題目、改題型，E5 仍回送單當下內容（未答 JSON null 不輸出）")
+    void answersSnapshotUnaffectedByQuestionEdits() throws Exception {
+        UUID q1 = question("是否有其他寵物", "RADIO", "[\"是\",\"否\"]", true, 1);
+        UUID q2 = question("餵食方式", "INPUT", "[]", true, 2);
+        UUID q3 = question("其他備註", "TEXTAREA", "[]", false, 3);
+        Map<String, Object> b = new HashMap<>(bookingBody(sitter, List.of(today().plusDays(3)), 1, 500, petA));
+        b.put("answers", List.of(answer(q1, "否"), answer(q2, "每天兩餐")));
+        JsonNode created = body(mvc.perform(postJson("/api/orders", ownerToken(), key(), b)).andExpect(status().isCreated()));
+        UUID orderId = UUID.fromString(created.get("orderId").asString());
+
+        JsonNode before = eval(orderId).get("questionnaire");
+        assertThat(before.get("status").asString()).isEqualTo("COMPLETED");
+
+        jdbc.update("UPDATE sitter_questions SET question_text = '改過的題目', options = '[\"有\",\"沒有\"]'::jsonb WHERE id = ?", q1);
+        jdbc.update("UPDATE sitter_questions SET is_active = false WHERE id = ?", q2);
+        jdbc.update("UPDATE sitter_questions SET answer_type = 'INPUT', question_text = '新備註' WHERE id = ?", q3);
+
+        JsonNode after = eval(orderId).get("questionnaire");
+        assertThat(after).isEqualTo(before);
+        JsonNode answers = after.get("answers");
+        assertThat(answers.size()).isEqualTo(3);
+        assertThat(answers.get(0).get("questionId").asString()).isEqualTo(q1.toString());
+        assertThat(answers.get(0).get("questionText").asString()).isEqualTo("是否有其他寵物");
+        assertThat(answers.get(0).get("questionType").asString()).isEqualTo("RADIO");
+        assertThat(answers.get(0).get("answer").get(0).asString()).isEqualTo("否");
+        assertThat(answers.get(1).get("questionText").asString()).isEqualTo("餵食方式");
+        assertThat(answers.get(1).get("answer").asString()).isEqualTo("每天兩餐");
+        assertThat(answers.get(2).get("questionText").asString()).isEqualTo("其他備註");
+        assertThat(answers.get(2).get("questionType").asString()).isEqualTo("TEXTAREA");
+        assertThat(answers.get(2).has("answer")).isFalse();
     }
 
     @Test

@@ -394,6 +394,34 @@ class ModificationIntegrationTest extends OrderIntegrationTestBase {
         }
 
         @Test
+        @DisplayName("PRD-023 AC-3.2 退款前不可確認：UNPAID 退款飼主確認 → 409 PAYMENT_STATE_CONFLICT；退款無逾時：UNPAID / SUBMITTED 超過 30 天排程後變更仍 AWAITING_REFUND、payment 不變")
+        void refundNotConfirmableBeforeSubmitAndNeverExpires() throws Exception {
+            UUID orderA = order3();
+            UUID modA = sitterProposes(orderA, List.of(visitIds(orderA, "PENDING").get(0)), List.of());
+            UUID payA = UUID.fromString(body(accept(orderA, modA).andExpect(status().isOk())).get("payment").get("paymentId").asString());
+            verify(orderA, payA, UUID.randomUUID(), ownerToken()).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("PAYMENT_STATE_CONFLICT"));
+            assertThat(jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class, payA)).isEqualTo("UNPAID");
+
+            UUID orderB = confirmedOrder(d1().plusDays(3), d1().plusDays(4), d1().plusDays(5));
+            UUID modB = sitterProposes(orderB, List.of(visitIds(orderB, "PENDING").get(0)), List.of());
+            UUID payB = UUID.fromString(body(accept(orderB, modB).andExpect(status().isOk())).get("payment").get("paymentId").asString());
+            submitProof(orderB, payB, sitterToken());
+
+            advance(Duration.ofDays(31));
+            for (String path : List.of("payments/reminder", "payments/initial-expiry", "payments/escalation",
+                    "modifications/expiry", "modifications/supplement-expiry")) {
+                mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/internal/cron/" + path)
+                        .header("X-Internal-Secret", "local-secret-123")).andExpect(status().isOk());
+            }
+            assertThat(modStatus(modA)).isEqualTo("AWAITING_REFUND");
+            assertThat(modStatus(modB)).isEqualTo("AWAITING_REFUND");
+            assertThat(jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class, payA)).isEqualTo("UNPAID");
+            assertThat(jdbc.queryForObject("SELECT status FROM payments WHERE id = ?", String.class, payB)).isEqualTo("SUBMITTED");
+            assertThat(count("SELECT count(*) FROM payments WHERE order_id IN (?, ?) AND status = 'VOID'", orderA, orderB)).isZero();
+        }
+
+        @Test
         @DisplayName("PRD-023 AC-1.4 同意時減少目標已開始 → 409 VISIT_ALREADY_STARTED，整筆不生效")
         void acceptWithStartedTarget() throws Exception {
             UUID orderId = order3();
@@ -526,6 +554,106 @@ class ModificationIntegrationTest extends OrderIntegrationTestBase {
             assertThat(codes[0] == 200 ^ codes[1] == 200).isTrue();
             String visit = jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1);
             assertThat(visit).isEqualTo(codes[0] == 200 ? "CANCELLED" : "IN_PROGRESS");
+        }
+    }
+
+    @Nested
+    @DisplayName("ModificationVisitStartConcurrencyIntegrationTest")
+    class StartVsModification {
+
+        private ResultActions startVisit(UUID orderId, UUID visitId) throws Exception {
+            return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/orders/{o}/visits/{v}/start", orderId, visitId)
+                    .header("Authorization", sitterToken()).header("Idempotency-Key", key()));
+        }
+
+        private int lockWaiters() {
+            Integer n = jdbc.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                    + "AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()", Integer.class);
+            return n == null ? 0 : n;
+        }
+
+        private void awaitWaiters(int n) throws InterruptedException {
+            long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+            while (lockWaiters() < n) {
+                if (System.nanoTime() > deadline) {
+                    throw new IllegalStateException("waiters < " + n);
+                }
+                Thread.sleep(10);
+            }
+        }
+
+        /**
+         * 兩條執行緒依指定順序排隊取同一訂單鎖：先以獨立連線持有訂單列，first 送出並確認已在鎖上等待後才送 second，
+         * 再放鎖（PostgreSQL 依排隊順序授予列鎖），讓兩種加鎖順序都可重現。
+         */
+        private int[] ordered(java.util.concurrent.Callable<ResultActions> first, java.util.concurrent.Callable<ResultActions> second,
+                              UUID orderId) throws Exception {
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            try (java.sql.Connection c = dataSource.getConnection()) {
+                c.setAutoCommit(false);
+                try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT id FROM orders WHERE id = ? FOR UPDATE")) {
+                    ps.setObject(1, orderId);
+                    ps.executeQuery();
+                }
+                int base = lockWaiters();
+                java.util.concurrent.Future<Integer> fa = pool.submit(() -> first.call().andReturn().getResponse().getStatus());
+                awaitWaiters(base + 1);
+                java.util.concurrent.Future<Integer> fb = pool.submit(() -> second.call().andReturn().getResponse().getStatus());
+                awaitWaiters(base + 2);
+                c.rollback();
+                return new int[]{fa.get(30, java.util.concurrent.TimeUnit.SECONDS), fb.get(30, java.util.concurrent.TimeUnit.SECONDS)};
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+
+        @Test
+        @DisplayName("PRD-016 EX-13 保母開始行程先取得鎖 → 飼主送出含該行程的變更 409 VISIT_ALREADY_STARTED，無變更列、無 MODIFICATION_REQUESTED")
+        void startFirstThenOwnerModification() throws Exception {
+            UUID orderId = order3();
+            UUID v1 = visitIds(orderId, "PENDING").get(0);
+            makeStartable(v1);
+            int[] codes = ordered(() -> startVisit(orderId, v1),
+                    () -> modify(orderId, ownerToken(), change("改天", List.of(v1), List.of())), orderId);
+            assertThat(codes).containsExactly(200, 409);
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1)).isEqualTo("IN_PROGRESS");
+            assertThat(count("SELECT count(*) FROM modification_requests WHERE order_id = ?", orderId)).isZero();
+            assertThat(logActions(orderId)).doesNotContain("MODIFICATION_REQUESTED");
+        }
+
+        @Test
+        @DisplayName("PRD-016 EX-13 保母送出含該行程的變更先取得鎖（QUOTED）→ 開始行程照常 200（變更未同意前行程仍 PENDING）；之後飼主同意 → 409 VISIT_ALREADY_STARTED")
+        void sitterModificationFirstThenStart() throws Exception {
+            UUID orderId = order3();
+            UUID v1 = visitIds(orderId, "PENDING").get(0);
+            makeStartable(v1);
+            int[] codes = ordered(() -> modify(orderId, sitterToken(), change("調整", List.of(v1), List.of())),
+                    () -> startVisit(orderId, v1), orderId);
+            assertThat(codes).containsExactly(201, 200);
+            UUID modId = jdbc.queryForObject("SELECT id FROM modification_requests WHERE order_id = ?", UUID.class, orderId);
+            assertThat(modStatus(modId)).isEqualTo("QUOTED");
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1)).isEqualTo("IN_PROGRESS");
+            accept(orderId, modId).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("VISIT_ALREADY_STARTED"));
+            assertThat(modStatus(modId)).isEqualTo("QUOTED");
+        }
+
+        @Test
+        @DisplayName("PRD-016 EX-13 兩執行緒同時起跑（不指定順序）：只會出現兩種合法結果之一，且結果與行程 / 變更狀態一致")
+        void freeRace() throws Exception {
+            UUID orderId = order3();
+            UUID v1 = visitIds(orderId, "PENDING").get(0);
+            makeStartable(v1);
+            int[] codes = race(() -> startVisit(orderId, v1),
+                    () -> modify(orderId, ownerToken(), change("改天", List.of(v1), List.of())));
+            assertThat(codes[0]).as("開始行程兩種順序都成功").isEqualTo(200);
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1)).isEqualTo("IN_PROGRESS");
+            int mods = count("SELECT count(*) FROM modification_requests WHERE order_id = ?", orderId);
+            if (codes[1] == 201) {
+                assertThat(mods).isEqualTo(1);
+            } else {
+                assertThat(codes[1]).isEqualTo(409);
+                assertThat(mods).isZero();
+            }
         }
     }
 

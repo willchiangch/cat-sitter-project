@@ -76,6 +76,25 @@ class OrderCancelIntegrationTest extends OrderIntegrationTestBase {
         }
 
         @Test
+        @DisplayName("PRD-027 AC-1.4 情境 2 婉拒同 key 同內容重送 → 回放同一 200、雙方站內通知各仍 1 則、ORDER_REJECTED 一筆；換 key → 409 ORDER_STATE_CONFLICT")
+        void declineReplay() throws Exception {
+            UUID orderId = book(today().plusDays(5));
+            String k = key();
+            String first = mvc.perform(postJson("/api/orders/{id}/decline", sitterToken(), k, Map.of("reason", "當週已滿"), orderId))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            String second = mvc.perform(postJson("/api/orders/{id}/decline", sitterToken(), k, Map.of("reason", "當週已滿"), orderId))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            assertThat(json.readTree(second)).isEqualTo(json.readTree(first));
+            assertThat(count("SELECT count(*) FROM notifications WHERE related_order_id = ? AND user_id = ? AND type IN ('BOOKING_DECLINED','BOOKING_DECLINED_SELF')",
+                    orderId, owner)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM notifications WHERE related_order_id = ? AND user_id = ? AND type IN ('BOOKING_DECLINED','BOOKING_DECLINED_SELF')",
+                    orderId, sitter)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM order_logs WHERE order_id = ? AND action_type = 'ORDER_REJECTED'", orderId)).isEqualTo(1);
+            decline(orderId, "當週已滿").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ORDER_STATE_CONFLICT"))
+                    .andExpect(jsonPath("$.payload.currentStatus").value("CANCELLED"));
+        }
+
+        @Test
         @DisplayName("PRD-027 AC-1.3 訂單列被持有 > 3 秒 → 409 ORDER_BUSY + Retry-After: 1")
         void busy() throws Exception {
             UUID orderId = book(today().plusDays(5));

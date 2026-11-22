@@ -392,6 +392,34 @@ class OrderCronIntegrationTest extends OrderIntegrationTestBase {
         }
 
         @Test
+        @DisplayName("PRD-009 AC-2.4 C8 計數與失敗隔離：X 例外 → processed=1、failed=1，X 不變、Y COMPLETED；下一輪 X 完成 processed=1；同時鐘重跑 processed=0，結案紀錄 / 通知每筆各一")
+        void autoCompleteCountsAndIsolation() throws Exception {
+            UUID x = confirmedOrder(today().plusDays(1));
+            UUID y = confirmedOrder(today().plusDays(1));
+            advance(Duration.ofDays(5));
+            counts(cron("visits/zombie"), 2, 0, 0);
+            OffsetDateTime basis = jdbc.queryForObject("SELECT max(completion_basis_at) FROM orders WHERE id IN (?, ?)", OffsetDateTime.class, x, y);
+            clock.advance(Duration.between(OffsetDateTime.now(clock), basis.plusHours(48)));
+            doAnswer(inv -> {
+                throw new IllegalStateException("boom");
+            }).when(processor).autoComplete(eq(x));
+            counts(cron("orders/auto-complete"), 1, 0, 1);
+            assertThat(orderStatus(x)).isEqualTo("IN_PROGRESS");
+            assertThat(orderStatus(y)).isEqualTo("COMPLETED");
+            org.mockito.Mockito.reset(processor);
+            counts(cron("orders/auto-complete"), 1, 0, 0);
+            assertThat(orderStatus(x)).isEqualTo("COMPLETED");
+            counts(cron("orders/auto-complete"), 0, 0, 0);
+            for (UUID id : List.of(x, y)) {
+                assertThat(count("SELECT count(*) FROM order_logs WHERE order_id = ? AND action_type = 'ORDER_COMPLETED'", id)).isEqualTo(1);
+                assertThat(count("SELECT count(*) FROM notifications WHERE related_order_id = ? AND type = 'ORDER_AUTO_COMPLETED' AND user_id = ?", id, owner))
+                        .isEqualTo(1);
+                assertThat(count("SELECT count(*) FROM notifications WHERE related_order_id = ? AND type = 'ORDER_AUTO_COMPLETED' AND user_id = ?", id, sitter))
+                        .isEqualTo(1);
+            }
+        }
+
+        @Test
         @DisplayName("§6.3 orderId 只處理該測試帳號訂單；自動觸發跳過測試帳號訂單")
         void testAccountScope() throws Exception {
             jdbc.update("UPDATE users SET email = ? WHERE id = ?", "journey-o-" + UUID.randomUUID() + "@e2e-journey.test", owner);
@@ -400,6 +428,35 @@ class OrderCronIntegrationTest extends OrderIntegrationTestBase {
             counts(cron("orders/review-expiry"), 0, 0, 0);
             JsonNode r = body(cronRaw("orders/review-expiry", "orderId=" + testOrder).andExpect(status().isOk()));
             counts(r, 1, 0, 0);
+        }
+    }
+
+    @Nested
+    @DisplayName("ModificationInitiateMailFailureIntegrationTest")
+    class ModificationMailFailure {
+
+        @Test
+        @DisplayName("PRD-016 AC-3.8 寄信失敗不影響轉移：Resend 5xx → E17 仍 201、變更 REQUESTED 已提交、保母站內通知存在；Email 由 C11 退避重試，第 5 次後 FAILED，變更不受影響")
+        void mailFailureDoesNotAffectTransition() throws Exception {
+            doReturn(503).when(emailService).deliver(anyString(), anyString(), anyString(), anyString());
+            UUID orderId = confirmedOrder(today().plusDays(5), today().plusDays(6));
+            UUID v1 = visitIds(orderId, "PENDING").get(0);
+            JsonNode r = body(modify(orderId, ownerToken(), Map.of("type", "CHANGE", "reason", "改天",
+                    "removeVisitIds", List.of(v1.toString()), "addItems", List.of()))
+                    .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("REQUESTED")));
+            UUID modId = UUID.fromString(r.get("modificationId").asString());
+            UUID n = jdbc.queryForObject("SELECT id FROM notifications WHERE user_id = ? AND related_order_id = ? AND type = 'MODIFICATION_REQUESTED'",
+                    UUID.class, sitter, orderId);
+            for (int attempt = 1; attempt <= 5; attempt++) {
+                cron("notifications/email-dispatch");
+                assertThat(jdbc.queryForObject("SELECT email_attempts FROM notifications WHERE id = ?", Integer.class, n)).isEqualTo(attempt);
+                advance(Duration.ofMinutes(40));
+            }
+            assertThat(jdbc.queryForObject("SELECT email_status FROM notifications WHERE id = ?", String.class, n)).isEqualTo("FAILED");
+            cron("notifications/email-dispatch");
+            assertThat(jdbc.queryForObject("SELECT email_attempts FROM notifications WHERE id = ?", Integer.class, n)).isEqualTo(5);
+            assertThat(jdbc.queryForObject("SELECT status FROM modification_requests WHERE id = ?", String.class, modId)).isEqualTo("REQUESTED");
+            assertThat(logActions(orderId)).contains("MODIFICATION_REQUESTED");
         }
     }
 
