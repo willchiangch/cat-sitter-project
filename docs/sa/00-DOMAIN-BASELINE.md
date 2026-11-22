@@ -8,7 +8,7 @@
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
 | 適用 | 所有 PRD / SD / TS。本文件定義的概念，其他文件只能引用、不得重新定義；要改就改這份並走核准 |
 
-> §7 CQ-1~84 已全部由使用者決定。第 2 版已核准；CQ-78~83 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
+> §7 CQ-1~85 已全部由使用者決定（CQ-85 來自 NFR-003 核准）。第 2 版已核准；CQ-78~83 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
 > 「現況」欄是 2026-11-21 程式碼的實際行為，只當證據，不代表正確。
 > 標「提案值」的參數（`URGENT_WINDOW_HOURS` 2h、排程頻率 15 分鐘、CLOSED_BY_SYSTEM 計價）已隨核准確認。
 
@@ -281,6 +281,7 @@ stateDiagram-v2
 | 422 | `INVALID_QUOTE_AMOUNT` | 報價總額 < 1 |
 | 422 | `INVALID_VISIT_DATE` | 行程日期不符規則 |
 | 422 | `PAYOUT_ACCOUNT_REQUIRED` | 保母未設定收款帳號就報價 |
+| 429 | `RATE_LIMITED` | 請求頻率超過上限：全域限流（NFR-003 SEC-INPUT-6）或會寄信的匿名端點寄送上限（SEC-INPUT-7）；回應帶 `Retry-After` 標頭（整數秒），body 仍為 SD-GLOBAL-SPEC §2.6 錯誤格式（CQ-85） |
 
 - 當事人做不屬於自己方向的動作（例：保母上傳 CHARGE 憑證、飼主駁回退款）→ 403 `FORBIDDEN`。
 - **判斷順序**（多個錯誤同時成立時回第一個，CQ-70、CQ-76）：
@@ -299,6 +300,8 @@ stateDiagram-v2
   13. 403 `PLAN_REQUIRED` / `SUBSCRIPTION_LOCKED`
   - 需要讀取當下資料才能判斷的上限檢查（例：依目前題目判斷答案字數、後端重算後的 `base_amount` / `total_amount` 上限）雖回 400 `VALIDATION_FAILED`，判斷時點歸在第 12 步。
   - 例：保母對 CHARGE 上傳 → 403（第 5 步）；飼主撤回系統建立的退款變更 → 403（非發起者）；`DISPUTED` 訂單送出原因空白 → 400。
+  - 429 `RATE_LIMITED` 的位置（CQ-85）：(a) 全域限流在 filter 層判斷，**先於第 1 步**：帶有效 token 的請求以 token 身分計數，無 token 或 token 無效以來源 IP 計數（SEC-INPUT-6）；超過上限即回 429，不再做認證、冪等與其他檢查，也不寫冪等紀錄；`/api/internal/**` 不套用。(b) 會寄信的匿名端點（註冊 OTP、重送 OTP、忘記密碼）的每 email / 每 IP 寄送上限需讀取當下計數，判斷時點歸在第 12 步；超過時不寄信。
+  - 登入鎖定 429 `ACCOUNT_LOCKED` 是 SD-IDENTITY 的模組碼（NFR-003 CQ-45），不屬本表，判斷時點歸第 12 步。
 - **payload 共通欄位**：`ORDER_STATE_CONFLICT` 帶 `currentStatus`；`DEADLINE_PASSED` 帶 `deadline`（期限名稱：`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT` / `VISIT_ZOMBIE_AT` / `CARE_LOG_EDIT_ENDS_AT`）與 `deadlineAt`（時間值）（CQ-71）；`PRICE_CHANGED` 帶目前值。
 - 503 `STORAGE_UNAVAILABLE`：GCS 等檔案儲存暫時無法使用（跨模組共用，只在以上檢查全部通過後的外部呼叫發生）。
 - 非業務錯誤：未預期的程式錯誤一律 500 `INTERNAL_ERROR`（不列入判斷順序，回應不含內部細節，帶 `traceId`）。
@@ -448,6 +451,7 @@ stateDiagram-v2
 | CQ-83 | 模組狀態類 409 的判斷位置；`STORAGE_UNAVAILABLE` 歸屬（PRD-022 寫回回饋，技術細節） | 緊接第 9 步之後；`STORAGE_UNAVAILABLE` 提升為跨模組碼 | §3.7 |
 | CQ-82 | O11–O13 的通知與 O13 錯誤碼 | O11 通知保母、O12 通知雙方、O13 通知保母（可關閉類別）；O13 錯誤碼與 `SERVICE_DISPUTE` 待辦；`VISITS_NOT_FINISHED` 列入判斷順序第 9 步 | §3.2、§3.7 |
 | CQ-84 | ADMIN 唯讀範圍是否涵蓋待辦已關閉的訂單（journey TS 回饋） | 訂單 `DISPUTED`，或曾有任何 ADMIN 待辦（不論待辦與訂單狀態）即可唯讀；寫入不擴大：O16 仍限有 OPEN 首次付款待核對待辦，O15 / O17 仍限 `DISPUTED`（使用者決定 2026-11-22） | §1.2 |
+| CQ-85 | 限流的跨模組錯誤碼與判斷位置（NFR-003 CQ-28、CQ-41，§15 U-5） | 新增 429 `RATE_LIMITED` + `Retry-After`（整數秒）；全域限流在 filter 層、先於判斷順序第 1 步；寄信類匿名端點上限歸第 12 步；登入鎖定 429 `ACCOUNT_LOCKED` 為 SD-IDENTITY 模組碼（NFR-003 CQ-45）。NFR-003 核准（CQ 全數採建議值）使用者 2026-11-22；寄信上限與 `ACCOUNT_LOCKED` 歸第 12 步為回寫時依 SEC-INPUT-7、SEC-AUTH-5 推定的技術細節（需讀取當下計數才能判斷，比照第 12 步的上限檢查） | §3.7 |
 
 ---
 
@@ -455,6 +459,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 核准後回寫（NFR-003 §15 U-5）：§3.7 新增跨模組碼 429 `RATE_LIMITED`（含 `Retry-After`）；判斷順序補 429 的位置（全域限流先於第 1 步、寄信上限歸第 12 步）與 `ACCOUNT_LOCKED` 屬模組碼；新增 CQ-85。使用者同意之核准後修訂，狀態維持 Approved | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。§1.2 訂單列 ADMIN 唯讀範圍擴為「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」，寫入不擴大（O16 限 OPEN 首次付款待核對待辦、O15 / O17 限 `DISPUTED`）；CQ-18、CQ-66 加註；新增 CQ-84。使用者同意之核准後修訂 2026-11-22，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 使用者核准：狀態 In Review → Approved（第 3 版） | 使用者 2026-11-22 |
 | 2026-11-22 | 第 3 版修訂：CQ-78~82（行程逾時出口、開始時間限制、`VISIT_STATE_CONFLICT` 與新期限名稱、照護日誌歸屬與鎖、O11–O13 通知與錯誤碼、§6 行程定義定案）；狀態退回 In Review | FULFILL PRD 重寫回饋 + 使用者決定（全部採建議） |

@@ -8,7 +8,7 @@
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-005 |
 | 相依 PRD | PRD-001（門禁名單的設定）；PRD-002（毛孩資料、邏輯刪除）；PRD-003（方案、適用寵物、可預約日期區間）；PRD-004（問卷題目 CRUD、必填、啟用 / 停用、排序）；PRD-017（KYC 狀態與 ADMIN 停權；停權定義的改寫屬 PRD-017，本卡依賴 CQ-14 的結果）；PRD-018（公開 / 隱藏狀態、頁首資料）；PRD-012（訂閱狀態與等級）；PRD-019（我的最愛）；PRD-014（通知投遞與偏好）；PRD-006（接手 `PENDING` 訂單：評估、檢視問卷答案、報價）；PRD-027（評估逾期 O4）；PRD-026（飼主撤回 O3 OWNER、O6，自本卡拆出） |
-| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.1 角色、§1.2 資源歸屬（毛孩、問卷）、§2.1 方案矩陣（每月接單上限、特定日期才開放預約 CQ-68、黑名單、白名單）、§2.2 方案規則（即時查詢、每月接單上限、訂閱逾期 / 停權）、§3.1 主狀態、§3.2 O1（CQ-60 毛孩綁定、CQ-74 日期與金額上限）、§3.5 事前問卷（CQ-58、CQ-59、CQ-67）、§3.6 轉移規則（稽核、通知與不可關閉類別 CQ-73、冪等、版本 / `PRICE_CHANGED`）、§3.7 錯誤碼、判斷順序（CQ-70）、缺 `Idempotency-Key`、§4 預約試算、§5 時間規則（首日、`URGENT_WINDOW_HOURS`、`review_expires_at`）、§6 熟客 |
+| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.1 角色、§1.2 資源歸屬（毛孩、問卷）、§2.1 方案矩陣（每月接單上限、特定日期才開放預約 CQ-68、黑名單、白名單）、§2.2 方案規則（即時查詢、每月接單上限、訂閱逾期 / 停權）、§3.1 主狀態、§3.2 O1（CQ-60 毛孩綁定、CQ-74 日期與金額上限）、§3.5 事前問卷（CQ-58、CQ-59、CQ-67）、§3.6 轉移規則（稽核、通知與不可關閉類別 CQ-73、冪等、版本 / `PRICE_CHANGED`）、§3.7 錯誤碼、判斷順序（CQ-70）、缺 `Idempotency-Key`、§4 預約試算、§5 時間規則（首日、`URGENT_WINDOW_HOURS`、`review_expires_at`）、§6 熟客；`docs/sa/nfr/03-SECURITY.md`（NFR-003）CQ-43、§15 U-13（待評估訂單上限） |
 
 > 一張 PRD = 一個可獨立驗收的功能。子模組 AC ≤ 8 條，子模組 > 3 個就拆卡。
 > 共用概念（角色、SaaS 額度、訂單狀態、時間起算點）只能**引用** DOMAIN-BASELINE，不得在這裡重新定義；要改就改 baseline。
@@ -91,7 +91,7 @@
    8. 業務規則（含模組碼），依序：
       1. 自我預約 → 422 `SELF_BOOKING_NOT_ALLOWED`。
       2. 保母不可預約（§4.1 步驟 1.2、1.3）→ 403 `SITTER_NOT_BOOKABLE`。
-      3. 每月接單上限已滿 → 422 `MONTHLY_QUOTA_REACHED`。
+      3. 每月接單上限已滿 → 422 `MONTHLY_QUOTA_REACHED`；之後檢查呼叫者對此保母目前為 `PENDING` 的訂單數 ≥ 3 → 422 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`，BR-26）。
       4. 任一 `planId` 不存在、不屬於該保母、已下架、或對此飼主被門禁過濾 → 422 `PLAN_NOT_BOOKABLE`（不揭露是否存在或因門禁，審查第 1 輪 #11）。
       5. 任一日期 < 今天（Asia/Taipei）、> 今天 + 365 天，或落在方案可預約區間外（保母當下 PRO / ULTIMATE 且未鎖定）→ 422 `INVALID_VISIT_DATE`（payload 帶不符的日期）。
       6. 問卷：後端以送單當下重新判斷是否需填（§4.3 步驟 1）。不需填 → 忽略送來的全部答案。需填 → 依 BR-24 比對當下題目：對應停用 / 不存在題目的答案忽略；必填題沒有答案或答案不符合當下題目定義 → 409 `QUESTIONNAIRE_CHANGED`（payload 帶目前題目清單）；之後依 BR-22 檢查長度，超過 → 400 `VALIDATION_FAILED`（payload 帶 `questionId`）。
@@ -112,10 +112,10 @@
 
 | # | 從 | 到 | 觸發者 | 前置條件 | 不符時錯誤碼 |
 |---|----|----|-------|---------|-------------|
-| T1（baseline O1） | — | `PENDING` | OWNER | `currentRole=OWNER`；非自己的保母頁；保母 KYC `VERIFIED` 且非隱藏、飼主不在全域黑名單（PRO+ 生效）、設全域白名單時在名單內（ULTIMATE 生效）；保母未鎖定 / 未停權；未達每月接單上限；方案可預約；每個日期群組至少綁定 1 隻本人未刪除的毛孩；今天 ≤ 每個行程日期 ≤ 今天 + 365 天（Asia/Taipei）；需填問卷時當下啟用中必填題皆已作答且答案符合當下題目定義；`base_amount ≤ 999,999`；`expectedAmount` = 後端重算值 | 401 `UNAUTHENTICATED`；403 `ROLE_MISMATCH`；404 `NOT_FOUND`；403 `FORBIDDEN`；400 `VALIDATION_FAILED`；422 `IDEMPOTENCY_KEY_REUSED`；409 `IDEMPOTENCY_IN_PROGRESS`；422 `SELF_BOOKING_NOT_ALLOWED`；403 `SITTER_NOT_BOOKABLE`；422 `MONTHLY_QUOTA_REACHED`；422 `PLAN_NOT_BOOKABLE`；422 `INVALID_VISIT_DATE`；409 `QUESTIONNAIRE_CHANGED`；409 `PRICE_CHANGED`；403 `SUBSCRIPTION_LOCKED` |
+| T1（baseline O1） | — | `PENDING` | OWNER | `currentRole=OWNER`；非自己的保母頁；保母 KYC `VERIFIED` 且非隱藏、飼主不在全域黑名單（PRO+ 生效）、設全域白名單時在名單內（ULTIMATE 生效）；保母未鎖定 / 未停權；未達每月接單上限；呼叫者對此保母的 `PENDING` 訂單 < 3 張；方案可預約；每個日期群組至少綁定 1 隻本人未刪除的毛孩；今天 ≤ 每個行程日期 ≤ 今天 + 365 天（Asia/Taipei）；需填問卷時當下啟用中必填題皆已作答且答案符合當下題目定義；`base_amount ≤ 999,999`；`expectedAmount` = 後端重算值 | 401 `UNAUTHENTICATED`；403 `ROLE_MISMATCH`；404 `NOT_FOUND`；403 `FORBIDDEN`；400 `VALIDATION_FAILED`；422 `IDEMPOTENCY_KEY_REUSED`；409 `IDEMPOTENCY_IN_PROGRESS`；422 `SELF_BOOKING_NOT_ALLOWED`；403 `SITTER_NOT_BOOKABLE`；422 `MONTHLY_QUOTA_REACHED`；422 `PENDING_ORDER_LIMIT_REACHED`；422 `PLAN_NOT_BOOKABLE`；422 `INVALID_VISIT_DATE`；409 `QUESTIONNAIRE_CHANGED`；409 `PRICE_CHANGED`；403 `SUBSCRIPTION_LOCKED` |
 
 - 行程以 `PENDING` 建立（baseline §6）；`questionnaire_status`、`questionnaire_exempt_reason` 於 T1 寫入後不再改變（baseline §3.5）。本卡不造成其他轉移。
-- 模組碼：`SITTER_NOT_BOOKABLE`、`PLAN_NOT_BOOKABLE`、`QUESTIONNAIRE_CHANGED` 只在 O1 使用，命名不與 baseline §3.7 衝突。baseline O1「不符時」欄只列跨模組碼，完整清單以本表為準（審查第 1 輪 #20）。`QUESTIONNAIRE_CHANGED` 的語意是「送出的答案與送單當下的問卷不符」，包含題目沒改、只是直接呼叫 API 缺答的情況；SD-ORDER 錯誤碼表須照此註明。
+- 模組碼：`SITTER_NOT_BOOKABLE`、`PLAN_NOT_BOOKABLE`、`QUESTIONNAIRE_CHANGED`、`PENDING_ORDER_LIMIT_REACHED`（名稱為建議值，SD-ORDER 錯誤碼表定案，見 CQ-15）只在 O1 使用，命名不與 baseline §3.7 衝突。baseline O1「不符時」欄只列跨模組碼，完整清單以本表為準（審查第 1 輪 #20）。`QUESTIONNAIRE_CHANGED` 的語意是「送出的答案與送單當下的問卷不符」，包含題目沒改、只是直接呼叫 API 缺答的情況；SD-ORDER 錯誤碼表須照此註明。
 
 ## 6. 業務規則
 
@@ -146,6 +146,7 @@
 | BR-23 | 不可送單時的飼主端文案：訂閱鎖定、ADMIN 停權與每月額度已滿都顯示「保母目前暫停接受新預約」（不揭露保母的訂閱 / 額度 / 停權狀況）；預約自己顯示「這是您自己的預約頁，無法預約」 | CQ-1、CQ-14（使用者 2026-11-21） |
 | BR-24 | 問卷畫面過期：以**送單當下**啟用中題目（題型、選項、必填）驗證。(a) 答案對應的題目已停用或不存在 → 忽略該答案，不存、不報錯；(b) 當下任一必填題沒有答案（BR-22 定義）→ 409 `QUESTIONNAIRE_CHANGED`；(c) 答案不符合當下題目定義（單選答案不在當下選項內、多選含當下不存在的選項、答案形態與當下題型不符）→ 409 `QUESTIONNAIRE_CHANGED`；payload 帶目前題目清單（`questionId`、題目文字、題型、選項、是否必填），前端重新載入問卷並保留仍有效的答案。簡答與詳答互換時答案形態相同，不視為題型不符，長度依當下題型（BR-22）。檢查順序：(a) → (b)、(c) → BR-22 長度 | 本卡 CQ-9（使用者 2026-11-21，含審查第 1 輪補充） |
 | BR-25 | 錯誤判斷順序依 baseline §3.7（CQ-70）：401 → 冪等回放 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 → 冪等衝突 → 業務規則（含模組碼）→ 403 `SUBSCRIPTION_LOCKED`；業務規則內部順序見 §4.4 步驟 3.8。例外：問卷長度超過（BR-22）與 `base_amount` 上限（BR-3）雖回 400，因需要當下題目 / 方案單價才能判斷，排在業務規則內（§4.4 步驟 3.8.6、3.8.7） | baseline §3.7、CQ-70；例外為本卡依資料相依性的排序（需 baseline 確認，見變更紀錄） |
+| BR-26 | 待評估訂單上限（防飼主端濫用）：同一位飼主對同一位保母同時為 `PENDING` 的訂單最多 3 張；送單時已有 3 張 → 422 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`），不建立任何資料。只計主狀態 `PENDING`：訂單經報價轉 `PENDING_PAYMENT`、或轉 `CANCELLED`（飼主撤回、保母取消、評估逾期 O4）後即不再計入；`PENDING_PAYMENT` 及之後的狀態不計。不同保母、不同飼主分開計算。不依 SaaS 方案區分（FREE / BASIC / PRO / ULTIMATE 相同）。判斷位置在每月接單上限之後（§4.4 步驟 3.8.3）。本條不是接單容量控管（不限制保母收單總量，BR-12 不變）；同一飼主多裝置同時送單可能短暫超過 3 張，依已定案決策不處理 | NFR-003 CQ-43、§15 U-13（使用者核准 NFR-003 2026-11-22，採建議值 3 張、422）；不處理同人併發：doc-conventions 已定案產品決策 |
 
 ## 7. 例外處理
 
@@ -180,6 +181,7 @@
 | EX-27 | 飼主名下沒有任何毛孩 | 前端停用送出；直接呼叫 API 依 EX-22 處理 | 400 `VALIDATION_FAILED`（`field=petIds`） | 「您尚未新增毛孩，請先至個人檔案新增」 |
 | EX-28 | 答案對應的題目在畫面停留期間被停用或刪除 | 忽略該答案，不存、不報錯；其他檢查照常（BR-24） | 201 | 正常送出 |
 | EX-29 | 後端重算 `base_amount` > 999,999（前端停用被繞過） | 拒絕，不建立 | 400 `VALIDATION_FAILED`（`field=baseAmount`、`max=999999`） | 「單筆預約金額不可超過 $ 999,999，請拆成多筆預約」 |
+| EX-30 | 飼主對同一保母已有 3 張 `PENDING` 訂單仍送單（含直接呼叫 API） | 拒絕，不建立；其他保母、其他飼主不受影響（BR-26） | 422 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`） | 「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」（文案依 CQ-15） |
 
 ## 8. 驗收標準（AC）
 
@@ -202,7 +204,7 @@
 - [ ] **AC-2.4 (毛孩預設全選與種類提示)**：情境 1：Given 飼主名下有貓 A、貓 B、狗 C 及已刪除的貓 D，When 登入後新增群組，Then 出現 `public-booking-group-0-pet-checkbox-{A}`、`-{B}`、`-{C}` 且三者為勾選，不出現 D。情境 2：Given 情境 1，When 取消勾選 C 並為該群組選適用寵物 = 狗的方案 P1，Then 出現 `public-booking-pet-type-warning`「您沒有適合此方案的寵物，請先至個人檔案新增或選擇其他方案」；When 關閉提示並送出，Then 201，該群組綁定 A、B。情境 3：Given 飼主名下沒有毛孩，When 開啟預約頁，Then `public-booking-btn-submit` 停用、`public-booking-no-pet-message` 顯示「您尚未新增毛孩，請先至個人檔案新增」。對應：BR-17、US-3、US-8、EX-27
 - [ ] **AC-2.5 (毛孩綁定檢核)**：情境 1：When 直接呼叫送單 API 且第 2 個群組 `petIds = []`，Then 400 `VALIDATION_FAILED`、`field=petIds`、`groupIndex=1`。情境 2：When `petIds` 含其他飼主的毛孩 id，Then 403 `FORBIDDEN`。情境 3：When `petIds` 含不存在或已刪除的毛孩 id，Then 404 `NOT_FOUND`。情境 4：When 同時含他人毛孩 id 與空 `petIds` 群組，Then 403 `FORBIDDEN`（baseline §3.7 判斷順序 403 先於 400）。以上皆無新訂單、無 `order_logs`。對應：BR-17、BR-25、EX-22~EX-24
 - [ ] **AC-2.6 (格式與數量上限)**：情境 1：When 送單時群組清單為空、某群組日期清單為空、每日次數為 0 或 4、群組數 11、日期總數 61、或同一方案的 12/01 同時出現在兩個群組，Then 400 `VALIDATION_FAILED`（payload 指出欄位），無新訂單。情境 2：Given 群組 10 個、日期總數 60、每日次數 3，When 送單，Then 201。情境 3：Given 方案 P1、P2 各一群組且都含 12/01，When 送單，Then 201。對應：BR-18、EX-14
-- [ ] **AC-2.7 (同日不阻擋)**：Given 保母在 11/25 已有 3 張其他飼主的 `PENDING` 訂單與 1 張 `CONFIRMED` 訂單，When 飼主送單 11/25，Then 201，新訂單 `PENDING`。對應：BR-12、EX-17
+- [ ] **AC-2.7 (同日不阻擋與待評估訂單上限)**：情境 1：Given 保母在 11/25 已有 3 張其他飼主的 `PENDING` 訂單與 1 張 `CONFIRMED` 訂單，When 飼主送單 11/25，Then 201，新訂單 `PENDING`。情境 2：Given 飼主 X 對保母 S 已有 3 張 `PENDING` 訂單，When X 再對 S 送單（不論日期），Then 422 `PENDING_ORDER_LIMIT_REACHED`、payload `limit=3`，畫面顯示「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」，資料庫 X 對 S 的訂單數不變、無新 `order_logs`。情境 3：Given X 對 S 有 2 張 `PENDING`、1 張 `PENDING_PAYMENT`、1 張 `CANCELLED`，When X 對 S 送單，Then 201。情境 4：Given 情境 2，When X 對保母 T 送單、或飼主 Y 對 S 送單，Then 皆 201。情境 5：Given 情境 2 之後 S 對其中 1 張報價（該單轉 `PENDING_PAYMENT`），When X 再對 S 送單，Then 201。情境 6：Given S 為 FREE、X 對 S 已有 3 張 `PENDING`，When X 送單，Then 422 `PENDING_ORDER_LIMIT_REACHED`；Given S 改為 ULTIMATE，Then 結果相同。對應：BR-12、BR-26、EX-17、EX-30
 - [ ] **AC-2.8 (方案不可預約)**：情境 1：Given 飼主頁面上已選方案 P1，When 保母在飼主送出前將 P1 下架後飼主送出，Then 422 `PLAN_NOT_BOOKABLE`，無新訂單，畫面顯示「此方案目前無法預約，請重新整理後再選擇」。情境 2：When 以其他保母的 planId 送單，Then 422 `PLAN_NOT_BOOKABLE`。情境 3：When 以不存在的 planId 送單，Then 422 `PLAN_NOT_BOOKABLE`，回應的 `code` 與 payload 欄位與情境 2 相同（不回 404）。對應：EX-8
 
 ### 子模組 3：事前問卷與送出預約（O1）
@@ -220,11 +222,11 @@
 
 | 面向 | 內容 |
 |------|------|
-| 資料 | `orders`：新增時寫 `status`、`base_amount`、`questionnaire_status`、`questionnaire_exempt_reason`、`review_expires_at`（新欄位，現況未實作）、owner / sitter；`order_items`：每群組一列（方案、日期清單、每日次數、送單時單價，報價後以 PRD-006 快照為準）；群組 × 毛孩綁定（新關聯，例 `order_item_pets`）；`order_answers`：題目 id、送單當下題目文字快照、題型快照、答案；`order_logs`：`ORDER_CREATED`；`idempotency_keys`。行程（`visits`，歸 SD-FULFILL）以 `PENDING` 建立，日期以 Asia/Taipei 日期儲存；我的最愛（歸 SD-SUPPLY）冪等新增關聯；通知（`notifications`，歸 SD-NOTIFY）。讀取：KYC 與停權狀態（SD-TRUST）、公開狀態 / 方案 / 問卷題目（SD-SUPPLY）、毛孩（SD-CARE）、門禁名單（SD-IDENTITY）、訂閱等級與鎖定（SD-BILLING）、當月 `CONFIRMED` 計數與熟客判斷（SD-ORDER） |
+| 資料 | `orders`：新增時寫 `status`、`base_amount`、`questionnaire_status`、`questionnaire_exempt_reason`、`review_expires_at`（新欄位，現況未實作）、owner / sitter；`order_items`：每群組一列（方案、日期清單、每日次數、送單時單價，報價後以 PRD-006 快照為準）；群組 × 毛孩綁定（新關聯，例 `order_item_pets`）；`order_answers`：題目 id、送單當下題目文字快照、題型快照、答案；`order_logs`：`ORDER_CREATED`；`idempotency_keys`。行程（`visits`，歸 SD-FULFILL）以 `PENDING` 建立，日期以 Asia/Taipei 日期儲存；我的最愛（歸 SD-SUPPLY）冪等新增關聯；通知（`notifications`，歸 SD-NOTIFY）。讀取：KYC 與停權狀態（SD-TRUST）、公開狀態 / 方案 / 問卷題目（SD-SUPPLY）、毛孩（SD-CARE）、門禁名單（SD-IDENTITY）、訂閱等級與鎖定（SD-BILLING）、當月 `CONFIRMED` 計數、熟客判斷與同一飼主對此保母的 `PENDING` 訂單數（BR-26，SD-ORDER） |
 | 畫面 | 保母對外預約網頁（匿名 / OWNER，隱藏底部導覽，BR §5.5）：可預約狀態提示、方案清單、日期群組編輯（含毛孩勾選，預設全選）、方案選擇視窗、寵物種類提示、問卷步驟（需填時）、試算區、送出前確認區（評估期限）、送出；送出後導向飼主訂單詳情。testid：`public-booking-unavailable-message`、`public-booking-plan-card-{planId}`、`public-booking-group-{index}`、`public-booking-group-{index}-pet-checkbox-{petId}`、`public-booking-no-pet-message`、`public-booking-pet-type-warning`、`public-booking-estimate-amount`、`public-booking-amount-limit-message`、`public-booking-question-{questionId}`、`public-booking-review-expires-at`、`public-booking-urgent-hint`、`public-booking-btn-submit`（命名依 SD-FRONTEND-SPEC §4，`public` 表示匿名與 OWNER 共用頁面） |
 | 通知 | 送出預約 → SITTER → 站內「新預約申請」；Email 依 PRD-014 偏好（不屬 baseline CQ-73 不可關閉類別） |
 | 排程 | 無（`review_expires_at` 到期的 O4 由 PRD-027 處理） |
-| 卡外依賴 | PRD-017 須把「ADMIN 停權」定義為 baseline §2.2 的停權（送單 403 `SUBSCRIPTION_LOCKED`），KYC 未通過只含 `UNVERIFIED` / `PENDING_REVIEW` / `REJECTED`（CQ-14）；本卡不改 PRD-017 |
+| 卡外依賴 | SD-ORDER（Approved）須補 BR-26：E1 判斷步驟、錯誤碼表新增 422 `PENDING_ORDER_LIMIT_REACHED`、AC 對應表 AC-2.7 情境 2–6、計數查詢索引（NFR-003 §15 U-13）；本卡不改 SD。PRD-017 須把「ADMIN 停權」定義為 baseline §2.2 的停權（送單 403 `SUBSCRIPTION_LOCKED`），KYC 未通過只含 `UNVERIFIED` / `PENDING_REVIEW` / `REJECTED`（CQ-14）；本卡不改 PRD-017 |
 | 現況差異（2026-11-21 程式碼，只作證據） | 送單時已填問卷並驗必填（保留，改為依熟客 / 無題目判斷免填，並補題型快照與免填原因）；ULTIMATE 門禁規則 `NO_QUESTIONNAIRE`（要移除）；毛孩欄位為選填（改為每群組必選 ≥ 1）；無 `review_expires_at`；無每月接單上限、訂閱鎖定、自我預約、日期上限、金額上限檢查；門禁未依方案等級判斷；未自動加入我的最愛；錯誤碼為舊格式（`MSG_DATA_INVALID_STATUS`、`PLAN_NOT_IN_RANGE`）；行程日期以 UTC 00:00 存放 |
 
 ## 10. 待釐清事項
@@ -245,11 +247,13 @@
 | CQ-12 | 行程日期只有下限（≥ 今天）沒有上限；FREE / BASIC 沒有可預約區間，可以預約好幾年後，`review_expires_at = 首日` 讓訂單長期卡在 `PENDING`（審查第 1 輪 #7） | 最後一個行程日期 ≤ 今天（Asia/Taipei）+ 365 天；超過 → 422 `INVALID_VISIT_DATE`（payload 帶日期）；日期選擇器停用超過範圍的日期（baseline CQ-74；寫入 BR-4、§4.2、EX-9、AC-2.2） | 已決（使用者 2026-11-21） |
 | CQ-13 | `base_amount` 沒有上限（PRD-003 單價也沒有上限），與 PRD-006 BR-5 `total_amount ≤ 999,999` 衝突，會建出保母無法報價的訂單（審查第 1 輪 #6） | O1 後端重算 `base_amount` > 999,999 → 400 `VALIDATION_FAILED`（payload `field=baseAmount`、`max=999999`）；前端試算超過時停用送出並顯示「單筆預約金額不可超過 $ 999,999，請拆成多筆預約」（金額格式 2026-11-22 依 SD-FRONTEND-SPEC §6.4.1 統一；baseline CQ-74；寫入 BR-3、§4.2、EX-29、AC-3.3） | 已決（使用者 2026-11-21） |
 | CQ-14 | ADMIN 停權保母時，預約頁走 PRD-017 KYC `SUSPENDED`（步驟 1.1，文案「尚未完成實名認證」）還是 baseline §2.2 的停權（403 `SUBSCRIPTION_LOCKED`）？（審查第 1 輪 #8） | baseline §2.2 的「ADMIN 停權」= KYC / 帳號停權：送單 403 `SUBSCRIPTION_LOCKED`，文案「保母目前暫停接受新預約」（不揭露停權）；§4.1 步驟 1.2 只處理 `UNVERIFIED` / `PENDING_REVIEW` / `REJECTED`；PRD-017 同步修改（卡外，本卡只註明依賴）（寫入 BR-10、BR-11、§4.1、EX-4、EX-6、AC-1.6） | 已決（使用者 2026-11-21） |
+| CQ-15 | BR-26 待評估訂單上限的模組碼名稱、飼主端文案、預約頁是否預先停用送出（NFR-003 CQ-43 只定 3 張與 422，未定碼名與文案） | 模組碼 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`），由 SD-ORDER 錯誤碼表定案；文案「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」；預約頁不預先判斷（booking-context 不新增欄位），只在送出後顯示錯誤 | Open |
 
 ## 11. 變更紀錄
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫（NFR-003 §15 U-13 / CQ-43）：新增 BR-26 同一飼主對同一保母同時 `PENDING` 訂單上限 3 張，超過 422 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`）；§4.4 步驟 3.8.3 補判斷位置（每月接單上限之後，不改步驟編號）；§5 T1 前置條件、錯誤碼與模組碼清單；新增 EX-30；AC-2.7 改名並補情境 2–6（AC 數不變，仍 8 / 8 / 8 = 24 條）；§9 讀取與卡外依賴（SD-ORDER 需補）；新增 CQ-15（碼名、文案、預約頁不預判，Open）。使用者同意之核准後修訂，狀態維持 Approved | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：§4.4 步驟 3.1–3.2 與 BR-25 改為 401 先於冪等回放（baseline §3.7）；畫面金額改為 SD-FRONTEND-SPEC §6.4.1 格式（`$ 999,999`、`$ 4,600`，§4.2 步驟 5、EX-29、AC-2.1、AC-3.3、CQ-13）；BR-22「去除前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 第 1 輪審查修正總覽：處理全部 20 項（重要 9、建議 11）；CQ-9~14 全部已決並寫入正文；`PET_REQUIRED` 移除；錯誤判斷順序改依 baseline §3.7（新增 BR-25）；補 testid；狀態 Needs Clarification → In Review。仍 3 個子模組，AC 8 / 8 / 8 = 24 條 | `docs/reviews/PRD-005-public-booking.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-68、70、73、74 |
