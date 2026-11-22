@@ -247,5 +247,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者確認：§2.8 `app.security.rate-limit.anonymous-enforce` 預設 false（只記不擋），部署後實測 XFF 再開，上線前必須 true；§2.9 CR/LF 跳脫採 logback `%replace` | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§1.2 前端改由 Firebase Hosting 提供、後端映像不含前端、移除靜態檔 permitAll、支援期（U-1、SEC-SCA-3）；§2.6 traceId 限 `^[0-9a-f]{32}$` 否則重新產生（U-2）、`message` 不得帶框架 / JDK 例外原文、429 `RATE_LIMITED`；新增 §2.8 請求解析與濫用防護（非冪等 body 1 MB、Jackson 限制、`BigDecimal` 範圍、regex、分頁上限 100、限流與來源 IP 取法）、§2.9 日誌遮蔽與 CR / LF 注入；§3.4 身分只認 `Authorization`、新增 §3.4.1 匿名白名單逐條路由樣板與 URL 層規則、AU / IT（U-4）；新增 §3.5 API 資安標頭與 CORS 白名單、§3.6 SSRF、§3.7 內部端點雙邊 SHA-256 比對；§4.3 稽核同交易、外部 I/O 順序、append-only；§6.2 prod 停用 springdoc（U-3） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | §2.4 補空 body 視為 `{}`、64 KB 只限 JSON、認領前已完成回 409、錯誤欄位名；§2.6 補 traceId 來源、鎖 / 完整性對映只限重建模組；§2.7 空白定義加 U+00A0 | A 階段實作回饋，使用者 2026-11-22 核准 |

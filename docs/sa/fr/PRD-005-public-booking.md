@@ -247,7 +247,7 @@
 | CQ-12 | 行程日期只有下限（≥ 今天）沒有上限；FREE / BASIC 沒有可預約區間，可以預約好幾年後，`review_expires_at = 首日` 讓訂單長期卡在 `PENDING`（審查第 1 輪 #7） | 最後一個行程日期 ≤ 今天（Asia/Taipei）+ 365 天；超過 → 422 `INVALID_VISIT_DATE`（payload 帶日期）；日期選擇器停用超過範圍的日期（baseline CQ-74；寫入 BR-4、§4.2、EX-9、AC-2.2） | 已決（使用者 2026-11-21） |
 | CQ-13 | `base_amount` 沒有上限（PRD-003 單價也沒有上限），與 PRD-006 BR-5 `total_amount ≤ 999,999` 衝突，會建出保母無法報價的訂單（審查第 1 輪 #6） | O1 後端重算 `base_amount` > 999,999 → 400 `VALIDATION_FAILED`（payload `field=baseAmount`、`max=999999`）；前端試算超過時停用送出並顯示「單筆預約金額不可超過 $ 999,999，請拆成多筆預約」（金額格式 2026-11-22 依 SD-FRONTEND-SPEC §6.4.1 統一；baseline CQ-74；寫入 BR-3、§4.2、EX-29、AC-3.3） | 已決（使用者 2026-11-21） |
 | CQ-14 | ADMIN 停權保母時，預約頁走 PRD-017 KYC `SUSPENDED`（步驟 1.1，文案「尚未完成實名認證」）還是 baseline §2.2 的停權（403 `SUBSCRIPTION_LOCKED`）？（審查第 1 輪 #8） | baseline §2.2 的「ADMIN 停權」= KYC / 帳號停權：送單 403 `SUBSCRIPTION_LOCKED`，文案「保母目前暫停接受新預約」（不揭露停權）；§4.1 步驟 1.2 只處理 `UNVERIFIED` / `PENDING_REVIEW` / `REJECTED`；PRD-017 同步修改（卡外，本卡只註明依賴）（寫入 BR-10、BR-11、§4.1、EX-4、EX-6、AC-1.6） | 已決（使用者 2026-11-21） |
-| CQ-15 | BR-26 待評估訂單上限的模組碼名稱、飼主端文案、預約頁是否預先停用送出（NFR-003 CQ-43 只定 3 張與 422，未定碼名與文案） | 模組碼 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`），由 SD-ORDER 錯誤碼表定案；文案「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」；預約頁不預先判斷（booking-context 不新增欄位），只在送出後顯示錯誤 | Open |
+| CQ-15 | BR-26 待評估訂單上限的模組碼名稱、飼主端文案、預約頁是否預先停用送出（NFR-003 CQ-43 只定 3 張與 422，未定碼名與文案） | 模組碼 `PENDING_ORDER_LIMIT_REACHED`（payload `limit=3`），由 SD-ORDER 錯誤碼表定案；文案「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」；預約頁不預先判斷（booking-context 不新增欄位），只在送出後顯示錯誤 | 已決（使用者 2026-11-22，採建議） |
 
 ## 11. 變更紀錄
 
