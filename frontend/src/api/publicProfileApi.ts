@@ -1,4 +1,5 @@
 import axiosClient from './axiosClient';
+import { reencodeImageFile } from '../utils/imageReencode';
 
 export interface ServiceArea {
   city: string;
@@ -54,7 +55,8 @@ export const updatePublicProfile = async (request: UpdatePublicProfileRequest): 
 
 export const uploadAvatar = async (file: File): Promise<string> => {
   const formData = new FormData();
-  formData.append('file', file);
+  // SD-FRONTEND-SPEC §2.7：上傳前重新編碼移除 EXIF
+  formData.append('file', await reencodeImageFile(file));
   const response = await axiosClient.post<{ status: string; avatarUrl: string }>(
     '/sitter/profile/avatar',
     formData,
@@ -67,17 +69,25 @@ export const uploadAvatar = async (file: File): Promise<string> => {
   return response.data.avatarUrl;
 };
 
-export const getForbiddenKeywords = async (q?: string, page = 0, size = 10): Promise<PaginatedKeywords> => {
+export const getForbiddenKeywords = async (
+  q?: string,
+  page = 0,
+  size = 10
+): Promise<PaginatedKeywords> => {
   const params = new URLSearchParams();
   if (q) params.append('q', q);
   params.append('page', page.toString());
   params.append('size', size.toString());
-  const response = await axiosClient.get<PaginatedKeywords>(`/admin/forbidden-keywords?${params.toString()}`);
+  const response = await axiosClient.get<PaginatedKeywords>(
+    `/admin/forbidden-keywords?${params.toString()}`
+  );
   return response.data;
 };
 
 export const addForbiddenKeyword = async (keyword: string): Promise<ForbiddenKeyword> => {
-  const response = await axiosClient.post<ForbiddenKeyword>('/admin/forbidden-keywords', { keyword });
+  const response = await axiosClient.post<ForbiddenKeyword>('/admin/forbidden-keywords', {
+    keyword
+  });
   return response.data;
 };
 

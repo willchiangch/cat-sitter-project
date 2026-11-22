@@ -1,4 +1,5 @@
 import axiosClient from './axiosClient';
+import { reencodeImageFile } from '../utils/imageReencode';
 
 export interface KycStatusDto {
   kycStatus: 'UNVERIFIED' | 'PENDING_REVIEW' | 'VERIFIED' | 'REJECTED' | 'SUSPENDED';
@@ -45,8 +46,9 @@ export const submitKyc = async (
   idempotencyKey: string
 ): Promise<{ recordId: string; status: string }> => {
   const formData = new FormData();
-  formData.append('idCardFront', idCardFront);
-  formData.append('selfie', selfie);
+  // SD-FRONTEND-SPEC §2.7：證件與自拍上傳前重新編碼移除 EXIF（含 GPS）
+  formData.append('idCardFront', await reencodeImageFile(idCardFront));
+  formData.append('selfie', await reencodeImageFile(selfie));
 
   const response = await axiosClient.post('/sitter/kyc', formData, {
     headers: {

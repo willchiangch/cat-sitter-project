@@ -2,19 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { applyLoginRole } from '../../contexts/loginRole';
+import { getSafeRedirectTarget } from '../../utils/safeRedirect';
+import { getApiError } from '../../api/apiError';
+import PasswordRuleHint from '../../components/auth/PasswordRuleHint';
+import { checkPassword, passwordViolationFromPayload } from '../../utils/passwordRules';
 
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
-// 只允許同源相對路徑（單一 / 開頭、非 //），避免 redirect 參數被用來做開放重導向
-const getSafeRedirectTarget = (): string => {
-  const redirect = new URLSearchParams(window.location.search).get('redirect');
-  return redirect && /^\/(?!\/)/.test(redirect) ? redirect : '/demo';
-};
+// 開放重導防護一律經 utils/safeRedirect（SD-FRONTEND-SPEC §2.5）：擋 `//`、`/\`、控制字元、跨來源。
+// 過去的 /^\/(?!\/)/ 會放行 `/\evil.example`（NFR-003 G-9）
+const getRedirectTarget = (): string =>
+  getSafeRedirectTarget(new URLSearchParams(window.location.search).get('redirect'), '/demo');
 
 const RegisterPage: React.FC = () => {
   const [step, setStep] = useState<'form' | 'otp'>('form');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordViolation, setPasswordViolation] = useState<{
+    length: boolean;
+    bytes: boolean;
+  } | null>(null);
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'OWNER' | 'SITTER'>('OWNER');
   const [otpCode, setOtpCode] = useState('');
@@ -41,8 +48,16 @@ const RegisterPage: React.FC = () => {
       await axiosClient.post('/auth/register', { email, password, fullName, role });
       setStep('otp');
       setResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '註冊失敗，請稍後再試');
+    } catch (err: unknown) {
+      const apiErr = getApiError(err);
+      const violation =
+        apiErr.code === 'VALIDATION_FAILED' ? passwordViolationFromPayload(apiErr.payload) : null;
+      if (violation) {
+        // §2.8：密碼規則不符以 PasswordRuleHint 標示，不顯示後端原始訊息
+        setPasswordViolation(violation);
+      } else {
+        setError(apiErr.serverMessage || '註冊失敗，請稍後再試');
+      }
     } finally {
       setLoading(false);
     }
@@ -63,9 +78,9 @@ const RegisterPage: React.FC = () => {
 
       applyLoginRole(data);
 
-      window.location.href = getSafeRedirectTarget();
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '驗證碼錯誤，請稍後再試');
+      window.location.href = getRedirectTarget();
+    } catch (err: unknown) {
+      setError(getApiError(err).serverMessage || '驗證碼錯誤，請稍後再試');
     } finally {
       setLoading(false);
     }
@@ -78,8 +93,8 @@ const RegisterPage: React.FC = () => {
     try {
       await axiosClient.post('/auth/register/resend-otp', { email });
       setResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '重新寄送失敗，請稍後再試');
+    } catch (err: unknown) {
+      setError(getApiError(err).serverMessage || '重新寄送失敗，請稍後再試');
     } finally {
       setLoading(false);
     }
@@ -160,9 +175,11 @@ const RegisterPage: React.FC = () => {
               <input
                 type="password"
                 required
-                minLength={8}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordViolation(null);
+                }}
                 data-testid="register-password-input"
                 style={{
                   padding: '0.625rem',
@@ -170,6 +187,7 @@ const RegisterPage: React.FC = () => {
                   border: '1px solid var(--color-outline-variant)'
                 }}
               />
+              <PasswordRuleHint password={password} serverViolation={passwordViolation} />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -216,7 +234,7 @@ const RegisterPage: React.FC = () => {
             <button
               type="submit"
               className="btn-primary"
-              disabled={loading || !agreedToTerms}
+              disabled={loading || !agreedToTerms || !checkPassword(password).ok}
               data-testid="register-submit-btn"
               style={{ padding: '0.75rem' }}
             >

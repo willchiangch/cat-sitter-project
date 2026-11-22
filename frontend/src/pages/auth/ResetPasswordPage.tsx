@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
+import { getApiError } from '../../api/apiError';
+import PasswordRuleHint from '../../components/auth/PasswordRuleHint';
+import { checkPassword, passwordViolationFromPayload } from '../../utils/passwordRules';
 
 const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
 
   const [newPassword, setNewPassword] = useState('');
+  const [passwordViolation, setPasswordViolation] = useState<{
+    length: boolean;
+    bytes: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -24,8 +31,19 @@ const ResetPasswordPage: React.FC = () => {
     try {
       await axiosClient.post('/auth/reset-password', { token, newPassword });
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || '重設失敗，請重新申請連結');
+    } catch (err: unknown) {
+      const apiErr = getApiError(err);
+      const field = apiErr.payload.field;
+      const violation =
+        apiErr.code === 'VALIDATION_FAILED' && (field === 'password' || field === 'newPassword')
+          ? passwordViolationFromPayload({ ...apiErr.payload, field: 'password' })
+          : null;
+      if (violation) {
+        // §2.8：密碼規則不符以 PasswordRuleHint 標示，不顯示後端原始訊息
+        setPasswordViolation(violation);
+      } else {
+        setError(apiErr.serverMessage || '重設失敗，請重新申請連結');
+      }
     } finally {
       setLoading(false);
     }
@@ -65,44 +83,71 @@ const ResetPasswordPage: React.FC = () => {
         </h1>
 
         {success ? (
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ color: 'var(--color-primary)', fontWeight: 600 }} data-testid="reset-password-success">
+          <div
+            style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
+            <div
+              style={{ color: 'var(--color-primary)', fontWeight: 600 }}
+              data-testid="reset-password-success"
+            >
               ✓ 密碼已成功重設，請重新登入
             </div>
-            <Link to="/login" className="btn-primary" style={{ padding: '0.75rem', textAlign: 'center' }}>
+            <Link
+              to="/login"
+              className="btn-primary"
+              style={{ padding: '0.75rem', textAlign: 'center' }}
+            >
               前往登入
             </Link>
           </div>
         ) : !token ? (
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div
+            style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>
               重設連結無效或已遺失參數，請重新申請。
             </div>
-            <Link to="/forgot-password" className="btn-primary" style={{ padding: '0.75rem', textAlign: 'center' }}>
+            <Link
+              to="/forgot-password"
+              className="btn-primary"
+              style={{ padding: '0.75rem', textAlign: 'center' }}
+            >
               重新申請
             </Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>新密碼</label>
               <input
                 type="password"
                 required
-                minLength={8}
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setPasswordViolation(null);
+                }}
                 data-testid="reset-password-new-password-input"
-                style={{ padding: '0.625rem', borderRadius: '6px', border: '1px solid var(--color-outline-variant)' }}
+                style={{
+                  padding: '0.625rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-outline-variant)'
+                }}
               />
+              <PasswordRuleHint password={newPassword} serverViolation={passwordViolation} />
             </div>
 
-            {error && <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</div>}
+            {error && (
+              <div style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</div>
+            )}
 
             <button
               type="submit"
               className="btn-primary"
-              disabled={loading}
+              disabled={loading || !checkPassword(newPassword).ok}
               data-testid="reset-password-submit-btn"
               style={{ padding: '0.75rem' }}
             >

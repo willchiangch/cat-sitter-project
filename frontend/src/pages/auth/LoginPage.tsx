@@ -2,11 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { applyLoginRole } from '../../contexts/loginRole';
+import { getSafeRedirectTarget } from '../../utils/safeRedirect';
+import { getApiError } from '../../api/apiError';
 import { isWebAuthnSupported, loginWithBiometricCredential } from '../../api/webauthnApi';
 
 declare global {
   interface Window {
-    google?: any;
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (opts: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void;
+        };
+      };
+    };
     __handleGoogleCredential?: (response: { credential: string }) => void;
   }
 }
@@ -15,11 +27,10 @@ const GOOGLE_CLIENT_ID =
   '1020176535925-78mcs53q25ku3s4ob6j0kpvp6tpu32cu.apps.googleusercontent.com';
 const GOOGLE_SCRIPT_ID = 'google-identity-services';
 
-// 只允許同源相對路徑（單一 / 開頭、非 //），避免 redirect 參數被用來做開放重導向
-const getSafeRedirectTarget = (): string => {
-  const redirect = new URLSearchParams(window.location.search).get('redirect');
-  return redirect && /^\/(?!\/)/.test(redirect) ? redirect : '/demo';
-};
+// 開放重導防護一律經 utils/safeRedirect（SD-FRONTEND-SPEC §2.5）：擋 `//`、`/\`、控制字元、跨來源。
+// 過去的 /^\/(?!\/)/ 會放行 `/\evil.example`（NFR-003 G-9）
+const getRedirectTarget = (): string =>
+  getSafeRedirectTarget(new URLSearchParams(window.location.search).get('redirect'), '/demo');
 
 const applyAuthResponseAndRedirect = (data: {
   accessToken?: string;
@@ -37,7 +48,7 @@ const applyAuthResponseAndRedirect = (data: {
 
   // 用整頁重新整理讓 RoleContext 重新從 localStorage 初始化，
   // 避免它 mount 時的自動登入 useEffect 用種子帳號蓋掉這次真實登入
-  window.location.href = getSafeRedirectTarget();
+  window.location.href = getRedirectTarget();
 };
 
 const LoginPage: React.FC = () => {
@@ -82,8 +93,9 @@ const LoginPage: React.FC = () => {
     let redirected = false;
     try {
       redirected = await attempt();
-    } catch (err: any) {
-      setErr(err.response?.data?.message || err.message || fallbackMessage);
+    } catch (err: unknown) {
+      // 帳號模組尚未重建（SD-IDENTITY），沿用舊端點的業務訊息
+      setErr(getApiError(err).serverMessage || fallbackMessage);
     } finally {
       if (!redirected) {
         loginInFlightRef.current = false;

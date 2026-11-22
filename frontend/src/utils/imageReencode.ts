@@ -107,3 +107,19 @@ export const sha256Hex = async (blob: Blob): Promise<string> => {
   const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 };
+
+const REENCODABLE = ['image/jpeg', 'image/png', 'image/webp'];
+
+/**
+ * 一般照片上傳（KYC、頭像、毛孩照片、照護記事媒體）：JPEG / PNG / WebP 重新編碼為同格式新檔（移除 EXIF）；
+ * 其他型別（影片、HEIC 等瀏覽器無法解碼者）原樣交回，由後端依格式規則回錯。
+ */
+export const reencodeImageFile = async (file: File): Promise<File> => {
+  if (!REENCODABLE.includes(file.type)) return file;
+  const blob = await reencodeImage(file);
+  const base = file.name.replace(/\.[^.]+$/, '') || 'image';
+  return new File([blob], `${base}.${extensionOf(blob.type)}`, {
+    type: blob.type,
+    lastModified: file.lastModified
+  });
+};
