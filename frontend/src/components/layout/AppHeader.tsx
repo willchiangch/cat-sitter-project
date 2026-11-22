@@ -11,6 +11,7 @@ import {
 import { useSitterKycStatusQuery } from '../../hooks/useKyc';
 import type { NotificationDto } from '../../api/notificationApi';
 import { resolveNotificationLink } from '../notifications/resolveNotificationLink';
+import { formatDateTime } from '../../utils/datetime';
 
 const AppHeader: React.FC = () => {
   const { currentRole } = useRole();
@@ -370,11 +371,14 @@ const AppHeader: React.FC = () => {
                       >
                         {noti.content}
                       </span>
-                      <span style={{ fontSize: '0.65rem', color: '#888', alignSelf: 'flex-end' }}>
-                        {new Date(noti.createdAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          color: 'var(--color-on-surface-variant)',
+                          alignSelf: 'flex-end'
+                        }}
+                      >
+                        {formatDateTime(noti.createdAt)}
                       </span>
                     </div>
                   ))
