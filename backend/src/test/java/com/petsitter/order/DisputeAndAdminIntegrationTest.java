@@ -233,6 +233,8 @@ class DisputeAndAdminIntegrationTest extends OrderIntegrationTestBase {
             mediate(ids[0], Map.of()).andExpect(status().isOk());
             mvc.perform(getAs("/api/admin/orders/{o}", adminToken(), ids[0])).andExpect(status().isOk());
             JsonNode tasks = body(mvc.perform(getAs("/api/admin/tasks?status=RESOLVED", adminToken())).andExpect(status().isOk()));
+            mvc.perform(getAs("/api/admin/tasks?size=51", adminToken())).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.payload.field").value("size")).andExpect(jsonPath("$.payload.max").value(50));
             assertThat(tasks.get("totalElements").asLong()).isEqualTo(1);
             mvc.perform(getAs("/api/admin/tasks?status=NOPE", adminToken())).andExpect(status().isBadRequest());
             mvc.perform(getAs("/api/admin/tasks", ownerToken())).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));

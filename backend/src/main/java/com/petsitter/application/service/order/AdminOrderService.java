@@ -1,5 +1,6 @@
 package com.petsitter.application.service.order;
 
+import com.petsitter.application.common.validation.PageParams;
 import com.petsitter.application.common.idempotency.IdempotencyClaim;
 import com.petsitter.application.common.idempotency.IdempotencyContext;
 import com.petsitter.application.dto.order.ModificationRequests;
@@ -54,6 +55,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AdminOrderService {
+
+    /** E3 / E4 / E28 分頁上限（SD-ORDER）。 */
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final OrderCommandSupport support;
     private final OrderRequestValidator validator;
@@ -160,14 +164,10 @@ public class AdminOrderService {
         } catch (IllegalArgumentException e) {
             throw OrderException.validation("type");
         }
-        int p = page == null ? 0 : page;
-        int sz = size == null ? 20 : size;
-        if (p < 0) {
-            throw OrderException.validation("page");
-        }
-        if (sz < 1 || sz > 50) {
-            throw OrderException.validation("size");
-        }
+        // SD-GLOBAL §2.8：共用 PageParams（超過上限 400 帶 field=size、max）
+        PageParams pageParams = PageParams.of(page, size, MAX_PAGE_SIZE);
+        int p = pageParams.page();
+        int sz = pageParams.size();
         AdminTaskType ftp = tp;
         return support.readOnly(() -> {
             Page<AdminTask> res = adminTaskRepository.findList(st, ftp, PageRequest.of(p, sz));

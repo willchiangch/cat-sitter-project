@@ -1,5 +1,6 @@
 package com.petsitter.application.service.order;
 
+import com.petsitter.application.common.validation.PageParams;
 import com.petsitter.application.dto.order.EvaluationResponse;
 import com.petsitter.application.dto.order.OrderCard;
 import com.petsitter.application.dto.order.OrderDetailResponse;
@@ -71,6 +72,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class OrderDetailService {
+
+    /** E3 / E4 / E28 分頁上限（SD-ORDER）。 */
+    private static final int MAX_PAGE_SIZE = 50;
 
     static final Set<OrderStatus> EVALUATING = EnumSet.of(OrderStatus.PENDING, OrderStatus.PENDING_PAYMENT);
     static final Set<OrderStatus> ACTIVE = EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.IN_PROGRESS, OrderStatus.DISPUTED);
@@ -348,14 +352,10 @@ public class OrderDetailService {
             case "HISTORY" -> HISTORY;
             default -> throw OrderException.validation("tab");
         };
-        int p = page == null ? 0 : page;
-        int sz = size == null ? 20 : size;
-        if (p < 0) {
-            throw OrderException.validation("page");
-        }
-        if (sz < 1 || sz > 50) {
-            throw OrderException.validation("size");
-        }
+        // SD-GLOBAL §2.8：共用 PageParams（超過上限 400 帶 field=size、max）
+        PageParams pageParams = PageParams.of(page, size, MAX_PAGE_SIZE);
+        int p = pageParams.page();
+        int sz = pageParams.size();
         boolean history = "HISTORY".equals(tab);
         if (!history && (status != null || month != null)) {
             throw OrderException.validation(status != null ? "status" : "month");

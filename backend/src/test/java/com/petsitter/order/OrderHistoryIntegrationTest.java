@@ -41,7 +41,14 @@ class OrderHistoryIntegrationTest extends OrderIntegrationTestBase {
         assertThat(list("/api/orders/sitter", sitterToken(), "tab=EVALUATING").get("totalElements").asLong()).isEqualTo(23);
         mvc.perform(getAs("/api/orders/owner?tab=NOPE", ownerToken())).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.payload.field").value("tab"));
-        mvc.perform(getAs("/api/orders/owner?tab=ACTIVE&size=51", ownerToken())).andExpect(status().isBadRequest());
+        // SD-GLOBAL §2.8：共用 PageParams，400 帶 field=size、max
+        mvc.perform(getAs("/api/orders/owner?tab=ACTIVE&size=51", ownerToken())).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.payload.field").value("size")).andExpect(jsonPath("$.payload.max").value(50));
+        mvc.perform(getAs("/api/orders/sitter?tab=ACTIVE&size=51", sitterToken())).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.payload.max").value(50));
+        mvc.perform(getAs("/api/orders/owner?tab=ACTIVE&page=-1", ownerToken())).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.payload.field").value("page"));
         mvc.perform(getAs("/api/orders/owner?tab=ACTIVE", sitterToken())).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));
     }
