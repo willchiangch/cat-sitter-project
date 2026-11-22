@@ -841,7 +841,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 #### 排程與測試造資料
 
-**FC1 / FC2**：契約同 SD-ORDER C1–C10（`POST`、無 body、`X-Internal-Secret`；200 `{ "job", "processed", "skipped", "failed", "startedAt", "finishedAt" }`；驗證失敗 403 `FORBIDDEN`）。另接受可選 query `orderId`（使用者 2026-11-22 TS 回饋，與 SD-ORDER C1–C10 同規則）：有值時只處理該訂單（FC1 = 該訂單逾時行程；FC2 = `order_id` 相同的槽位），該訂單須屬 `@e2e-journey.test` 帳號，否則 400 `VALIDATION_FAILED`（`field=orderId`）；無值（Cloud Scheduler 自動觸發）時候選查詢排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單 / 槽位（唯讀 JOIN `users`，排程候選例外），避免正式排程搶先處理測試資料。計數只含本次範圍。
+**FC1 / FC2**：契約同 SD-ORDER C1–C10（`POST`、無 body、`X-Internal-Secret`；200 `{ "job", "processed", "skipped", "failed", "startedAt", "finishedAt" }`；驗證失敗 403 `FORBIDDEN`）。另接受可選 query `orderId`（使用者 2026-11-22 TS 回饋，與 SD-ORDER C1–C10 同規則）：有值時只處理該訂單（FC1 = 該訂單逾時行程；FC2 = `order_id` 相同的槽位），該訂單須屬 `@e2e-journey.test` 帳號，否則 404 `NOT_FOUND`（與 SD-ORDER C1–C10 一致）；計數以訂單為單位；無值（Cloud Scheduler 自動觸發）時候選查詢排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單 / 槽位（唯讀 JOIN `users`，排程候選例外），避免正式排程搶先處理測試資料。計數只含本次範圍。
 
 **FT1 `POST /api/internal/test-data/visits/{visitId}/force-status`**（SD-ORDER §10.4 改為引用本契約，§12 CQ-4）
 
@@ -1254,6 +1254,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | TS 更新回饋小修（狀態維持 Approved）：FC1 / FC2 帶非測試帳號 `orderId` 改 404 與 SD-ORDER 一致；計數以訂單為單位 | TS-008 §5 L-12 |
 | 2026-11-22 | 使用者核准（與 SD-ORDER 同批）：CQ-6 / 8 / 9 採建議；狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | 使用者同意之核准後修訂：TS 撰寫回饋（狀態維持 Approved）。`findOrderIdsWithZombieVisits` 加 `CronScope`、FC1 / FC2 可選 `orderId` 且自動觸發跳過 `@e2e-journey.test` 訂單；SD-ORDER test-data `inspect` 端點的本 SD 欄位與 `FulfillTestInspectionQuery`；FT1 支援 `CANCELLED` 並列明允許轉換、FT2 列明接受的訂單狀態；空白定義 = `String.strip()`（GLOBAL）；金額依 SD-FRONTEND-SPEC §6.4.1；PRD-009 回報說明 code point 截斷與 `owner-order-dispute-description-counter`；打勾時間顯示 `sitter-visit-panel-checklist-checked-at-{itemId}`、打勾遇已結束行程文案；飼主檢核單項 testid 改引 PRD-028 §9；注意事項連結目的地路由；照片壓縮下限（2048 px、品質 0.9→0.5）；影片文案統一 PRD-022 EX-12–14；後端測試補 PRD-028 EX-15、EX-9、EX-11、BR-11，F 系列 `IDEMPOTENCY_IN_PROGRESS`，PRD-008 EX-18 註明歸 SD-NOTIFY | TS-008 / TS-028 / TS-009 / TS-022 §4、§5；使用者同意 2026-11-22 |
 | 2026-11-22 | 第 2 輪審查修訂（狀態不動）：N1 FC2 第 ① 步等過 `expires_at + 寬限` 才轉 `EXPIRED`；N2 日誌 `created_by` / `updated_by` 由 Service 寫入、媒體以 `uploaded_by` 為建立者、`visits.created_by` / `updated_by` 刪欄；N3 排程分鐘改引 SD-ORDER D5 完整表；S2 cleanup 對齊 SD-ORDER 順序並接受測試殘檔；S4 `ORDER_BUSY` 後跨 30 分鐘照 BR-28 字面作廢；I10 三處文案改 PRD-022 字面；I11 AC-2.3 情境 6 後半以整合測試放置物件造出；I12 表頭上游狀態（PRD-022 In Review）與核准順序；I13 / B2 §1.4 填 SD-ORDER 具名測試類別、`ZombieVisitCronIntegrationTest` 由 SD-ORDER 刪除；S14b `completionHint` 物件形狀；S15 刪除「剩餘不足 2 分鐘」規則；S16 iii 逾時文字沿用 PRD-009 CQ-15；S17 補 AC-1.6 情境 6 與 AC-2.8 情境 4；S18 EX-21 (1) 等價說明；S19 local 相對路徑 + Vite `/local-storage` 代理；S20 CQ-11 註明待回寫；冪等套件路徑改 `application/common/idempotency` | `docs/reviews/SD-FULFILL.data.review.md`、`SD-FULFILL.api.review.md` 第 2 輪；主流程決定 2026-11-22 |

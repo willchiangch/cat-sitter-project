@@ -4,7 +4,7 @@
 |------|------|
 | 狀態 | Draft |
 | 對應 PRD | PRD-005（Approved 2026-11-22） |
-| 對應 SD | SD-ORDER（E1 `POST /api/orders`、E2、E3、E4、E5、E6、E10、E11、E14、E25、E31、C1；§6.5 錯誤碼；§9.1 `/booking/:sitterId` testid；§10.4 測試支援）；SD-FULFILL（FT1 `force-status`，只用來造熟客 / 月額度前置） |
+| 對應 SD | SD-ORDER（E1 `POST /api/orders`、E2、E3、E4、E5、E6、E10、E11、E14、E25、E31、C1；§6.5 錯誤碼；§9.1 `/booking/:sitterId` testid；§10.4 測試支援，含 `inspect`）；SD-FULFILL（FT1 `force-status`，只用來造熟客 / 月額度前置） |
 | 類型 | 旅程（打真後端）：門禁、權限、冪等、跨角色互動、狀態轉移都要真後端驗證；純畫面互動（AC-2.1、AC-2.4）同檔以真後端資料執行 |
 | 自動化路徑 | `frontend/e2e/journeys/public-booking-gating.spec.ts`（§2.1、§3 PB-E01~E04）；`frontend/e2e/journeys/public-booking-content.spec.ts`（§2.2、§3 PB-E05~E06）；`frontend/e2e/journeys/public-booking-submit.spec.ts`（§2.3） |
 | 自動化狀態 | ⬜ 未自動化 |
@@ -18,22 +18,23 @@
 
 | 項目 | 約定 |
 |------|------|
-| 日期記號 | `D+n` = 今天（Asia/Taipei）+ n 天，格式 `YYYY-MM-DD`；`D-1` = 昨天。PRD 範例的固定日期（2026-11-25 等）一律換成相對日期，期限邊界的固定時刻由後端測試（注入 `Clock`）覆蓋，見 §4 |
+| 日期記號 | `D+n` = 今天 + n 天，格式 `YYYY-MM-DD`；「今天」取 E31 回應的 `serverTime` 換算 Asia/Taipei（SD-ORDER E31），不用執行機時鐘；`D-1` = 昨天。PRD 範例的固定日期（2026-11-25 等）一律換成相對日期，期限邊界的固定時刻由後端測試（注入 `Clock`）覆蓋，見 §4 |
+| 金額顯示 | 畫面金額一律為 SD-FRONTEND-SPEC §6.4.1 格式 `$ 4,600`（`$` 後為 U+00A0）；API 金額為整數 |
 | 標準請求 | E1 body：`sitterId`、`groups[]`（`planId`、`dates[]`、`dailyCount`、`petIds[]`）、`answers[]`（需填問卷時）、`expectedAmount`（= 依當下單價算出的正確值），標頭 `Idempotency-Key` = 每次新產生的 UUID（除非步驟指定沿用）。下文「標準請求」指除步驟另述的欄位外全部合法 |
 | 「無新訂單」的查法 | 送出前後各呼叫一次 `owner` 的 E3 `GET /api/orders/owner?tab=EVALUATING` 與保母的 E4 `GET /api/orders/sitter?tab=EVALUATING`，`totalElements` 不變 |
 | 「回應一致」的比對 | 比對 `code`、`message`、`payload` 全部鍵與值，排除 `traceId`、`timestamp`（SD-ORDER §6.1） |
 | null 欄位 | 回應中值為 null 的欄位不輸出（SD-ORDER §6.1）；斷言「= null」一律寫成「欄位不存在」 |
-| 站內通知查法 | 收件者以自己的 token 呼叫站內通知清單（SD-014 §4.1 `GET /api/notifications?role=…`；SD-NOTIFY 重建後以其契約為準），依標題與 `linkUrl` 篩選該訂單的通知計數 |
-| `order_logs` / Email 投遞紀錄查法 | SD-ORDER §10.4 尚無讀取端點，標「待測試支援」的斷言在端點補上前由 §4 所列後端測試覆蓋（見 §5-1、§5-2） |
-| 時間避開 | spec 開始時若 Asia/Taipei 時間在 23:50–00:10 之間則等待到 00:10 後再跑，避免 `D+n` 在執行中跨日 |
+| `inspect` 查法 | `GET /api/internal/test-data/orders/{orderId}/inspect`（`X-Internal-Secret`，SD-ORDER §10.4）：`orderLogs[]`（`actionType`、`operatorRole`、`operatorUserId`、`payload`）、`notifications[]`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）。下文「inspect」即指此端點；計數時排除 `TEST_TIME_SHIFTED` / `TEST_VISIT_FORCED` |
+| 站內通知文案查法 | 通知類型與 Email 投遞以 inspect 斷言；標題 / 連結文字由收件者以自己的 token 呼叫站內通知清單（SD-014 §4.1 `GET /api/notifications?role=…`；SD-NOTIFY 重建後以其契約為準）核對 |
+| 時間避開 | spec 開始時若 `serverTime` 換算 Asia/Taipei 在 23:50–00:10 之間則等待到 00:10 後再跑，避免 `D+n` 在執行中跨日 |
 
 ## 1. 前置資料
 
-> 不寫死 UUID。每個 test 自己 provision、可獨立重跑。所有帳號 email 為 `{代號}-{runId}@e2e-journey.test`，以 `POST /api/internal/test-data/provision-account` 建立後走真實登入取 token。`planId`、`questionId`、`petId` 取自 `sitter-setup` / `owner-setup` 回應（見 §5-4）。
+> 不寫死 UUID。每個 test 自己 provision、可獨立重跑。所有帳號 email 為 `{代號}-{runId}@e2e-journey.test`，以 `POST /api/internal/test-data/provision-account`（`roles[]`、`displayName`）建立後走真實登入取 token。`sitter-setup` / `owner-setup` 為 upsert（只覆寫請求中出現的欄位），請求中每個方案 / 題目 / 毛孩帶 `key`（例 `P1`、`Q1`、`A`），`planId`、`questionId`、`petId` 依回應的 `key` 對應取得（SD-ORDER §10.4）。下文「重呼叫 `sitter-setup` 改 X」= 只帶 `userId` 與 X 欄位。
 
 | 代號 | 角色 | 建立方式 | 狀態 |
 |------|------|---------|------|
-| `S-base` | SITTER | `sitter-setup`：`tier=PRO`、`kycStatus=VERIFIED`、`profileVisible=true`、`subscriptionExpiresAt=D+30`、`payoutAccount` 四欄齊、`plans` = P1（單價 500、適用 CAT）、P2（單價 800、適用 DOG），`questions=[]` | 可預約 |
+| `S-base` | SITTER | `sitter-setup`：`tier=PRO`、`kycStatus=VERIFIED`、`profileVisible=true`、`subscriptionExpiresAt=D+30`、`payoutAccount` 四欄齊、`plans` = P1（單價 500、適用 CAT）、P2（單價 800、適用 DOG），`questions=[]`，`emailPreferences.ORDER_AFFAIR=開` | 可預約 |
 | `S-anon` | SITTER | 同 `S-base`，另加 1 題啟用中的非必填簡答 Qa | 可預約 |
 | `S-kyc` | SITTER | 同 `S-base`，`kycStatus=PENDING_REVIEW`；情境 2 重呼叫改 `UNVERIFIED` | 不可預約 |
 | `S-black` | SITTER | 同 `S-base`，`gatekeeper.globalBlacklist=[owner-X]` | PRO 黑名單生效 |
@@ -45,7 +46,7 @@
 | `S-susp` | SITTER | 同 `S-base`（`kycStatus=VERIFIED`），`suspended=true` | ADMIN 停權 |
 | `S-free` | SITTER | 同 `S-base`，`tier=FREE` | 本月 3 張 `CONFIRMED`（造法見 PB-24） |
 | `S-free2` | SITTER | 同 `S-base`，`tier=FREE` | 5 張 `PENDING`、0 張 `CONFIRMED` |
-| `U` | SITTER + OWNER | `provision-account`（SITTER）＋ `sitter-setup`（同 `S-base`），再加開 OWNER profile 與 1 隻貓（見 §5-5） | 雙角色 |
+| `U` | SITTER + OWNER | `provision-account`（`roles=[OWNER, SITTER]`）＋ `sitter-setup`（同 `S-base`）＋ `owner-setup`（1 隻貓 Ua）；以既有角色切換分別取得 `currentRole=OWNER` / `SITTER` 的 token | 雙角色 |
 | `S-range` | SITTER | `tier=PRO`，plans = P1（單價 500，可預約區間 `D+30`~`D+33`）、P4（單價 500，可預約區間 `D+0`~`D+3`） | — |
 | `S-big` | SITTER | 同 `S-base`，plans = P9（單價 6,000，CAT）、P10（單價 333,333，CAT） | — |
 | `S-q{n}` | SITTER | 同 `S-base`，`questions` = Q1（必填單選，選項「是」「否」，排序 1）、Q2（必填簡答，排序 2）、Q3（非必填詳答，排序 3）、Q4（停用簡答）；AC-3.5、AC-3.6 每個情境各用一位（`S-q1`~`S-q8`，情境 5 另有 `S-q5b`），互不干擾 | — |
@@ -58,8 +59,8 @@
 | `owner-P` | OWNER | `owner-setup`：1 隻貓 Pp（「他人的毛孩」） | — |
 | `owner-H` | OWNER | `owner-setup`：1 隻貓；用來替保母造 `PENDING` / `CONFIRMED` / `COMPLETED` 前置訂單 | — |
 | `owner-empty` | OWNER | `owner-setup`：`pets=[]` | — |
-| `owner-F` | OWNER | `owner-setup`：1 隻貓，`favoriteSitterIds` = 50 位已 provision 的保母（不含 `S-base`，見 §5-6） | 清單已滿 |
-| `admin` | ADMIN | 種子管理員帳號登入 | — |
+| `owner-F` | OWNER | `owner-setup`：1 隻貓，`favoriteFillerCount=50`（回應 `fillerSitterIds` 長度 50，不含 `S-base`） | 清單已滿 |
+| `admin` | ADMIN | `provision-account`（`roles=[ADMIN]`） | — |
 
 **造 `CONFIRMED` 訂單的標準鏈（以下稱「確認鏈」）**：`owner-H` 以標準請求 E1 建單 → 保母 E6 `POST /api/orders/{id}/quote`（`expectedAmount` = `baseAmount`，不帶調整）→ `owner-H` E10 取 `paymentId` → E11 上傳 JPEG 憑證（`disclaimerAgreed=true`、`lastFive=12345`）→ 保母 E14 `verify`（`submissionId`）→ E2 `status=CONFIRMED`。
 
@@ -75,7 +76,7 @@
 
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
-| PB-01 | AC-1.1-情境 1 | 匿名 | 未登入開啟 `/booking/{S-anon}` | 出現 2 個 `public-booking-plan-card-{planId}`（P1、P2）；新增群組選 P1、`D+4`、每日 1 次後 `public-booking-estimate-amount` 顯示 500；不出現任何 `public-booking-group-0-pet-checkbox-*` 與 `public-booking-question-*` | E31 `GET /api/sitters/{S-anon}/booking-context`（無 token）→ 200、`bookability=BOOKABLE`、`plans` 長度 2、`questionnaire` 欄位不存在 | 截圖 + API JSON |
+| PB-01 | AC-1.1-情境 1 | 匿名 | 未登入開啟 `/booking/{S-anon}` | 出現 2 個 `public-booking-plan-card-{planId}`（P1、P2）；新增群組選 P1、`D+4`、每日 1 次後 `public-booking-estimate-amount` 顯示 `$ 500`；不出現任何 `public-booking-group-0-pet-checkbox-*` 與 `public-booking-question-*` | E31 `GET /api/sitters/{S-anon}/booking-context`（無 token）→ 200、`bookability=BOOKABLE`、`plans` 長度 2、`questionnaire` 欄位不存在、`serverTime` 有值 | 截圖 + API JSON |
 | PB-02 | AC-1.1-情境 2 | 匿名 → owner-X | 承 PB-01，點 `public-booking-btn-submit` | 導向登入頁；以 `owner-X` 登入後回到 `/booking/{S-anon}`，`public-booking-group-0` 仍在且方案 P1、日期 `D+4` 保留；出現 `public-booking-group-0-pet-checkbox-{owner-X 的貓}`（已勾選）與 `public-booking-question-{Qa}` | 登入前後無 E1 請求 | 截圖 |
 | PB-03 | AC-1.1-情境 3、EX-1 | 匿名 | 無 `Authorization` 標頭，以標準請求打 E1（`sitterId=S-anon`） | — | 401 `UNAUTHENTICATED`；`S-anon` 的 E4 `tab=EVALUATING` `totalElements=0` | API JSON |
 | PB-04 | AC-1.2-情境 1、EX-4 | owner-X | 開啟 `/booking/{S-kyc}`（`PENDING_REVIEW`） | `public-booking-unavailable-message` =「此保母尚未完成實名認證，暫不開放預約」；`public-booking-plan-card-*` 數量 0 | E31 → `bookability=NOT_VERIFIED`、`plans=[]` | 截圖 + API JSON |
@@ -113,10 +114,10 @@
 
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
-| PB-34 | AC-2.1 | owner-O | 開啟 `/booking/{S-base}`；群組 0 = P1、選連續區間 `D+4`~`D+6`、每日 2 次，只勾貓 A（取消 B、C）；新增群組 1 = P2、跳選 `D+8` 與 `D+11`、每日 1 次，只勾狗 C | 出現 `public-booking-group-0`、`public-booking-group-1`；`public-booking-estimate-amount` = 4,600（3 × 2 × 500 + 2 × 1 × 800）；金額下方顯示「最終總額由保母評估後確認」 | — | 截圖 |
-| PB-35 | AC-2.1 | owner-O | 群組 0 再勾選貓 B（1 隻 → 2 隻） | 試算仍為 4,600 | — | 截圖 |
-| PB-36 | AC-2.1 | owner-O | 刪除群組 1 | `public-booking-group-1` 消失；試算 = 3,000 | — | 截圖 |
-| PB-37 | AC-2.2-情境 1、EX-9 | owner-O | 開啟日期選擇器 | `D-1` 及更早為停用；`D+0` 可選 | — | 截圖 |
+| PB-34 | AC-2.1 | owner-O | 開啟 `/booking/{S-base}`；群組 0 = P1、選連續區間 `D+4`~`D+6`、每日 2 次，只勾貓 A（取消 B、C）；新增群組 1 = P2、跳選 `D+8` 與 `D+11`、每日 1 次，只勾狗 C | 出現 `public-booking-group-0`、`public-booking-group-1`；`public-booking-estimate-amount` = `$ 4,600`（3 × 2 × 500 + 2 × 1 × 800）；金額下方顯示「最終總額由保母評估後確認」 | — | 截圖 |
+| PB-35 | AC-2.1 | owner-O | 群組 0 再勾選貓 B（1 隻 → 2 隻） | 試算仍為 `$ 4,600` | — | 截圖 |
+| PB-36 | AC-2.1 | owner-O | 刪除群組 1 | `public-booking-group-1` 消失；試算 = `$ 3,000` | — | 截圖 |
+| PB-37 | AC-2.2-情境 1、EX-9 | owner-O | 開啟日期選擇器 | `D-1` 及更早為停用；`D+0` 可選（`D` 依 E31 `serverTime`） | E31 `serverTime` 換算 Asia/Taipei 的日期 = 畫面上第一個可選日 | 截圖 + API JSON |
 | PB-38 | AC-2.2-情境 1、EX-9 | owner-O | 標準請求打 E1，群組日期 = `[D-1]` | — | 422 `INVALID_VISIT_DATE`、`payload.dates` 含 `D-1`；無新訂單 | API JSON |
 | PB-39 | AC-2.2-情境 2 | owner-O | 日期選擇器翻到一年後 | `D+365` 可選、`D+366` 停用 | — | 截圖 |
 | PB-40 | AC-2.2-情境 2、EX-9 | owner-O | 標準請求打 E1，日期 = `[D+4, D+366]` | — | 422 `INVALID_VISIT_DATE`、`payload.dates` 含 `D+366`；無新訂單 | API JSON |
@@ -141,17 +142,17 @@
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
 | PB-56 | AC-3.1 | owner-O | 開啟 `/booking/{S-base}`（無題目）；群組 0 = P1、`D+4`~`D+6`、每日 2 次，勾 A、B（取消 C）；群組 1 = P2、`D+8`、`D+11`、每日 1 次，只勾 C；點 `public-booking-btn-submit` | 不出現 `public-booking-question-*`；導向 `/owner/orders/{orderId}`（評估中） | 頁面發出的 E1 恰 1 次，body `expectedAmount=4600`、不含 `ownerId`；回應 201：`orderId` 有值、`status=PENDING`、`baseAmount=4600`、`reviewExpiresAt` 有值、`questionnaireStatus=NOT_REQUIRED` | 截圖 + API JSON |
-| PB-57 | AC-3.1 | owner-O | 呼叫 E2 `GET /api/orders/{orderId}` | — | `questionnaireExemptReason=NO_ACTIVE_QUESTIONS`；`groups` 長度 2：群組 P1 `dailyCount=2`、`pets`={A, B}，群組 P2 `dailyCount=1`、`pets`={C}；`visits` 長度 8 且全為 `PENDING`：`D+4`、`D+5`、`D+6` 各 2 個，`D+8`、`D+11` 各 1 個；`order_logs` 有 1 筆 `ORDER_CREATED`、`operator_role=OWNER`、操作者 = owner-O（待測試支援，§5-1） | API JSON |
+| PB-57 | AC-3.1 | owner-O | 呼叫 E2 `GET /api/orders/{orderId}` | — | `questionnaireExemptReason=NO_ACTIVE_QUESTIONS`；`groups` 長度 2：群組 P1 `dailyCount=2`、`pets`={A, B}，群組 P2 `dailyCount=1`、`pets`={C}；`visits` 長度 8 且全為 `PENDING`：`D+4`、`D+5`、`D+6` 各 2 個，`D+8`、`D+11` 各 1 個；inspect `orderLogs` 恰 1 筆 `ORDER_CREATED`、`operatorRole=OWNER`、`operatorUserId` = owner-O、payload `baseAmount=4600`、`groupCount=2`、`visitCount=8`、`questionnaireStatus=NOT_REQUIRED`、`questionnaireExemptReason=NO_ACTIVE_QUESTIONS`；inspect `fulfill.visits` 8 筆皆 `PENDING` | API JSON |
 | PB-58 | AC-3.2-情境 1 | owner-O | 選 P1、首日 `D+4`，進入送出前確認區 | `public-booking-review-expires-at` =「保母需於 {D+4 以 YYYY/MM/DD 表示} 00:00 前回覆，逾時將自動取消」；不出現 `public-booking-urgent-hint` | — | 截圖 |
 | PB-59 | AC-3.2-情境 1 | owner-O | 送出 | — | 201、`reviewExpiresAt` = `D+3` 的 `16:00:00Z`（= `D+4` 00:00 Asia/Taipei）；E2 `reviewExpiresAt` 相同 | API JSON |
 | PB-60 | AC-3.2-情境 3 | owner-O | 選 P1、首日 `D+0`，進入確認區；記錄送出前時間 t0，送出，記錄收到回應時間 t1 | 出現 `public-booking-urgent-hint`「距服務日很近，保母可能來不及回覆」；`public-booking-review-expires-at` 顯示的時刻在 t0 + 2h 前後 1 分鐘內 | 201；`reviewExpiresAt` 介於 t0 + 2h 與 t1 + 2h 之間（緊急單 = 送單時間 + 2h） | 截圖 + API JSON |
-| PB-61 | AC-3.3-情境 1、EX-10 | owner-O | 開啟 `/booking/{S-base}`，群組 = P1、`D+4`~`D+6`、每日 2 次（試算 3,000）；保母以方案管理（PRD-003 方案編輯）把 P1 單價改 600；owner-O 點送出 | 顯示「方案價格已更新，請確認新金額後再送出」；`public-booking-estimate-amount` 更新為 3,600 | E1（`expectedAmount=3000`）→ 409 `PRICE_CHANGED`、`payload.baseAmount=3600`；無新訂單 | 截圖 + API JSON |
+| PB-61 | AC-3.3-情境 1、EX-10 | owner-O | 開啟 `/booking/{S-base}`，群組 = P1、`D+4`~`D+6`、每日 2 次（試算 3,000）；保母以方案管理（PRD-003 方案編輯）把 P1 單價改 600；owner-O 點送出 | 顯示「方案價格已更新，請確認新金額後再送出」；`public-booking-estimate-amount` 更新為 `$ 3,600` | E1（`expectedAmount=3000`）→ 409 `PRICE_CHANGED`、`payload.baseAmount=3600`；無新訂單 | 截圖 + API JSON |
 | PB-62 | AC-3.3-情境 1 | owner-O | 再次點送出（前端產生新 key） | 導向訂單詳情 | E1（`expectedAmount=3600`）→ 201、`baseAmount=3600` | 截圖 + API JSON |
 | PB-63 | AC-3.3-情境 2、EX-10 | owner-O | 單價未變，以標準請求但 `expectedAmount=1` 打 E1 | — | 409 `PRICE_CHANGED`、`payload.baseAmount` = 正確值；無新訂單 | API JSON |
-| PB-64 | AC-3.3-情境 3、EX-29 | owner-O | 開啟 `/booking/{S-big}`，群組 = P9、`D+1`~`D+60` 連續區間、每日 3 次 | `public-booking-estimate-amount` = 1,080,000；`public-booking-btn-submit` disabled；`public-booking-amount-limit-message` =「單筆預約金額不可超過 NT$999,999，請拆成多筆預約」 | — | 截圖 |
+| PB-64 | AC-3.3-情境 3、EX-29 | owner-O | 開啟 `/booking/{S-big}`，群組 = P9、`D+1`~`D+60` 連續區間、每日 3 次 | `public-booking-estimate-amount` = `$ 1,080,000`；`public-booking-btn-submit` disabled；`public-booking-amount-limit-message` =「單筆預約金額不可超過 $ 999,999，請拆成多筆預約」（`$` 後為 U+00A0，SD-FRONTEND-SPEC §6.4.1） | — | 截圖 |
 | PB-65 | AC-3.3-情境 3、EX-29 | owner-O | 同內容直接打 E1（`expectedAmount=1080000`） | — | 400 `VALIDATION_FAILED`、`payload.field=baseAmount`、`payload.max=999999`；無新訂單 | API JSON |
 | PB-66 | AC-3.3-情境 4 | owner-O | 標準請求：P10、`[D+4]`、每日 3 次、`expectedAmount=999999` | — | 201、`baseAmount=999999` | API JSON |
-| PB-67 | AC-3.4-情境 1、EX-11 | owner-O | 以 key K 標準請求對 `S-base` 送單得 `orderId=A`；以 K 與完全相同 body 重送 | — | 第二次 201，body 與第一次完全相同（`orderId=A`）；owner-O E3 `tab=EVALUATING` `totalElements` 只增加 1；`S-base` 站內通知「新預約申請」且連結含 A 的仍 1 則；`ORDER_CREATED` 仍 1 筆（待測試支援） | API JSON |
+| PB-67 | AC-3.4-情境 1、EX-11 | owner-O | 以 key K 標準請求對 `S-base` 送單得 `orderId=A`；以 K 與完全相同 body 重送 | — | 第二次 201，body 與第一次完全相同（`orderId=A`）；owner-O E3 `tab=EVALUATING` `totalElements` 只增加 1；訂單 A 的 inspect：`orderLogs` 中 `ORDER_CREATED` 仍恰 1 筆、`notifications` 中 `type=NEW_BOOKING_REQUEST` 仍恰 1 則 | API JSON |
 | PB-68 | AC-3.4-情境 2、EX-12 | owner-O | 承 PB-67，以 K 送三個變體：(a) 日期改 `D+5`；(b) `petIds` 改 B；(c) body 其他不變、另加 `answers=[{questionId: S-q1 的 Q1, value: "是"}]`（request hash 含問卷答案，BR-15） | — | 三次皆 422 `IDEMPOTENCY_KEY_REUSED`；訂單數不變 | API JSON |
 | PB-69 | AC-3.4-情境 4、EX-14 | owner-O | 不帶 `Idempotency-Key` 以標準請求打 E1 | — | 400 `VALIDATION_FAILED`、`payload.field=Idempotency-Key`；無新訂單 | API JSON |
 | PB-70 | AC-3.5 | owner-O | 開啟 `/booking/{S-q1}`，選 P1、`D+4` | 依序出現 `public-booking-question-{Q1}`、`-{Q2}`、`-{Q3}`，無 `-{Q4}`；Q1、Q2 標「必填」；Q1、Q2 未答時 `public-booking-btn-submit` disabled | E31（owner-O token）→ `questionnaire.required=true`、`questions` 依 `sortOrder` 為 Q1、Q2、Q3 | 截圖 + API JSON |
@@ -176,10 +177,10 @@
 | PB-89 | AC-3.7-情境 3 | owner-X | 前置：`owner-X` 對 `T-noq` 走結案鏈；再以標準請求對 `T-noq` 送單 | — | 201、`NOT_REQUIRED`；E2 `questionnaireExemptReason=REGULAR_OWNER` | API JSON |
 | PB-90 | AC-3.7-情境 4 | owner-Z | 前置：`owner-Z` 對 `S-reg` 建單後以 E8 撤回（`expectedStatus=PENDING`），E2 `status=CANCELLED`；`owner-Z` 開啟 `/booking/{S-reg}` | 出現 Q1、Q2、Q3 問卷 | — | 截圖 |
 | PB-91 | AC-3.7-情境 4 | owner-Z | 作答 Q1、Q2 後送出 | 導向訂單詳情 | 201、`questionnaireStatus=COMPLETED`；E2 無 `questionnaireExemptReason` 欄位 | 截圖 + API JSON |
-| PB-92 | AC-3.8-情境 1、BR-14 | owner-O、S-base | 確認 `GET /api/owner/favorites`（SD-019）不含 `S-base`；`S-base` 的訂單事務 Email 偏好為開（保母以通知偏好 API，SD-014 §4.6）；以 UI 送單 | 導向訂單詳情 | 201；owner-O 我的最愛含 `S-base`；`S-base` 站內通知恰 1 則標題「新預約申請」、`linkUrl=/sitter/orders/{orderId}`；`S-base` 無任何「被收藏」類通知；`S-base` 該通知 Email 投遞紀錄 1 筆（待測試支援，§5-2） | 截圖 + API JSON |
-| PB-93 | AC-3.8-情境 2 | owner-X、S-base | `S-base` 把訂單事務 Email 偏好改關，owner-X 標準請求送單 | — | 201；`S-base` 新增 1 則「新預約申請」站內通知（連結含此訂單）；Email 投遞紀錄 0 筆（待測試支援） | API JSON |
+| PB-92 | AC-3.8-情境 1、BR-14 | owner-O、S-base | 確認 `GET /api/owner/favorites`（SD-019）不含 `S-base`；`S-base` 的 `emailPreferences.ORDER_AFFAIR=開`（`sitter-setup`）；以 UI 送單 | 導向訂單詳情 | 201；owner-O 我的最愛含 `S-base`；inspect `notifications` 恰 1 則：`type=NEW_BOOKING_REQUEST`、`recipientUserId=S-base`、`recipientRole=SITTER`、`mandatory=false`、`emailStatus` 為已排入投遞（非「不寄送」）；`S-base` 站內通知清單該則標題「新預約申請」、`linkUrl=/sitter/orders/{orderId}`；`S-base` 無任何「被收藏」類通知 | 截圖 + API JSON |
+| PB-93 | AC-3.8-情境 2 | owner-X、S-base | 重呼叫 `sitter-setup` 改 `emailPreferences.ORDER_AFFAIR=關`，owner-X 標準請求送單 | — | 201；inspect `notifications` 恰 1 則 `NEW_BOOKING_REQUEST`（收件者 `S-base`），`emailStatus` 為不寄送（無 Email 投遞）。步驟結束改回開 | API JSON |
 | PB-94 | AC-3.8-情境 3、EX-18 | owner-O | 承 PB-92，再對 `S-base` 送第二張單 | — | 201；owner-O 我的最愛中 `S-base` 仍只出現 1 次 | API JSON |
-| PB-95 | AC-3.8-情境 4、EX-18 | owner-F | `owner-F` 我的最愛已 50 位且不含 `S-base`，以 UI 對 `S-base` 送單 | 導向訂單詳情，無任何「清單已滿」提示 | 201；我的最愛仍 50 位、不含 `S-base` | 截圖 + API JSON |
+| PB-95 | AC-3.8-情境 4、EX-18 | owner-F | `owner-F` 我的最愛已 50 位（`favoriteFillerCount=50`）且不含 `S-base`，以 UI 對 `S-base` 送單 | 導向訂單詳情，無任何「清單已滿」提示 | 201；我的最愛仍 50 位、不含 `S-base` | 截圖 + API JSON |
 
 ## 3. 權限與例外
 
@@ -201,6 +202,7 @@
 | PB-E12 | EX-14、BR-18 | owner-O 標準請求，日期字串為 `2026/13/40` | 400 `VALIDATION_FAILED`；無新訂單 |
 | PB-E13 | BR-25 | owner-O 對 `S-lock`（鎖定）以 `expectedAmount=1` 送單 | 409 `PRICE_CHANGED`（業務規則先於最後一步 `SUBSCRIPTION_LOCKED`） |
 | PB-E14 | BR-25 | owner-O 對 `S-kyc`（`PENDING_REVIEW`）送單，`petIds=[Pp]` | 403 `FORBIDDEN`（歸屬檢查先於業務規則 `SITTER_NOT_BOOKABLE`） |
+| PB-E15 | BR-25（401 先於冪等回放） | 承 PB-67，以同一 key K 與相同 body、但不帶 `Authorization` 重送 E1 | 401 `UNAUTHENTICATED`（不回放 201）；訂單 A 的 inspect `ORDER_CREATED` 仍 1 筆 |
 
 ## 4. 不在 E2E 覆蓋的項目
 
@@ -217,21 +219,17 @@
 | BR-14「加入我的最愛失敗不回滾訂單」 | 正式站無法注入故障 | `BookingSideEffectIntegrationTest` |
 | BR-16「`order_logs`、通知 enqueue 與建單同一交易」 | 需注入交易失敗 | `OrderLogWriterTest`；SD-ORDER §10.1「交易失敗」 |
 | EX-19（狀態不允許的轉移）、EX-20（列鎖 / 樂觀鎖）、EX-21（GCS 失敗） | PRD 標為不適用：O1 無前置主狀態、不修改既有訂單、不上傳檔案 | 不需測試 |
-| `order_logs` 與 Email 投遞紀錄的斷言（PB-57、PB-67、PB-92、PB-93） | SD-ORDER §10.4 未提供讀取端點；補上前 E2E 只驗 API 與站內通知 | `BookingIntegrationTest`（`ORDER_CREATED`）、`BookingIdempotencyIntegrationTest`、`BookingSideEffectIntegrationTest` |
 
 ## 5. 已知限制 / 待補
 
-1. **讀 `order_logs` 的測試支援端點**：SD-ORDER §10.4 沒有；E27 只對 `DISPUTED` / 有 OPEN 待辦的訂單可讀。建議新增 `GET /api/internal/test-data/orders/{orderId}/logs`（`X-Internal-Secret`、只限 `@e2e-journey.test` 訂單，回 `actionType`、`operatorRole`、`operatorUserId`、`payload`、`createdAt`）。需 SD-ORDER 補契約後才可在 E2E 斷言。
-2. **讀 Email 投遞紀錄的測試支援端點**：屬 SD-NOTIFY（尚未重建）。建議 `GET /api/internal/test-data/users/{userId}/notifications`，回每則通知的 `type`、`linkUrl`、Email 投遞狀態。
-3. **`sitter-setup` 必須可對同一 `userId` 重呼叫並覆寫**（等級、`subscriptionExpiresAt`、`suspended`、`kycStatus`、`profileVisible`、`gatekeeper`）：PB-06、10、13、14、18、20、27、30、44 依賴；SD-ORDER §10.4 未寫明是 upsert 還是只建立。
-4. **`sitter-setup` / `owner-setup` 回應須帶建立的 `planId`、`questionId`、`petId`**（依請求順序或名稱對應）；SD 只定義 request。
-5. **雙角色帳號**：`provision-account` 的 `role` 只收單一值（OWNER / SITTER / ADMIN）。PB-28~32 需要同一帳號同時有 SITTER 與 OWNER profile 並能切換 `currentRole`；須由 SD-IDENTITY 確認可用的建立方式（例：`provision-account` 加 `roles[]`，或允許以角色檔案 API 加開 profile）。
-6. **我的最愛造滿 50 位**：`owner-setup.favoriteSitterIds` 若要求真實保母帳號，PB-95 需先 provision 50 位保母，正式站有 GFE 429 風險；建議 `owner-setup` 支援 `favoriteFillerCount` 自動建立占位保母，否則 PB-95 降為 `BookingSideEffectIntegrationTest` 覆蓋。
-7. **cleanup 範圍**：SD-ORDER §10.4 cleanup 擴充涵蓋訂單相關表；`sitter-setup` 建立的方案門禁名單、問卷題目、通知偏好，`owner-setup` 建立的我的最愛與毛孩，以及站內通知列，是否由 `cleanup-e2e-journeys` 清除需各模組確認。
-8. **方案停用 / 改價、題目新增 / 停用 / 改選項 / 改題型（PB-53、61、73、76、78~81）** 透過保母端既有的方案管理（PRD-003）與問卷管理（PRD-004）API 執行；SD-SUPPLY 尚未重建，路徑由 e2e-author 依現行 API 對應，不在本 TS 寫死。
-9. **排程與正式站資料**：PB-85、PB-89 的結案鏈只用 FT1 與 E25，不呼叫任何 C 排程。
-10. **月額度步驟（PB-24~27）在月底最後一天 23:00 後執行可能跨月**：spec 在 Asia/Taipei 月底最後一天 23:00 後跳過該組並標 skip 原因。
-11. **PB-E03**：PRD-005 沒有直接定義 body 帶 `ownerId` 的行為；依 SD-ORDER §6.1「body 不收代表呼叫者的 `ownerId`」與 baseline §1.2「身分取自 token」驗證，屬安全迴歸。
+未解決：
+
+1. **方案停用 / 改價、題目新增 / 停用 / 改選項 / 改題型（PB-53、61、73、76、78~81）** 透過保母端既有的方案管理（PRD-003）與問卷管理（PRD-004）API 執行；SD-SUPPLY 尚未重建，路徑由 e2e-author 依現行 API 對應，不在本 TS 寫死。（`sitter-setup` upsert 可替代改價 / 停用，但會繞過保母端真實 API；兩者擇一由 e2e-author 決定，建議用真實 API 以驗證保母端改動對預約頁的影響。）
+2. **inspect `notifications[].emailStatus` 的值域**由 SD-NOTIFY 定義（SD-NOTIFY 尚未重建）；PB-92 / PB-93 以「已排入投遞」/「不寄送」描述，e2e-author 依 SD-NOTIFY 實際值對應。站內通知標題 / 連結仍用 SD-014 舊版清單 API 核對。
+3. **月額度步驟（PB-24~27）在月底最後一天 23:00 後執行可能跨月**：spec 依 E31 `serverTime` 判斷，在 Asia/Taipei 月底最後一天 23:00 後跳過該組並標 skip 原因。
+4. **PB-E03**：PRD-005 沒有直接定義 body 帶 `ownerId` 的行為；依 SD-ORDER §6.1「body 不收代表呼叫者的 `ownerId`」與 baseline §1.2「身分取自 token」驗證，屬安全迴歸。
+
+已解決（2026-11-22 SD-ORDER §10.4 修訂）：讀 `order_logs` / 通知 / Email 投遞狀態 → inspect；`sitter-setup` / `owner-setup` upsert 與以 `key` 回傳 id；雙角色帳號與 ADMIN 帳號 → `provision-account roles[]`；我的最愛造滿 50 位 → `favoriteFillerCount`；保母 Email 偏好 → `sitter-setup.emailPreferences`；cleanup 跨模組範圍 → §10.4「Cleanup 跨模組範圍」；日期基準 → E31 `serverTime`；金額上限提示文案 → PRD-005 EX-29 / §4.2 步驟 5 已回寫為 `$ 999,999` 格式（PB-64 照現行字面）。本 TS 不呼叫任何排程端點（結案鏈只用 FT1 與 E25）。
 
 ## 6. 本測試發現並修復的真實 bug
 
@@ -244,4 +242,5 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依 commit 477c75d 的核准後修訂更新：`order_logs` / 通知 / Email 投遞斷言改用 inspect（PB-57、67、92、93），移出 §4；前置改用 `provision-account roles[]`（U、admin）、`sitter-setup` / `owner-setup` upsert 與 `key` 對應、`sitter-setup.emailPreferences`、`favoriteFillerCount`（PB-95）；日期基準改 E31 `serverTime`（§0、PB-01、PB-37）；畫面金額改 `$ 4,600` 格式；新增 PB-E15（401 先於冪等回放，PRD-005 已回寫）；PB-64 金額上限提示改照 PRD-005 現行字面 `$ 999,999`；§5 移除已解決項。狀態維持 Draft | SD-ORDER §10.4、E31 修訂；PRD-005 回寫 |
 | 2026-11-22 | 依 Approved 的 PRD-005（24 條 AC、29 條 EX）與 SD-ORDER 全文重寫：改用新範本；步驟前綴 `PB-`；旅程型三支 spec；`order_logs` / Email 投遞紀錄斷言列待測試支援；時間邊界交後端測試。狀態 Draft | 全面重建（PRD-005、SD-ORDER 於 2026-11-22 核准） |
