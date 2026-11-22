@@ -42,9 +42,9 @@
 > 由 SD-ORDER §3.6.2 定案後移入共用（SD-FULFILL CQ-2）。所有模組重建時沿用；舊 `IdempotencyService.checkAndConsume` / `idempotency_keys`（重複回 409）改名 `LegacyIdempotencyService`，只留給尚未重建的 KYC、照護記事 / 媒體。
 - **套件與擁有權**：`application/common/idempotency`（`@Idempotent`、`IdempotencyBodyCachingFilter`、`IdempotencyInterceptor`、`IdempotencyService`、`IdempotencyRecordRepository`）。表 `idempotency_records` 歸本規範；DDL 隨 `V20261122_01` 建立。`IdempotencyRecordRepository` 只准本套件依賴（ArchUnit）；任何模組可依賴 `IdempotencyService` 與 `@Idempotent`。
 - **宣告**：冪等端點在 controller 方法上標 `@Idempotent`，不維護寫死的端點清單。範圍 = （token 使用者, HTTP method + 路由樣板, key）；有效期 `IDEMPOTENCY_KEY_TTL_HOURS`（baseline §5）。`@Idempotent` 端點缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`，判斷順序第 6 步，baseline §3.7）。
-- **讀 body**：`IdempotencyBodyCachingFilter` 在 handler mapping 前執行、看不到 `@Idempotent`，以 `Content-Length` 判斷，**絕不讀超過上限的串流**：(a) 帶 `Idempotency-Key`、Content-Type 為 JSON、且 `Content-Length` 存在且 ≤ 64 KB → 讀成 byte[] 並包成可重讀 wrapper；(b) `Content-Length` > 64 KB → 不讀、不包裝，只設 request attribute `idempotency.bodyTooLarge`；(c) 無 `Content-Length`（chunked）→ 最多讀 64 KB + 1 位元組，未超過則照 (a)，超過則以「已讀前綴 + 剩餘原串流」的 wrapper 交回（非冪等 handler 仍拿到完整 body）並設同一 attribute。`IdempotencyInterceptor` 確認 handler 有 `@Idempotent` 後：有 `bodyTooLarge` → 400 `VALIDATION_FAILED`；Content-Type 既不是 JSON 也不是 multipart → 400 `VALIDATION_FAILED`，不讀 body；multipart 由 `MultipartFile` 重讀。未帶 header 的請求完全不經處理。
+- **讀 body**：`IdempotencyBodyCachingFilter` 在 handler mapping 前執行、看不到 `@Idempotent`，以 `Content-Length` 判斷，**絕不讀超過上限的串流**：(a) 帶 `Idempotency-Key`、Content-Type 為 JSON、且 `Content-Length` 存在且 ≤ 64 KB → 讀成 byte[] 並包成可重讀 wrapper；(b) `Content-Length` > 64 KB → 不讀、不包裝，只設 request attribute `idempotency.bodyTooLarge`；(c) 無 `Content-Length`（chunked）→ 最多讀 64 KB + 1 位元組，未超過則照 (a)，超過則以「已讀前綴 + 剩餘原串流」的 wrapper 交回（非冪等 handler 仍拿到完整 body）並設同一 attribute。`IdempotencyInterceptor` 確認 handler 有 `@Idempotent` 後：有 `bodyTooLarge` → 400 `VALIDATION_FAILED`；實際帶 body 且 Content-Type 既不是 JSON 也不是 multipart → 400 `VALIDATION_FAILED`（`field=Content-Type`），不讀 body；沒有 body 且沒有 Content-Type 的請求（例：E22 / E23 / E25）視為 `{}`；`bodyTooLarge` 回 400 `field=body` 並帶 `maxBytes`。64 KB 上限與 (a)–(c) 只適用 JSON，multipart 不套用（上限由 multipart 全域設定管）；multipart 由 `MultipartFile` 重讀。未帶 header 的請求完全不經處理。
 - **request hash**：SHA-256（路由樣板 + 已解析路徑變數 + 正規化 JSON；multipart = 各欄位值依名稱排序 + 檔案 SHA-256）。JSON 正規化：解析成樹、物件 key 依碼位排序、數字以十進位字串（整數不帶小數點）、字串不 trim、緊湊輸出、空 body 視為 `{}`。
-- **三段式**：段 0 `IdempotencyInterceptor` 回放（`COMPLETED`、未過期、同 hash → 回放第一次狀態碼與 body；在 `@PreAuthorize` 之前）；段 1 `IdempotencyService.claim`（自行開短交易，傳播 `NEVER`）：`INSERT ... ON CONFLICT`，每次認領或接手換新 `claim_token`，衝突時 hash 不同 → 422 `IDEMPOTENCY_KEY_REUSED`、處理中（`locked_until` 30 秒內）→ 409 `IDEMPOTENCY_IN_PROGRESS`、逾時 → 條件式 UPDATE 接手；段 2 交易外 I/O（如上傳）；段 3 `IdempotencyService.complete`（`MANDATORY`，在呼叫端的業務交易內，**不要求持有任何業務鎖**）：`UPDATE ... WHERE id AND status='PROCESSING' AND claim_token=:mine`，0 列 → 回滾並回 409 `IDEMPOTENCY_IN_PROGRESS`；失敗 `IdempotencyService.fail`（自行開短交易，`NEVER`，同樣比對 token）：可記錄的業務錯誤（409 / 422，不含 `ORDER_BUSY`、`IDEMPOTENCY_IN_PROGRESS`）→ `COMPLETED` 存錯誤回應；5xx、`ORDER_BUSY`、儲存服務失敗 → 刪紀錄；被接手 → 不動。
+- **三段式**：段 0 `IdempotencyInterceptor` 回放（`COMPLETED`、未過期、同 hash → 回放第一次狀態碼與 body；在 `@PreAuthorize` 之前）；段 1 `IdempotencyService.claim`（自行開短交易，傳播 `NEVER`）：`INSERT ... ON CONFLICT`，每次認領或接手換新 `claim_token`，衝突時 hash 不同 → 422 `IDEMPOTENCY_KEY_REUSED`、處理中（`locked_until` 30 秒內）→ 409 `IDEMPOTENCY_IN_PROGRESS`、逾時 → 條件式 UPDATE 接手；段 0 之後、認領前同 hash 紀錄恰好變 `COMPLETED` → 409 `IDEMPOTENCY_IN_PROGRESS`（客戶端同 key 重試即走回放）；段 2 交易外 I/O（如上傳）；段 3 `IdempotencyService.complete`（`MANDATORY`，在呼叫端的業務交易內，**不要求持有任何業務鎖**）：`UPDATE ... WHERE id AND status='PROCESSING' AND claim_token=:mine`，0 列 → 回滾並回 409 `IDEMPOTENCY_IN_PROGRESS`；失敗 `IdempotencyService.fail`（自行開短交易，`NEVER`，同樣比對 token）：可記錄的業務錯誤（409 / 422，不含 `ORDER_BUSY`、`IDEMPOTENCY_IN_PROGRESS`）→ `COMPLETED` 存錯誤回應；5xx、`ORDER_BUSY`、儲存服務失敗 → 刪紀錄；被接手 → 不動。
 - **回應 body** 不含簽名網址等時效性資料；每個請求同一時間只佔 1 條連線（不用 `REQUIRES_NEW`）。
 
 ### 2.5 實體基底（2026-11-22）
@@ -58,11 +58,12 @@
 - **格式（全域）**：`{ "code", "message", "payload", "traceId", "timestamp" }`；值為 null 的欄位不輸出（`default-property-inclusion: non-null`）；`authenticationEntryPoint` 回 401 `UNAUTHENTICATED`、`accessDeniedHandler` 回 403 `FORBIDDEN`，皆用此格式。
 - **全域 `GlobalExceptionHandler`**：`@PreAuthorize` 拒絕（`AuthorizationDeniedException`）→ 403 `ROLE_MISMATCH`；其他 `AccessDeniedException` → 403 `FORBIDDEN`；進方法前的格式錯誤（`HttpMessageNotReadableException`、`MethodArgumentTypeMismatchException`、缺必填 part / param、不支援的 media type、multipart 解析失敗、超過容器上限）→ 400 `VALIDATION_FAILED`；未處理例外 → 500 `INTERNAL_ERROR`（不含堆疊）。`spring.jackson.deserialization.accept-float-as-int=false`。
 - **模組專屬 advice**：各模組以 `@RestControllerAdvice(basePackageClasses = 模組 controller 套件)` + 最高優先序處理自己的例外與碼（例：SD-ORDER `OrderExceptionHandler`、SD-FULFILL `FulfillExceptionHandler`）。
-- **鎖與資料完整性**：SQLSTATE 55P03 / 40P01（含 Spring 轉換後的 `CannotAcquireLockException`、`PessimisticLockingFailureException`、`DeadlockLoserDataAccessException`）與 `@Version` 衝突 → 409 `ORDER_BUSY` + `Retry-After: 1`。`DataIntegrityViolationException` **只有 SQLSTATE 23505**（unique violation，含 commit 時的延遲唯一約束）可對映 409（依約束名對應模組碼，未列名者 `ORDER_BUSY`）；23514 / 23502 / 23503 等確定性錯誤一律 500 `INTERNAL_ERROR` 並記 ERROR log，不得對映為可重試碼。
+- **traceId**：取 `X-Cloud-Trace-Context` 的 trace 部分；沒有就每個請求產生 UUID。
+- **鎖與資料完整性**（只在重建模組的 advice 基底 `AbstractModuleExceptionHandler` 生效；未重建模組維持舊對映，重建時改繼承基底）：SQLSTATE 55P03 / 40P01（含 Spring 轉換後的 `CannotAcquireLockException`、`PessimisticLockingFailureException`、`DeadlockLoserDataAccessException`）與 `@Version` 衝突 → 409 `ORDER_BUSY` + `Retry-After: 1`。`DataIntegrityViolationException` **只有 SQLSTATE 23505**（unique violation，含 commit 時的延遲唯一約束）可對映 409（依約束名對應模組碼，未列名者 `ORDER_BUSY`）；23514 / 23502 / 23503 等確定性錯誤一律 500 `INTERNAL_ERROR` 並記 ERROR log，不得對映為可重試碼。
 - **欄位驗證時點**：需遵守 baseline §3.7 判斷順序的端點，Request DTO 不掛 `@Valid`、必填 header 宣告為非必填，改由 Service 在第 6 步驗證；金額欄以 `BigDecimal` 接收並驗證為整數。
 
 ### 2.7 文字欄位的空白與字數（2026-11-22）
-- **「空白」的定義**：等同 Java `String.strip()`（`Character.isWhitespace` 判定，含 U+3000 全形空白、U+00A0 不換行空白、Tab、換行）。全站所有「去前後空白 / 去頭尾空白」一律用它，不得用 `String.trim()`（只去 ≤ U+0020）。
+- **「空白」的定義**：Java `String.strip()` 的判定（`Character.isWhitespace`，含 U+3000 全形空白、Tab、換行）**再加上 U+00A0 不換行空白**（`isWhitespace` 不含它，從網頁複製常帶入），實作集中在 `TextRules.isBlankChar`（2026-11-22 使用者確認）。全站所有「去前後空白 / 去頭尾空白」一律用它，不得用 `String.trim()`（只去 ≤ U+0020）。
 - **字數**：以 strip 後的 Unicode code point 計（與 PostgreSQL `char_length` 一致）；前端計數規則相同。
 - **儲存**：存 strip 後的值；strip 後為空的必填欄位 → 400 `VALIDATION_FAILED`，選填欄位存 NULL。
 
@@ -133,4 +134,8 @@
 
 ---
 
+## 7. 變更紀錄
 
+| 日期 | 變更 | 原因 |
+|------|------|------|
+| 2026-11-22 | §2.4 補空 body 視為 `{}`、64 KB 只限 JSON、認領前已完成回 409、錯誤欄位名；§2.6 補 traceId 來源、鎖 / 完整性對映只限重建模組；§2.7 空白定義加 U+00A0 | A 階段實作回饋，使用者 2026-11-22 核准 |

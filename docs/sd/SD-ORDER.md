@@ -901,7 +901,7 @@ sequenceDiagram
 #### 5.1.1 `V20261122_01__order_rebuild.sql`
 
 ```sql
-SET lock_timeout = '10s';   -- Flyway 在同一交易內執行，效果等同 LOCAL
+SET LOCAL lock_timeout = '10s';   -- Flyway 每支遷移在單一交易內執行；必須用 LOCAL，否則 commit 後設定留在連線上被連線池重用
 
 -- ============================================================
 -- 0. 清空交易資料（baseline CQ-36）。明列所有表、不用 CASCADE：
@@ -2285,6 +2285,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§5.1 遷移第 0 行改 `SET LOCAL lock_timeout` | A 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：E10 註明 ADMIN 在待辦結案後仍可讀 `accountSnapshot`，不遮蔽 | 使用者 2026-11-22 確認 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 建立第一階段：§1 AC 對應（156 條）、§2 模組邊界、§3 狀態機與共用機制、§5 資料模型、§8 排程與外部服務、§11 技術決策、§12 待釐清 | 全面重建第 2 步（baseline 第 2 版與 8 張訂單 PRD 核准後） |
