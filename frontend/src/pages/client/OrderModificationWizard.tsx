@@ -3,16 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import ModificationEditor from '../../components/orders/ModificationEditor';
 import AdjustmentFields from '../../components/orders/AdjustmentFields';
+import ModificationPreviewAmounts from '../../components/orders/ModificationPreviewAmounts';
 import {
-  diffText,
-  estimateSystemAmount,
+  adjustmentBody,
   isDraftValid,
+  type AdjustmentDraft,
   type ModificationDraft
 } from '../../components/orders/modificationDraft';
 import {
   CountedTextArea,
   ErrorText,
-  KV,
   LoadingBlock,
   PageContainer,
   QueryErrorBlock,
@@ -20,13 +20,16 @@ import {
 } from '../../components/orders/common';
 import { useInvalidateOrder, useOrderDetailQuery } from '../../hooks/useOrders';
 import { useIdempotentAction } from '../../hooks/useIdempotentAction';
-import { initiateModification } from '../../api/orderApi';
-import { formatMoney } from '../../utils/money';
+import { useLatestDebounced } from '../../hooks/useLatestDebounced';
+import { initiateModification, previewModification } from '../../api/orderApi';
+import type { PreviewModificationRequest } from '../../api/orderApi';
 import { isValidRequiredText, stripText } from '../../utils/text';
 
 /**
- * 變更精靈（SD-ORDER §9.1 `/orders/:orderId/modify`，E2 + E17；PRD-016 §4.1 / §4.2）。
- * 飼主送出 → REQUESTED；保母送出（同時報價）→ QUOTED。成功後進協商頁。
+ * 變更精靈（SD-ORDER §9.1 `/orders/:orderId/modify`，E2 + E32 試算 + E17；PRD-016 §4.1 / §4.2）。
+ * 飼主送出 → REQUESTED；保母送出（同時報價）→ QUOTED。成功後進協商頁（金額以 E19 / E17 寫入值為準）。
+ * 金額一律取 E32 試算（SD-ORDER §9.2）：減少目標、新增項目、加減金額變動後防抖 400 ms；
+ * OWNER 的原因不送也不觸發（CQ-51），SITTER 的原因 / 調整原因會送並觸發。
  */
 const OrderModificationWizard: React.FC<{ orderId: string }> = ({ orderId }) => {
   const navigate = useNavigate();
@@ -35,8 +38,33 @@ const OrderModificationWizard: React.FC<{ orderId: string }> = ({ orderId }) => 
   const [type, setType] = useState<'CHANGE' | 'CANCEL_ALL'>('CHANGE');
   const [draft, setDraft] = useState<ModificationDraft>({ removeVisitIds: [], addItems: [] });
   const [reason, setReason] = useState('');
-  const [adj, setAdj] = useState({ surcharge: '', discount: '', reason: '' });
+  const [adj, setAdj] = useState<AdjustmentDraft>({ surcharge: '', discount: '', reason: '' });
   const action = useIdempotentAction();
+
+  const isSitter = detail?.role === 'SITTER';
+  const canModify = (detail?.allowedActions ?? []).includes('REQUEST_MODIFICATION');
+  const adjBody = adjustmentBody(
+    adj,
+    isSitter && detail?.modificationPricingMode === 'CUSTOM_ALLOWED'
+  );
+  const hasAdj = Object.keys(adjBody).length > 0;
+  const contentBody: Omit<PreviewModificationRequest, 'reason'> = {
+    type,
+    ...(type === 'CHANGE'
+      ? { removeVisitIds: draft.removeVisitIds, addItems: draft.addItems }
+      : {}),
+    ...adjBody
+  };
+  const contentReady = type === 'CANCEL_ALL' || isDraftValid(draft);
+  const previewInput: PreviewModificationRequest | null =
+    canModify && contentReady
+      ? isSitter
+        ? { ...contentBody, reason: stripText(reason) }
+        : contentBody
+      : null;
+  const preview = useLatestDebounced(previewInput, (body, signal) =>
+    previewModification(orderId, body, signal)
+  );
 
   if (isLoading)
     return (
@@ -51,9 +79,8 @@ const OrderModificationWizard: React.FC<{ orderId: string }> = ({ orderId }) => 
       </PageContainer>
     );
 
-  const isSitter = detail.role === 'SITTER';
   const backHref = `/${isSitter ? 'sitter' : 'owner'}/orders/${orderId}`;
-  if (!(detail.allowedActions ?? []).includes('REQUEST_MODIFICATION')) {
+  if (!canModify) {
     return (
       <PageContainer>
         <p className="muted">
@@ -68,39 +95,15 @@ const OrderModificationWizard: React.FC<{ orderId: string }> = ({ orderId }) => 
     );
   }
 
-  const s = adj.surcharge === '' ? 0 : Number(adj.surcharge);
-  const d = adj.discount === '' ? 0 : Number(adj.discount);
-  const hasAdj =
-    isSitter && detail.modificationPricingMode === 'CUSTOM_ALLOWED' && (s > 0 || d > 0);
-  const systemAmount = estimateSystemAmount(detail, draft, type === 'CANCEL_ALL');
-  const newTotal = systemAmount + (hasAdj ? s - d : 0);
   const valid =
     isValidRequiredText(reason, 200) &&
-    (type === 'CANCEL_ALL' || isDraftValid(draft)) &&
+    contentReady &&
     (!hasAdj || isValidRequiredText(adj.reason, 200)) &&
-    newTotal >= 0 &&
-    newTotal <= 999999;
+    preview.status === 'success';
 
   const submit = async () => {
     const res = await action.run((key) =>
-      initiateModification(
-        orderId,
-        {
-          type,
-          reason: stripText(reason),
-          ...(type === 'CHANGE'
-            ? { removeVisitIds: draft.removeVisitIds, addItems: draft.addItems }
-            : {}),
-          ...(hasAdj
-            ? {
-                ...(s > 0 ? { surchargeAmount: s } : {}),
-                ...(d > 0 ? { discountAmount: d } : {}),
-                adjustmentReason: stripText(adj.reason)
-              }
-            : {})
-        },
-        key
-      )
+      initiateModification(orderId, { ...contentBody, reason: stripText(reason) }, key)
     );
     if (res) {
       await invalidate(orderId);
@@ -161,15 +164,16 @@ const OrderModificationWizard: React.FC<{ orderId: string }> = ({ orderId }) => 
             reason={adj.reason}
             onChange={(p) => setAdj({ ...adj, ...p })}
           />
-          <KV label="系統試算新總額">{formatMoney(systemAmount)}</KV>
-          <KV label="新總額">{formatMoney(newTotal)}</KV>
-          {detail.netPaid !== undefined && (
-            <KV label="差額">{diffText(newTotal - detail.netPaid)}</KV>
-          )}
-          <p className="muted" style={{ margin: 0 }}>
-            金額以送出後系統計算為準
-          </p>
-          {newTotal < 0 && <p className="field-error">新總額不可小於 0</p>}
+        </SectionCard>
+      )}
+
+      {preview.status !== 'idle' && (
+        <SectionCard title="金額">
+          <ModificationPreviewAmounts
+            state={preview}
+            role={isSitter ? 'SITTER' : 'OWNER'}
+            testIdPrefix="order-modify-preview"
+          />
         </SectionCard>
       )}
 

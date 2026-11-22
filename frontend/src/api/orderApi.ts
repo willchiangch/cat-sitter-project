@@ -420,6 +420,44 @@ export interface QuoteModificationRequest {
   adjustmentReason?: string;
 }
 
+// ---------- E32 / E33 變更金額試算（唯讀，SD-ORDER §6.3） ----------
+/** E32 body 同 E17；OWNER 呼叫時 `reason` 不驗證（CQ-51），可省略 */
+export type PreviewModificationRequest = Omit<InitiateModificationRequest, 'reason'> & {
+  reason?: string;
+};
+
+export interface ModificationPreview {
+  type: 'CHANGE' | 'CANCEL_ALL';
+  removeVisitIds: string[];
+  breakdown: {
+    kept: {
+      visitId: string;
+      planId: string;
+      serviceDate: string;
+      status: string;
+      unitPrice: number;
+    }[];
+    added: {
+      index: number;
+      date: string;
+      planId: string;
+      dailyCount: number;
+      unitPrice: number;
+      subtotal: number;
+    }[];
+  };
+  systemAmount: number;
+  surchargeAmount: number;
+  discountAmount: number;
+  newTotalAmount: number;
+  currentTotalAmount: number;
+  netPaid: number;
+  diff: number;
+  /** 只在 SITTER 呼叫時回傳 */
+  pricingMode?: 'SYSTEM_ONLY' | 'CUSTOM_ALLOWED';
+  computedAt: string;
+}
+
 export interface ModificationContent {
   removeVisitIds?: string[];
   addItems?: ModificationAddItem[];
@@ -651,6 +689,23 @@ export const quoteModification = (
   body: QuoteModificationRequest,
   key: string
 ) => postIdempotent<InitiatedModification>(`${m(orderId, modificationId)}/quote`, key, body);
+
+/** E32 變更精靈試算（不冪等、不取鎖） */
+export const previewModification = async (
+  orderId: string,
+  body: PreviewModificationRequest,
+  signal?: AbortSignal
+): Promise<ModificationPreview> =>
+  (await axiosClient.post(`${o(orderId)}/modifications/preview`, body, { signal })).data;
+
+/** E33 保母報價表單試算（不冪等、不取鎖） */
+export const previewModificationQuote = async (
+  orderId: string,
+  modificationId: string,
+  body: QuoteModificationRequest,
+  signal?: AbortSignal
+): Promise<ModificationPreview> =>
+  (await axiosClient.post(`${m(orderId, modificationId)}/quote/preview`, body, { signal })).data;
 
 export const rejectModification = (
   orderId: string,

@@ -1,5 +1,10 @@
-import type { ModificationAddItem, OrderDetail } from '../../api/orderApi';
+import type {
+  ModificationAddItem,
+  OrderDetail,
+  QuoteModificationRequest
+} from '../../api/orderApi';
 import { formatMoney } from '../../utils/money';
+import { stripText } from '../../utils/text';
 
 export interface ModificationDraft {
   removeVisitIds: string[];
@@ -27,28 +32,6 @@ export const orderPlansAndPets = (detail: OrderDetail) => {
   return { plans: [...plans.values()], pets: [...pets.values()] };
 };
 
-/**
- * 新總額系統試算（PRD-016 §4.3-3：Σ 新內容中每個有效行程的快照單價）。前端只作顯示用，送出後以後端
- * `systemAmount` / `newTotalAmount` 為準。有效行程 = 非 CANCELLED 且未被勾選減少。
- */
-export const estimateSystemAmount = (
-  detail: OrderDetail,
-  draft: ModificationDraft,
-  cancelAll: boolean
-) => {
-  const price = new Map((detail.groups ?? []).map((g) => [g.planId, g.unitPrice ?? 0]));
-  const remaining = (detail.visits ?? []).filter(
-    (v) =>
-      v.status !== 'CANCELLED' &&
-      !(cancelAll ? v.status === 'PENDING' : draft.removeVisitIds.includes(v.visitId))
-  );
-  const kept = remaining.reduce((sum, v) => sum + (price.get(v.planId) ?? 0), 0);
-  const added = cancelAll
-    ? 0
-    : draft.addItems.reduce((sum, i) => sum + (price.get(i.planId) ?? 0) * i.dailyCount, 0);
-  return kept + added;
-};
-
 export const diffText = (diff: number | undefined): string => {
   if (diff === undefined) return '—';
   if (diff > 0) return `應補款 ${formatMoney(diff)}`;
@@ -59,3 +42,24 @@ export const diffText = (diff: number | undefined): string => {
 export const isDraftValid = (draft: ModificationDraft) =>
   (draft.removeVisitIds.length > 0 || draft.addItems.length > 0) &&
   draft.addItems.every((i) => !!i.date && !!i.planId && i.petIds.length > 0 && i.dailyCount >= 1);
+
+/** 保母加減欄位（E17 SITTER / E20 / E32 / E33 共用）：只有 CUSTOM_ALLOWED 且任一 > 0 才帶 */
+export interface AdjustmentDraft {
+  surcharge: string;
+  discount: string;
+  reason: string;
+}
+
+export const adjustmentBody = (
+  adj: AdjustmentDraft,
+  customAllowed: boolean
+): Pick<QuoteModificationRequest, 'surchargeAmount' | 'discountAmount' | 'adjustmentReason'> => {
+  const s = adj.surcharge === '' ? 0 : Number(adj.surcharge);
+  const d = adj.discount === '' ? 0 : Number(adj.discount);
+  if (!customAllowed || (s <= 0 && d <= 0)) return {};
+  return {
+    ...(s > 0 ? { surchargeAmount: s } : {}),
+    ...(d > 0 ? { discountAmount: d } : {}),
+    adjustmentReason: stripText(adj.reason)
+  };
+};

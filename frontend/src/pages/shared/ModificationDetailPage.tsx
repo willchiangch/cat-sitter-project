@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import StatusChip from '../../components/ui/StatusChip';
@@ -11,10 +12,12 @@ import {
 import PaymentSection from '../../components/orders/PaymentSection';
 import ModificationEditor from '../../components/orders/ModificationEditor';
 import AdjustmentFields from '../../components/orders/AdjustmentFields';
+import ModificationPreviewAmounts from '../../components/orders/ModificationPreviewAmounts';
 import {
+  adjustmentBody,
   diffText,
-  estimateSystemAmount,
   isDraftValid,
+  type AdjustmentDraft,
   type ModificationDraft
 } from '../../components/orders/modificationDraft';
 import {
@@ -27,19 +30,27 @@ import {
   SectionCard
 } from '../../components/orders/common';
 import {
+  orderKeys,
   useInvalidateOrder,
   useModificationQuery,
   useOrderDetailQuery
 } from '../../hooks/useOrders';
 import { useIdempotentAction } from '../../hooks/useIdempotentAction';
+import { useLatestDebounced } from '../../hooks/useLatestDebounced';
 import {
   acceptModification,
   openPaymentDispute,
+  previewModificationQuote,
   quoteModification,
   rejectModification,
   withdrawModification
 } from '../../api/orderApi';
-import type { ModificationContent, ModificationDetail, OrderDetail } from '../../api/orderApi';
+import type {
+  ModificationContent,
+  ModificationDetail,
+  OrderDetail,
+  QuoteModificationRequest
+} from '../../api/orderApi';
 import { formatMoney } from '../../utils/money';
 import { formatDateTime, isPast } from '../../utils/datetime';
 import { codePointLength, isValidRequiredText, stripText } from '../../utils/text';
@@ -79,29 +90,38 @@ const ContentView: React.FC<{
   );
 };
 
-/** 保母報價表單（E20，PRD-016 §4.3）：新內容預填飼主期望內容 */
+/**
+ * 保母報價表單（E33 試算 + E20，PRD-016 §4.3）：新內容預填飼主期望內容。
+ * 金額一律取 E33 試算（SD-ORDER §9.2）：內容、加減金額、調整原因變動後防抖 400 ms，只採最後一次回應；
+ * 送出成功後以 E20 回應的金額覆蓋 E19 快取，再重抓。
+ */
 const QuoteForm: React.FC<{ detail: OrderDetail; mod: ModificationDetail; onDone: () => void }> = ({
   detail,
   mod,
   onDone
 }) => {
+  const qc = useQueryClient();
   const cancelAll = mod.type === 'CANCEL_ALL';
   const [draft, setDraft] = useState<ModificationDraft>({
     removeVisitIds: mod.requestedContent?.removeVisitIds ?? [],
     addItems: mod.requestedContent?.addItems ?? []
   });
-  const [adj, setAdj] = useState({ surcharge: '', discount: '', reason: '' });
+  const [adj, setAdj] = useState<AdjustmentDraft>({ surcharge: '', discount: '', reason: '' });
   const action = useIdempotentAction();
-  const s = adj.surcharge === '' ? 0 : Number(adj.surcharge);
-  const d = adj.discount === '' ? 0 : Number(adj.discount);
-  const hasAdj = detail.modificationPricingMode === 'CUSTOM_ALLOWED' && (s > 0 || d > 0);
-  const systemAmount = estimateSystemAmount(detail, draft, cancelAll);
-  const newTotal = systemAmount + (hasAdj ? s - d : 0);
+  const adjBody = adjustmentBody(adj, detail.modificationPricingMode === 'CUSTOM_ALLOWED');
+  const hasAdj = Object.keys(adjBody).length > 0;
+  const contentReady = cancelAll || isDraftValid(draft);
+  const body: QuoteModificationRequest = {
+    ...(cancelAll ? {} : { removeVisitIds: draft.removeVisitIds, addItems: draft.addItems }),
+    ...adjBody
+  };
+  const preview = useLatestDebounced(contentReady ? body : null, (b, signal) =>
+    previewModificationQuote(detail.orderId, mod.modificationId, b, signal)
+  );
   const valid =
-    (cancelAll || isDraftValid(draft)) &&
+    contentReady &&
     (!hasAdj || isValidRequiredText(adj.reason, 200)) &&
-    newTotal >= 0 &&
-    newTotal <= 999999;
+    preview.status === 'success';
 
   return (
     <SectionCard title="報價">
@@ -119,12 +139,11 @@ const QuoteForm: React.FC<{ detail: OrderDetail; mod: ModificationDetail; onDone
         reason={adj.reason}
         onChange={(p) => setAdj({ ...adj, ...p })}
       />
-      <KV label="系統試算新總額">{formatMoney(systemAmount)}</KV>
-      <KV label="新總額">{formatMoney(newTotal)}</KV>
-      {detail.netPaid !== undefined && <KV label="差額">{diffText(newTotal - detail.netPaid)}</KV>}
-      <p className="muted" style={{ margin: 0 }}>
-        金額以送出後系統計算為準
-      </p>
+      <ModificationPreviewAmounts
+        state={preview}
+        role="SITTER"
+        testIdPrefix="modification-quote-preview"
+      />
       <ErrorText error={action.error} context="modification" />
       <div className="btn-row">
         <Button
@@ -132,25 +151,24 @@ const QuoteForm: React.FC<{ detail: OrderDetail; mod: ModificationDetail; onDone
           disabled={!valid || action.pending}
           onClick={async () => {
             const res = await action.run((key) =>
-              quoteModification(
-                detail.orderId,
-                mod.modificationId,
-                {
-                  ...(cancelAll
-                    ? {}
-                    : { removeVisitIds: draft.removeVisitIds, addItems: draft.addItems }),
-                  ...(hasAdj
-                    ? {
-                        ...(s > 0 ? { surchargeAmount: s } : {}),
-                        ...(d > 0 ? { discountAmount: d } : {}),
-                        adjustmentReason: stripText(adj.reason)
-                      }
-                    : {})
-                },
-                key
-              )
+              quoteModification(detail.orderId, mod.modificationId, body, key)
             );
-            if (res) onDone();
+            if (!res) return;
+            qc.setQueryData<ModificationDetail>(
+              orderKeys.modification(detail.orderId, mod.modificationId),
+              (prev) =>
+                prev && {
+                  ...prev,
+                  status: res.status,
+                  systemAmount: res.systemAmount,
+                  newTotalAmount: res.newTotalAmount,
+                  netPaid: res.netPaid,
+                  diff: res.diff,
+                  expiresAt: res.expiresAt ?? prev.expiresAt,
+                  allowedActions: []
+                }
+            );
+            onDone();
           }}
           data-testid="modification-btn-quote"
         >
