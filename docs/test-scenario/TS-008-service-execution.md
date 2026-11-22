@@ -125,7 +125,7 @@
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
 | V-25 | AC-1.4-3；EX-6 | sitter | 以新 key 送 F3（VP） | — | 409 `ORDER_STATE_CONFLICT`，`currentStatus=PENDING_PAYMENT`；F1 VP 仍 `PENDING` | API JSON |
-| V-26 | §4.6-3（SD-FULFILL CQ-11） | sitter | 開啟 `/sitter/orders/{P}` | 行程區塊顯示：`sitter-order-visit-label`「到府餵食」、`-date` `D0`、`-status`「待執行」；點行程列不進入服務面板（URL 不變） | F1（SITTER）200：`orderStatus=PENDING_PAYMENT`、VP `name`「到府餵食」 | 截圖 + API JSON |
+| V-26 | §4.6-3（SD-FULFILL CQ-11） | sitter | 開啟 `/sitter/orders/{P}` | 行程區塊顯示：`sitter-order-visit-label-{VP}`「到府餵食」、`sitter-order-visit-date-{VP}` `D0`、`sitter-order-visit-status-{VP}`「待執行」；點行程列不進入服務面板（URL 不變） | F1（SITTER）200：`orderStatus=PENDING_PAYMENT`、VP `name`「到府餵食」 | 截圖 + API JSON |
 | V-27 | AC-2.2-3；BR-11 | system | `owner` E11 上傳首次付款憑證（不核對）；平移 VP −3（VP = `D-3`）；呼叫 C7（`orderId=P`） | — | 200，計數 0 / 0 / 0（`PENDING_PAYMENT` 不列入候選）；F1 VP 仍 `PENDING`；E2 仍 `PENDING_PAYMENT`；[INS] `notifications` 無 `VISIT_CLOSED_BY_SYSTEM_*` | API JSON |
 | V-28 | AC-1.4-4；EX-6 | sitter | 以新 key 各送 F3、F4（VC） | — | 皆 409 `ORDER_STATE_CONFLICT`，`currentStatus=COMPLETED`（訂單檢查先於行程檢查） | API JSON |
 | V-29 | AC-3.7-4；AC-3.7-6（後半） | sitter | F5（VC）`name=早上服務` | — | 409 `ORDER_STATE_CONFLICT`，`currentStatus=COMPLETED`（VC `completedAt + 24h` 已過，仍先回訂單狀態錯誤，非 `DEADLINE_PASSED`）；[INS] VC `customName` 為 null | API JSON |
@@ -137,7 +137,7 @@
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
 | V-30 | EX-13 前置 | sitter | 開啟 VZ2 面板並保持不重新整理 | `-btn-start` 可按 | F2 `status=PENDING` | 截圖 |
-| V-31 | AC-2.1；T3；T3a；BR-11；BR-18 | system | 呼叫 C7（`orderId=Z1`） | — | 200，計數 1 / 0 / 0；[INS] VZ1 `CLOSED_BY_SYSTEM`、`closedAt` 介於 `[t0, t1]`；VZ2、VZ3 仍 `PENDING`；`status=IN_PROGRESS`；`orderLogs` 新增 `VISITS_CLOSED_BY_SYSTEM`（`visitIds=[VZ1]`）與 `operatorRole=SYSTEM` 的 `ORDER_STARTED`（`visitId=VZ1`、`cause=CLOSED_BY_SYSTEM`）；`notifications` 恰新增 2 列：`VISIT_CLOSED_BY_SYSTEM_SITTER`（`recipientRole=SITTER`）、`VISIT_CLOSED_BY_SYSTEM_OWNER`（`recipientRole=OWNER`），皆 `mandatory=false`、`emailStatus` 有值（雙方 Email 偏好開啟，已建立投遞）；[NOTI] `sitter` 內容「{D-3} 到府餵食 未於期限內開始，已由系統關閉」、連結 `/sitter/orders/{Z1}`；`owner` 內容「保母未於期限內開始 {D-3} 到府餵食，系統已關閉此行程」、連結 `/owner/orders/{Z1}` | API JSON |
+| V-31 | AC-2.1；T3；T3a；BR-11；BR-18 | system | 呼叫 C7（`orderId=Z1`） | — | 200，計數 1 / 0 / 0；[INS] VZ1 `CLOSED_BY_SYSTEM`、`closedAt` 介於 `[t0, t1]`；VZ2、VZ3 仍 `PENDING`；`status=IN_PROGRESS`；`orderLogs` 新增 `VISITS_CLOSED_BY_SYSTEM`（`visitIds=[VZ1]`）與 `operatorRole=SYSTEM` 的 `ORDER_STARTED`（`visitId=VZ1`、`cause=CLOSED_BY_SYSTEM`）；`notifications` 恰新增 2 列：`VISIT_CLOSED_BY_SYSTEM_SITTER`（`recipientRole=SITTER`）、`VISIT_CLOSED_BY_SYSTEM_OWNER`（`recipientRole=OWNER`），皆 `mandatory=false`、`emailStatus=SUPPRESSED_TEST`（雙方 Email 偏好開啟、依偏好應寄，收件者為測試帳號故抑制實際寄送）；[NOTI] `sitter` 內容「{D-3} 到府餵食 未於期限內開始，已由系統關閉」、連結 `/sitter/orders/{Z1}`；`owner` 內容「保母未於期限內開始 {D-3} 到府餵食，系統已關閉此行程」、連結 `/owner/orders/{Z1}` | API JSON |
 | V-32 | AC-2.6-3；BR-13 | system | 再呼叫一次 C7（`orderId=Z1`） | — | 200，計數 0 / 0 / 0；[INS] VZ1 `closedAt` 與 V-31 相同；`notifications`、`orderLogs` 無新增 | API JSON |
 | V-33 | EX-13（殭屍先）；EX-7（`CLOSED_BY_SYSTEM` 文案） | sitter | FT1 把 VZ2 設為 `CLOSED_BY_SYSTEM`（模擬排程先完成）；在 V-30 未重新整理的面板點 `-btn-start` | 顯示「此行程已由系統關閉」 | 頁面送出的 F3 回 409 `VISIT_STATE_CONFLICT`、`currentVisitStatus=CLOSED_BY_SYSTEM`；其間未送出 F2 | 截圖 + API JSON |
 | V-34 | AC-3.7-2（`CLOSED_BY_SYSTEM`）；AC-3.7-6（前半）；EX-7 | sitter | F5（VZ2）`name=晚上服務`；再送 `name` = 去空白後 21 字 | — | 第一次 409 `VISIT_STATE_CONFLICT`、`currentVisitStatus=CLOSED_BY_SYSTEM`；第二次 400 `VALIDATION_FAILED`、`field=name`（長度先於 409）；[INS] VZ2 `customName` 為 null | API JSON |
@@ -162,7 +162,7 @@
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
 | V-38 | AC-2.4-3 前置 | sitter | 開啟 VT 面板並保持不重新整理 | 「執行中」、`-btn-complete` 可見 | — | 截圖 |
-| V-39 | AC-2.3；T4；BR-12；BR-18 | system | 呼叫 FC1（`orderId=T1`） | — | 200，計數 1 / 0 / 0；[INS] VT `DONE`、`completionSource=SYSTEM`、`completedAt` 介於 `[t0, t1]`；`orderLogs` 新增 `VISIT_AUTO_COMPLETED`（`operatorRole=SYSTEM`、`payload.visitId=VT`、`startedAt`、`completedAt`）；`notifications` 恰新增 1 列 `VISIT_AUTO_COMPLETED`（`recipientRole=SITTER`、`mandatory=false`），無 `recipientRole=OWNER` 新列；`completionBasisAt = completedAt + 24h`；[NOTI] `sitter` 內容「{D0} 到府餵食 開始後超過 24 小時未結束，系統已自動結束。請於 TPE(completedAt + 24h) 前送出照護日誌」、連結 `/sitter/orders/{T1}/visits/{VT}` | API JSON |
+| V-39 | AC-2.3；T4；BR-12；BR-18 | system | 呼叫 FC1（`orderId=T1`） | — | 200，計數 1 / 0 / 0；[INS] VT `DONE`、`completionSource=SYSTEM`、`completedAt` 介於 `[t0, t1]`；`orderLogs` 新增 `VISIT_AUTO_COMPLETED`（`operatorRole=SYSTEM`、`payload.visitId=VT`、`startedAt`、`completedAt`）；`notifications` 恰新增 1 列 `VISIT_AUTO_COMPLETED`（`recipientRole=SITTER`、`mandatory=false`、`emailStatus=SUPPRESSED_TEST`），無 `recipientRole=OWNER` 新列；`completionBasisAt = completedAt + 24h`；[NOTI] `sitter` 內容「{D0} 到府餵食 開始後超過 24 小時未結束，系統已自動結束。請於 TPE(completedAt + 24h) 前送出照護日誌」、連結 `/sitter/orders/{T1}/visits/{VT}` | API JSON |
 | V-40 | AC-2.4-3；EX-13（逾時先）；EX-7（`DONE` + `SYSTEM` 文案） | sitter | 在 V-38 未重新整理的面板點 `-btn-complete` → `-btn-complete-confirm` | 顯示「此行程已由系統自動結束」 | 頁面送出的 F4 回 409 `VISIT_STATE_CONFLICT`、`currentVisitStatus=DONE`、`completionSource=SYSTEM`；其間未送出 F2 | 截圖 + API JSON |
 | V-41 | AC-2.3；§4.4-4 | sitter | 重新整理 VT 面板 | 「已完工」；`sitter-visit-panel-auto-completed-label`「系統自動結束」；日誌送出入口可用（PRD-022 `sitter-care-log-btn-submit` 可按） | F2 `allowedActions` 含 `SUBMIT_CARE_LOG` | 截圖 |
 | V-42 | AC-2.3；BR-17 | owner | 開啟 `/owner/orders/{T1}` | `owner-order-detail-visit-status-{VT}`「已完工」；`owner-order-detail-visit-auto-completed-{VT}`「系統自動結束」 | — | 截圖 |
@@ -190,14 +190,14 @@
 | V-52 | AC-1.8-2（循序版：同意先）；EX-11；EX-7（`CANCELLED` 文案） | sitter | 在 V-50 未重新整理的面板點 `-btn-start` | 顯示「此行程已取消」 | 頁面送出的 F3 回 409 `VISIT_STATE_CONFLICT`、`currentVisitStatus=CANCELLED`；其間未送出 F2；E2 仍 `IN_PROGRESS`（取消不觸發 O9） | 截圖 + API JSON |
 | V-53 | AC-3.7-2（`CANCELLED`）；EX-7 | sitter | F5（VM2）`name=晚上服務` | — | 409 `VISIT_STATE_CONFLICT`、`currentVisitStatus=CANCELLED` | API JSON |
 | V-54 | AC-3.3（`CANCELLED` 列）；BR-17 | owner | 開啟 `/owner/orders/{M}` | `owner-order-detail-visit-row-{VM2}` 存在；`-visit-status-{VM2}`「已取消」；開始 / 結束時間「—」 | F1（OWNER）含 VM2 `status=CANCELLED` | 截圖 |
-| V-55 | §4.6-3（SD-FULFILL CQ-11） | sitter | 開啟 `/sitter/orders/{M}` | VM2 列 `sitter-order-visit-status`「已取消」、`-label`「到府餵食」 | — | 截圖 |
+| V-55 | §4.6-3（SD-FULFILL CQ-11） | sitter | 開啟 `/sitter/orders/{M}` | `sitter-order-visit-status-{VM2}`「已取消」、`sitter-order-visit-label-{VM2}`「到府餵食」 | — | 截圖 |
 | V-56 | BR-7 前置 | owner | E24 申報款項爭議 | — | E2 `status=DISPUTED` | API JSON |
 | V-57 | AC-1.2-2；BR-7 | sitter | 平移 G2 −1（VM6 = `D0`）；VM6 面板點 `-btn-start` | 「執行中」 | F3 200 `orderStatus=DISPUTED`；E2 仍 `DISPUTED`；[INS] 新增 `VISIT_STARTED`（`visitId=VM6`）、無新 `ORDER_STARTED` | 截圖 + API JSON |
 | V-58 | AC-3.5-4；EX-4 | admin | 以 `admin` 呼叫 F1（M）；開啟 `/admin/orders/{M}` 行程區塊 | 行程區塊唯讀：無開始 / 結束 / 命名 / 檢核項編輯元素 | F1 200；`careLog` 只含 `submitted`；E27 `logs[]` 含 `VISIT_STARTED`（VM3、VM6）且與 [INS] `orderLogs` 一致；V-48、V-52、V-53 被拒的操作沒有對應列 | 截圖 + API JSON |
 | V-59 | AC-2.2-2；AC-2.5-3 / EX-23（循序版：同意先）；BR-7 | system | 平移 G1 −4（VM4 = `D-3`、VM5 = `D-2`）；呼叫 C7（`orderId=M`） | — | 計數 1 / 0 / 0；[INS] VM4 `CLOSED_BY_SYSTEM`、VM5 仍 `PENDING`、VM2（已 `CANCELLED`、日期已逾期）仍 `CANCELLED`；`status` 仍 `DISPUTED`；新增 `VISITS_CLOSED_BY_SYSTEM`（`visitIds=[VM4]`），無 SYSTEM 的 `ORDER_STARTED` | API JSON |
 | V-60 | AC-2.4-4；BR-7 | system | FT2 VM3 `STARTED_AT`、`minutes=-1450`；呼叫 FC1（`orderId=M`） | — | 計數 1 / 0 / 0；[INS] VM3 `DONE`、`completionSource=SYSTEM`；VM6（剛開始）仍 `IN_PROGRESS`；`status` 仍 `DISPUTED`；新增 `VISIT_AUTO_COMPLETED`（`visitId=VM3`） | API JSON |
 | V-61 | EX-12（開始先） | admin | E29 選 O15 調解結案（不登記退款） | — | 409 `VISITS_NOT_FINISHED`，`payload.visitIds=[VM6]`；E2 仍 `DISPUTED` | API JSON |
-| V-62 | EX-12 前置 | sitter / admin | `sitter` 結束 VM6（F4）；`admin` 再送 E29 O15 | — | E29 200；E2 `COMPLETED`；[INS] VM5 `CANCELLED`（剩餘 `PENDING` 行程取消） | API JSON |
+| V-62 | EX-12 前置 | sitter / admin | `sitter` 結束 VM6（F4）；`admin` 再送 E29 O15 | — | E29 200；E2 `COMPLETED`；[INS] VM5 `CANCELLED`（剩餘 `PENDING` 行程取消）、`adminTasks` 中 V-56 產生的待辦 `status=RESOLVED`；AC-3.5-4（`COMPLETED` 且曾有已 `RESOLVED` 待辦）：`admin` 送 F1（M）→ 200（唯讀），開啟 `/admin/orders/{M}` 行程區塊無開始 / 結束 / 命名元素 | 截圖 + API JSON |
 | V-63 | EX-12（ADMIN 先） | sitter | 以新 key 送 F3（VM5） | — | 409 `ORDER_STATE_CONFLICT`，`currentStatus=COMPLETED` | API JSON |
 
 前置：建 CONFIRMED 訂單 M2：P1 `[D+1, D+2]` × 1（VN1、VN2），總額 `$ 1,000`；平移 −1（VN1 = `D0`、VN2 = `D+1`）；`owner` E17 減少 [VN2] → `sitter` E20 報價新總額 500 → `owner` E23 同意（VN2 `CANCELLED`、變更待退款）→ `owner` E24 → `DISPUTED`（無任何 `DONE` / `CLOSED_BY_SYSTEM` 行程）。
@@ -221,7 +221,7 @@
 | V-66 | AC-3.2；BR-15；BR-16 | sitter | 同頁看待處理區 | `sitter-dashboard-section-overdue` 依序 VW6、VW7，無 VW8；VW6 卡顯示「系統將於 {D+1} 00:00 關閉」；VW7「執行中」 | F6 `overdue` = [VW6, VW7]；VW6 `zombieAt = ZA(D-2)`；VW7 無 `zombieAt` | 截圖 + API JSON |
 | V-67 | §4.5-2 | sitter | 點 `sitter-dashboard-visit-link-pet-notes-{VY1}` | URL = `/care-notes/manage/{sitter.userId}/{owner.userId}`（SD-FULFILL §9.1，PRD-021 照護記事本） | F6 VY1 `counterpart.userId = owner.userId` | 截圖 |
 | V-68 | §4.5-2 | sitter | 返回，點 `sitter-dashboard-visit-btn-open-{VY1}` | URL = `/sitter/orders/{Y}/visits/{VY1}`，顯示 `sitter-visit-panel` | — | 截圖 |
-| V-69 | AC-3.2（關閉後消失） | sitter | 平移 W 的 G1 −1（VW6 = `D-3`）；呼叫 C7（`orderId=W`）；重新整理 `/sitter/visits` | 待處理區只剩 VW7 | C7 計數 1 / 0 / 0；F6 `overdue` = [VW7] | 截圖 + API JSON |
+| V-69 | AC-3.2（已逾期未關閉、關閉後消失）；BR-4 | sitter | 平移 W 的 G1 −1（VW6 = `D-3`）；重新整理 `/sitter/visits`（正式自動排程不處理測試帳號訂單，VW6 維持 `PENDING`）；再呼叫 C7（`orderId=W`）並重新整理 | 第一次：VW6 卡出現 `sitter-dashboard-visit-deadline-passed-{VW6}`「已超過可開始期限，系統將自動關閉」，不再顯示「系統將於」；第二次：待處理區只剩 VW7 | 第一次：F6 `overdue` = [VW6, VW7]、VW6 `status=PENDING`、`zombieAt = ZA(D-3)` ≤ 當下 `serverTime`；C7 計數 1 / 0 / 0；第二次：F6 `overdue` = [VW7] | 截圖 + API JSON |
 | V-70 | AC-3.4-1；BR-15 | owner | 開啟 `/owner/visits` | 依序 `owner-dashboard-visit-card-{VY1}`、`-{VX1}`、`-{VX2}`，各顯示 `sitter` 顯示名稱、行程名稱、狀態文字；無 VY2、VX5、VZp 卡 | F7 `today` 的 `visitId` 恰為 [VY1, VX1, VX2] | 截圖 + API JSON |
 | V-71 | AC-3.4-1 | owner | 點 `owner-dashboard-visit-card-{VY1}` | URL = `/owner/orders/{Y}` | — | 截圖 |
 | V-72 | AC-3.1-2 | sitter（新） | 另建一個無任何訂單的 SITTER，開啟 `/sitter/visits` | `sitter-dashboard-empty`「今天沒有行程」；無 today / overdue 卡片 | F6 `today=[]`、`overdue=[]` | 截圖 |
@@ -241,12 +241,12 @@
 
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
-| V-75 | §4.6-3（SD-FULFILL CQ-11）；BR-14（CQ-15） | sitter | 開啟 `/sitter/orders/{N}`（報價前） | 行程區塊顯示 3 列：`sitter-order-visit-label`「到府餵食 第 1 次」「到府餵食 第 2 次」「陪玩」、`-status`「待執行」；點行程列不進入服務面板 | F1（SITTER）200 `orderStatus=PENDING`，`name` 同畫面 | 截圖 + API JSON |
+| V-75 | §4.6-3（SD-FULFILL CQ-11）；BR-14（CQ-15） | sitter | 開啟 `/sitter/orders/{N}`（報價前） | 行程區塊顯示 3 列：`sitter-order-visit-label-{VN1}`「到府餵食 第 1 次」、`-{VN2}`「到府餵食 第 2 次」、`-{VN3}`「陪玩」；`sitter-order-visit-status-{VN1…VN3}` 皆「待執行」；點行程列不進入服務面板 | F1（SITTER）200 `orderStatus=PENDING`，`name` 同畫面 | 截圖 + API JSON |
 | V-76 | §4.6-3（對照 PRD-009 BR-24） | owner | 開啟 `/owner/orders/{N}` | 不顯示行程區塊（無 `owner-order-detail-visit-row-*`） | — | 截圖 |
 | V-77 | AC-3.6-5 前段；BR-14（CQ-15：報價前用 O1 帶入的方案名稱） | sitter | `sitter-setup` upsert 把 `key=P1` 的標題改為「貓咪到府」；重新開啟 `/sitter/orders/{N}` | 標籤仍為「到府餵食 第 1 次」「到府餵食 第 2 次」 | F1（SITTER）VN1 / VN2 `name` 仍為「到府餵食 第 n 次」 | 截圖 + API JSON |
 | V-78 | 前置；BR-14（CQ-9：O2 快照） | sitter / owner | 完成 E6 → E11 → E14（CONFIRMED）；平移 G1 −1、G2 −1（皆 `D0`）；FT1 VN1 `DONE`（`completedAt = now − 1h`） | — | E2 `IN_PROGRESS`；F1 VN2 `name`「貓咪到府 第 2 次」（報價快照取報價當下的方案名稱） | API JSON |
 | V-79 | AC-3.6-1；§4.7-2（含全形空白） | sitter | VN2 面板點 `sitter-visit-panel-btn-edit-name`；`sitter-visit-panel-input-name` 的 placeholder 為「貓咪到府 第 2 次」；輸入「（U+3000）晚上服務  」（前置全形空白、後置兩個半形空白），點 `sitter-visit-panel-btn-save-name` | 面板名稱「晚上服務」 | 頁面送出 F5 恰 1 次，不帶 `Idempotency-Key`；200 `name=晚上服務`、`customName=晚上服務`；[INS] 新增 `VISIT_RENAMED`（`oldName=null`、`newName=晚上服務`）；`notifications` 無新增 | 截圖 + API JSON |
-| V-80 | AC-3.6-1；§4.7-4 | sitter / owner | `sitter` 開啟 `/sitter/visits` 與 `/sitter/orders/{N}`；`owner` 開啟 `/owner/orders/{N}` | VN2 卡、`sitter-order-visit-label`、`owner-order-detail-visit-row-{VN2}` 皆顯示「晚上服務」 | F6、F1（雙方）VN2 `name=晚上服務` | 截圖 |
+| V-80 | AC-3.6-1；§4.7-4 | sitter / owner | `sitter` 開啟 `/sitter/visits` 與 `/sitter/orders/{N}`；`owner` 開啟 `/owner/orders/{N}` | VN2 卡、`sitter-order-visit-label-{VN2}`、`owner-order-detail-visit-row-{VN2}` 皆顯示「晚上服務」 | F6、F1（雙方）VN2 `name=晚上服務` | 截圖 |
 | V-81 | AC-3.6-2；BR-14 | sitter | F5（VN1，`DONE` 未滿 24h）`name=早上服務` | — | 200 `name=早上服務` | API JSON |
 | V-82 | AC-3.6-3 | sitter | VN2 面板編輯名稱，清空後儲存 | 面板名稱回到「貓咪到府 第 2 次」 | F5 200 `name=貓咪到府 第 2 次`、`customName` 不輸出 | 截圖 + API JSON |
 | V-83 | AC-3.6-4 | sitter | 開啟 VN3 面板 | 名稱「陪玩」（無「第 n 次」） | F2 VN3 `name=陪玩`、`slotsInDay=1` | 截圖 |
@@ -279,7 +279,7 @@
 | V-E09 | AC-3.5-1、AC-3.5-2；EX-4 | `ownerB`、`sitterB` 各送 F1（訂單 H） | 皆 403 `FORBIDDEN` |
 | V-E10 | AC-3.5-3 | `owner` 送 F1，`orderId` = 隨機 UUID | 404 `NOT_FOUND` |
 | V-E11 | AC-2.6-4；EX-21；BR-13 | 於 V-31 之前：以 `sitter` 的使用者 token（不帶 `X-Internal-Secret`）呼叫 C7、FC1（`orderId=Z1`）；再以錯誤的 `X-Internal-Secret` 呼叫一次 | 皆 403 `FORBIDDEN`；[INS] VZ1 仍 `PENDING` |
-| V-E12 | AC-3.5-4；EX-4 | `admin` 送 F1（訂單 A，`IN_PROGRESS` 且無 OPEN 待辦） | 403 `FORBIDDEN`（`DISPUTED` 的 200 見 V-58） |
+| V-E12 | AC-3.5-4；EX-4 | `admin` 送 F1（訂單 A，`IN_PROGRESS` 且從未有任何 ADMIN 待辦；[INS] `adminTasks = []`） | 403 `FORBIDDEN`（`DISPUTED` 的 200 見 V-58；`COMPLETED` 且曾有已 `RESOLVED` 待辦的 200 見 V-62） |
 | V-E13 | §3 權限表；SD-FULFILL §6.1 G4a | `owner` 送 F6；`sitter` 送 F7；`dual-as-owner` 送 F1（自己當保母的訂單） | 403 `ROLE_MISMATCH`；403 `ROLE_MISMATCH`；403 `ROLE_MISMATCH` |
 | V-E14 | SD-FULFILL §6.3 FC1（`orderId` 範圍） | 以 `X-Internal-Secret` 呼叫 FC1、C7，`orderId` = 隨機 UUID | 皆 404 `NOT_FOUND`（SD-FULFILL §6.3 FC1、SD-ORDER §6.3 C1–C10 統一），不處理任何訂單 |
 
@@ -290,7 +290,7 @@
 | AC-1.3-1~3 的精確邊界（Taipei 23:59 / 72h 整點 = 拒絕） | 正式站不能注入 `Clock`；E2E 只驗日期前後與逾期一側（V-07、V-20、V-22） | `VisitStartIntegrationTest` |
 | AC-1.7（EX-16 處理中 409 `IDEMPOTENCY_IN_PROGRESS`） | 需第一個請求卡在處理中，正式站無法穩定造出 | `VisitIdempotencyIntegrationTest` |
 | AC-1.8-1、AC-1.8-2、AC-1.8-3 的真併發；AC-1.8-4、EX-15（`ORDER_BUSY` + `Retry-After: 1`） | 需兩條執行緒同時取鎖或持鎖 3 秒；E2E 只做循序版（V-47–V-52、V-61–V-64） | `VisitConcurrencyIntegrationTest` |
-| AC-2.1 真實 Email 內容與實際寄達 | Resend 測試模式只寄專案擁有者信箱；E2E 只驗投遞紀錄已建立（V-31 `emailStatus`） | 手動驗證；`CloseZombieVisitsIntegrationTest`（投遞欄位依偏好） |
+| AC-2.1 真實 Email 內容與實際寄達 | Resend 測試模式只寄專案擁有者信箱；E2E 只驗「依偏好應寄」已判定（V-31、V-39 `emailStatus=SUPPRESSED_TEST`） | 手動驗證；`CloseZombieVisitsIntegrationTest`（投遞欄位依偏好） |
 | AC-2.2-1 / AC-2.4-1 分鐘級邊界（15:59 / 16:00、01:59 / 02:00） | 不能注入 `Clock` | `CloseZombieVisitsIntegrationTest`、`InProgressTimeoutCronIntegrationTest` |
 | AC-2.5-1~3、EX-14、EX-23 的真併發；AC-2.5-2（排程先 → 同意得 `VISIT_ALREADY_STARTED`） | 需同時取鎖；E2E 只做循序版（V-35：C7 先、開始後到；V-59：同意先、排程不處理） | `VisitConcurrencyIntegrationTest` |
 | AC-2.6-1（候選查出後重驗略過）、AC-2.6-2（單筆例外隔離 `failed=1`）、AC-2.6-5（鎖住略過）；EX-20 | 需在候選查詢與處理之間插入動作、注入例外或持鎖 | `InProgressTimeoutCronIntegrationTest`、`CloseZombieVisitsIntegrationTest` |
@@ -325,6 +325,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：保母訂單詳情行程列 testid 改帶 `{visitId}`（V-26、V-55、V-75、V-80）；V-69 新增待處理卡已逾期未關閉時的 `sitter-dashboard-visit-deadline-passed-{visitId}`「已超過可開始期限，系統將自動關閉」（PRD-008 AC-3.2）；ADMIN 可讀範圍改為 `DISPUTED` 或曾有任何待辦：V-62 加 `COMPLETED` 且已 `RESOLVED` 待辦 → 200（PRD-008 AC-3.5 情境 4），V-E12 改為從未有待辦 → 403；Email 斷言收斂為 `emailStatus=SUPPRESSED_TEST`（V-31、V-39、§4）。狀態維持 Approved | SD-ORDER §6.3 / §10.4、SD-FULFILL §9.1、PRD-008 §4.5 / AC-3.2 / AC-3.5 核准後修訂 |
 | 2026-11-22 | V-E14 改斷言 404（SD 統一排程 `orderId` 錯誤碼）；V-37 註明計數以訂單為單位；§5 L-9、L-12、L-13 標已解決 | 協調者回覆 §5；SD-FULFILL / SD-ORDER 修訂 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs`、通知類型 / Email 投遞、`completion_basis_at` 改以 inspect 在 E2E 斷言（V-03、V-11、V-18、V-23、V-31、V-36、V-39 等）；排程一律帶 `orderId` 並斷言精確計數，刪除避開排程分鐘與被搶先重跑；ADMIN / 雙角色改用 `provision-account roles[]`（V-E02、V-E13）；`CANCELLED` 行程改用 FT1，AC-3.1 V5（V-65）、AC-3.3 `CANCELLED` 列（V-74）改回 E2E；新增 V-64（AC-1.8-3 O17 先）、V-77（報價前取 O1 方案名稱）、V-E14（排程 `orderId` 範圍）；V-79 加全形空白（PRD-008 §4.7-2 回寫）；注意事項連結目的地依 SD-FULFILL §9.1（V-67）；步驟重新編號（V-01–V-87）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-008 核准後修訂 |
 | 2026-11-22 | 依 PRD-008（Approved，baseline 第 2 版改寫）與 SD-FULFILL / SD-ORDER 全文重寫；舊版（Check-in / Check-out、寫死 UUID、`MSG_DATA_INVALID_STATUS`）作廢。舊版「本測試發現並修復的真實 bug」紀錄屬舊實作（`VisitReportManager`、`/api/visits/{visitId}/start`），保留於 git 歷史 | 全面重建 2026-11；PRD-008、SD-FULFILL 核准 |

@@ -33,7 +33,8 @@
 | `ownerToken(X)` / `sitterToken(X)` | 雙角色帳號 X 以 `currentRole=OWNER` / `SITTER` 取得的 token |
 | **不變** | 飼主 E2 的 `status`、`cancellation`、`visits[].status`，保母 E10 的 payment `status`，以及 `inspect` 的 `orderLogs`、`notifications` 列數皆與操作前相同 |
 | 200 字 | `String.strip()`（SD-GLOBAL-SPEC §2.7，含 U+3000、U+00A0）後以 Unicode code point 計；測試字串 = 199 個中文字 +「🐱」（UTF-16 為 201 個單位，用來抓以 UTF-16 長度計數的錯誤） |
-| 需寄送 / 偏好略過 | `inspect.notifications[].emailStatus` 表示「會寄 Email」或「依偏好不寄」的值（列舉由 SD-NOTIFY 定義，見 §5 #3） |
+| `emailStatus` | `inspect.notifications[].emailStatus` 列舉 `PENDING` / `SENT` / `SKIPPED_PREFERENCE` / `FAILED` / `NOT_APPLICABLE` / `SUPPRESSED_TEST`（SD-ORDER §10.4）；收件者為測試帳號、依偏好應寄者一律 `SUPPRESSED_TEST`，偏好關閉者 `SKIPPED_PREFERENCE` |
+| `reasonCode` | E2 `cancellation.reasonCode` 列舉 8 值（SD-ORDER E2）：本卡用到 `SITTER_DECLINED`（O3 婉拒）、`REVIEW_EXPIRED`（O4）、`SITTER_CANCELLED`（O7）、`PAYMENT_EXPIRED`（O8）、`OWNER_WITHDRAWN`（飼主撤回，對照組） |
 
 **帳號**
 
@@ -80,11 +81,11 @@
 | QR-04 | AC-1.1-1 | sitterA | 清空原因改填「該週檔期已滿」，點 `sitter-order-decline-btn-confirm` | 對話框改顯示 `sitter-order-decline-btn-referral`「轉介信任圈夥伴」 | 頁面發出的 E7 恰 1 次、帶 `Idempotency-Key`、body `{reason:"該週檔期已滿"}` → 200 `{orderId, status:"CANCELLED", cancelledBy:"SITTER"}` | 截圖 + API JSON |
 | QR-05 | AC-1.5-1 | sitterA | 點 `sitter-order-decline-btn-referral` | 進入轉介選單（PRD-010；元素依 PRD-010 定義對應），選單內可見 `sitterPartner` | 訂單仍 `CANCELLED` | 截圖 |
 | QR-06 | AC-1.1-1（BR-10、BR-12） | owner、sitterA | 讀 E2、E10、`inspect(ordD1)` | — | 飼主 E2：`status=CANCELLED`、`cancellation.cancelledBy=SITTER`、`reasonCode=SITTER_DECLINED`、`reason=該週檔期已滿`、`visits` 3 筆皆 `CANCELLED`、`payments=[]`；保母 E10 `[]`；`inspect.orderLogs` 恰 1 筆 `ORDER_REJECTED`：`operatorRole=SITTER`、payload `reason=該週檔期已滿`、`transitions[]` 含 ORDER `PENDING→CANCELLED` 與 3 筆 VISIT `PENDING→CANCELLED` | API JSON |
-| QR-07 | AC-1.1-1（BR-2） | owner、sitterA | `inspect(ordD1).notifications`；`notificationText` 雙方 | — | 恰 2 則：`BOOKING_DECLINED`（收件者 `owner`）、`BOOKING_DECLINED_SELF`（收件者 `sitterA`），皆 `mandatory=false`、`emailStatus` = 需寄送；飼主內文「預約已婉拒」並含「該週檔期已滿」、連結 `/owner/orders/{ordD1}`；保母內文「您已婉拒 王小明 的預約」、連結 `/sitter/orders/{ordD1}` | API JSON |
+| QR-07 | AC-1.1-1（BR-2） | owner、sitterA | `inspect(ordD1).notifications`；`notificationText` 雙方 | — | 恰 2 則：`BOOKING_DECLINED`（收件者 `owner`）、`BOOKING_DECLINED_SELF`（收件者 `sitterA`），皆 `mandatory=false`、`emailStatus=SUPPRESSED_TEST`；飼主內文「預約已婉拒」並含「該週檔期已滿」、連結 `/owner/orders/{ordD1}`；保母內文「您已婉拒 王小明 的預約」、連結 `/sitter/orders/{ordD1}` | API JSON |
 | QR-08 | AC-1.1-1 | owner | 開 `/owner/orders/{ordD1}` | `order-status-badge`「已取消」；`owner-order-detail-cancel-result` 含標題「保母已婉拒此預約」與「該週檔期已滿」；無 `owner-order-detail-btn-withdraw`、無付款區塊 | — | 截圖 |
 | QR-09 | AC-1.1-1 | sitterA | 開 `/sitter/orders` 點 `sitter-orders-tab-history`，再開該訂單 | 歷史分頁有 `sitter-order-card-{ordD1}`；`sitter-orders-tab-evaluating` 下沒有；訂單頁無 `sitter-order-eval-btn-quote-original`、`-btn-quote-adjust`、`-btn-decline` | E4 `tab=HISTORY` 含 `ordD1`、`tab=EVALUATING` 不含；E2 `allowedActions` 不含 `DECLINE`、`QUOTE` | 截圖 + API JSON |
 | QR-10 | AC-1.5-3 | sitterA | `ordD2` 婉拒（快速帶入「超出服務範圍」）成功後直接關閉對話框；重開 `/sitter/orders/{ordD2}`（歷史） | 歷史訂單頁無 `sitter-order-decline-btn-referral` | `inspect(ordD2).notifications` 只有 `BOOKING_DECLINED`、`BOOKING_DECLINED_SELF` 兩則；`notificationText(sitterPartner, ordD2)` 無任何通知 | 截圖 + API JSON |
-| QR-11 | AC-1.1-2 | ownerMuted、sitterMuted | `ordM = createPendingOrder(ownerMuted, sitterMuted, 標準)`；E7 `{reason:"該週檔期已滿"}` | — | 200；`inspect(ordM).notifications` 恰 2 則（雙方各 1），皆 `emailStatus` = 偏好略過 | API JSON |
+| QR-11 | AC-1.1-2 | ownerMuted、sitterMuted | `ordM = createPendingOrder(ownerMuted, sitterMuted, 標準)`；E7 `{reason:"該週檔期已滿"}` | — | 200；`inspect(ordM).notifications` 恰 2 則（雙方各 1），皆 `emailStatus=SKIPPED_PREFERENCE` | API JSON |
 
 ### 2.2 原因驗證與婉拒被拒（describe「婉拒被拒」：`sitterA`）
 
@@ -95,7 +96,7 @@
 | QR-12 | AC-1.2-4（EX-5） | sitterA | `ordV`；E7 依序 `reason:""`、`reason:"  \t  "`、`reason:"　 "`（U+3000 + U+00A0）、`reason:` 前後空白 + 201 字 | — | 皆 400 `VALIDATION_FAILED`、`payload.field=reason` | API JSON |
 | QR-13 | AC-1.2-4（BR-9 邊界） | sitterA | `ordV` E7 `reason:` 前後各 1 個 U+3000 + 恰 200 字（含「🐱」） | — | 200、`status=CANCELLED`；E2 `cancellation.reason` = strip 後的 200 字；`inspect.orderLogs[ORDER_REJECTED].payload.reason` 同 | API JSON |
 | QR-14 | AC-1.3-1 | sitterA | `ordQ = createQuotedOrder(…)`；E7 | — | 409 `ORDER_STATE_CONFLICT`、`payload.currentStatus=PENDING_PAYMENT`；E10 仍 1 筆 `UNPAID` | API JSON |
-| QR-15 | AC-1.3-1 | owner、sitterA | `ordW`：飼主 E8 `{expectedStatus:"PENDING"}` 撤回；保母 E7 | — | 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E2 `cancellation.cancelledBy=OWNER` 不變；`inspect.orderLogs` 只有 `ORDER_WITHDRAWN` | API JSON |
+| QR-15 | AC-1.3-1 | owner、sitterA | `ordW`：飼主 E8 `{expectedStatus:"PENDING"}` 撤回；保母 E7 | — | 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E2 `cancellation.cancelledBy=OWNER`、`reasonCode=OWNER_WITHDRAWN` 不變；`inspect.orderLogs` 只有 `ORDER_WITHDRAWN` | API JSON |
 | QR-16 | AC-1.3-1 | sitterA | `ordX`：`shiftTime(REVIEW_EXPIRES_AT)` → `runCron(C1, ordX)` → E7 | — | C1 200、`processed=1`、`skipped=0`、`failed=0`；E2 `cancelledBy=SYSTEM`；E7 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；`inspect.orderLogs` 無 `ORDER_REJECTED` | API JSON |
 | QR-17 | AC-1.3-2（EX-1） | sitterOther | `ordR`；E7 `{reason:"x"}` | — | 403 `FORBIDDEN` | API JSON |
 | QR-18 | AC-1.3-3（EX-2） | sitterA（OWNER 角色） | 以 `ownerToken(sitterA)` E7 | — | 403 `ROLE_MISMATCH` | API JSON |
@@ -109,7 +110,7 @@
 |------|----|------|------|---------|---------------|------|
 | QR-22 | AC-1.4-2（EX-14） | sitterA | `ordI`；E7 key `K` `{reason:"檔期已滿"}` → 回應 `B1`；同 key 同 body 再送 | — | 第二次 200、body 與 `B1` 相同；`inspect.orderLogs` 恰 1 筆 `ORDER_REJECTED`；`inspect.notifications` 仍 2 則 | API JSON |
 | QR-23 | （EX-14） | sitterA | key `K`、`{reason:"其他"}` | — | 422 `IDEMPOTENCY_KEY_REUSED` | API JSON |
-| QR-24 | AC-1.4-1（EX-11） | owner、sitterA | 3 輪，每輪新訂單：同時送出飼主 E8 `{expectedStatus:"PENDING"}` 與保母 E7 `{reason:"檔期已滿"}` | — | 每輪恰一方 200、另一方 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E2 `cancellation.cancelledBy` = 勝方；`inspect.orderLogs` 恰 1 筆取消類 log（`ORDER_WITHDRAWN` 或 `ORDER_REJECTED`，與勝方一致）；通知只有勝方那組（`BOOKING_WITHDRAWN` / `_SELF` 或 `BOOKING_DECLINED` / `_SELF`）。誰勝不固定，確定性覆蓋見 §4 | API JSON（每輪） |
+| QR-24 | AC-1.4-1（EX-11） | owner、sitterA | 3 輪，每輪新訂單：同時送出飼主 E8 `{expectedStatus:"PENDING"}` 與保母 E7 `{reason:"檔期已滿"}` | — | 每輪恰一方 200、另一方 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E2 `cancellation.cancelledBy` / `reasonCode` = 勝方（`OWNER` + `OWNER_WITHDRAWN` 或 `SITTER` + `SITTER_DECLINED`）；`inspect.orderLogs` 恰 1 筆取消類 log（`ORDER_WITHDRAWN` 或 `ORDER_REJECTED`，與勝方一致）；通知只有勝方那組（`BOOKING_WITHDRAWN` / `_SELF` 或 `BOOKING_DECLINED` / `_SELF`）。誰勝不固定，確定性覆蓋見 §4 | API JSON（每輪） |
 | QR-25 | AC-1.6-1（EX-15） | sitterLock | `ordL = createPendingOrder(owner, sitterLock, 標準)` → upsert 鎖定 → 開評估頁婉拒（原因「暫停接案」） | `sitter-order-eval-precheck-banner` 顯示鎖定文案，`sitter-order-eval-btn-decline` 仍 enabled；婉拒後出現轉介入口 | E5 `precheck.subscriptionLocked=true`；E7 200；E2 `cancelledBy=SITTER`、行程皆 `CANCELLED`；`inspect` 有 `ORDER_REJECTED` 與雙方各 1 則通知 | 截圖 + API JSON |
 
 ### 2.4 期限後婉拒（describe「期限後婉拒」）
@@ -129,7 +130,7 @@
 | QR-30 | AC-2.2-1 | 排程 | 未平移，`runCron(C1, ordE)` | — | 200、`processed=0`、`skipped=0`、`failed=0`；E2 `status=PENDING`、2 個行程 `PENDING`；`inspect.notifications` 無逾期通知 | API JSON |
 | QR-31 | AC-2.4-2（EX-20） | 一般使用者 | `shiftTime(ordE, REVIEW_EXPIRES_AT)`；依序以 `sitterToken(sitterA)`、`ownerToken(owner)`（皆不帶 secret）、不帶任何標頭、`X-Internal-Secret: wrong` 呼叫 `/api/internal/cron/orders/review-expiry?orderId={ordE}` | — | 四次皆 403 `FORBIDDEN`（§6.1 錯誤格式）；之後 E2 `status=PENDING`、`inspect.orderLogs` 無 `ORDER_REVIEW_EXPIRED` | API JSON |
 | QR-32 | AC-2.1（BR-4、BR-12、BR-15） | 排程 | `runCron(C1, ordE)` | — | 200：`job`、`processed=1`、`skipped=0`、`failed=0`、`startedAt`、`finishedAt`；E2：`status=CANCELLED`、`cancellation.cancelledBy=SYSTEM`、`reasonCode=REVIEW_EXPIRED`、`reason=保母未於期限內回覆`、2 個行程 `CANCELLED`、`payments=[]`；`inspect.orderLogs` 恰 1 筆 `ORDER_REVIEW_EXPIRED`（`operatorRole=SYSTEM`、`operatorUserId` 不輸出、payload `reviewExpiresAt`、`transitions[]` 含 2 筆 VISIT） | API JSON |
-| QR-33 | AC-2.1（BR-2） | owner、sitterA | `inspect(ordE).notifications`；`notificationText` 雙方 | — | 恰 2 則：`REVIEW_EXPIRED_OWNER`（`owner`）、`REVIEW_EXPIRED_SITTER`（`sitterA`），`mandatory=false`、`emailStatus` = 需寄送；內文分別「保母未於期限內回覆，預約已自動取消」「預約已逾期自動取消」 | API JSON |
+| QR-33 | AC-2.1（BR-2） | owner、sitterA | `inspect(ordE).notifications`；`notificationText` 雙方 | — | 恰 2 則：`REVIEW_EXPIRED_OWNER`（`owner`）、`REVIEW_EXPIRED_SITTER`（`sitterA`），`mandatory=false`、`emailStatus=SUPPRESSED_TEST`；內文分別「保母未於期限內回覆，預約已自動取消」「預約已逾期自動取消」 | API JSON |
 | QR-34 | AC-2.1 | owner | 開 `/owner/orders/{ordE}` | `owner-order-detail-cancel-result` 標題「保母未於期限內回覆，預約已自動取消」 | — | 截圖 |
 | QR-35 | AC-2.4-1 | 排程 | 再 `runCron(C1, ordE)` | — | 200、`processed=0`、`skipped=0`、`failed=0`；E2 `cancellation.cancelledAt` 與 QR-32 後相同；`inspect` 的 `ORDER_REVIEW_EXPIRED` 仍 1 筆、逾期通知仍 2 則 | API JSON |
 
@@ -140,13 +141,13 @@
 | QR-40 | AC-3.1 | sitterA | `ordC = createQuotedOrder(owner, sitterA, 標準)`；開 `/sitter/orders/{ordC}`，點 `sitter-order-detail-btn-cancel` | 對話框含 `sitter-order-cancel-input-reason`、`sitter-order-cancel-btn-quick-reason-1`–`4`（文字同 QR-01）、文字「取消後飼主將收到通知，含您填寫的原因」 | E2 `allowedActions` 含 `SITTER_CANCEL` | 截圖 + API JSON |
 | QR-41 | AC-3.1 | sitterA | 填「臨時生病無法服務」，點 `sitter-order-cancel-btn-confirm` | 成功畫面無 `sitter-order-decline-btn-referral`（BR-13） | 頁面發出的 E9 恰 1 次、帶 key → 200 `{status:"CANCELLED", cancelledBy:"SITTER"}` | 截圖 + API JSON |
 | QR-42 | AC-3.1（BR-10、BR-12） | owner、sitterA | 讀 E2、E10、`inspect(ordC)` | — | E10 INITIAL `status=VOID`、`voidedAt` 有值；E2 `cancellation.cancelledBy=SITTER`、`reasonCode=SITTER_CANCELLED`、`reason=臨時生病無法服務`、3 個行程 `CANCELLED`；`inspect.orderLogs` 恰 1 筆 `ORDER_CANCELLED_BY_SITTER`（payload `reason`、`paymentId`、`transitions[]` 含 PAYMENT `UNPAID→VOID`） | API JSON |
-| QR-43 | AC-3.1（BR-2） | owner、sitterA | `inspect(ordC).notifications`；`notificationText` 雙方 | — | 取消類恰 2 則：`SITTER_CANCELLED`（`owner`）、`SITTER_CANCELLED_SELF`（`sitterA`），`mandatory=false`、`emailStatus` = 需寄送；飼主內文「保母已取消訂單」並含「臨時生病無法服務」；保母內文「您已取消訂單」 | API JSON |
+| QR-43 | AC-3.1（BR-2） | owner、sitterA | `inspect(ordC).notifications`；`notificationText` 雙方 | — | 取消類恰 2 則：`SITTER_CANCELLED`（`owner`）、`SITTER_CANCELLED_SELF`（`sitterA`），`mandatory=false`、`emailStatus=SUPPRESSED_TEST`；飼主內文「保母已取消訂單」並含「臨時生病無法服務」；保母內文「您已取消訂單」 | API JSON |
 | QR-44 | AC-3.1 | owner | 開 `/owner/orders/{ordC}` | 無 `proof-file-input`、`proof-submit-btn`（付款入口消失）；`owner-order-detail-cancel-result` 標題「保母已取消此訂單」並含「臨時生病無法服務」 | — | 截圖 |
 | QR-45 | AC-3.2-1（EX-8） | owner → sitterA | `ordC2 = createQuotedOrder(…)`；`uploadProof`；保母開 `/sitter/orders/{ordC2}` | 開頁即顯示 `sitter-order-cancel-blocked-message`「飼主已上傳付款憑證，請先核對或駁回」與前往核對區塊（`btn-verify-payment` / `btn-reject-payment` 所在處）的連結；不出現 `sitter-order-detail-btn-cancel` | E2 `allowedActions` 不含 `SITTER_CANCEL`；直接呼叫 E9 `{reason:"臨時有事"}` → 409 `PAYMENT_ALREADY_SUBMITTED`；E10 `status=SUBMITTED`；E2 `status=PENDING_PAYMENT`、行程 `PENDING`；`inspect.orderLogs` 無 `ORDER_CANCELLED_BY_SITTER` | 截圖 + API JSON |
 | QR-46 | AC-3.2-2 | sitterA | 點 `btn-reject-payment`，`reject-reason-input` 填「金額不符」，`reject-submit-btn` 送出；重新整理後取消（原因「臨時有事」） | 駁回後 `sitter-order-cancel-blocked-message` 消失、`sitter-order-detail-btn-cancel` 出現；取消成功 | E15 200、`paymentStatus=UNPAID`；E9 200；E10 `status=VOID`；E12 該 submission `status=REJECTED`、`reviewedAt` 有值、`voided=false` | 截圖 + API JSON |
 | QR-47 | AC-3.3-1（EX-7） | owner、sitterA | `ordC3 = createQuotedOrder(…)`；保母先開 `/sitter/orders/{ordC3}` 並打開取消對話框；另以 API `uploadProof` + E14 確認 → `CONFIRMED`；回頁面填原因送出 | 「訂單已成立，如需取消請申請訂單變更」 | 頁面發出的 E9 → 409 `ORDER_STATE_CONFLICT`、`currentStatus=CONFIRMED`；E2 `status=CONFIRMED` | 截圖 + API JSON |
 | QR-48 | AC-3.3-2（EX-7） | sitterA | `ordC4 = createPendingOrder(…)`；E9 | — | 409 `ORDER_STATE_CONFLICT`、`currentStatus=PENDING`；**不變** | API JSON |
-| QR-49 | AC-3.3-2（EX-7） | owner、sitterA | `ordC5 = createQuotedOrder(…)`；保母先開詳情頁並打開取消對話框；飼主 E8 `{expectedStatus:"PENDING_PAYMENT"}` 撤回；保母送出 | 「訂單狀態已變更，請重新整理」 | 頁面發出的 E9 → 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E2 `cancelledBy=OWNER` | 截圖 + API JSON |
+| QR-49 | AC-3.3-2（EX-7） | owner、sitterA | `ordC5 = createQuotedOrder(…)`；保母先開詳情頁並打開取消對話框；飼主 E8 `{expectedStatus:"PENDING_PAYMENT"}` 撤回；保母送出 | 「訂單狀態已變更，請重新整理」 | 頁面發出的 E9 → 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E2 `cancelledBy=OWNER`、`reasonCode=OWNER_WITHDRAWN`；E10 INITIAL `status=VOID` | 截圖 + API JSON |
 | QR-50 | AC-3.4-1（EX-1） | sitterOther | `ordC6 = createQuotedOrder(…)`；E9 | — | 403 `FORBIDDEN` | API JSON |
 | QR-51 | AC-3.4-2（EX-2） | sitterA（OWNER 角色） | `ownerToken(sitterA)` E9 | — | 403 `ROLE_MISMATCH` | API JSON |
 | QR-52 | AC-3.4-3（EX-3） | admin | E9 | — | 403 `ROLE_MISMATCH` | API JSON |
@@ -213,7 +214,7 @@
 |---|------|------|------------------|
 | 1 | （已解決 2026-11-22）provision 雙角色 / ADMIN / `displayName` | — | SD-ORDER §10.4 |
 | 2 | （已解決）`sitter-setup` upsert | — | SD-ORDER §10.4 |
-| 3 | `inspect.notifications[].emailStatus` 的列舉值 SD-ORDER 未列，屬 SD-NOTIFY；保母端偏好已可由 `sitter-setup.emailPreferences` 設定（原 #3 已解決） | QR-07、QR-11、QR-33、QR-43 的 Email 斷言 | SD-NOTIFY 撰寫時定義；e2e-author 屆時對應 |
+| 3 | （已解決 2026-11-22）`emailStatus` 列舉與保母端偏好 | — | SD-ORDER §10.4；應寄 `SUPPRESSED_TEST`、偏好略過 `SKIPPED_PREFERENCE`（QR-07、QR-11、QR-33、QR-43）；保母偏好由 `sitter-setup.emailPreferences` 設定 |
 | 4 | PRD-010 為 Draft，轉介選單與轉介送出 API 未定義 | QR-05、QRM-01 只能以業務名稱描述 | PRD-010 改寫後回填 testid / API |
 | 5 | （已解決）blocked message 開頁即顯示、取消鈕隱藏 | — | PRD-027 回寫；QR-45、QR-46 |
 | 6 | （已解決）E7 / E9 原因 strip 後計數、存 strip 值 | — | SD-ORDER E7 / E9；QR-13、QR-53 |
@@ -234,6 +235,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意），狀態維持 Approved：`emailStatus` 斷言收斂為 `SUPPRESSED_TEST` / `SKIPPED_PREFERENCE`（QR-07、QR-11、QR-33、QR-43）；§1 加 `reasonCode` 列舉記號，飼主撤回對照組斷言 `OWNER_WITHDRAWN`（QR-15、QR-24、QR-49，QR-49 補 E10 `VOID`）；§5 #3 標已解決。本卡無報價明細、O2 留頁、ADMIN 讀取相關步驟，其餘不變 | SD-ORDER 核准後修訂 |
 | 2026-11-22 | 依核准後修訂更新：`order_logs`、通知類型 / `mandatory` / `emailStatus`、`voidedAt` / `reviewedAt` 改由 `inspect` / E10 / E12 在 E2E 斷言（QR-06、QR-07、QR-11、QR-13、QR-15、QR-16、QR-22、QR-24–QR-28、QR-32、QR-33、QR-35、QR-42、QR-43、QR-45、QR-46、QR-55、QR-56、QR-58、QR-59），§4 移除對應後端列；C1 / C3 一律帶 `orderId` 並斷言精確計數，刪除「避開正式排程」因應（QR-16、QR-27、QR-28、QR-30–QR-32、QR-35、QR-58、QR-59、QR-E8）；新增 QR-34（O4 飼主取消結果標題）、QR-E9（401 先於冪等回放）、QR-E10（排程 `orderId` 範圍）；QR-44 加 O7 標題「保母已取消此訂單」；QR-45 / QR-46 改為 blocked message 開頁顯示、取消鈕隱藏；QR-26 改用 `precheck.reviewExpired` 走 UI；strip 含 U+3000 / U+00A0（QR-02、QR-12、QR-13、QR-53）；provision `roles[]` / `displayName`、`sitter-setup` 的 `emailPreferences` / `trustCirclePartnerIds`；§5 標註已解決項 | SD-ORDER / PRD-027 核准後修訂（commit 477c75d）；使用者決定 2026-11-22 |
 | 2026-11-22 | 建立，狀態 Draft。原 TS-006 Scenario 10（婉拒）依 PRD 拆卡移入並依新規格重寫（原因必填、通知雙方、兩步驟轉介、期限後仍可婉拒） | PRD-027、SD-ORDER Approved 2026-11-22 |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

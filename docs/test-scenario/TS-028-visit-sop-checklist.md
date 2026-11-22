@@ -180,7 +180,7 @@
 | K-E03 | AC-2.4-2；EX-2 | `owner` 送 F12（I2）、F9 | 皆 403 `ROLE_MISMATCH` |
 | K-E04 | AC-1.6-4；BR-8 | `sitterB` 送 F9，`visitId` = 隨機 UUID、不帶 key | 404 `NOT_FOUND`（404 先於 400） |
 | K-E05 | AC-2.4-1；EX-3 | `ownerB` 送 F8（VE1） | 403 `FORBIDDEN` |
-| K-E06 | AC-2.4-3；EX-3 | `admin` 送 F8（VE1；訂單 E 為 `IN_PROGRESS` 且無 OPEN 待辦） | 403 `FORBIDDEN`（`DISPUTED` 的 200 見 K-47） |
+| K-E06 | AC-2.4-3；EX-3 | `admin` 送 F8（VE1；訂單 E 為 `IN_PROGRESS` 且從未有任何 ADMIN 待辦；[INS] `adminTasks = []`） | 403 `FORBIDDEN`（`DISPUTED` 的 200 見 K-47） |
 | K-E07 | AC-2.4-4；EX-4 | `owner` 送 F8，路徑 `orderId=E`、`visitId` = 隨機 UUID | 404 `NOT_FOUND` |
 | K-E08 | §3 權限表 | 未帶 token 送 F8、F9 | 皆 401 `UNAUTHENTICATED` |
 
@@ -219,6 +219,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：K-E06 前置改為「從未有任何 ADMIN 待辦」（ADMIN 可讀範圍改為 `DISPUTED` 或曾有任何待辦，PRD-028 AC-2.4 情境 3）。狀態維持 Approved | SD-ORDER §6.3、PRD-028 核准後修訂 |
 | 2026-11-22 | §5 L-8 標已解決（`DISPUTED` 維持完整流程，判定可接受）；K-43 FC1 計數以訂單為單位（SD-ORDER 已釐清，斷言不變） | 協調者回覆 §5 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`created_by` / `updated_by` / `updated_at`、無 `order_logs` / 通知改以 inspect 在 E2E 斷言（K-01、K-02、K-10、K-11、K-17、K-19、K-37）；打勾時間改用 `sitter-visit-panel-checklist-checked-at-{itemId}`（K-37、K-38、K-41）；已結束文案依 PRD-028 EX-8；新增 K-27（FT1 造 `CANCELLED`、編輯文案），訂單 Dm 改為直接造好 `DISPUTED`、刪除原以變更造 `CANCELLED` 的檢查步驟；方案預設任務改以 `sitter-setup` upsert；FC1 帶 `orderId` 並斷言精確計數；K-25 加全形空白；ADMIN 改用 `provision-account roles[]`；步驟重新編號（K-01–K-47）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-028 核准後修訂 |
 | 2026-11-22 | 建立：依 PRD-028（Approved，自 PRD-008 拆卡）與 SD-FULFILL / SD-ORDER | 全面重建 2026-11；PRD-028、SD-FULFILL 核准 |

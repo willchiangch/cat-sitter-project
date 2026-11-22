@@ -47,7 +47,7 @@
 | PA-03 | AC-1.1 | sitterNew | 前置 `orderPending(sitterNew)`；E5 `GET /api/orders/{O}/evaluation`；開啟 `/sitter/orders/{O}`；再以 API E6（key K1、`expectedAmount=600`）直接報價 | `sitter-order-eval-precheck-banner` 顯示「請先設定收款帳號」並提供前往收款帳號頁的連結；`sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-btn-quote-submit` 全部停用（PRD-006 預檢阻擋） | E5 `precheck.payoutAccountMissing=true`；E6 422 `PAYOUT_ACCOUNT_REQUIRED`；E2 `status=PENDING`；E10 `GET /api/orders/{O}/payments` → `[]`；訂單 inspect `orderLogs` 無 `ORDER_QUOTED`（PRD-006 AC-3.8 驗收，本卡確認碼名一致） | 截圖 + API JSON |
 | PA-04 | AC-1.1 | sitterNew | 收款帳號頁填銀行代碼 `812`、分行 `台北分行`、帳號 `12345678901`、戶名 `王小明`，送出；攔截頁面發出的設定請求 | 顯示已設定的四個值；送出前後未要求輸入密碼或重新登入 | 設定請求恰 1 次（PUT 整筆、四欄皆在 body）→ 200 | 截圖 + API JSON |
 | PA-05 | AC-1.1 | sitterNew | 呼叫讀取 API | — | 200：`configured=true`、`bankCode=812`、`branch=台北分行`、`accountNumber=12345678901`、`accountName=王小明`、`updatedAt` 為 ISO-8601 UTC 且介於 PA-04 送出前後 | API JSON |
-| PA-06 | AC-1.1 | sitterNew | payout-inspect；`sitterNew` 站內通知列表（`GET /api/notifications?role=SITTER`） | — | 稽核紀錄恰 1 筆：操作者 = `sitterNew`、變更前為空、變更後「812 / …78901」、不含「12345678901」「王小明」；通知「收款帳號已設定」站內 1 則、Email 已排入 1 封、屬不可關閉類別；站內通知內容不含「12345678901」「王小明」 | API JSON |
+| PA-06 | AC-1.1 | sitterNew | payout-inspect；`sitterNew` 站內通知列表（`GET /api/notifications?role=SITTER`） | — | 稽核紀錄恰 1 筆：操作者 = `sitterNew`、變更前為空、變更後「812 / …78901」、不含「12345678901」「王小明」；通知「收款帳號已設定」站內 1 則、`mandatory=true`、`emailStatus=SUPPRESSED_TEST`（payout-inspect 讀取方式待 SD-SUPPLY 定義）；站內通知內容不含「12345678901」「王小明」 | API JSON |
 | PA-07 | AC-1.1 | sitterNew | 重新開啟 `/sitter/orders/{O}`，點 `sitter-order-eval-btn-quote-original`（前端新產生 key；API 版以新 key K2，K1 會回放 422，見 §5-3） | 預檢橫幅不再提示收款帳號、三個報價鈕可用；報價成功 | E6 200、`status=PENDING_PAYMENT`；E10 INITIAL `accountSnapshot={ bankCode: "812", branch: "台北分行", accountNumber: "12345678901", accountName: "王小明" }` | 截圖 + API JSON |
 | PA-08 | AC-1.2 | sitterSet | 設定 API 送 `bankCode=81`；再送 `bankCode=8123`（其餘三欄為 X） | — | 兩者皆 400 `VALIDATION_FAILED`、`payload.field=bankCode` | API JSON |
 | PA-09 | AC-1.2 | sitterSet | 設定 API 送 `branch=""`；`branch="   "`；`branch` = 31 字 | — | 三者皆 400 `VALIDATION_FAILED`、`payload.field=branch` | API JSON |
@@ -69,7 +69,7 @@
 | PA-25 | AC-1.5 | sitterSet | 目前為 X；設定 API 改為 X'（只改帳號為 `98765478901`）；payout-inspect | — | 200；新增稽核 1 筆：操作者 = `sitterSet`、時間介於送出前後、變動欄位「帳號」、前後「812 / …78901」→「812 / …78901」，不含「12345678901」「98765478901」「王小明」；儲存值非明文見 §4 | API JSON |
 | PA-26 | AC-1.5 | sitterSet | 目前為 X'；設定 API 只把 `bankCode` 改為 `700`；payout-inspect | — | 200；新增稽核 1 筆：變動欄位「銀行代碼」、前後「812 / …78901」→「700 / …78901」 | API JSON |
 | PA-27 | AC-1.5 | sitterSet | 以與 PA-26 相同的四欄重送；payout-inspect | — | 200；稽核筆數不變 | API JSON |
-| PA-28 | AC-1.6 | sitterSet | 以 `sitter-setup`（upsert，只送 `emailPreferences.ORDER_AFFAIR=false`）關閉「訂單事務」Email；設定 API 把帳號由 X 改為 X'；payout-inspect；站內通知列表 | — | 200；「收款帳號已變更」站內 1 則、Email 已排入 1 封（不可關閉類別，偏好關閉仍排入）；通知內容含變動欄位名稱「帳號」與「…78901」，不含「12345678901」「98765478901」「王小明」 | API JSON |
+| PA-28 | AC-1.6 | sitterSet | 以 `sitter-setup`（upsert，只送 `emailPreferences.ORDER_AFFAIR=false`）關閉「訂單事務」Email；設定 API 把帳號由 X 改為 X'；payout-inspect；站內通知列表 | — | 200；「收款帳號已變更」站內 1 則、`mandatory=true`、`emailStatus=SUPPRESSED_TEST`（不可關閉類別，偏好關閉仍排入，非 `SKIPPED_PREFERENCE`；payout-inspect 讀取方式待 SD-SUPPLY 定義）；通知內容含變動欄位名稱「帳號」與「…78901」，不含「12345678901」「98765478901」「王小明」 | API JSON |
 | PA-29 | AC-1.6 | sitterSet | 以相同四欄重送；payout-inspect；站內通知列表 | — | 200；「收款帳號已變更」通知筆數不變 | API JSON |
 | PA-30 | AC-1.6 | sitterSet | 帳號由 X' 改回 X（收件者為 `@e2e-journey.test`，正式站 Resend 測試模式必定拒收，見 §5-4） | — | 設定 API 200；站內通知「收款帳號已變更」存在；讀取 API 為 X | API JSON |
 | PA-31 | AC-1.6 | sitterSet | 開啟收款帳號頁修改分行為 `南京分行` 並送出 | 修改前與送出過程無密碼欄位、無重新登入提示，直接成功 | 頁面 `input[type=password]` 數量 0；設定請求 200 | 截圖 |
@@ -127,6 +127,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：PA-06、PA-28 的 Email 斷言比照 TS-007 收斂為 `emailStatus=SUPPRESSED_TEST`（讀取方式仍待 SD-SUPPLY 定義 payout-inspect）；狀態維持 Approved | SD-ORDER §10.4 `emailStatus` 列舉；測試帳號收件者標 `SUPPRESSED_TEST` |
 | 2026-11-22 | 依 SD-ORDER 核准後修訂（commit 477c75d）更新：前置資料改用 `provision-account` `roles[]` / `sitterProfile=false` / `displayName`、setup upsert 與 key 對應 id；PA-03 改為預檢阻擋時三個報價鈕全停用、以 API 驗 422，PA-07 重新開頁後報價；PA-28 改以 `sitter-setup` `emailPreferences` 關閉訂單事務 Email；稽核 / 帳號通知讀取改稱 payout-inspect，維持待 SD-SUPPLY；§5-3 冪等鍵標已回寫 PRD-025；訂單相關斷言可用 SD-ORDER inspect；§5 已解決項合併標註 | SD-ORDER §10.4 修訂；PRD-006 預檢阻擋回寫 |
 | 2026-11-22 | 建立：依 PRD-025（Approved 2026-11-22）撰寫；AC-1.1–1.8 全部對應步驟（PA- 34 步，另 PAX- 2 步）；EX-1–EX-14 對應表；SD-SUPPLY 未撰寫，API / 畫面以業務名稱描述；狀態 Draft | PRD-025 自 PRD-007 拆出，收款帳號設定由舊 TS-007 TS-007-5 移入 |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

@@ -45,7 +45,7 @@
 | `DONE+LOG(Vx)` | FT1 `status=DONE`、`careLogSubmitted=true`（可帶 `completedAt`；允許 `PENDING → DONE`） | 行程 `DONE`、日誌 `SUBMITTED` |
 | `DONE+DRAFT(Vx)` | FT1 `status=DONE` → sitter SD-FULFILL F14 `PUT …/care-log/draft`（`text="草稿未送出"`） | 行程 `DONE`、日誌 `DRAFT`、編輯期內 |
 | `CLOSED(Vx)` | FT1 `status=CLOSED_BY_SYSTEM`（可帶 `closedAt`；允許 `PENDING → CLOSED_BY_SYSTEM`） | 行程 `CLOSED_BY_SYSTEM` |
-| `SHIFT-WINDOW(order, Δ)` | 讀 E2 `serverTime` 與 `disputeWindowEndsAt`，以 SD-ORDER `POST /api/internal/test-data/orders/{orderId}/shift-time`（`target=COMPLETION_BASIS_AT`、`minutes`）位移，使 `disputeWindowEndsAt = serverTime + Δ`；**必須在該訂單最後一次 FT1 / FT2 之後呼叫**（FT1 / FT2 會重算基準） | 視窗終點落在指定相對時刻 |
+| `SHIFT-WINDOW(order, Δ)` | 讀 E2 `serverTime` 與 `INSPECT(order).completionBasisAt`，以 SD-ORDER `POST /api/internal/test-data/orders/{orderId}/shift-time`（`target=COMPLETION_BASIS_AT`、`minutes`）位移，使 `completionBasisAt + 48h = serverTime + Δ`（E2 `disputeWindowEndsAt` 只在 `IN_PROGRESS` 且行程皆結束、無未結束變更時回傳，`DISPUTED` / 有未結束變更的訂單不回，因此一律以 `INSPECT` 計算，SD-ORDER §10）；**必須在該訂單最後一次 FT1 / FT2 之後呼叫**（FT1 / FT2 會重算基準） | 視窗終點落在指定相對時刻 |
 | `RUN-C8(order)` | `POST /api/internal/cron/orders/auto-complete?orderId={order}`，標頭 `X-Internal-Secret` | 200 `{ job, processed, skipped, failed, startedAt, finishedAt }`，計數只算該訂單 |
 | `INSPECT(order)` | `GET /api/internal/test-data/orders/{order}/inspect`（`X-Internal-Secret`） | `{ status, totalAmount, completionBasisAt, orderLogs[], notifications[], adminTasks[], payments[], fulfill }` |
 
@@ -78,7 +78,7 @@
 ## 2. 測試步驟
 
 > 步驟 ID 前綴 `OC-`；e2e spec 的 `step()` / `apiStep()` 標籤以同一 ID 開頭。
-> 通知斷言以 `INSPECT.notifications`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）為準；「有 Email」= `emailStatus` 為待寄 / 已寄，「無 Email」= `emailStatus` 表示不寄（列舉值見 §5 #1）。
+> 通知斷言以 `INSPECT.notifications`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）為準；測試帳號收件者依偏好應寄 Email 者 `emailStatus=SUPPRESSED_TEST`（下稱「有 Email」），偏好關閉者 `emailStatus=SKIPPED_PREFERENCE`（下稱「不寄」）（SD-ORDER §10.4 列舉）。
 > 畫面時間斷言：把 API 回傳的 ISO-8601 時間換算 Asia/Taipei `YYYY-MM-DD HH:mm` 後比對畫面文字。金額依 SD-FRONTEND-SPEC §6.4.1：`$` + U+00A0 + 千分位（例 `$ 1,000`）。
 > 「空白」依 SD-GLOBAL-SPEC §2.7 `strip()`（含全形空白）。
 > 每個 E25 / E26 呼叫皆帶新的 `Idempotency-Key`（UUID），除非該列指定沿用某把 key。
@@ -91,7 +91,7 @@
 | OC-02 | AC-1.2 | ownerA | 直接呼叫 E25 `POST /api/orders/{X1}/complete` | — | 409 `VISITS_NOT_FINISHED`；E2 仍 `IN_PROGRESS`、無 `completedAt`；`INSPECT(X1).orderLogs` 無 `ORDER_COMPLETED` | API JSON |
 | OC-03 | AC-1.2；AC-2.5（行程條件不看日誌） | ownerA | `DONE+DRAFT(V1)`（`completedAt` = now）、`DONE+LOG(V2)` 後重新整理 `/owner/orders/{X1}` | 無確認結案按鈕；`owner-order-detail-complete-hint` 仍為「所有行程完成且保母送出照護日誌後，即可確認結案」；`owner-order-detail-btn-report-issue` 可見；`owner-order-detail-dispute-window-ends-at`「可回報問題至 {disputeWindowEndsAt}」；`owner-order-detail-visit-row-{V1}` 內無 `owner-order-detail-btn-view-log-{V1}`，`{V2}` 有 | E2 → `completionHint.code=CARE_LOG_PENDING`、`disputeWindowEndsAt` = `INSPECT.completionBasisAt` + 48h、`visits[V1].careLogSubmitted=false`、`visits[V2]=true`；ownerA F1 → `careLog.submitted` 同上 | 截圖 + API JSON |
 | OC-04 | AC-1.2 | ownerA | E25 | — | 409 `VISITS_NOT_FINISHED`；E2 仍 `IN_PROGRESS` | API JSON |
-| OC-05 | AC-1.3；AC-2.7 | sitterS、ownerA | `X2`（V1 `IN_PROGRESS`、V2 / V3 `PENDING`）。sitterS E17 `POST /api/orders/{X2}/modifications`（`type=CHANGE`、`removeVisitIds=[V3]`、`surchargeAmount=500`、`adjustmentReason="維持原總額"`、`reason="少一次到府"`）；ownerA 開 `/owner/orders/{X2}` | 無確認結案、無回報問題按鈕；`owner-order-detail-complete-hint`「訂單變更處理中，完成後才能確認結案」；無 `owner-order-detail-dispute-window-ends-at` | E17 → 201 `status=QUOTED`、`diff=0`；E2 → `completionHint.code=MODIFICATION_IN_PROGRESS`（V1 仍 `IN_PROGRESS`，提示不是 `VISITS_NOT_FINISHED`）、無 `disputeWindowEndsAt` | 截圖 + API JSON |
+| OC-05 | AC-1.3；AC-2.7 | sitterS、ownerA | `X2`（V1 `IN_PROGRESS`、V2 / V3 `PENDING`）。sitterS E17 `POST /api/orders/{X2}/modifications`（`type=CHANGE`、`removeVisitIds=[V3]`、`surchargeAmount=500`、`adjustmentReason="維持原總額"`、`reason="少一次到府"`）；ownerA 開 `/owner/orders/{X2}` | 無確認結案、無回報問題按鈕；`owner-order-detail-complete-hint`「訂單變更處理中，完成後才能確認結案」；`owner-order-detail-btn-open-modification`「查看進行中變更」可見；無 `owner-order-detail-dispute-window-ends-at` | E17 → 201 `status=QUOTED`、`diff=0`；E2 → `completionHint.code=MODIFICATION_IN_PROGRESS`（V1 仍 `IN_PROGRESS`，提示不是 `VISITS_NOT_FINISHED`）、無 `disputeWindowEndsAt` | 截圖 + API JSON |
 | OC-06 | AC-1.3；EX-6 | ownerA | E25 | — | 409 `MODIFICATION_IN_PROGRESS`（不是 `VISITS_NOT_FINISHED`） | API JSON |
 | OC-07 | AC-2.7；EX-6 | ownerA | E26 `POST /api/orders/{X2}/service-disputes`（`description="測試"`） | — | 409 `MODIFICATION_IN_PROGRESS`；`INSPECT(X2).adminTasks=[]`；E2 仍 `IN_PROGRESS` | API JSON |
 | OC-08 | AC-2.6（`SETTLED` 推遲基準）；BR-4；BR-21 | ownerA、sitterS | ownerA E23 `.../modifications/{id}/accept`；`DONE+LOG(V1)`（`completedAt` = now − 25h）；`CLOSED(V2)`（`closedAt` = now − 2h）；雙方開詳情 | 飼主 `owner-order-detail-dispute-window-ends-at` 與保母 `sitter-order-detail-auto-complete-at` 顯示同一時間 = {E18 該變更 `endedAt` + 48h} | E23 → `status=SETTLED`；`INSPECT(X2).completionBasisAt` = E18 該筆 `endedAt`（晚於 V1 結束時間 now − 1h 與 V2 關閉時間）；E2 `disputeWindowEndsAt = completionBasisAt + 48h`；F1 V3 `status=CANCELLED` | 截圖 ×2 + API JSON |
@@ -108,8 +108,8 @@
 | OC-19 | AC-1.5；EX-3 | ownerA | 以執行時產生的隨機 UUID 呼叫 E25 | — | 404 `NOT_FOUND` | API JSON |
 | OC-20 | AC-1.5；BR-17 | ownerA、匿名 | ownerA 不帶 `Idempotency-Key` 呼叫 E25 `X3`；不帶 token 呼叫 | — | 400 `VALIDATION_FAILED`、payload `field=Idempotency-Key`；401 `UNAUTHENTICATED`；E2 `X3` 仍 `IN_PROGRESS`；`INSPECT(X3).orderLogs` 無 `ORDER_COMPLETED` | API JSON |
 | OC-21 | AC-1.6 | ownerA | 以 K1（`X2` 用過）呼叫 E25 `X3` | — | 422 `IDEMPOTENCY_KEY_REUSED`；E2 `X3` 仍 `IN_PROGRESS` | API JSON |
-| OC-22 | AC-1.1（Email 關）；EX-20 | ownerA | ownerA 於 UI 完成 `X3` 確認結案（同 OC-10 操作）；`INSPECT(X3)` | 「已結案」 | E25 200；`notifications` 恰 1 筆 `ORDER_COMPLETED_BY_OWNER`、`recipientUserId=sitterT`、無 Email（`emailStatus` 為不寄） | 截圖 + API JSON |
-| OC-23 | AC-1.3 | sitterS、ownerA | `Y6`：sitterS E17（`CHANGE`、`removeVisitIds=[V3]`、無加減、`reason="少一次"`）→ ownerA E23；雙方開詳情 | 飼主：無確認結案按鈕；`owner-order-detail-complete-hint`「訂單變更處理中，完成後才能確認結案」；無 `owner-order-detail-dispute-window-ends-at`。保母：無 `sitter-order-detail-auto-complete-at` | E17 → `QUOTED`、`diff=-500`；E23 → `status=AWAITING_REFUND`；E2 `completionHint.code=MODIFICATION_IN_PROGRESS`、無 `disputeWindowEndsAt` | 截圖 ×2 + API JSON |
+| OC-22 | AC-1.1（Email 關）；EX-20 | ownerA | ownerA 於 UI 完成 `X3` 確認結案（同 OC-10 操作）；`INSPECT(X3)` | 「已結案」 | E25 200；`notifications` 恰 1 筆 `ORDER_COMPLETED_BY_OWNER`、`recipientUserId=sitterT`、`emailStatus=SKIPPED_PREFERENCE` | 截圖 + API JSON |
+| OC-23 | AC-1.3 | sitterS、ownerA | `Y6`：sitterS E17（`CHANGE`、`removeVisitIds=[V3]`、無加減、`reason="少一次"`）→ ownerA E23；雙方開詳情 | 飼主：無確認結案按鈕；`owner-order-detail-complete-hint`「訂單變更處理中，完成後才能確認結案」；`owner-order-detail-btn-open-modification`「查看進行中變更」可見；無 `owner-order-detail-dispute-window-ends-at`。保母：`sitter-order-detail-btn-open-modification` 可見；無 `sitter-order-detail-auto-complete-at` | E17 → `QUOTED`、`diff=-500`；E23 → `status=AWAITING_REFUND`；E2 `completionHint.code=MODIFICATION_IN_PROGRESS`、無 `disputeWindowEndsAt` | 截圖 ×2 + API JSON |
 | OC-24 | AC-1.3；EX-6 | ownerA | E25 `Y6` | — | 409 `MODIFICATION_IN_PROGRESS`；E2 仍 `IN_PROGRESS` | API JSON |
 
 ### 2.2 系統自動結案（O12）
@@ -139,14 +139,14 @@
 | OC-45 | AC-2.8；BR-17 | ownerA | 以 K2、說明「改說明」送 E26 | — | 422 `IDEMPOTENCY_KEY_REUSED` | API JSON |
 | OC-46 | AC-2.8；AC-1.4；EX-5；EX-11 | ownerA | 新 key E26（`description="再回報"`）；新 key E25 | — | 皆 409 `ORDER_STATE_CONFLICT`、`currentStatus=DISPUTED` | API JSON |
 | OC-47 | AC-2.8；EX-19 | ownerA | 新 key E26，`description="   "` | — | 400 `VALIDATION_FAILED`、`field=description`（不是 409） | API JSON |
-| OC-48 | AC-2.5；AC-2.3 (a)；BR-7 | ownerA、system | ownerA E17（`CHANGE`、`reason="爭議中變更"`）；`SHIFT-WINDOW(Y2, −60 分)` → `RUN-C8(Y2)` | — | E17 409 `ORDER_STATE_CONFLICT`（`currentStatus=DISPUTED`）；C8 `processed=0`；E2 `Y2` 仍 `DISPUTED`；`INSPECT(Y2)` 無 `ORDER_COMPLETED`、無 `ORDER_AUTO_COMPLETED` | API JSON |
+| OC-48 | AC-2.5；AC-2.3 (a)；BR-7 | ownerA、system | ownerA E17（`CHANGE`、`reason="爭議中變更"`）；`SHIFT-WINDOW(Y2, −60 分)`（`DISPUTED` 時 E2 不回 `disputeWindowEndsAt`，以 `INSPECT(Y2).completionBasisAt + 48h` 計算位移）→ `RUN-C8(Y2)` | — | E17 409 `ORDER_STATE_CONFLICT`（`currentStatus=DISPUTED`）；E2 無 `disputeWindowEndsAt`；位移後 `INSPECT.completionBasisAt + 48h` < `serverTime`；C8 `processed=0`；E2 `Y2` 仍 `DISPUTED`；`INSPECT(Y2)` 無 `ORDER_COMPLETED`、無 `ORDER_AUTO_COMPLETED` | API JSON |
 | OC-49 | AC-2.8；EX-9 | ownerA | `Y3`：E26 分別帶 `description=""`、`"   "`、`"　　"`（全形空白）、`" " + "字"×501 + " "` | — | 四者皆 400 `VALIDATION_FAILED`、`field=description`；`INSPECT(Y3).adminTasks=[]`；E2 仍 `IN_PROGRESS` | API JSON |
 | OC-50 | AC-2.8；EX-1；EX-2 | ownerB、sitterS、admin | 各對 `Y3` 呼叫 E26（`description="越權"`） | — | ownerB 403 `FORBIDDEN`；sitterS、admin 403 `ROLE_MISMATCH`；E2 仍 `IN_PROGRESS` | API JSON |
 | OC-51 | AC-2.8；BR-6 | ownerA | `Y3` 開回報表單：(1) 只輸入「　 」（全形 + 半形空白）；(2) 清空後輸入「🐱」×500；(3) 再輸入 1 個「🐱」；(4) 點送出 | (1) `owner-order-dispute-description-counter` 顯示剩餘 500、`owner-order-dispute-btn-submit` 停用；(2) 剩餘 0、送出可按；(3) 輸入框仍為 500 個「🐱」（code point 截斷、不切斷代理對）、剩餘 0；回報畫面無附件元件 | 送出時 E26 body `description` 為 500 code point；200 `status=DISPUTED` | 截圖 ×3 + API JSON |
 | OC-52 | AC-2.8；BR-6（CQ-17） | ownerA | `Y4`：E26 `description = "  " + "字"×500 + "  "` | — | 200 `DISPUTED`；`INSPECT(Y4)` 的 `SERVICE_DISPUTE_OPENED.payload.description` 為 strip 後的 500 字（無前後空白） | API JSON |
-| OC-53 | AC-2.6；EX-8 | ownerA | `Z2`：`SHIFT-WINDOW(Z2, −1 分)`；新 key E26（`description="逾期回報"`）；開詳情 | 無 `owner-order-detail-btn-report-issue`；`owner-order-detail-btn-complete` 可見 | E26 409 `DEADLINE_PASSED`、`deadline=DISPUTE_WINDOW_ENDS_AT`、`deadlineAt` = 位移後的 E2 `disputeWindowEndsAt` = `INSPECT.completionBasisAt` + 48h；E2 仍 `IN_PROGRESS`；`INSPECT(Z2).adminTasks=[]` | 截圖 + API JSON |
+| OC-53 | AC-2.6；EX-8 | ownerA | `Z2`：`SHIFT-WINDOW(Z2, −1 分)`；新 key E26（`description="逾期回報"`）；開詳情 | 無 `owner-order-detail-btn-report-issue`；`owner-order-detail-btn-complete` 可見 | E26 409 `DEADLINE_PASSED`、`deadline=DISPUTE_WINDOW_ENDS_AT`、`deadlineAt` = 位移後的 E2 `disputeWindowEndsAt` = `INSPECT.completionBasisAt` + 48h；E2 仍 `IN_PROGRESS`；`INSPECT(Z2).adminTasks=[]`；admin E27 `GET /api/admin/orders/{Z2}` → 403 `FORBIDDEN`（非 `DISPUTED` 且從未有待辦） | 截圖 + API JSON |
 | OC-54 | AC-2.6 | ownerA | 於 UI 對 `Z2` 確認結案（同 OC-10） | 「已結案」 | E25 200 `COMPLETED`（自動觸發跳過測試訂單，不會被排程搶先） | 截圖 + API JSON |
-| OC-55 | AC-2.7；EX-6 | ownerA | `Y5`：ownerA E17（`CHANGE`、`removeVisitIds=[V3]`、`reason="少一次"`）；開詳情；E26 | 無 `owner-order-detail-btn-report-issue` | E17 → 201 `REQUESTED`；E26 409 `MODIFICATION_IN_PROGRESS`（同時有 `PENDING` 行程 V2）；`INSPECT(Y5).adminTasks=[]` | 截圖 + API JSON |
+| OC-55 | AC-2.7；EX-6 | ownerA | `Y5`：ownerA E17（`CHANGE`、`removeVisitIds=[V3]`、`reason="少一次"`）；開詳情；E26 | 無 `owner-order-detail-btn-report-issue`；`owner-order-detail-btn-open-modification` 可見 | E17 → 201 `REQUESTED`；E26 409 `MODIFICATION_IN_PROGRESS`（同時有 `PENDING` 行程 V2）；`INSPECT(Y5).adminTasks=[]` | 截圖 + API JSON |
 | OC-56 | AC-2.7；EX-7 | ownerA | E22 撤回該變更；FT1 V2 `IN_PROGRESS`；開詳情；E26；E25 | 無回報問題、無確認結案按鈕；`owner-order-detail-complete-hint`「所有行程完成且保母送出照護日誌後，即可確認結案」 | E22 → `WITHDRAWN`；E26 409 `VISITS_NOT_FINISHED`；E25 409 `VISITS_NOT_FINISHED`；`INSPECT(Y5).adminTasks=[]` | 截圖 + API JSON |
 | OC-57 | AC-2.3 (b) | system | `Y6`（`AWAITING_REFUND`）：`SHIFT-WINDOW(Y6, −60 分)` → `RUN-C8(Y6)` | — | C8 `processed=0`；E2 `Y6` 仍 `IN_PROGRESS`；`INSPECT(Y6)` 無 `ORDER_COMPLETED`、無 `ORDER_AUTO_COMPLETED` | API JSON |
 
@@ -156,7 +156,7 @@
 |------|----|------|------|---------|---------------|------|
 | OC-60 | AC-3.1；AC-3.3；AC-3.4；BR-15；BR-22 | sitterL | `L1`（`COMPLETED`）、`L2`（`CANCELLED` 未付款）、`L3`（`IN_PROGRESS` 已收 1000）、`L4`（`DISPUTED` 已收 1000）。開 `/sitter/ledger` | `sitter-ledger-select-month` 預設 = E30 `serverMonth`；`sitter-ledger-total-income`「$ 1,000」；只有 `sitter-ledger-item-{L1}`，無 L2 / L3 / L4；該列顯示訂單編號 = `L1` 前 8 碼大寫、飼主稱呼「飼主A」、服務期間 = 首末行程日、「已結案」、終態日期 = {L1 `completedAt` 的 Asia/Taipei 日期}、「$ 1,000」 | E30 `GET /api/orders/sitter/ledger?month={serverMonth}` → `totalIncome=1000`、`orders` 恰 1 筆 `{ orderId: L1, status: COMPLETED, ownerDisplayName: "飼主A", netPaid: 1000, terminalAt = L1 completedAt, firstServiceDate, lastServiceDate }`；`INSPECT(L2).payments` INITIAL `status=VOID` | 截圖 + API JSON |
 | OC-61 | AC-3.8 | sitterL | 點 `L1` 列的訂單編號 | 導向 `/sitter/orders/{L1}` | — | 截圖 |
-| OC-62 | AC-3.8；AC-3.3；BR-10 | admin、sitterL | admin E29 `POST /api/admin/orders/{L4}/mediation`（`adjustment.amount=1000`、`adjustment.basis="全額退款"`）；sitterL 重新整理帳務 | 列表依序 `sitter-ledger-item-{L4}`、`{L1}`；L4「已結案」「$ 0」；總收入仍「$ 1,000」；無分頁元件 | E29 → `status=COMPLETED`、`adjustmentPaymentIds` 1 筆；`INSPECT(L4)`：`adminTasks` 該 `SERVICE_DISPUTE` `status=RESOLVED`、`resolution` 有值、`resolvedAt` 有值；`payments` 含該 `adjustmentPaymentId`、`purpose=ADMIN_ADJUSTMENT`、`status=VERIFIED`、`verifiedAt` 有值；E30 `orders[0].orderId=L4`、`netPaid=0`；`totalIncome=1000` | 截圖 + API JSON |
+| OC-62 | AC-3.8；AC-3.3；BR-10 | admin、sitterL | admin E29 `POST /api/admin/orders/{L4}/mediation`（`adjustment.amount=1000`、`adjustment.basis="全額退款"`）；sitterL 重新整理帳務 | 列表依序 `sitter-ledger-item-{L4}`、`{L1}`；L4「已結案」「$ 0」；總收入仍「$ 1,000」；無分頁元件 | E29 → `status=COMPLETED`、`adjustmentPaymentIds` 1 筆；`INSPECT(L4)`：`adminTasks` 該 `SERVICE_DISPUTE` `status=RESOLVED`、`resolution` 有值、`resolvedAt` 有值；`payments` 含該 `adjustmentPaymentId`、`purpose=ADMIN_ADJUSTMENT`、`direction=REFUND`、`amount=1000`、`status=VERIFIED`、`verifiedAt` 有值；調解後 admin E27 `GET /api/admin/orders/{L4}` 仍 200（曾有待辦即在唯讀範圍，`status=COMPLETED`）；E30 `orders[0].orderId=L4`、`netPaid=0`；`totalIncome=1000` | 截圖 + API JSON |
 | OC-63 | AC-3.4；BR-22 | sitterL | 開 `/sitter/orders`，點 `sitter-orders-tab-history` | 不顯示總收入（無 `sitter-ledger-total-income`、無「總收入」文字）；有 `sitter-order-card-{L1}` | — | 截圖 |
 | OC-64 | AC-3.4 | sitterL | `sitter-ledger-select-month` 選 {serverMonth 往前 3 個月}（帳號建立前） | `sitter-ledger-total-income`「$ 0」；`sitter-ledger-empty`「本月沒有已結束的訂單」 | E30 該月 → `totalIncome=0`、`orders=[]` | 截圖 + API JSON |
 | OC-65 | AC-3.4；BR-16 | sitterL | 以 Playwright `timezoneId=UTC` 的 context 開 `/sitter/ledger` | `sitter-ledger-select-month` 的值 = E30 `serverMonth` | 頁面若先以瀏覽器月份查詢且與 `serverMonth` 不同，必須再以 `serverMonth` 查一次（SD-FULFILL §9.2） | 截圖 + API JSON |
@@ -204,7 +204,7 @@
 | OC-40 | EX-17 | GCS | 不適用（結案與回報不上傳檔案；OC-40 斷言表單無附件元件） |
 | OC-66 | EX-18 | `month` 缺漏 / 格式錯 | 400 `VALIDATION_FAILED`、`field=month` |
 | OC-47 | EX-19 | 多錯誤同時成立 | 說明空白且已 `DISPUTED` → 400 |
-| OC-22 | EX-20 | 收件人關閉 Email | 站內通知照寫、`emailStatus` 為不寄 |
+| OC-22 | EX-20 | 收件人關閉 Email | 站內通知照寫、`emailStatus=SKIPPED_PREFERENCE` |
 | — | EX-21 | O13 與 C8 在視窗終點併發 | §4 |
 
 ---
@@ -241,8 +241,7 @@
 
 | # | 項目 | 影響 | 建議 |
 |---|------|------|------|
-| 1 | `INSPECT.notifications[].emailStatus` 的列舉值（待寄 / 已寄 / 不寄 / 失敗）未在 SD-ORDER §10.4 或 SD-NOTIFY 定義 | OC-11、OC-22、OC-32、OC-43 只能以「有 Email / 不寄」語意描述 | SD-NOTIFY 重建時定義列舉值，e2e-author 依實際值對應 |
-| — | 已解決（2026-11-22）：ADMIN 帳號（`provision-account roles[]`）；保母 Email 偏好（`sitter-setup.emailPreferences`）；排程搶先（自動觸發跳過測試訂單、`?orderId=`）；ADMIN 無通知（`INSPECT.notifications`）；金額格式（SD-FRONTEND-SPEC §6.4.1）；回報說明計數器與截斷（PRD-009 §4.3、`owner-order-dispute-description-counter`）；FT1 / FT2 允許的轉換與訂單狀態（SD-FULFILL §6.3）；訂單列表分頁 testid（PRD-009 §9 / SD-ORDER §9.3） | — | — |
+| — | 已解決（2026-11-22）：`emailStatus` 列舉（SD-ORDER §10.4：測試帳號應寄者 `SUPPRESSED_TEST`、偏好關閉 `SKIPPED_PREFERENCE`）；`DISPUTED` 訂單的視窗計算（改用 `INSPECT.completionBasisAt`）；ADMIN 帳號（`provision-account roles[]`）；保母 Email 偏好（`sitter-setup.emailPreferences`）；排程搶先（自動觸發跳過測試訂單、`?orderId=`）；ADMIN 無通知（`INSPECT.notifications`）；金額格式（SD-FRONTEND-SPEC §6.4.1）；回報說明計數器與截斷（PRD-009 §4.3、`owner-order-dispute-description-counter`）；FT1 / FT2 允許的轉換與訂單狀態（SD-FULFILL §6.3）；訂單列表分頁 testid（PRD-009 §9 / SD-ORDER §9.3） | — | — |
 
 ## 6. 本測試發現並修復的真實 bug
 
@@ -256,3 +255,4 @@
 | 2026-11-22 | 依 Approved PRD-009、SD-FULFILL、SD-ORDER 全文重寫：旅程型、步驟 ID `OC-`；舊版 TS-009-01~12 的場景（殭屍清理、`payout_at`、`/resolve`、零行程）已不在 PRD-009 範圍而刪除；舊版「本測試發現並修復的真實 bug」屬舊實作（`OwnerOrderDetail.tsx`、`CompletionService`），重建後不適用，歷史見 git | 全面重建 2026-11 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs` / 通知 / `emailStatus` / `admin_tasks` / payments / `completionBasisAt` 改以 `INSPECT` 斷言（OC-02、03、07、08、10~13、20、22、30、32、34、36、39、42~44、48、49、52、53、55~57、60、62）；C8 一律 `?orderId=` 並斷言精確計數、刪除排程搶先因應（OC-30~34、39、48、54、57）；帳號改用 `roles[]` / `displayName` / upsert / `sitter-setup.emailPreferences`（§1.1）；FT1 直接 `PENDING → DONE / CLOSED_BY_SYSTEM`（§1.2）；新 testid（`owner-orders-tab-evaluating` / `-active`、`sitter-orders-tab-history`、`sitter-order-card-*`、`owner-order-detail-btn-modify`、`sitter-order-detail-btn-modify` / `-btn-cancel`、`owner-order-dispute-description-counter`）；計數器剩餘字數與 code point 截斷（OC-40、OC-51）；全形空白（OC-49、OC-51）；金額改 `$ 1,000` 格式（OC-60、62、64、68、71）；§4 移回 E2E 的項目刪除；§5 只留 `emailStatus` 列舉 | 主流程交辦（核准後修訂） |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：`SHIFT-WINDOW` 改以 `INSPECT.completionBasisAt + 48h` 計算（§1.2；`DISPUTED` / 有未結束變更時 E2 不回 `disputeWindowEndsAt`，OC-48 明寫）；`emailStatus` 收斂為 `SUPPRESSED_TEST` / `SKIPPED_PREFERENCE`（§2 說明、OC-22、§3 EX-20；OC-11、32、43 沿用「有 Email」定義）；ADMIN 唯讀範圍改「`DISPUTED` 或曾有任何待辦」：OC-62 加調解後 E27 仍 200、OC-53 加從未有待辦 E27 403；OC-62 加 `payments` 的 `direction` / `amount`；OC-05、OC-23、OC-55 加 `owner/sitter-order-detail-btn-open-modification`；§5 `emailStatus` 項標已解決 | 核准後修訂（主流程交辦） |

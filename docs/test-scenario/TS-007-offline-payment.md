@@ -56,7 +56,9 @@
 
 - 「把期限移到過去」一律以 shift-time 將該期限設為 `serverTime − 1 分鐘`（`minutes` 由 spec 依 E2 `serverTime` 與 E10 期限值計算）。
 - 測試圖檔由 spec 產生（PNG / JPEG / WebP / GIF / HEIC / PDF 皆帶正確 magic bytes；6 MB JPEG 以填充產生），不放 repo 大檔。
-- 「inspect」= `GET /api/internal/test-data/orders/{orderId}/inspect`（SD-ORDER §10.4）：`orderLogs`、`notifications`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）、`adminTasks`（含 `resolution`、`resolvedAt`）、`payments`（`remindAt`、`remindedAt`、`escalateAt`、`escalatedAt`、`verifiedAt`、`voidedAt`）、`totalAmount`、`fulfill.visits`。「Email 已排入」= 該筆 `emailStatus` 存在且不是「略過 / 不寄」（值域由 SD-NOTIFY 定義）。
+- 「inspect」= `GET /api/internal/test-data/orders/{orderId}/inspect`（SD-ORDER §10.4）：`orderLogs`、`notifications`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）、`adminTasks`（含 `resolution`、`resolvedAt`）、`payments`（`amount`、`direction`、`purpose`、`remindAt`、`remindedAt`、`escalateAt`、`escalatedAt`、`verifiedAt`、`voidedAt`）、`totalAmount`、`fulfill.visits`（含 `serviceDate`、`planId`）。
+- 「Email 已排入」= `emailStatus=SUPPRESSED_TEST`：測試帳號收件者依偏好（或不可關閉類別）應寄的 Email 一律標此值、不實際送 Resend；偏好關閉且可關閉類別 = `SKIPPED_PREFERENCE`（`emailStatus` 列舉：`PENDING` / `SENT` / `SKIPPED_PREFERENCE` / `FAILED` / `NOT_APPLICABLE` / `SUPPRESSED_TEST`）。
+- 畫面狀態文字（付款：待付款 / 待核對 / 已確認 / 已作廢；憑證：待核對 / 已確認 / 已駁回）依 SD-FRONTEND-SPEC §6.4（該表使用者尚未確認，文字若調整以 §6.4 為準）。
 
 清除：`POST /api/internal/cron/test-data/cleanup-e2e-journeys`（SD-ORDER §10.4：訂單相關表硬刪除、交易外刪憑證 GCS 物件；跨模組範圍含通知、收款帳號、方案、毛孩、帳號）。
 
@@ -71,7 +73,7 @@
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
 | P-01 | AC-1.1 | sitter | 前置 `O_PP`；`sitter` 以收款帳號設定 API（PRD-025）把帳號改為 Y（`700` / `信義分行` / `98765432100` / `李大華`） | — | 設定 API 200 | API JSON |
-| P-02 | AC-1.1 | owner | 開啟 `/owner/orders/{O}`，定位 `payment-block-{P}` | 容器內 `payment-amount` 為 `$ 3,000`；`payment-account-snapshot` 含「812」「台北分行」「12345678901」「王小明」且不含「98765432100」「李大華」；`payment-due-at` 為 E10 `dueAt` 換算 Asia/Taipei 的 `YYYY-MM-DD HH:mm`；全頁 `order-total-amount` 數量 0；容器內不出現訂單總額或差額公式（同頁 `owner-order-detail-quote-breakdown` 可顯示總額，PRD-007 BR-1、PRD-006 BR-16）；`submission-history` 顯示「尚未上傳憑證」 | owner E10 `GET /api/orders/{O}/payments` → 200，陣列 1 筆：`direction=CHARGE`、`purpose=INITIAL`、`amount=3000`、`status=UNPAID`、`accountSnapshot={ bankCode: "812", branch: "台北分行", accountNumber: "12345678901", accountName: "王小明" }`、無 `currentSubmissionId` / `verifiedAt` / `voidedAt` 欄位、`allowedActions=["UPLOAD"]` | 截圖 + API JSON |
+| P-02 | AC-1.1 | owner | 開啟 `/owner/orders/{O}`，定位 `payment-block-{P}` | 容器內 `payment-amount` 為 `$ 3,000`；`payment-account-snapshot` 含「812」「台北分行」「12345678901」「王小明」且不含「98765432100」「李大華」；`payment-due-at` 為 E10 `dueAt` 換算 Asia/Taipei 的 `YYYY-MM-DD HH:mm`；全頁 `order-total-amount` 數量 0；容器內不出現訂單總額或差額公式（同頁報價明細 `order-detail-quote-original-total`、`order-detail-quote-current-total` 可顯示 `$ 3,000`，且尚無變更時 `order-detail-quote-modification-*` 數量 0，PRD-007 BR-1、PRD-006 BR-16）；`submission-history` 顯示「尚未上傳憑證」 | owner E10 `GET /api/orders/{O}/payments` → 200，陣列 1 筆：`direction=CHARGE`、`purpose=INITIAL`、`amount=3000`、`status=UNPAID`、`accountSnapshot={ bankCode: "812", branch: "台北分行", accountNumber: "12345678901", accountName: "王小明" }`、無 `currentSubmissionId` / `verifiedAt` / `voidedAt` 欄位、`allowedActions=["UPLOAD"]` | 截圖 + API JSON |
 | P-03 | AC-1.1 | sitter | sitter E10 同一訂單 | — | 200；`accountSnapshot` 同 P-02（收款方看自己的快照）；`allowedActions` 不含 `UPLOAD` | API JSON |
 | P-04 | AC-1.1 | owner | 前置 `O_PENDING`；開啟 `/owner/orders/{O}` | 不顯示付款區塊：`payment-amount`、`proof-submit-btn` 數量 0 | owner E10 → 200 `[]` | 截圖 + API JSON |
 | P-05 | AC-1.2 | sitter | 前置 `O_REFUND`；開啟 `/sitter/orders/{O}`，定位退款的 `payment-block-{退款 P}` | 容器內 `payment-amount` 為 `$ 1,200`；文案「退款帳號請與飼主自行聯繫」；容器內 `payment-account-snapshot`、`payment-due-at` 數量 0；`submission-history` 顯示「尚未上傳憑證」；`proof-disclaimer-checkbox` 文字為「我瞭解平台不代管此筆線下款項，此筆交易風險由飼主與保母雙方自行承擔」；`proof-last5-input` 標籤「您匯出帳戶的後五碼」；未勾免責時 `proof-submit-btn` 停用 | sitter E10 退款那筆：`direction=REFUND`、`purpose=MODIFICATION_REFUND`、`amount=1200`、`status=UNPAID`、無 `accountSnapshot` 欄位、無 `dueAt` 欄位、`allowedActions=["UPLOAD"]` | 截圖 + API JSON |
@@ -87,7 +89,7 @@
 | P-15 | AC-1.3 | owner | API：E10 `/api/orders/{執行期 randomUUID}/payments`；E11 `/api/orders/{O_PP}/payments/{O_REFUND 的退款 P}/submissions` | — | 兩者皆 404 `NOT_FOUND` | API JSON |
 | P-16 | AC-1.3 | owner | P-10 至 P-15 之後讀取；inspect `O_PP` | — | E10 `O_PP` INITIAL 仍 `UNPAID`、無 `currentSubmissionId`；E12 `GET .../payments/{P}/submissions` → `[]`；退款 payment 仍 `UNPAID`；inspect `orderLogs` 無 `PAYMENT_PROOF_SUBMITTED`；GCS 無新物件由 §4 承擔 | API JSON |
 | P-17 | AC-1.4 | owner | 前置 `O_PP`；開啟 `/owner/orders/{O}`，在 `payment-block-{P}` 勾 `proof-disclaimer-checkbox`、`proof-last5-input` 填 `12345`、`proof-file-input` 選 2 MB PNG、點 `proof-submit-btn`；攔截頁面發出的 E11 | 上傳表單消失；`submission-history` 內出現 `submission-history-item-{submissionId}`，後五碼 12345 | 頁面發出的 E11 恰 1 次，帶 `Idempotency-Key` 標頭；回應 201 `{ submissionId, paymentId: P, paymentStatus: "SUBMITTED", submittedAt }`，無 `url` 欄位；E10 `status=SUBMITTED`、`currentSubmissionId`=回應 `submissionId`；E12 1 筆 `status=SUBMITTED`、`lastFive=12345`、`disclaimerAgreedAt` 介於點擊前後的 `serverTime`、無 `reviewedAt`；E2 `status=PENDING_PAYMENT` | 截圖 + API JSON |
-| P-18 | AC-1.4 | — | inspect 該訂單；`sitter` 站內通知列表 | — | `orderLogs` 恰 1 筆 `PAYMENT_PROOF_SUBMITTED`：`operatorRole=OWNER`、`operatorUserId=owner`、payload `paymentId`、`purpose=INITIAL`、`submissionId`、`lastFive=12345`；`notifications` 恰 1 筆 `type=PAYMENT_PROOF_SUBMITTED`、`recipientUserId=sitter`、`recipientRole=SITTER`、`mandatory=false`、Email 已排入；`sitter` 站內通知列表可見該則 | API JSON |
+| P-18 | AC-1.4 | — | inspect 該訂單；`sitter` 站內通知列表 | — | `orderLogs` 恰 1 筆 `PAYMENT_PROOF_SUBMITTED`：`operatorRole=OWNER`、`operatorUserId=owner`、payload `paymentId`、`purpose=INITIAL`、`submissionId`、`lastFive=12345`；`notifications` 恰 1 筆 `type=PAYMENT_PROOF_SUBMITTED`、`recipientUserId=sitter`、`recipientRole=SITTER`、`mandatory=false`、`emailStatus=SUPPRESSED_TEST`；`payments[0]`：`amount=3000`、`direction=CHARGE`、`purpose=INITIAL`、`status=SUBMITTED`；`sitter` 站內通知列表可見該則 | API JSON |
 | P-19 | AC-1.5 | owner | 前置 `O_PP`；UI 不勾免責，填 `12345`、選有效 PNG | `proof-submit-btn` 停用 | — | 截圖 |
 | P-20 | AC-1.5 | owner | API：E11 `disclaimerAgreed=false`（其餘有效） | — | 400 `VALIDATION_FAILED`、`payload.field=disclaimerAgreed` | API JSON |
 | P-21 | AC-1.5 | owner | API：E11 `lastFive=1234`；再 `lastFive=12a45` | — | 兩者皆 400 `VALIDATION_FAILED`、`payload.field=lastFive` | API JSON |
@@ -149,8 +151,9 @@
 | PV-32 | AC-2.7 | owner2 | API：E12、E13（Y） | — | 兩者皆 403 `FORBIDDEN` | API JSON |
 | PV-33 | AC-2.7 | owner | 另建 `owner` 的 `O_PP`（O_other）；API：E12 `/api/orders/{O_other}/payments/{P}/submissions`、E13 `/api/orders/{O_other}/payments/{P}/submissions/{Y}/proof-url` | — | 兩者皆 404 `NOT_FOUND` | API JSON |
 | PV-34 | AC-2.7 | admin | 前置 `O_ESC`；API：E10、E12、E27 `GET /api/admin/orders/{O}`；UI 開啟 `/admin/orders/{O}` | `payment-account-snapshot` 顯示 X 四欄、區塊內無可編輯輸入框與編輯按鈕；`submission-history` 可見 | E10 200，INITIAL `accountSnapshot` = X 四欄；E12 200；E27 200、`role=ADMIN`、`payments[0].accountSnapshot` = X | 截圖 + API JSON |
-| PV-35 | AC-2.7 | admin | 前置 `O_SUB`（無待辦、非 `DISPUTED`）；API：E10、E12、E27；UI 開啟 `/admin/orders/{O}` | 「無權限檢視此訂單」 | 三者皆 403 `FORBIDDEN` | 截圖 + API JSON |
-| PV-36 | AC-2.8 | sitter | 前置 `O_SUB`（收件者為 `@e2e-journey.test`，Resend 測試模式必定拒收，見 §5-2）；API：E14；觸發 C11 `POST /api/internal/cron/notifications/email-dispatch?orderId={O}`；inspect | — | E14 200、`orderStatus=CONFIRMED`；E2 `CONFIRMED`；雙方站內通知列表含「訂單啟動成功」；C11 後 inspect 兩筆 `ORDER_ACTIVATED` 的 `emailStatus` 為投遞失敗（4xx 直接失敗），訂單與 payment 狀態不變（5xx 重試 5 次見 §4） | API JSON |
+| PV-35 | AC-2.7 | admin | 前置 `O_ESC` → `sitter` E14（待辦 `RESOLVED`、訂單 `CONFIRMED`）；API：E10、E12、E13、E27；UI 開啟 `/admin/orders/{O}`。另以 `O_ADJ`（調解後終態，曾有 `MODIFICATION_PAYMENT_DISPUTE` 待辦）呼叫 E27 | 唯讀頁面可見 `payment-account-snapshot`、`submission-history`；`btn-admin-void` 數量 0（無作廢入口） | `O_ESC`：E10 200 且 INITIAL `accountSnapshot` = X 四欄、E12 200、E13 200、E27 200（`adminTasks[0].status=RESOLVED`、`resolution=SITTER_VERIFIED`，`allowedActions` 不含 `VOID_INITIAL_PAYMENT`）；`O_ADJ`：E27 200（唯讀範圍 = `DISPUTED` 或曾有任何待辦，baseline CQ-84） | 截圖 + API JSON |
+| PV-36 | AC-2.7 | admin | 前置 `O_SUB`（從未有任何待辦、非 `DISPUTED`）；API：E10、E12、E27；UI 開啟 `/admin/orders/{O}` | 「無權限檢視此訂單」 | 三者皆 403 `FORBIDDEN` | 截圖 + API JSON |
+| PV-37 | AC-2.8 | sitter | 前置 `O_SUB`；API：E14；觸發 C11 `POST /api/internal/cron/notifications/email-dispatch?orderId={O}`；inspect | — | E14 200、`orderStatus=CONFIRMED`；E2 `CONFIRMED`；雙方站內通知列表含「訂單啟動成功」；inspect 兩筆 `ORDER_ACTIVATED` 的 `emailStatus=SUPPRESSED_TEST`（測試帳號不送 Resend），C11 後訂單與 payment 狀態不變；Resend 5xx 與重試 5 次見 §4 | API JSON |
 
 ### 2.3 子模組 3：首次付款期限、提醒、逾期、升級與 ADMIN 作廢
 
@@ -158,7 +161,7 @@
 |------|----|------|------|---------|---------------|------|
 | PS-01 | AC-3.1 | owner | 前置 `O_PP`（F = 台北今天 + 7）；讀 E2、E10；開啟 `/owner/orders/{O}` | `payment-due-at` 顯示「請於 {F − 1 天} 00:00 前完成付款」（Asia/Taipei `YYYY-MM-DD HH:mm`） | E10 `dueAt` = F 00:00 台北 − 24h 的 UTC ISO 字串（因 `quotedAt + 2h` 較早）；`escalateAt` = F 00:00 台北 + 2h 的 UTC ISO 字串；spec 以 E2 `firstServiceDate`、`quote.quotedAt` 套 baseline §5 公式計算預期值後逐字比對 | 截圖 + API JSON |
 | PS-02 | AC-3.1 | owner | 前置 `O_URGENT`（F = 台北明天）；讀 E2、E10；開啟頁面 | `payment-due-at` 為 `dueAt` 的台北時間 | `dueAt` = max(F 00:00 台北 − 24h, `quotedAt` + 2h)；`escalateAt` = max(F 00:00 台北, `dueAt`) + 2h；逐字比對（固定日期範例值見 §4） | 截圖 + API JSON |
-| PS-03 | AC-3.2 | ownerMuted | 前置 `ownerMuted` 的 `O_PP`；shift-time `target=REMIND_AT` 至過去；C2 `POST /api/internal/cron/payments/reminder?orderId={O}` | — | C2 200 `processed=1`、`skipped=0`、`failed=0`；inspect：`notifications` `PAYMENT_REMINDER` 恰 1 筆給 `ownerMuted`、`mandatory=true`、Email 已排入（偏好關閉仍排入）；`payments[0].remindedAt` 有值；`orderLogs` 無新增業務 action；站內通知列表可見 | API JSON |
+| PS-03 | AC-3.2 | ownerMuted | 前置 `ownerMuted` 的 `O_PP`；shift-time `target=REMIND_AT` 至過去；C2 `POST /api/internal/cron/payments/reminder?orderId={O}` | — | C2 200 `processed=1`、`skipped=0`、`failed=0`；inspect：`notifications` `PAYMENT_REMINDER` 恰 1 筆給 `ownerMuted`、`mandatory=true`、`emailStatus=SUPPRESSED_TEST`（偏好關閉仍排入）；對照：同訂單報價時的 `QUOTE_SENT`（`mandatory=false`）`emailStatus=SKIPPED_PREFERENCE`；`payments[0].remindedAt` 有值；`orderLogs` 無新增業務 action；站內通知列表可見 | API JSON |
 | PS-04 | AC-3.2 | — | 再呼叫 C2（同 `orderId`） | — | `processed=0`、`skipped=0`、`failed=0`；inspect `PAYMENT_REMINDER` 仍 1 筆 | API JSON |
 | PS-05 | AC-3.2 | — | 前置 `O_SUB`；shift-time `REMIND_AT` 至過去；C2 `?orderId` | — | `processed=0`；inspect 無 `PAYMENT_REMINDER`、`remindedAt` 無值 | API JSON |
 | PS-06 | AC-3.2 | — | 前置 `O_PP`；shift-time `REMIND_AT` 與 `PAYMENT_DUE_AT` 皆至過去（模擬停擺至 `due_at` 後）；C2 `?orderId` | — | `processed=0`；inspect 無 `PAYMENT_REMINDER` | API JSON |
@@ -180,9 +183,9 @@
 | PS-22 | AC-3.6 | admin | 前置 `O_ESC`；開啟 `/admin/orders/{O}`；點 `btn-admin-void`、`admin-void-input-reason` 填「雙方說法不一致」、點 `admin-void-btn-confirm` | 可見 `payment-account-snapshot`（X）與 `submission-history-image-{X}`；頁面無確認收款按鈕（`btn-verify-payment` 數量 0） | 頁面 E16 `POST /api/admin/orders/{O}/payments/{P}/void` 恰 1 次 → 200 `{ orderId, status: "CANCELLED", cancelledBy: "ADMIN", paymentStatus: "VOID" }` | 截圖 + API JSON |
 | PS-23 | AC-3.6 | owner、sitter | `owner` E2、E10、E12、E13；開啟 `/owner/orders/{O}`；`sitter` E13 | `submission-history-item-{X}` 標示「已作廢」，`submission-history-image-{X}` 可載入 | E2 `CANCELLED`、`cancellation={ cancelledBy: "ADMIN", reason: "雙方說法不一致" }`、`visits` 全部 `CANCELLED`；E10 `VOID`、有 `voidedAt`；E12 X `status=SUBMITTED`、`voided=true`；雙方 E13 200 | 截圖 + API JSON |
 | PS-24 | AC-3.6 | — | inspect；雙方站內通知列表 | — | 待辦 `RESOLVED`、`resolution=ADMIN_VOIDED`；`orderLogs` 恰 1 筆 `PAYMENT_VOIDED_BY_ADMIN`、`operatorRole=ADMIN`、payload `reason=雙方說法不一致`、`submissionId=X`、`adminTaskId`；`notifications` `PAYMENT_VOIDED_BY_ADMIN` 恰 2 筆、`mandatory=true`；通知內容含「平台已作廢此筆付款，款項請由雙方自行處理」 | API JSON |
-| PS-25 | AC-3.7 | admin | 前置 `O_SUB`（未到 `escalate_at`）；API：E16 `reason=測試`；E27 | — | 兩者皆 403 `FORBIDDEN`；E10 仍 `SUBMITTED` | API JSON |
-| PS-26 | AC-3.7 | admin | 前置 `O_ESC`；`admin` 先開啟 `/admin/orders/{O}`；之後 `sitter` E14；`admin` 在舊畫面點 `btn-admin-void` → 填原因 → `admin-void-btn-confirm` | 顯示「此待辦已處理，無法作廢」 | E16 403 `FORBIDDEN`；E2 仍 `CONFIRMED` | 截圖 + API JSON |
-| PS-27 | AC-3.7 | admin | 前置 `O_ESC` → `sitter` E15；`admin` E16 | — | 403 `FORBIDDEN`；E10 `UNPAID` | API JSON |
+| PS-25 | AC-3.7 | admin | 前置 `O_SUB`（未到 `escalate_at`、該訂單從未有任何 ADMIN 待辦、非 `DISPUTED`；inspect `adminTasks=[]`）；API：E16 `reason=測試`；E27 | — | 兩者皆 403 `FORBIDDEN`；E10 仍 `SUBMITTED` | API JSON |
+| PS-26 | AC-3.7 | admin | 前置 `O_ESC`；`admin` 先開啟 `/admin/orders/{O}`；之後 `sitter` E14；`admin` 在舊畫面點 `btn-admin-void` → 填原因 → `admin-void-btn-confirm`；之後 E27 | 顯示「此待辦已處理，無法作廢」 | E16 403 `FORBIDDEN`；E2 仍 `CONFIRMED`；E27 仍 200（唯讀範圍含曾有待辦，baseline CQ-84） | 截圖 + API JSON |
+| PS-27 | AC-3.7 | admin | 前置 `O_ESC` → `sitter` E15；`admin` E16；E27 | — | E16 403 `FORBIDDEN`；E10 `UNPAID`；E27 200 | API JSON |
 | PS-28 | AC-3.7 | admin | 前置 `O_DISP_SS`；`admin` E16 對補款 payment | — | 403 `FORBIDDEN`；E10 補款仍 `SUBMITTED` | API JSON |
 | PS-29 | AC-3.7 | admin | 前置 `O_ESC`；E16 `reason=""`；再 `reason` 201 字 | — | 兩者皆 400 `VALIDATION_FAILED`、`payload.field=reason`；E10 仍 `SUBMITTED`；inspect 待辦仍 OPEN | API JSON |
 | PS-30 | AC-3.7 | admin | ADMIN 訂單頁無確認收款按鈕：同 PS-22 | `btn-verify-payment` 數量 0 | — | 截圖（引用 PS-22） |
@@ -214,10 +217,10 @@
 | §4 | EX-17、EX-24 | 鎖逾時、`@Version` | 後端測試 |
 | P-40、PS-31、PS-32 | EX-18 | 跨角色競爭 | 恰一方成功 |
 | §4 | EX-19、EX-20、EX-21 | GCS 上傳失敗、交易失敗刪物件、簽名失敗 | 後端測試 |
-| PV-36 | EX-22 | Resend 拒收 | 主操作 200、站內通知存在、Email 標記失敗 |
+| PV-37；§4 | EX-22 | Resend 寄送失敗 | E2E：主操作 200、站內通知存在（測試帳號 `SUPPRESSED_TEST`）；實際 5xx / 重試由後端測試 |
 | PX-02 | EX-23 | SaaS 方案 | FREE 且鎖定也能確認收款 |
 | PS-31、PS-32；§4 | EX-25 | 作廢通過授權後重驗失敗 | 409 `PAYMENT_STATE_CONFLICT` |
-| PV-35、PS-25 | EX-26 | ADMIN 不在可讀範圍 | 403 `FORBIDDEN` |
+| PV-36、PS-25；PV-35（範圍內對照） | EX-26 | ADMIN 讀取從未有任何待辦且非 `DISPUTED` 的訂單；對照：待辦已 RESOLVED / 調解後仍可讀 | 403 `FORBIDDEN`；對照 200 |
 | PS-26、PS-27 | EX-27 | 待辦已關閉後作廢 | 403 `FORBIDDEN` |
 | PV-12、PV-13、PS-12、PS-13 | EX-28 | 逾期後駁回確認框 | 兩種文案；駁回 200 |
 | PS-05、PS-06、PS-11、PS-21；§4 | EX-29 | 排程 vs 使用者 | 條件不符不處理（`processed=0`） |
@@ -236,7 +239,7 @@
 | AC-1.8 / EX-19 GCS 5xx → 503 `STORAGE_UNAVAILABLE`、同 key 恢復後 201；EX-20 取消先到時物件被刪 | 正式站無法注入 GCS 故障、無法觀察物件刪除 | `PaymentSubmissionConcurrencyIntegrationTest` |
 | AC-2.6 / EX-17、EX-24 鎖 > 3 秒 409 `ORDER_BUSY` + `Retry-After: 1` | 需另一連線持有訂單列鎖 | `PaymentReviewIntegrationTest`（SD-ORDER §10.1 鎖逾時做法） |
 | AC-2.7 簽名網址實際於 5 分鐘後失效、前端重新請求新網址 | 等待 5 分鐘拖慢 CI；前端判斷失效的機制 SD 未定義 | 手動驗證：取得 E13 網址，等待 5 分 10 秒後 GET 應得 403，畫面重新整理圖片後可再載入；E2E 以 PV-31 `X-Goog-Expires=300` 代替；TTL 設定由 `PaymentQueryIntegrationTest` 驗證 |
-| AC-2.8 Resend 5xx、outbox 重試 5 次後標記失敗 | 正式站 Resend 為測試模式，只會 4xx；重試排程屬 SD-NOTIFY | `PaymentReviewIntegrationTest`（Resend 不在交易內呼叫、狀態不回滾）；重試次數由 SD-NOTIFY 投遞排程測試（類別待 SD-NOTIFY 定義） |
+| AC-2.8 Resend 5xx、outbox 重試 5 次後標記失敗 | 測試帳號收件者一律 `SUPPRESSED_TEST`、不送 Resend；重試排程屬 SD-NOTIFY | `PaymentReviewIntegrationTest`（Resend 不在交易內呼叫、狀態不回滾）；重試次數由 SD-NOTIFY 投遞排程測試（類別待 SD-NOTIFY 定義） |
 | AC-3.1 範例固定值（2026-11-23T16:00:00Z 等） | 正式站時間不可控；E2E 以公式比對 | `QuoteIntegrationTest` |
 | AC-3.2「台北 11/23 00:00 後第一次排程 15 分鐘內」 | 實際排程時刻不可控；E2E 以 shift-time + 帶 `orderId` 觸發 C2 | `PaymentCronIntegrationTest` |
 | AC-3.8 嚴格情境「兩者皆已通過授權檢查」才回 409 | E2E 無法保證兩請求都先通過鎖前檢查 | `AdminVoidConcurrencyIntegrationTest` |
@@ -249,8 +252,8 @@
 
 ## 5. 已知限制 / 待補
 
-1. **BR-1 與 PRD-006 BR-16 同頁（已解決）**：PRD-007 BR-1 / §4.1-1 與 PRD-006 BR-16 已回寫為「付款區塊內不顯示總額，同頁報價明細可顯示」。P-02 據此斷言：`payment-block-{paymentId}` 內不出現訂單總額或差額公式、全頁無 `order-total-amount`；同頁 `owner-order-detail-quote-breakdown` 顯示總額不算違規。
-2. **Email 投遞（限制，未解決）**：正式站 Resend 為測試模式，寄給 `@e2e-journey.test` 一律被拒（4xx 直接失敗），E2E 只能斷言「已排入」與「4xx 後標記失敗」，不能斷言「已寄出」。
+1. **BR-1 與 PRD-006 BR-16 同頁（已解決）**：PRD-007 BR-1 / §4.1-1 與 PRD-006 BR-16 已回寫為「付款區塊內不顯示總額，同頁報價明細可顯示」。P-02 據此斷言：`payment-block-{paymentId}` 內不出現訂單總額或差額公式、全頁無 `order-total-amount`；同頁報價明細三段（`order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`、`order-detail-quote-current-total`）顯示總額不算違規。
+2. **Email 投遞（已解決）**：SD-NOTIFY / SD-ORDER §10.4 定義 `emailStatus` 列舉，測試帳號收件者依偏好應寄者標 `SUPPRESSED_TEST`、不送 Resend；E2E 的 Email 斷言收斂為 `SUPPRESSED_TEST` / `SKIPPED_PREFERENCE`。實際寄出與重試仍見 §4。
 3. **站內通知列表 API（未解決）**：SD-NOTIFY 尚未重建，站內可見性沿用現行 `GET /api/notifications?role={ROLE}`；type / `mandatory` / `emailStatus` 改由 inspect 讀取。
 4. **已解決（2026-11-22 依 SD-ORDER 核准後修訂）**：inspect 唯讀端點（§10.4）；ADMIN 與 OWNER + SITTER 雙角色 provision（`roles[]`）；排程帶 `orderId` 只處理測試訂單、自動觸發跳過測試訂單（不再需要避開排程分鐘與重跑因應）；SD-FULFILL FT1 支援讓訂單進入 `IN_PROGRESS`；testid 缺口由 SD-ORDER §9.3 補定（`payment-block-{paymentId}`、`reject-submit-btn`、`reject-overdue-dialog*`、`admin-void-*`、`admin-task-item-{taskId}`、`payment-refund-dispute-link`、`submission-history-item/image-{submissionId}`）；金額格式統一 SD-FRONTEND-SPEC §6.4.1；PRD-007 AC-1.7 Given 改為 `DISPUTED` + `MODIFICATION_REFUND` `UNPAID`；EX-11 / AC-2.4 對齊 403 / 409。
 
@@ -265,6 +268,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：ADMIN 唯讀範圍改為「`DISPUTED` 或曾有任何待辦」——新增 PV-35（待辦 RESOLVED 與調解後 E10 / E12 / E13 / E27 仍 200、無作廢入口），原 PV-35 / PV-36 改為 PV-36（從未有待辦 → 403）/ PV-37；PS-25 Given 改「從未有任何 ADMIN 待辦」，PS-26、PS-27 補 E27 仍 200；inspect 斷言補 `payments[]` `amount` / `direction` / `purpose`（P-18）；Email 斷言收斂為 `emailStatus=SUPPRESSED_TEST`（P-18、PS-03、PV-37），PS-03 補 `SKIPPED_PREFERENCE` 對照；P-02 改用報價明細三段 testid；狀態文字標依 SD-FRONTEND-SPEC §6.4；§5-2 標已解決；狀態維持 Approved | PRD-007 AC-2.7 / AC-3.7 核准後回寫（baseline CQ-84）；SD-ORDER §6.3 E2 / E27、§10.4 inspect 修訂 |
 | 2026-11-22 | 依 SD-ORDER / PRD-007 核准後修訂（commit 477c75d）更新：前置資料改用 `provision-account` `roles[]`、setup upsert 與 key 對應 id；所有 order_logs / 通知 / 待辦 resolution / payment 時間欄斷言改由 inspect 在 E2E 驗證；C2–C4、C11 一律帶 `orderId` 並斷言精確 `processed` / `skipped` / `failed`，移除避開排程分鐘與被搶先重試的因應；套用 §9.3 testid（payment 容器、駁回送出、逾期確認框、ADMIN 作廢、待辦列表、退款爭議入口、submission 單筆與圖片）；補 E10 `verifiedAt` / `voidedAt`、E12 `reviewedAt` / `verifiedAt` 斷言；PV-10 補全形空白 strip；P-02 依 PRD-007 BR-1 / PRD-006 BR-16 回寫斷言付款區塊內無總額、同頁報價明細可顯示，§5-1 標已解決；AC-2.4 拆為 PV-17（駁回 403）、PV-18（確認 409），PV- 步驟改為 36 步；P-37 對齊新 AC-1.7 Given；§4 移除不可達 Given 列；§5 已解決項標註 | SD-ORDER §6.3、§9.3、§10.4 修訂；PRD-007 AC-1.7、AC-2.4、EX-11 修訂 |
 | 2026-11-22 | 依 PRD-007（Approved 2026-11-22）與 SD-ORDER 全文重寫：改用新範本；三子模組 24 條 AC 全部對應步驟；EX-1–EX-30 對應表；自動化路徑改為 journey spec；移除寫死 UUID 與 Controller 測試路徑；收款帳號設定移至 TS-025；狀態 Draft | 全面重建；抽樣缺陷 #14、#15、#16 |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

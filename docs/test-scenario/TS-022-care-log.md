@@ -48,7 +48,7 @@
 | `FINISH(Vx, completedAt)` | FT1 `status=DONE`、`completedAt`（未帶 = 伺服器現在）；`PENDING → DONE` 亦允許 | 行程 `DONE`、`completionSource=SITTER` |
 | `EXPIRE(Vx)` | FT2 `POST /api/internal/test-data/visits/{Vx}/shift-time`（`target=COMPLETED_AT`、`minutes` 使 `completed_at + 24h` 早於伺服器現在 ≥ 1 分鐘）；訂單 `DISPUTED` 時亦可 | 編輯期限已過（衍生，不寫狀態） |
 | `UPLOAD(Vx, file, caption, key)` | S F16 `POST …/care-log/media-uploads`（`Idempotency-Key`=key；`file.mediaType`、`contentType`、`sizeBytes`、`sha256`、影片 `durationSeconds`；`caption`）→ F17 `GET …/care-log/media-uploads/{uploadId}/target` → 以回應的 `uploadUrl` 與 `headers` PUT 檔案到 GCS → F18 `POST …/care-log/media-uploads/{uploadId}/complete` | 預期 F16 201、F17 200、PUT 200、F18 201 |
-| `SHIFT-WINDOW(order, Δ)` | 同 TS-009：SD-ORDER `shift-time COMPLETION_BASIS_AT`，使 E2 `disputeWindowEndsAt = serverTime + Δ`（在最後一次 FT1 / FT2 之後呼叫） | — |
+| `SHIFT-WINDOW(order, Δ)` | 同 TS-009：讀 `INSPECT(order).completionBasisAt` 與 E2 `serverTime`，以 SD-ORDER `shift-time COMPLETION_BASIS_AT` 位移使 `completionBasisAt + 48h = serverTime + Δ`（不依賴 E2 `disputeWindowEndsAt`，該欄在 `DISPUTED` / 有未結束變更時不回；在最後一次 FT1 / FT2 之後呼叫） | — |
 | `INSPECT(order)` | `GET /api/internal/test-data/orders/{order}/inspect`（`X-Internal-Secret`） | `orderLogs[]`、`notifications[]`、`fulfill.visits / careLogs / media / uploads` |
 
 ### 1.3 測試檔案（fixture，由 e2e-author 放在 `frontend/e2e/fixtures/care-log/`，SHA-256 於執行時計算）
@@ -93,7 +93,7 @@
 > 保母畫面 = 服務執行面板 `/sitter/orders/{orderId}/visits/{visitId}`；飼主 / ADMIN 日誌檢視 = `/orders/{orderId}/visits/{visitId}/care-log`（SD-FULFILL §9.1）。
 > 「無檔案進入儲存服務」在 E2E 以「F16 未回 `uploadId`，且 `INSPECT.fulfill.uploads` 無新槽位（拒絕時不建槽位、不簽網址）」證明；GCS 物件實際存在 / 刪除由後端測試驗（§4）。
 > 「確認失敗、此次上傳作廢」以 `INSPECT.fulfill.uploads` 該槽位 `status=FAILED`、`failureCode` = 回應錯誤碼證明；「仍有效」= `status=PENDING`。
-> 通知以 `INSPECT.notifications`（`type=CARE_LOG_SUBMITTED`、`recipientUserId`、`mandatory`、`emailStatus`）斷言；「有 Email」/「不寄」語意見 §5 #1。
+> 通知以 `INSPECT.notifications`（`type=CARE_LOG_SUBMITTED`、`recipientUserId`、`mandatory`、`emailStatus`）斷言；測試帳號收件者依偏好應寄 Email 者 `emailStatus=SUPPRESSED_TEST`，偏好關閉者 `emailStatus=SKIPPED_PREFERENCE`（SD-ORDER §10.4 列舉）。
 > 「空白」依 SD-GLOBAL-SPEC §2.7 `strip()`（含全形空白）。
 
 ### 2.1 開放條件與草稿
@@ -121,7 +121,7 @@
 | CL-15 | AC-1.4 情境 1；EX-7 | S1 | V1（`IN_PROGRESS`、有草稿）：看送出鈕；API F15 `POST …/care-log/submit`（新 key、`text="提早送"`） | `sitter-care-log-btn-submit` 停用、顯示「行程結束後才能送出」 | 409 `VISIT_STATE_CONFLICT`、`currentVisitStatus=IN_PROGRESS`；F13 V1 `status=DRAFT` | 截圖 + API JSON |
 | CL-16 | AC-1.4 情境 2 | S1 | `FINISH(V1)`；重新整理 V1 面板 | 送出鈕啟用；`sitter-care-log-deadline`「請於 {deadlineAt} 前送出」 | F13 V1 `deadlineAt` = `INSPECT.fulfill.visits` V1 `completedAt` + 24h、`submittable=true` | 截圖 + API JSON |
 | CL-17 | AC-1.4 情境 4；BR-10；EX-10 | S1 | F15 V1 `text="   "`；F15 V1 `text="　　"`（全形）；`FINISH(V3)` 後 F15 V3 `text=""`（V3 有媒體、無文字） | — | 三者皆 422 `CARE_LOG_CONTENT_EMPTY`；`INSPECT` V1、V3 仍 `DRAFT` | API JSON |
-| CL-18 | AC-1.4 情境 2；L3；AC-3.1 情境 1；BR-17；BR-19 | S1、O1 | V1 面板輸入「已餵藥」，點 `sitter-care-log-btn-submit`；`INSPECT(A)`；O1 於通知中心點擊該則 | 送出後面板無 `sitter-care-log-input-text`、`-btn-save`、`-btn-submit`、`-btn-upload`、`-btn-delete-media-*`；通知點擊後到 `/orders/{A}/visits/{V1}/care-log`、`owner-care-log-view` 可見 | 頁面恰發出 1 次 F15（`Idempotency-Key` 記為 K，body `{ text: "已餵藥" }`）→ 200 `{ careLogId, status: "SUBMITTED", submittedAt }`；`INSPECT`：`careLogs` V1 `SUBMITTED`；`orderLogs` 恰 1 筆 `CARE_LOG_SUBMITTED`（`visitId=V1`、`textLength=3`、`imageCount=2`、`videoCount=0`）；`notifications` 恰 1 筆 `CARE_LOG_SUBMITTED`、收件者 O1、`mandatory=false`、有 Email；通知中心該則文案「{V1 serviceDate} 早上服務 的照護日誌已由保母回報，快來看看毛孩的近況吧！」 | 截圖 ×2 + API JSON |
+| CL-18 | AC-1.4 情境 2；L3；AC-3.1 情境 1；BR-17；BR-19 | S1、O1 | V1 面板輸入「已餵藥」，點 `sitter-care-log-btn-submit`；`INSPECT(A)`；O1 於通知中心點擊該則 | 送出後面板無 `sitter-care-log-input-text`、`-btn-save`、`-btn-submit`、`-btn-upload`、`-btn-delete-media-*`；通知點擊後到 `/orders/{A}/visits/{V1}/care-log`、`owner-care-log-view` 可見 | 頁面恰發出 1 次 F15（`Idempotency-Key` 記為 K，body `{ text: "已餵藥" }`）→ 200 `{ careLogId, status: "SUBMITTED", submittedAt }`；`INSPECT`：`careLogs` V1 `SUBMITTED`；`orderLogs` 恰 1 筆 `CARE_LOG_SUBMITTED`（`visitId=V1`、`textLength=3`、`imageCount=2`、`videoCount=0`）；`notifications` 恰 1 筆 `CARE_LOG_SUBMITTED`、收件者 O1、`mandatory=false`、`emailStatus=SUPPRESSED_TEST`；通知中心該則文案「{`INSPECT.fulfill.visits` V1 `serviceDate`} 早上服務 的照護日誌已由保母回報，快來看看毛孩的近況吧！」 | 截圖 ×2 + API JSON |
 | CL-19 | AC-3.5 情境 1、2、4、5；EX-15；EX-16 | S1 | 以 K 與相同 body 重送 F15；以 K 改送 `text="改字"`；新 key 送 F15；不帶 key 送 F15 | — | 依序 200（body 與 CL-18 相同）、422 `IDEMPOTENCY_KEY_REUSED`、409 `CARE_LOG_STATE_CONFLICT`（`currentCareLogStatus=SUBMITTED`）、400 `VALIDATION_FAILED`（`field=Idempotency-Key`）；`INSPECT` 的 `CARE_LOG_SUBMITTED` log 與通知仍各 1 筆 | API JSON |
 | CL-20 | AC-1.5 情境 1；BR-11；EX-8 | S1 | V1：F14（`text="改"`）、F16（`jpg500`，新 key）、F19 `DELETE …/care-log/media/{CL-09 第一張 mediaId}` | — | 三者皆 409 `CARE_LOG_STATE_CONFLICT`；F16 無 `uploadId`；F13 V1 `text="已餵藥"`、`media` 2 筆 | API JSON |
 | CL-21 | AC-1.5 情境 2；AC-3.8 情境 1；BR-26 | S1、S2 | `EXPIRE(V1)`；S1 F14 V1（`text="改"`）；S1 F14 V1（`"a"×1001`）；S2 F14 V1 | — | 依序 409 `CARE_LOG_STATE_CONFLICT`（不是 `DEADLINE_PASSED`）、400 `VALIDATION_FAILED`、403 `FORBIDDEN` | API JSON |
@@ -131,7 +131,7 @@
 
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
-| CL-25 | AC-1.6 情境 1（近似）；AC-3.1 情境 2 | O1、S1 | `owner-setup` upsert O1 `emailPreferences.ORDER_AFFAIR = 關`；訂單 `B`：`FINISH(W1, 伺服器現在 − 23h50m)`；F15 W1（`text="準時送出"`）；之後 upsert O1 改回 `開` | — | F15 200 `SUBMITTED`；`INSPECT(B).notifications` 恰 1 筆 `CARE_LOG_SUBMITTED`、收件者 O1、`emailStatus` 為不寄（站內通知仍寫入） | API JSON |
+| CL-25 | AC-1.6 情境 1（近似）；AC-3.1 情境 2 | O1、S1 | `owner-setup` upsert O1 `emailPreferences.ORDER_AFFAIR = 關`；訂單 `B`：`FINISH(W1, 伺服器現在 − 23h50m)`；F15 W1（`text="準時送出"`）；之後 upsert O1 改回 `開` | — | F15 200 `SUBMITTED`；`INSPECT(B).notifications` 恰 1 筆 `CARE_LOG_SUBMITTED`、收件者 O1、`emailStatus=SKIPPED_PREFERENCE`（站內通知仍寫入） | API JSON |
 | CL-26 | AC-1.6 情境 2（近似）；EX-9；L4 | S1 | `START(W2)` → F14 W2（`text="乾乾吃完"`）→ `UPLOAD` ×2（`jpg500`）→ `FINISH(W2, 伺服器現在 − 23h)` → `EXPIRE(W2)`；之後對 W2 依序 F14、F16（`jpg500`，新 key）、F19（其中一張）、F15（新 key） | — | 四者皆 409 `DEADLINE_PASSED`、`deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt` = F13 W2 `deadlineAt`；F16 無 `uploadId`、無新槽位；`INSPECT(B)`：W2 日誌 `DRAFT`、`media` 2 筆；F13 W2 `expired=true` | API JSON |
 | CL-27 | AC-1.7 情境 1；BR-5 | S1 | 開 W2 面板 | `sitter-care-log-status`「已逾期，未送出」；顯示行程名稱、文字「乾乾吃完」、2 張照片；無任何輸入框與按鈕 | F13 W2 `editable=false`、`submittable=false` | 截圖 |
 | CL-28 | AC-1.7 情境 2；BR-16 | O1 | 開 `/owner/orders/{B}`；API F13 W2；`INSPECT(B).notifications` | `owner-order-detail-visit-row-{W2}` 內無 `owner-order-detail-btn-view-log-{W2}`；`{W1}` 有 | F13 W2（OWNER）→ 404 `NOT_FOUND`；`CARE_LOG_SUBMITTED` 通知只有 W1 那 1 筆 | 截圖 + API JSON |
@@ -178,7 +178,7 @@
 | CL-63 | AC-3.4 情境 1；BR-16 | admin | admin F13 D1、D2；開 `/orders/{D}/visits/{D1}/care-log` | `owner-care-log-view` 顯示 D1 文字與 p2；無任何編輯元素 | F13 D1 200（`text="D1 已送出"`、`media` 1 筆、`url` 含 `X-Goog-Expires=900`）；F13 D2 404 `NOT_FOUND` | 截圖 + API JSON |
 | CL-64 | AC-1.8 情境 1；EX-26 | S1 | D3（訂單 `DISPUTED`）：F14（`text="爭議中補寫"`）→ F15（`text="爭議中送出"`） | — | F14 200、F15 200 `SUBMITTED` | API JSON |
 | CL-65 | AC-3.2 情境 5（`DISPUTED`） | O1 | 開 `/orders/{D}/visits/{D1}/care-log` | `owner-care-log-view` 可見、圖片載入（`naturalWidth > 0`） | — | 截圖 |
-| CL-66 | AC-2.8 情境 3；EX-22；AC-3.7 情境 1（依序模擬）；AC-1.8 情境 3；AC-3.8 情境 4 | S1、admin | `EXPIRE(D4)`（訂單 `DISPUTED`）；D2：F16（`jpg500`）→ F17 → PUT；admin E29 `POST /api/admin/orders/{D}/mediation`（無 `adjustment`）→ `COMPLETED`；S1 依序：D2 F18、D2 F18 再一次、D2 F14、D2 F15（新 key）、D4 F14 | — | E29 200 `COMPLETED`；D2 F18 409 `ORDER_STATE_CONFLICT`（`currentStatus=COMPLETED`），再送回放同一 409；`INSPECT(D)` 該槽位 `FAILED`、`failureCode=ORDER_STATE_CONFLICT`、D2 無媒體；D2 F14、F15 皆 409 `ORDER_STATE_CONFLICT`；D4（已逾期）F14 409 `ORDER_STATE_CONFLICT`（不是 `DEADLINE_PASSED`）；`careLogs` D2 `DRAFT`、D3 `SUBMITTED`（送出先於 O15 者保留） | API JSON |
+| CL-66 | AC-2.8 情境 3；EX-22；AC-3.7 情境 1（依序模擬）；AC-1.8 情境 3；AC-3.8 情境 4 | S1、admin | `EXPIRE(D4)`（訂單 `DISPUTED`）；D2：F16（`jpg500`）→ F17 → PUT；admin E29 `POST /api/admin/orders/{D}/mediation`（無 `adjustment`）→ `COMPLETED`；S1 依序：D2 F18、D2 F18 再一次、D2 F14、D2 F15（新 key）、D4 F14 | — | E29 200 `COMPLETED`；D2 F18 409 `ORDER_STATE_CONFLICT`（`currentStatus=COMPLETED`），再送回放同一 409；`INSPECT(D)` 該槽位 `FAILED`、`failureCode=ORDER_STATE_CONFLICT`、D2 無媒體；D2 F14、F15 皆 409 `ORDER_STATE_CONFLICT`；D4（已逾期）F14 409 `ORDER_STATE_CONFLICT`（不是 `DEADLINE_PASSED`）；`careLogs` D2 `DRAFT`、D3 `SUBMITTED`（送出先於 O15 者保留）；調解後 admin F13 D1 仍 200、D2 仍 404（訂單曾有待辦，仍在唯讀範圍；只讀 `SUBMITTED`） | API JSON |
 | CL-67 | AC-3.2 情境 5（`COMPLETED`） | O1 | 開 `/orders/{D}/visits/{D1}/care-log` | 仍可查看 | — | 截圖 |
 | CL-68 | AC-3.7 情境 2（依序模擬）；EX-18；AC-1.8 情境 4 | O1、S1 | 訂單 `G`：`START(G1)` → `FINISH(G1)` → F15 G1；`START(G2)` → `FINISH(G2)` → F14 G2。O1 E25；S1 F15 G2；O1 E25；S1 F14 G1 | — | 第一次 E25 409 `VISITS_NOT_FINISHED`；F15 G2 200；第二次 E25 200 `COMPLETED`；F14 G1 409 `ORDER_STATE_CONFLICT`（不是 `CARE_LOG_STATE_CONFLICT`） | API JSON |
 | CL-69 | AC-1.8 情境 5 | S1、system | 訂單 `H`：`START(H1)` → `FINISH(H1, 伺服器現在 − 23h)` → F14 H1 → `EXPIRE(H1)`；`START(H2)` → `FINISH(H2)` → F15 H2；`SHIFT-WINDOW(H, −5 分)` → C8 `POST /api/internal/cron/orders/auto-complete?orderId={H}`；S1 F14 H1 | — | C8 200 `processed=1`；E2 `H` `status=COMPLETED`；F14 H1 409 `ORDER_STATE_CONFLICT`（不是 `DEADLINE_PASSED`） | API JSON |
@@ -193,7 +193,7 @@
 | CL-77 | AC-3.2 情境 3；BR-6 | O1 | 開 `/orders/{F}/visits/{F2}/care-log`（F2 未自訂名稱、每日 1 次） | `owner-care-log-visit-name`「到府餵食」 | — | 截圖 |
 | CL-78 | AC-3.3 情境 1–5；EX-1–EX-4 | 匿名、S2、O2、O1、admin | 對訂單 `A` V1：無 token F13 / F14；無 token 以 K 與相同 body 重送 F15；S2 F13、F14、F16、F19、F15；O2 F13；O1（OWNER token）F14、F16、F19、F15；admin F14；隨機 UUID 行程 F13；以 `B2` 的 orderId 搭 V1 路徑 F13 | — | 依序 401 `UNAUTHENTICATED` ×3（401 先於冪等回放）；S2 403 `FORBIDDEN` ×5；O2 403 `FORBIDDEN`；O1 403 `ROLE_MISMATCH` ×4；admin 403 `ROLE_MISMATCH`；404 `NOT_FOUND` ×2；`INSPECT(A)` V1 日誌、媒體數與 CL-20 相同，`uploads` 無新槽位 | API JSON |
 | CL-79 | AC-3.3（SD-FULFILL §6.3 F13 已知邊界） | S1 | S1 切換為 `currentRole=OWNER` 的 token，F13 訂單 `A` 的 V3（自己身為保母的草稿） | — | 404 `NOT_FOUND`（依 SD 已知行為，非 `ROLE_MISMATCH`） | API JSON |
-| CL-80 | AC-3.4 情境 2 | admin | admin F13 訂單 `A`（`IN_PROGRESS`、無 OPEN 待辦）V1 | — | 403 `FORBIDDEN` | API JSON |
+| CL-80 | AC-3.4 情境 2 | admin | admin F13 訂單 `A`（`IN_PROGRESS`、從未有任何待辦）V1 | — | 403 `FORBIDDEN`（ADMIN 唯讀範圍 = `DISPUTED` 或曾有任何待辦，SD-ORDER §3.5） | API JSON |
 | CL-81 | AC-3.6 情境 1；EX-15；BR-28 | SP | `START(T3)` → `UPLOAD(T3, jpg500, key KU)` 得 mU；以 KU 與相同 body 重送 F16；F17；F18 | — | F16 回放 201、`uploadId` 與第一次相同；F17 200 `alreadyCompleted=true`（不需 PUT）；F18 201、`mediaId=mU`；`INSPECT(T)` T3 `media` 1 筆、槽位 1 個；F13 `imageUsed=1` | API JSON |
 | CL-82 | AC-3.6 情境 2；EX-16 | SP | 以 KU 改宣告 `jpg900` 送 F16 | — | 422 `IDEMPOTENCY_KEY_REUSED` | API JSON |
 | CL-83 | AC-3.6 情境 3（期限部分） | SP | `FINISH(T3)` → `EXPIRE(T3)`；以 KU、相同 body 重跑 F16 → F17 → F18 | — | F16 回放 201；F17 `alreadyCompleted=true`；F18 201、`mediaId=mU`（不是 `DEADLINE_PASSED`）；`INSPECT(T)` T3 `media` 仍 1 筆 | API JSON |
@@ -270,9 +270,8 @@
 
 | # | 項目 | 影響 | 建議 |
 |---|------|------|------|
-| 1 | `INSPECT.notifications[].emailStatus` 的列舉值未在 SD-ORDER §10.4 或 SD-NOTIFY 定義 | CL-18、CL-25 只能以「有 Email / 不寄」語意描述 | SD-NOTIFY 重建時定義列舉值，e2e-author 依實際值對應 |
-| 2 | 大量真 GCS 上傳（CL-46 12 支、CL-47 30 支，含 30 MB）拉長 CI 時間並產生測試物件 | CI 時間、GCS 成本 | 由 cleanup 刪除；e2e-author 可平行上傳 |
-| — | 已解決（2026-11-22）：ADMIN 帳號（`provision-account roles[]`）；`sitter-setup` upsert 改 `tier` / 訂閱；FT1 `PENDING → DONE / CLOSED_BY_SYSTEM / CANCELLED`、FT2 接受 `DISPUTED`；影片文案統一「影片長度需為 15–30 秒」；照片壓縮下限（SD-FULFILL §9.3：長邊 2048 px、品質 0.9 → 0.5）；排程搶先（`?orderId=`、自動觸發跳過測試訂單）；通知查詢改 `INSPECT`；雙角色帳號（F13 已知邊界改 E2E，CL-79） | — | — |
+| 1 | 大量真 GCS 上傳（CL-46 12 支、CL-47 30 支，含 30 MB）拉長 CI 時間並產生測試物件 | CI 時間、GCS 成本 | 由 cleanup 刪除；e2e-author 可平行上傳 |
+| — | 已解決（2026-11-22）：`emailStatus` 列舉（SD-ORDER §10.4：`SUPPRESSED_TEST` / `SKIPPED_PREFERENCE`）；`SHIFT-WINDOW` 改以 `INSPECT.completionBasisAt` 計算；ADMIN 帳號（`provision-account roles[]`）；`sitter-setup` upsert 改 `tier` / 訂閱；FT1 `PENDING → DONE / CLOSED_BY_SYSTEM / CANCELLED`、FT2 接受 `DISPUTED`；影片文案統一「影片長度需為 15–30 秒」；照片壓縮下限（SD-FULFILL §9.3：長邊 2048 px、品質 0.9 → 0.5）；排程搶先（`?orderId=`、自動觸發跳過測試訂單）；通知查詢改 `INSPECT`；雙角色帳號（F13 已知邊界改 E2E，CL-79） | — | — |
 
 ## 6. 本測試發現並修復的真實 bug
 
@@ -286,3 +285,4 @@
 | 2026-11-22 | 新建，取代 `TS-022-visit-report.md`：依 Approved PRD-022（直傳 GCS、CQ-19~22、BR-28、EX-28~32）與 SD-FULFILL 撰寫，旅程型，步驟 ID `CL-` | 全面重建 2026-11 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs` / 通知 / `emailStatus` / 日誌、媒體、上傳槽位狀態改以 `INSPECT` 斷言（CL-01、03、04、06、07、10~12、16~19、22、25、26、28~31、36、38、42、44、45、53~57、61、62、66、78、81、83）；`CANCELLED` 行程改 E2E（CL-04，FT1 支援）；Email 偏好關閉改 E2E（CL-25，AC-3.1 情境 2）；FC1 / C8 帶 `?orderId=` 並斷言精確計數（CL-30、31、69）；401 先於冪等回放（CL-78）；雙角色帳號驗 F13 已知邊界（新增 CL-79，原 CL-79~83 順延為 CL-80~84）；AC-3.8 情境 5 移到 V5 仍可編輯時（新 CL-13，原 CL-84 改為原 CL-83 內容）；全形空白（CL-17）；影片文案與 `noise-big` fixture 依 SD-FULFILL §9.3；帳號改 `roles[]` / upsert（§1.1）；§4、§5 移除已解決項目 | 主流程交辦（核准後修訂） |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |
+| 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：`SHIFT-WINDOW` 改以 `INSPECT.completionBasisAt + 48h` 計算（§1.2，影響 CL-69）；`emailStatus` 收斂為 `SUPPRESSED_TEST`（CL-18）/ `SKIPPED_PREFERENCE`（CL-25）；CL-18 通知日期改取 `INSPECT.fulfill.visits[].serviceDate`；ADMIN 唯讀範圍改「`DISPUTED` 或曾有任何待辦」：CL-66 加調解後 admin F13 D1 仍 200 / D2 仍 404，CL-80 註明「從未有待辦」→ 403；§5 `emailStatus` 項標已解決 | 核准後修訂（主流程交辦） |
