@@ -5,9 +5,9 @@ import { PageContainer } from '../../components/orders/common';
 import { useRole } from '../../contexts/RoleContext';
 
 /**
- * 舊日誌連結 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId`（舊通知）。
- * SD-FULFILL §9.1 要求「以 F2 / F13 查出 orderId 後轉址」，但 F2 / F13 路徑本身就需要 orderId、
- * 後端沒有以 visitId 反查訂單的端點，無法轉址；改為提示並導回行程 / 訂單列表（列入回報待釐清）。
+ * 舊日誌連結 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 的提示頁（SD-FULFILL §9.1，
+ * 使用者 2026-11-22 決定不轉址）：不呼叫任何 API；一顆按鈕依目前角色導向行程列表 / 我的訂單。
+ * 角色守門沿用路由的 RequireRole。
  */
 const LegacyVisitLinkPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +17,11 @@ const LegacyVisitLinkPage: React.FC = () => {
     <PageContainer testId="legacy-visit-link">
       <p className="muted">此連結已更新，請從行程或訂單詳情進入照護日誌。</p>
       <div className="btn-row">
-        <Button className="btn-primary" onClick={() => navigate(target)}>
+        <Button
+          className="btn-primary"
+          onClick={() => navigate(target)}
+          data-testid="legacy-visit-link-btn-back"
+        >
           {currentRole === 'sitter' ? '前往行程' : '前往我的訂單'}
         </Button>
       </div>
