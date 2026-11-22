@@ -1,0 +1,45 @@
+name: Dependency Security Scan
+
+# 2026-11-22：依賴漏洞掃描（NFR-003 SCA）。不部署、不需雲端憑證。
+# 前端：npm audit 只擋會進瀏覽器的 runtime 依賴（--omit=dev）High 以上；dev 依賴只列報告。
+# 後端：osv-scanner 解析 pom.xml（含 Spring Boot BOM 的傳遞依賴），有已知漏洞即失敗。
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 1 * * 1' # 每週一 01:17 UTC，抓新公布的 CVE
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: npm audit (runtime, high+)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      - name: npm audit (all, report only)
+        if: always()
+        working-directory: frontend
+        run: npm audit || true
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Install osv-scanner
+        run: go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.0.0
+      - name: osv-scanner (backend pom.xml)
+        run: ~/go/bin/osv-scanner scan source --lockfile=backend/pom.xml
