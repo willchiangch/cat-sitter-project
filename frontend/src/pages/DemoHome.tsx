@@ -6,7 +6,6 @@ import { useRole, type Role } from '../contexts/RoleContext';
 const mockParams = {
   sitterId: '3d498178-14c0-4376-b81e-7fb02e615dda',
   ownerId: '1031efbc-583a-4062-9a35-15706a3384c6',
-  visitId: '2624511e-3f10-4376-b81e-7fb02e615dda',
   orderId: 'a1023000-0000-0000-0000-000000000000',
   kycRecordId: 'a1023000-0000-0000-0000-000000000000'
 };
@@ -143,16 +142,18 @@ const mainEntries: DemoEntry[] = [
     to: `/care-notes/view/${mockParams.sitterId}/${mockParams.ownerId}`
   },
   {
-    key: 'visit-reports-manage',
-    label: '進入日誌回報 (保母端)',
+    key: 'sitter-visits',
+    label: '進入行程 (保母端)',
     roles: ['sitter'],
-    to: `/visit-reports/manage/${mockParams.visitId}`
+    to: '/sitter/visits',
+    testId: 'btn-go-sitter-visits'
   },
   {
-    key: 'visit-reports-view',
-    label: '進入日誌檢視 (飼主端)',
+    key: 'owner-visits',
+    label: '進入行程 (飼主端)',
     roles: ['client'],
-    to: `/visit-reports/view/${mockParams.visitId}`
+    to: '/owner/visits',
+    testId: 'btn-go-owner-visits'
   },
   {
     key: 'notifications',

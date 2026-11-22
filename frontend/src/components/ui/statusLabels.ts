@@ -159,34 +159,3 @@ export const visitStatusFullLabel = (
   status === 'DONE' && completionSource === 'SYSTEM'
     ? `${visitStatusLabel(status)}（${VISIT_AUTO_COMPLETED_NOTE}）`
     : visitStatusLabel(status);
-
-/**
- * @deprecated 舊行程入口文案，SD-FULFILL 頁面改寫後移除（保母改進服務面板、飼主依 careLog.submitted）。
- */
-export const sitterVisitActionLabel = (s: string | null | undefined): string | null => {
-  switch (s) {
-    case 'PENDING':
-      return '打卡 / 回報';
-    case 'IN_PROGRESS':
-      return '繼續回報';
-    case 'DONE':
-      return '查看 / 送出日誌';
-    default:
-      return null;
-  }
-};
-
-/** @deprecated 同上 */
-export const ownerVisitActionLabel = (reportSubmitted: boolean | undefined): string | null =>
-  reportSubmitted ? '查看日誌' : null;
-
-/** @deprecated 同上 */
-export const ownerVisitReportPendingLabel = (
-  status: string | null | undefined,
-  reportSubmitted: boolean | undefined
-): string | null => {
-  if (reportSubmitted) return null;
-  if (status === 'DONE') return '日誌尚未送出';
-  if (status === 'CLOSED_BY_SYSTEM') return '未送出日誌';
-  return null;
-};

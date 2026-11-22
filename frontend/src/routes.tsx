@@ -15,8 +15,11 @@ import SitterOrderDetail from './pages/sitter/SitterOrderDetail';
 import PublicBookingPage from './pages/client/PublicBookingPage';
 import CareNoteManager from './pages/sitter/CareNoteManager';
 import CareNoteView from './pages/client/CareNoteView';
-import VisitReportManager from './pages/sitter/VisitReportManager';
-import VisitReportView from './pages/client/VisitReportView';
+import VisitPanel from './pages/sitter/VisitPanel';
+import SitterVisitsDashboard from './pages/sitter/SitterVisitsDashboard';
+import OwnerVisitsToday from './pages/client/OwnerVisitsToday';
+import CareLogViewPage from './pages/shared/CareLogViewPage';
+import LegacyVisitLinkPage from './pages/shared/LegacyVisitLinkPage';
 import OwnerOrders from './pages/client/OwnerOrders';
 import FavoriteSitters from './pages/client/FavoriteSitters';
 import OwnerOrderDetail from './pages/client/OwnerOrderDetail';
@@ -59,15 +62,15 @@ function CareNoteViewRoute() {
   return <CareNoteView sitterId={sitterId!} ownerId={ownerId!} />;
 }
 
-function VisitReportManagerRoute() {
-  const { visitId } = useParams<{ visitId: string }>();
-  // key：換行程時重新掛載，未暫存文字的保留邏輯（fix-batch10 H4）不會把上一筆行程的文字帶過去
-  return <VisitReportManager key={visitId} visitId={visitId!} />;
+function VisitPanelRoute() {
+  const { orderId, visitId } = useParams<{ orderId: string; visitId: string }>();
+  // key：換行程時重新掛載，未暫存的日誌文字不會帶到下一筆行程
+  return <VisitPanel key={visitId} orderId={orderId!} visitId={visitId!} />;
 }
 
-function VisitReportViewRoute() {
-  const { visitId } = useParams<{ visitId: string }>();
-  return <VisitReportView visitId={visitId!} />;
+function CareLogViewRoute() {
+  const { orderId, visitId } = useParams<{ orderId: string; visitId: string }>();
+  return <CareLogViewPage key={visitId} orderId={orderId!} visitId={visitId!} />;
 }
 
 function OwnerOrderDetailRoute() {
@@ -155,7 +158,9 @@ function AppRoutes() {
               path="/care-notes/manage/:sitterId/:ownerId"
               element={<CareNoteManagerRoute />}
             />
-            <Route path="/visit-reports/manage/:visitId" element={<VisitReportManagerRoute />} />
+            <Route path="/sitter/visits" element={<SitterVisitsDashboard />} />
+            <Route path="/sitter/orders/:orderId/visits/:visitId" element={<VisitPanelRoute />} />
+            <Route path="/visit-reports/manage/:visitId" element={<LegacyVisitLinkPage />} />
           </Route>
 
           <Route element={<RequireRole roles={['client']} />}>
@@ -170,7 +175,8 @@ function AppRoutes() {
               element={<RedirectWithOrderId to={(id) => `/owner/orders/${id}`} />}
             />
             <Route path="/care-notes/view/:sitterId/:ownerId" element={<CareNoteViewRoute />} />
-            <Route path="/visit-reports/view/:visitId" element={<VisitReportViewRoute />} />
+            <Route path="/owner/visits" element={<OwnerVisitsToday />} />
+            <Route path="/visit-reports/view/:visitId" element={<LegacyVisitLinkPage />} />
           </Route>
 
           {/* 變更精靈與協商頁飼主 / 保母共用（SD-ORDER §9.1）；訂單詳情改為各角色各自路由 */}
@@ -179,6 +185,14 @@ function AppRoutes() {
             <Route
               path="/orders/:orderId/modifications/:modificationId"
               element={<ModificationDetailRoute />}
+            />
+          </Route>
+
+          {/* 照護日誌檢視：飼主與可讀範圍 ADMIN（F13，SD-FULFILL §9.1） */}
+          <Route element={<RequireRole roles={['client', 'admin']} />}>
+            <Route
+              path="/orders/:orderId/visits/:visitId/care-log"
+              element={<CareLogViewRoute />}
             />
           </Route>
 
