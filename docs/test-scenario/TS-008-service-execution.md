@@ -153,7 +153,7 @@
 
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
-| V-37 | AC-2.2-4；BR-18 | system | 呼叫 C7（`orderId=Z3`） | — | 計數 1 / 0 / 0（以訂單計，見 §5 L-13）；[INS] VX1、VX2 皆 `CLOSED_BY_SYSTEM`；`notifications` 恰新增 `VISIT_CLOSED_BY_SYSTEM_SITTER`、`VISIT_CLOSED_BY_SYSTEM_OWNER` 各 1 列；[NOTI] 兩則內容皆同時含 `{D-4}`、`{D-3}` 與行程名稱「到府餵食」 | API JSON |
+| V-37 | AC-2.2-4；BR-18 | system | 呼叫 C7（`orderId=Z3`） | — | 計數 1 / 0 / 0（計數以訂單為單位）；[INS] VX1、VX2 皆 `CLOSED_BY_SYSTEM`；`notifications` 恰新增 `VISIT_CLOSED_BY_SYSTEM_SITTER`、`VISIT_CLOSED_BY_SYSTEM_OWNER` 各 1 列；[NOTI] 兩則內容皆同時含 `{D-4}`、`{D-3}` 與行程名稱「到府餵食」 | API JSON |
 
 ### 2.5 `IN_PROGRESS` 逾時（訂單 T1、T2）
 
@@ -281,7 +281,7 @@
 | V-E11 | AC-2.6-4；EX-21；BR-13 | 於 V-31 之前：以 `sitter` 的使用者 token（不帶 `X-Internal-Secret`）呼叫 C7、FC1（`orderId=Z1`）；再以錯誤的 `X-Internal-Secret` 呼叫一次 | 皆 403 `FORBIDDEN`；[INS] VZ1 仍 `PENDING` |
 | V-E12 | AC-3.5-4；EX-4 | `admin` 送 F1（訂單 A，`IN_PROGRESS` 且無 OPEN 待辦） | 403 `FORBIDDEN`（`DISPUTED` 的 200 見 V-58） |
 | V-E13 | §3 權限表；SD-FULFILL §6.1 G4a | `owner` 送 F6；`sitter` 送 F7；`dual-as-owner` 送 F1（自己當保母的訂單） | 403 `ROLE_MISMATCH`；403 `ROLE_MISMATCH`；403 `ROLE_MISMATCH` |
-| V-E14 | SD-FULFILL §6.3 FC1（`orderId` 範圍） | 以 `X-Internal-Secret` 呼叫 FC1、C7，`orderId` = 隨機 UUID | 皆 4xx（FC1 400 `VALIDATION_FAILED` `field=orderId`；C7 依 SD-ORDER §10.4 非測試訂單 404），不處理任何訂單 |
+| V-E14 | SD-FULFILL §6.3 FC1（`orderId` 範圍） | 以 `X-Internal-Secret` 呼叫 FC1、C7，`orderId` = 隨機 UUID | 皆 404 `NOT_FOUND`（SD-FULFILL §6.3 FC1、SD-ORDER §6.3 C1–C10 統一），不處理任何訂單 |
 
 ## 4. 不在 E2E 覆蓋的項目
 
@@ -310,11 +310,11 @@
 | L-6 | cleanup 清通知 | 已解決：SD-ORDER §10.4 跨模組範圍含通知與 Email 投遞紀錄 |
 | L-7 | SD-FULFILL §10.1 未列 EX-16 處理中、EX-18 歸屬 | 已解決：`VisitIdempotencyIntegrationTest` 補列；EX-18 歸 SD-NOTIFY C11 |
 | L-8 | 正式排程搶先、計數為全站值 | 已解決：排程帶 `orderId`，自動觸發跳過測試帳號訂單 |
-| L-9 | 變更 / 爭議造資料（§2.6 訂單 M、M2）依賴 PRD-016 / 023 / 024 完整 API 流程，耗時且任一環節失敗會連帶失敗 | 未解決，可接受：`DISPUTED` 仍需「待退款變更 + E24」路徑（FT1 只造行程狀態，不造訂單主狀態）；`CANCELLED` 行程已改用 FT1（§2.7、§2.8） |
+| L-9 | 變更 / 爭議造資料（§2.6 訂單 M、M2）依賴 PRD-016 / 023 / 024 完整 API 流程，耗時且任一環節失敗會連帶失敗 | 已解決（判定可接受，協調者 2026-11-22 確認）：FT1 沒有造 `DISPUTED` 的捷徑，維持「待退款變更 + E24」完整流程；`CANCELLED` 行程已改用 FT1（§2.7、§2.8） |
 | L-10 | `sitter-dashboard-visit-link-pet-notes-{visitId}` 目的路由 | 已解決：SD-FULFILL §9.1 `/care-notes/manage/{sitterId}/{ownerId}`（V-67） |
 | L-11 | 站內通知文案無 test-data 查詢（inspect `notifications` 不含內容），文案仍經現行站內通知列表 API | 未解決：SD-NOTIFY 重建時確認列表 API 路徑，必要時更新 [NOTI] |
-| L-12 | V-E14 C7 帶非測試 / 不存在 `orderId` 的錯誤碼：SD-FULFILL FC1 寫 400 `VALIDATION_FAILED`（`field=orderId`），SD-ORDER §10.4 寫訂單非測試帳號 → 404，`InternalTestDataIntegrationTest` 寫 C1–C10「非測試訂單 404」，兩模組不一致 | 未解決：本 TS 依各自 SD 斷言；建議 SD 統一 |
-| L-13 | C7 計數單位：PRD-008 AC-2.1 / BR-13 與 SD-FULFILL §4.6 以「每張訂單一個交易」計 `processed`，SD-ORDER §6.3 C1–C10 寫「C7 只算該訂單的行程」，同批關閉 2 個行程（V-37）時是 1 還是 2 不明 | 未解決：本 TS 依 PRD 以訂單計（V-37 `processed=1`）；建議 SD-ORDER 釐清該句是「範圍」還是「單位」 |
+| L-12 | V-E14 C7 帶非測試 / 不存在 `orderId` 的錯誤碼：SD-FULFILL FC1 寫 400 `VALIDATION_FAILED`（`field=orderId`），SD-ORDER §10.4 寫訂單非測試帳號 → 404，`InternalTestDataIntegrationTest` 寫 C1–C10「非測試訂單 404」，兩模組不一致 | 已解決：SD 已統一，FC1 / FC2 / C1–C10 帶非測試帳號或不存在的 `orderId` 一律 404 `NOT_FOUND`；V-E14 改斷言 404 |
+| L-13 | C7 計數單位：PRD-008 AC-2.1 / BR-13 與 SD-FULFILL §4.6 以「每張訂單一個交易」計 `processed`，SD-ORDER §6.3 C1–C10 寫「C7 只算該訂單的行程」，同批關閉 2 個行程（V-37）時是 1 還是 2 不明 | 已解決：SD-ORDER 已釐清計數一律以訂單為單位；V-37 斷言 `processed=1` |
 
 ## 6. 本測試發現並修復的真實 bug
 
@@ -325,5 +325,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | V-E14 改斷言 404（SD 統一排程 `orderId` 錯誤碼）；V-37 註明計數以訂單為單位；§5 L-9、L-12、L-13 標已解決 | 協調者回覆 §5；SD-FULFILL / SD-ORDER 修訂 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs`、通知類型 / Email 投遞、`completion_basis_at` 改以 inspect 在 E2E 斷言（V-03、V-11、V-18、V-23、V-31、V-36、V-39 等）；排程一律帶 `orderId` 並斷言精確計數，刪除避開排程分鐘與被搶先重跑；ADMIN / 雙角色改用 `provision-account roles[]`（V-E02、V-E13）；`CANCELLED` 行程改用 FT1，AC-3.1 V5（V-65）、AC-3.3 `CANCELLED` 列（V-74）改回 E2E；新增 V-64（AC-1.8-3 O17 先）、V-77（報價前取 O1 方案名稱）、V-E14（排程 `orderId` 範圍）；V-79 加全形空白（PRD-008 §4.7-2 回寫）；注意事項連結目的地依 SD-FULFILL §9.1（V-67）；步驟重新編號（V-01–V-87）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-008 核准後修訂 |
 | 2026-11-22 | 依 PRD-008（Approved，baseline 第 2 版改寫）與 SD-FULFILL / SD-ORDER 全文重寫；舊版（Check-in / Check-out、寫死 UUID、`MSG_DATA_INVALID_STATUS`）作廢。舊版「本測試發現並修復的真實 bug」紀錄屬舊實作（`VisitReportManager`、`/api/visits/{visitId}/start`），保留於 git 歷史 | 全面重建 2026-11；PRD-008、SD-FULFILL 核准 |

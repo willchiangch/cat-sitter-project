@@ -208,7 +208,7 @@
 | L-5 | 打勾遇已結束行程的文案 | 已解決：PRD-028 EX-8「此行程已結束，無法修改」（K-27、K-44） |
 | L-6 | SD-FULFILL §10.1 未列 EX-15、EX-11 處理中、EX-9 vs E23、BR-11 | 已解決：已補進 `ChecklistSeedIntegrationTest`、`ChecklistEditIntegrationTest`、`VisitConcurrencyIntegrationTest`；BR-11 另由 [INS] 在 E2E 驗（K-01、K-10、K-17、K-19、K-37） |
 | L-7 | 正式排程競爭 | 已解決：FC1 帶 `orderId`，自動觸發跳過測試帳號訂單（K-43 斷言精確計數） |
-| L-8 | 訂單 Dm 的 `DISPUTED` 只能經變更待退款 + E24 完整流程造出（FT1 只造行程狀態），耗時且任一環節失敗會連帶失敗 | 未解決，可接受（同 TS-008 §5 L-9）；`CANCELLED` 行程已改用 FT1（K-27） |
+| L-8 | 訂單 Dm 的 `DISPUTED` 只能經變更待退款 + E24 完整流程造出（FT1 只造行程狀態），耗時且任一環節失敗會連帶失敗 | 已解決（判定可接受，協調者 2026-11-22 確認，同 TS-008 §5 L-9）：維持完整流程；`CANCELLED` 行程已改用 FT1（K-27） |
 
 ## 6. 本測試發現並修復的真實 bug
 
@@ -219,5 +219,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | §5 L-8 標已解決（`DISPUTED` 維持完整流程，判定可接受）；K-43 FC1 計數以訂單為單位（SD-ORDER 已釐清，斷言不變） | 協調者回覆 §5 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`created_by` / `updated_by` / `updated_at`、無 `order_logs` / 通知改以 inspect 在 E2E 斷言（K-01、K-02、K-10、K-11、K-17、K-19、K-37）；打勾時間改用 `sitter-visit-panel-checklist-checked-at-{itemId}`（K-37、K-38、K-41）；已結束文案依 PRD-028 EX-8；新增 K-27（FT1 造 `CANCELLED`、編輯文案），訂單 Dm 改為直接造好 `DISPUTED`、刪除原以變更造 `CANCELLED` 的檢查步驟；方案預設任務改以 `sitter-setup` upsert；FC1 帶 `orderId` 並斷言精確計數；K-25 加全形空白；ADMIN 改用 `provision-account roles[]`；步驟重新編號（K-01–K-47）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-028 核准後修訂 |
 | 2026-11-22 | 建立：依 PRD-028（Approved，自 PRD-008 拆卡）與 SD-FULFILL / SD-ORDER | 全面重建 2026-11；PRD-028、SD-FULFILL 核准 |

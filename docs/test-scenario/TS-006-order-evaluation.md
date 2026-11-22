@@ -63,6 +63,7 @@
 | `quote(sitter, order, body, key?)` | E6 `POST /api/orders/{orderId}/quote`，`Idempotency-Key` 預設新 UUID |
 | `payAndConfirm(owner, sitter, order)` | E10 取 INITIAL `paymentId` → E11 上傳（`disclaimerAgreed=true`、`lastFive=12345`、1×1 PNG）→ E14（`submissionId`）→ 斷言 `orderStatus=CONFIRMED` |
 | `completeOrder(owner, sitter, order)` | `payAndConfirm` → 每個行程 SD-FULFILL FT1 `force-status`（`DONE`、`careLogSubmitted=true`）→ E25 `POST /api/orders/{orderId}/complete` → E2 `status=COMPLETED` |
+| `upsertSitter(sitter, 欄位)` | `POST /api/internal/test-data/sitter-setup`：`plans[]` / `questions[]` 依 `key` 逐項 upsert，只送要改的那一項與欄位（例 `plans:[{key:"P", price:800}]`）；未列出的方案 / 題目不變；停用用 `active=false`（SD-ORDER §10.4） |
 | `shiftReviewExpiry(order, 分鐘)` | `POST /api/internal/test-data/orders/{orderId}/shift-time`，`target=REVIEW_EXPIRES_AT` |
 | `inspect(order)` | `GET /api/internal/test-data/orders/{orderId}/inspect`：`orderLogs`、`notifications`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）、`payments`（`remindAt`、`escalateAt`、`verifiedAt`、`voidedAt`）、`totalAmount` |
 | `notificationText(user, orderId)` | 以該使用者 token 讀通知清單取標題 / 內文（SD-NOTIFY 通知查詢 API，路徑由 e2e-author 依 SD-NOTIFY 對應；`inspect` 不含內文） |
@@ -84,7 +85,7 @@
 |------|----|------|------|---------|---------------|------|
 | Q-01 | AC-1.1-1 | sitterPro | 開 `/sitter/orders/{ordEval}` | 行程 3 列：`D(10)`、`D(11)`、`D(12)`，每日 1 次、方案「到府餵食」、單價 `$ 600`；原始試算 `$ 1,800`；飼主「王小明」；`sitter-order-eval-pet-{M}` 在第 1 群組、`sitter-order-eval-pet-{N}` 在第 2 群組；`sitter-order-eval-review-expires-at` 文字 = `{D(10)} 00:00`；頁面不含「工項」「SOP」字樣、無任何檢核項清單元素 | E5 `GET /api/orders/{ordEval}/evaluation` → 200、`status=PENDING`、`baseAmount=1800`、`owner.displayName=王小明`、`groups.length=2`、`groups[0].pets=[{petId:M, deleted:false}]`、`groups[1].pets=[{petId:N, deleted:false}]`、`reviewExpiresAt=TPE0(D(10))`、`precheck` 四個阻擋欄皆 false、`serverTime` 存在 | 截圖 + API JSON |
 | Q-02 | AC-1.2-1 | sitterPro | 同頁捲到問卷區 | `sitter-order-eval-questionnaire-answers` 依序顯示 Q1、Q2、Q3 送單時題目文字與答案（「每天早晚各一次」、選項 1、選項 1 與 3）；頁面無「要求填寫問卷」「改為免填」字樣、問卷區無任何按鈕或輸入框 | E5 `questionnaire.status=COMPLETED`、`exemptReason` 不輸出、`answers.length=3`，順序與題目 `sortOrder` 一致，`questionText` / `questionType` / `answer` 與送單內容相同 | 截圖 + API JSON |
-| Q-03 | AC-1.2-2 | sitterPro | `sitter-setup` upsert：`Q1` 文字改「（已修改）餵食頻率」、`Q2` `active=false`；重新開評估頁 | 問卷區仍顯示 Q1 原文字與 Q2、Q3 原題目與答案 | E5 `answers[0].questionText` = 送單時原文字；`answers.length=3` | 截圖 + API JSON |
+| Q-03 | AC-1.2-2 | sitterPro | `upsertSitter(sitterPro, questions:[{key:"Q1", text:"（已修改）餵食頻率"}, {key:"Q2", active:false}])`（`Q3` 未列出，不變）；重新開評估頁 | 問卷區仍顯示 Q1 原文字與 Q2、Q3 原題目與答案 | E5 `answers[0].questionText` = 送單時原文字；`answers.length=3` | 截圖 + API JSON |
 | Q-04 | AC-1.1-2 | owner → sitterPro | `owner-setup` upsert：`M` `deleted=true`（經 SD-CARE 邏輯刪除）；保母重新開評估頁 | 仍有 `sitter-order-eval-pet-{M}`，旁邊 `sitter-order-eval-pet-deleted-label-{M}` 文字「已刪除」；`sitter-order-eval-btn-quote-original` enabled | E5 → 200、`groups[0].pets[0].deleted=true`；飼主 E2 `groups[0].pets[0].deleted=true` | 截圖 + API JSON |
 | Q-05 | AC-1.1-2（EX-23） | sitterPro | 點 `sitter-order-eval-btn-quote-original` | `order-status-badge`「待付款」 | E6 → 200、`status=PENDING_PAYMENT`、`totalAmount=1800` | 截圖 + API JSON |
 
@@ -149,7 +150,7 @@
 | Q-42 | AC-2.2 | sitterUlt | `createPendingOrder(owner, sitterUlt, 標準)` → E6 `{expectedAmount:1800, surchargeAmount:300, discountAmount:100, pricingNotes:"車馬費；首次優惠"}` | — | 200、`totalAmount=2000` | API JSON |
 | Q-43 | AC-3.2-1（EX-6） | sitterFree | `ordFreeAdj = createPendingOrder(owner, sitterFree, 標準)`（預檢全通過）；開評估頁點 `sitter-order-eval-btn-quote-adjust` | 按鈕帶鎖頭圖示；點擊後出現「手動調價為專業版功能」與升級入口；不出現 `sitter-order-eval-input-surcharge` | E5 `precheck.planAllowsAdjustment=false`、其餘阻擋欄 false | 截圖 + API JSON |
 | Q-44 | AC-3.2-2（EX-6） | sitterFree | E6 `{expectedAmount:1800, surchargeAmount:100, pricingNotes:"車馬費"}`；新 key E6 `{expectedAmount:1800, discountAmount:100, pricingNotes:"優惠"}`；`sitter-setup` upsert `tier=BASIC` 後重送前者（新 key） | — | 三次皆 403 `PLAN_REQUIRED`；**未寫入** | API JSON |
-| Q-45 | AC-2.3 | sitterPro、owner | `ordAdj`（Q-40 已報價）之後：`sitter-setup` upsert `P` 單價 800、標題「到府餵食（新）」、`tier=BASIC`；讀保母 E2；飼主再 `createPendingOrder(owner, sitterPro, 標準)` | — | E2(`ordAdj`) `groups[0].unitPrice=600`（報價後取 `order_plan_snapshots`，SD-ORDER E2）、`groups[0].planTitle=到府餵食`、`quote.totalAmount=2000`；新訂單 E1 `baseAmount=2400`（媒體額度 / 保留期限快照見 §4） | API JSON |
+| Q-45 | AC-2.3 | sitterPro、owner | `ordAdj`（Q-40 已報價）之後：`upsertSitter(sitterPro, plans:[{key:"P", price:800, title:"到府餵食（新）"}], tier:"BASIC")`；讀保母 E2；飼主再 `createPendingOrder(owner, sitterPro, 標準)` | — | E2(`ordAdj`) `groups[0].unitPrice=600`（報價後取 `order_plan_snapshots`，SD-ORDER E2）、`groups[0].planTitle=到府餵食`、`quote.totalAmount=2000`；新訂單 E1 `baseAmount=2400`（媒體額度 / 保留期限快照見 §4） | API JSON |
 
 ### 2.7 金額與欄位驗證（describe「驗證」：`sitterPro3`（PRO）、`ordV = createPendingOrder(owner, sitterPro3, 標準)`）
 
@@ -197,10 +198,10 @@
 
 | 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
 |------|----|------|------|---------|---------------|------|
-| Q-90 | AC-3.7-1（EX-13） | sitterPrice | `ordP = createPendingOrder(…標準)`；開評估頁（原始試算 `$ 1,800`）；另以 `sitter-setup` upsert `P` 單價 700；回頁面點 `sitter-order-eval-btn-quote-original` | 提示「訂單金額已更新為 $ 2,100，請確認後再送出」；原始試算更新為 `$ 2,100`；徽章仍「待評估」 | 頁面發出的 E6（`expectedAmount=1800`）→ 409 `PRICE_CHANGED`、`payload.baseAmount=2100`、`payload.totalAmount=2100`；**未寫入** | 截圖 + API JSON |
+| Q-90 | AC-3.7-1（EX-13） | sitterPrice | `ordP = createPendingOrder(…標準)`；開評估頁（原始試算 `$ 1,800`）；另以 `upsertSitter(sitterPrice, plans:[{key:"P", price:700}])`；回頁面點 `sitter-order-eval-btn-quote-original` | 提示「訂單金額已更新為 $ 2,100，請確認後再送出」；原始試算更新為 `$ 2,100`；徽章仍「待評估」 | 頁面發出的 E6（`expectedAmount=1800`）→ 409 `PRICE_CHANGED`、`payload.baseAmount=2100`、`payload.totalAmount=2100`；**未寫入** | 截圖 + API JSON |
 | Q-91 | AC-3.7-1 | sitterPrice | 再點 `sitter-order-eval-btn-quote-original` | 徽章「待付款」 | 頁面發出的 E6 帶新 key、`expectedAmount=2100` → 200、`totalAmount=2100` | 截圖 + API JSON |
-| Q-92 | AC-3.7-1（BR-7） | sitterPrice | `ordP2 = createPendingOrder(…標準)`（建立時單價 700，base 2100）；upsert `P` 單價 800；E6 `{expectedAmount:2100, surchargeAmount:300, discountAmount:100, pricingNotes:"車馬費"}` | — | 409 `PRICE_CHANGED`、`payload.baseAmount=2400`、`payload.totalAmount=2600` | API JSON |
-| Q-93 | AC-3.7-2 | sitterPrice | `ordP3 = createPendingOrder(…標準)`（單價 800，base 2400）；upsert `P` `active=false`；E6 `{expectedAmount:2400}` | — | 200、`baseAmount=2400`、E2 `groups[0].unitPrice=800` | API JSON |
+| Q-92 | AC-3.7-1（BR-7） | sitterPrice | `ordP2 = createPendingOrder(…標準)`（建立時單價 700，base 2100）；`upsertSitter(sitterPrice, plans:[{key:"P", price:800}])`；E6 `{expectedAmount:2100, surchargeAmount:300, discountAmount:100, pricingNotes:"車馬費"}` | — | 409 `PRICE_CHANGED`、`payload.baseAmount=2400`、`payload.totalAmount=2600` | API JSON |
+| Q-93 | AC-3.7-2 | sitterPrice | `ordP3 = createPendingOrder(…標準)`（單價 800，base 2400）；`upsertSitter(sitterPrice, plans:[{key:"P", active:false}])`；E6 `{expectedAmount:2400}` | — | 200、`baseAmount=2400`、E2 `groups[0].unitPrice=800` | API JSON |
 
 ### 2.12 模組（mock）：真後端造不出的回應
 
@@ -258,7 +259,7 @@
 | 2 | （已解決 2026-11-22）金額格式 | — | 依 SD-FRONTEND-SPEC §6.4.1，PRD-006 已回寫 |
 | 3 | `inspect.notifications[].emailStatus` 的列舉值（需寄送 / 依偏好略過 / 已寄 / 失敗）SD-ORDER 未列，屬 SD-NOTIFY | Q-32、Q-35、Q-38 的 Email 斷言 | SD-NOTIFY 撰寫時定義；e2e-author 屆時對應 |
 | 4 | 通知標題 / 內文不在 `inspect` 內，仍需 SD-NOTIFY 通知查詢 API（未撰寫） | Q-32 內文斷言 | SD-NOTIFY 定義後回填路徑 |
-| 5 | `sitter-setup` 的 `plans[]` / `questions[]` 以 `key` 對應既有資料、只更新出現欄位，SD 寫「覆寫請求中出現的欄位」，未明說陣列是「依 key 更新」還是「整個陣列取代」 | Q-03、Q-45、Q-90、Q-92、Q-93 | 建議依 key 更新（未出現的 key 保留）；`InternalTestDataIntegrationTest` 驗證 |
+| 5 | （已解決 2026-11-22）`sitter-setup` 陣列語意 | — | SD-ORDER §10.4：依 `key` 逐項 upsert（既有 key 只覆寫出現欄位、新 key 新建、未列出的既有項不變、停用用 `active=false`）；Q-03、Q-45、Q-90、Q-92、Q-93 只送要改的那一項 |
 | 6 | （已解決）EX-22 後端類別 | — | `QuoteConcurrencyIntegrationTest` |
 | 7 | （已解決）E5 `serverTime`、`precheck.reviewExpired` | — | Q-71 改為開頁即停用 |
 | 8 | （已解決）E2 報價後 `unitPrice` 取快照 | — | SD-ORDER E2 |
@@ -276,5 +277,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | §1 新增 `upsertSitter` helper，明定 `plans[]` / `questions[]` 依 key 逐項 upsert、只送要改的項目；Q-03（`questions:[{key:"Q1", text}, {key:"Q2", active:false}]`）、Q-45、Q-90、Q-92（`plans:[{key:"P", …}]`）、Q-93（`plans:[{key:"P", active:false}]`）依此語意；§5 #5 標已解決 | SD-ORDER §10.4 補明陣列 upsert 語意 |
 | 2026-11-22 | 依核准後修訂更新：`order_logs`、通知類型 / `mandatory` / `emailStatus`、`remindAt` 改由 `inspect` 在 E2E 斷言（Q-31、Q-32、Q-34、Q-35、Q-36–Q-38、Q-40、Q-60、Q-63），§4 移除對應後端列；C2 帶 `orderId` 斷言精確計數（Q-38）；provision `roles[]` / `displayName`、`sitter-setup` / `owner-setup` upsert 取代 PRD-002 / 003 / 004 / 025 正式 API 造資料（Q-03、Q-04、Q-26、Q-45、Q-90–Q-93）；預檢阻擋三鈕全停用與 `sitter-order-eval-precheck-upgrade-link`（Q-20–Q-23、Q-84）；Q-71 改依 `precheck.reviewExpired` 開頁即停用；金額格式一律 `$ 1,800`（Q-32、Q-33、Q-41、Q-51、Q-90）；strip 含 U+3000 / U+00A0（Q-52、Q-55）；新增 Q-E10（401 先於冪等回放）；§5 標註已解決項 | SD-ORDER / PRD-006 核准後修訂（commit 477c75d）；使用者決定 2026-11-22 |
 | 2026-11-22 | 依新範本全文重寫，狀態 Draft。舊版 Scenario 1–10（`AUTH_PLAN_LIMIT`、樂觀鎖 version、`/confirm`、`/reject`、飼主 `/cancel`、`OrderEvaluationTest` 等）與舊實作綁定，全數作廢；婉拒移至 TS-027、飼主撤回移至 TS-026。舊版「本測試發現並修復的真實 bug」屬舊實作，不沿用 | PRD-006、SD-ORDER Approved 2026-11-22；全面重建 2026-11 |
