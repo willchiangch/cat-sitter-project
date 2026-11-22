@@ -92,7 +92,7 @@ jobs:
             --memory=1Gi \
             --cpu=1 \
             --cpu-boost \
-            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }},SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }},FRONTEND_BASE_URL=https://${{ env.PROJECT_ID }}.web.app \
+            --set-env-vars=^##^SPRING_PROFILES_ACTIVE=prod##SUPABASE_POOLER_HOST=${{ vars.SUPABASE_POOLER_HOST }}##SPRING_DATASOURCE_USERNAME=${{ vars.SUPABASE_DB_USERNAME }}##FRONTEND_BASE_URL=https://${{ env.PROJECT_ID }}.web.app##APP_SECURITY_CORS_ALLOWED_ORIGINS=https://${{ env.PROJECT_ID }}.web.app,https://${{ env.PROJECT_ID }}.firebaseapp.com \
             --set-secrets=SPRING_DATASOURCE_PASSWORD=DB_PASSWORD:latest,APP_SECURITY_JWT_SECRET=JWT_SECRET:latest,INTERNAL_CRON_SECRET=INTERNAL_CRON_SECRET:latest,RESEND_API_KEY=resend-api:latest,APP_CRYPTO_KEY=APP_CRYPTO_KEY:latest \
             --allow-unauthenticated \
             --quiet
