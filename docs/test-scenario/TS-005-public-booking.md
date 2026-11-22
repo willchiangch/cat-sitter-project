@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-005（Approved 2026-11-22） |
 | 對應 SD | SD-ORDER（E1 `POST /api/orders`、E2、E3、E4、E5、E6、E10、E11、E14、E25、E31、C1；§6.5 錯誤碼；§9.1 `/booking/:sitterId` testid；§10.4 測試支援，含 `inspect`）；SD-FULFILL（FT1 `force-status`，只用來造熟客 / 月額度前置） |
 | 類型 | 旅程（打真後端）：門禁、權限、冪等、跨角色互動、狀態轉移都要真後端驗證；純畫面互動（AC-2.1、AC-2.4）同檔以真後端資料執行 |
@@ -244,3 +244,4 @@
 |------|------|------|
 | 2026-11-22 | 依 commit 477c75d 的核准後修訂更新：`order_logs` / 通知 / Email 投遞斷言改用 inspect（PB-57、67、92、93），移出 §4；前置改用 `provision-account roles[]`（U、admin）、`sitter-setup` / `owner-setup` upsert 與 `key` 對應、`sitter-setup.emailPreferences`、`favoriteFillerCount`（PB-95）；日期基準改 E31 `serverTime`（§0、PB-01、PB-37）；畫面金額改 `$ 4,600` 格式；新增 PB-E15（401 先於冪等回放，PRD-005 已回寫）；PB-64 金額上限提示改照 PRD-005 現行字面 `$ 999,999`；§5 移除已解決項。狀態維持 Draft | SD-ORDER §10.4、E31 修訂；PRD-005 回寫 |
 | 2026-11-22 | 依 Approved 的 PRD-005（24 條 AC、29 條 EX）與 SD-ORDER 全文重寫：改用新範本；步驟前綴 `PB-`；旅程型三支 spec；`order_logs` / Email 投遞紀錄斷言列待測試支援；時間邊界交後端測試。狀態 Draft | 全面重建（PRD-005、SD-ORDER 於 2026-11-22 核准） |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-026（Approved 2026-11-22）；前置資料用到 PRD-005（建單）、PRD-006（報價）、PRD-007（上傳 / 核對憑證）、PRD-027（婉拒、O4 排程）、PRD-009（結案、回報問題） |
 | 對應 SD | SD-ORDER（E8 `POST /api/orders/{orderId}/withdraw`；E1、E2、E3、E4、E6、E7、E10、E11、E12、E14、E25、E26；C1、C3（帶 `orderId`）；§10.4 `shift-time`、`inspect`；§6.5 錯誤碼；§9.1 / §9.3 testid）；SD-FULFILL（FT1 `force-status`） |
 | 類型 | 旅程（打真後端）：狀態轉移、權限、冪等、跨角色併發、排程互動 |
@@ -148,3 +148,4 @@
 |------|------|------|
 | 2026-11-22 | 依 commit 477c75d 的核准後修訂更新：`order_logs` / 通知 / Email 投遞斷言改用 inspect（WD-03、04、06、11、14、15、25、27、28、35、36），移出 §4；C1 / C3 帶 `orderId` 並斷言精確計數（WD-25~27），刪除重呼叫因應；`ord-CONF` 改 2 個行程，FT1 直接 `PENDING → DONE`（WD-19~21）；變更入口改 `owner-order-detail-btn-modify`（WD-18、19）、分頁改 SD-ORDER §9.3 testid（WD-05）；`sitter-setup.emailPreferences`（WD-06）、`provision-account roles=[ADMIN]`；WD-E03 去掉待釐清（合法主狀態 → 409）；新增 WD-E09（401 先於冪等回放，PRD-026 已回寫）；§5 移除已解決項。狀態維持 Draft | SD-ORDER §6.3、§9.3、§10.4、E8 修訂；SD-FULFILL FT1；PRD-026 回寫 |
 | 2026-11-22 | 建立：依 Approved 的 PRD-026（8 條 AC、19 條 EX）與 SD-ORDER；步驟前綴 `WD-`；旅程型單一 spec；`order_logs` / Email 投遞紀錄斷言列待測試支援；鎖逾時與 Resend 故障交後端測試。狀態 Draft | PRD-026 自 PRD-005 拆出後首次撰寫 TS |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

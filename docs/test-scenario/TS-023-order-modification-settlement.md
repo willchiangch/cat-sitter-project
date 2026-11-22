@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-023（Approved 2026-11-22）；旅程中順帶使用 PRD-016（發起與報價，只作前置）、PRD-007（憑證上傳 / 確認 / 駁回）、PRD-008（行程開始）、PRD-009（結案 E25、帳務總覽 E30，只作後續觀察） |
 | 對應 SD | SD-ORDER（§3.2、§3.3、§4.3、§4.4、§6.3 E2、E10–E15、E17–E23、E25、E30、C1–C10、§6.5、§7.1、§7.2、§8.1 C2 / C5 / C6、§9.1、§9.3、§10.4）；SD-FULFILL（§6.3 F1、F3、FT1、FT2） |
 | 類型 | 旅程（打真後端）：同意三分支、拒絕、補款、補款逾時、退款、結清後主狀態、跨角色併發、冪等 |
@@ -154,3 +154,4 @@
 |------|------|------|
 | 2026-11-22 | 建立：依 PRD-023 與 SD-ORDER 撰寫同意三分支、拒絕、補款、補款逾時（含系統退款）、退款、O10 與 `IN_PROGRESS` 結清 | PRD-023、SD-ORDER Approved 2026-11-22 |
 | 2026-11-22 | 依 SD 核准後修訂（commit 477c75d）更新：目前總額改 E2 `quote.totalAmount`（全部步驟）；SS-03 改以 E10 `verifiedAt`、E12 `reviewedAt` / `verifiedAt` 斷言首次付款不被覆寫（AC-2.2 從 §4 移出）；SR-04、SR-08 以 `inspect.orderLogs` 斷言 O10 payload（AC-3.3 從 §4 移出）；SA-02、SA-04、SA-06、SA-07、SA-09~SA-11、SA-15、SS-02、SS-04~SS-07、SR-02、SR-05、SR-06 補 `inspect` 的 `order_logs` / 通知 / payment 時間欄 / `completionBasisAt` 斷言；C2 / C5 / C6 帶 `orderId` 並斷言精確計數（`EXPIRE_SUP`、SA-04、SS-08、SS-10、SR-03）；帳號改 `roles[]` 與 setup upsert / key 對應；補 SD-ORDER §9.3 testid（`payment-block-{paymentId}`、`submission-history-item-*`、`reject-submit-btn`、`reject-overdue-dialog-*`、`payment-refund-dispute-link`）；畫面金額改 `$ 1,800` 格式；新增 SE-09（EX-9）、SE-14（EX-17）；§5 已解決項移除 | SD-ORDER / SD-FULFILL 核准後修訂（commit 477c75d） |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

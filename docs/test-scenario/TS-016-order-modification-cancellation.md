@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-016（Approved 2026-11-22）；旅程中順帶使用 PRD-023（同意 / 拒絕，只作前置或後續動作）、PRD-007（付款憑證，只作前置）、PRD-009（結案，只作前置） |
 | 對應 SD | SD-ORDER（§3.3、§6.3 E2、E17–E23、C1–C10、§6.5、§7.1、§7.2、§8.1 C5 / C6、§9.1、§9.3、§10.4）；SD-FULFILL（§6.3 F1、FT1 `force-status`、FT2 `shift-time`） |
 | 類型 | 旅程（打真後端）：變更子流程（申請 / 報價 / 拒絕 / 撤回 / 逾時）、跨角色互動、權限、冪等全部走真後端 |
@@ -188,3 +188,4 @@
 |------|------|------|
 | 2026-11-22 | 依新範本全文重寫：對應拆卡後的 PRD-016（發起、報價、拒絕、撤回、逾時）與 SD-ORDER；補款 / 退款 / 結清移至 TS-023、款項爭議移至 TS-024；舊版 Scenario（`MODIFYING`、`REFUND_VERIFY`、`previous_status`）全部廢止 | PRD-016、SD-ORDER Approved 2026-11-22 |
 | 2026-11-22 | 依 SD 核准後修訂（commit 477c75d）更新：`order_logs` / 通知改以 `inspect` 在 E2E 斷言（MI-03、MI-04、MI-07、MI-08、MQ-02、MQ-18、MW-01、MW-03、MW-07~MW-09、MW-17、MW-18；§4 移除 `order_logs` 列）；目前總額改用 E2 `quote.totalAmount`；C5 / C6 帶 `orderId` 並斷言精確計數（MI-15、MW-05、MW-07~MW-09）；帳號改用 `roles[]`（`sitter` 雙角色、`admin`）與 setup upsert / key 對應；補 SD-ORDER §9.3 testid（`owner-order-detail-btn-modify`、`sitter-order-detail-btn-modify`、`modification-input-*`、`order-modify-add-item-{index}-*`）；畫面金額改 `$ 1,800` 格式；新增 ME-15（EX-17 站內通知）；§4 EX-13、EX-20 標明後端已列；§5 已解決項移除 | SD-ORDER / SD-FULFILL 核准後修訂（commit 477c75d） |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

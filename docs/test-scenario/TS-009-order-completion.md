@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-009（Approved 2026-11-22，含核准後回寫）；前置資料另用到 PRD-008（行程）、PRD-016 / PRD-023（變更）、PRD-020（ADMIN 待辦與調解 E28 / E29）、PRD-022（日誌） |
 | 對應 SD | SD-FULFILL §1.4、§9.2（畫面與 testid）、§6.3 FT1 / FT2、§10.2；SD-ORDER E2（`serverTime`、`completionHint`、`disputeWindowEndsAt`）、E3、E25、E26、E27、E28、E29、E30（`serverMonth`）、C8（`?orderId=`）、§1.9（後端測試類別）、§7.1 / §7.2、§9.3、§10.4（`inspect`、provision、setup） |
 | 類型 | 旅程（打真後端、正式站） |
@@ -255,3 +255,4 @@
 |------|------|------|
 | 2026-11-22 | 依 Approved PRD-009、SD-FULFILL、SD-ORDER 全文重寫：旅程型、步驟 ID `OC-`；舊版 TS-009-01~12 的場景（殭屍清理、`payout_at`、`/resolve`、零行程）已不在 PRD-009 範圍而刪除；舊版「本測試發現並修復的真實 bug」屬舊實作（`OwnerOrderDetail.tsx`、`CompletionService`），重建後不適用，歷史見 git | 全面重建 2026-11 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs` / 通知 / `emailStatus` / `admin_tasks` / payments / `completionBasisAt` 改以 `INSPECT` 斷言（OC-02、03、07、08、10~13、20、22、30、32、34、36、39、42~44、48、49、52、53、55~57、60、62）；C8 一律 `?orderId=` 並斷言精確計數、刪除排程搶先因應（OC-30~34、39、48、54、57）；帳號改用 `roles[]` / `displayName` / upsert / `sitter-setup.emailPreferences`（§1.1）；FT1 直接 `PENDING → DONE / CLOSED_BY_SYSTEM`（§1.2）；新 testid（`owner-orders-tab-evaluating` / `-active`、`sitter-orders-tab-history`、`sitter-order-card-*`、`owner-order-detail-btn-modify`、`sitter-order-detail-btn-modify` / `-btn-cancel`、`owner-order-dispute-description-counter`）；計數器剩餘字數與 code point 截斷（OC-40、OC-51）；全形空白（OC-49、OC-51）；金額改 `$ 1,000` 格式（OC-60、62、64、68、71）；§4 移回 E2E 的項目刪除；§5 只留 `emailStatus` 列舉 | 主流程交辦（核准後修訂） |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

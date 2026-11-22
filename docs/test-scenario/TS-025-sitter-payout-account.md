@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-025（前置資料借用 PRD-005 送單、PRD-006 報價、PRD-007 付款頁快照、PRD-014 通知偏好） |
 | 對應 SD | SD-SUPPLY（**尚未撰寫**，收款帳號 API、畫面路由、testid、稽核資料皆未定義）；快照與報價部分 SD-ORDER（§2.3.2 / §2.4.2 `PayoutAccountQuery`、§6.3 E5、E6、E10、§8.4.1 SD-SUPPLY 過渡實作、§10.4 測試資料端點） |
 | 類型 | 旅程（打真後端） |
@@ -129,3 +129,4 @@
 |------|------|------|
 | 2026-11-22 | 依 SD-ORDER 核准後修訂（commit 477c75d）更新：前置資料改用 `provision-account` `roles[]` / `sitterProfile=false` / `displayName`、setup upsert 與 key 對應 id；PA-03 改為預檢阻擋時三個報價鈕全停用、以 API 驗 422，PA-07 重新開頁後報價；PA-28 改以 `sitter-setup` `emailPreferences` 關閉訂單事務 Email；稽核 / 帳號通知讀取改稱 payout-inspect，維持待 SD-SUPPLY；§5-3 冪等鍵標已回寫 PRD-025；訂單相關斷言可用 SD-ORDER inspect；§5 已解決項合併標註 | SD-ORDER §10.4 修訂；PRD-006 預檢阻擋回寫 |
 | 2026-11-22 | 建立：依 PRD-025（Approved 2026-11-22）撰寫；AC-1.1–1.8 全部對應步驟（PA- 34 步，另 PAX- 2 步）；EX-1–EX-14 對應表；SD-SUPPLY 未撰寫，API / 畫面以業務名稱描述；狀態 Draft | PRD-025 自 PRD-007 拆出，收款帳號設定由舊 TS-007 TS-007-5 移入 |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

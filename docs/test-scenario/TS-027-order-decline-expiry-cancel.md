@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-027（Approved 2026-11-22，含同日核准後回寫）；前置資料另用 PRD-005（送單）、PRD-006（報價）、PRD-007（上傳 / 駁回 / 核對憑證、O8）、PRD-026（飼主撤回）、PRD-010（轉介入口後的選單，僅入口） |
 | 對應 SD | SD-ORDER（Approved 2026-11-22）：E2、E4、E5、E6、E7、E8、E9、E10、E11、E12、E14、E15、C1、C3、§6.3 排程端點（`orderId`）、§6.5 錯誤碼、§7.1 `order_logs`、§7.2 通知、§9.1 / §9.3 testid、§10.4 測試支援端點（含 `inspect`） |
 | 類型 | 旅程（打真後端，§2.1–§2.6、§3）＋ 模組（mock，只有 §2.7 的 QRM 列：轉介失敗、`ORDER_BUSY` 重試等真後端造不出的回應） |
@@ -236,3 +236,4 @@
 |------|------|------|
 | 2026-11-22 | 依核准後修訂更新：`order_logs`、通知類型 / `mandatory` / `emailStatus`、`voidedAt` / `reviewedAt` 改由 `inspect` / E10 / E12 在 E2E 斷言（QR-06、QR-07、QR-11、QR-13、QR-15、QR-16、QR-22、QR-24–QR-28、QR-32、QR-33、QR-35、QR-42、QR-43、QR-45、QR-46、QR-55、QR-56、QR-58、QR-59），§4 移除對應後端列；C1 / C3 一律帶 `orderId` 並斷言精確計數，刪除「避開正式排程」因應（QR-16、QR-27、QR-28、QR-30–QR-32、QR-35、QR-58、QR-59、QR-E8）；新增 QR-34（O4 飼主取消結果標題）、QR-E9（401 先於冪等回放）、QR-E10（排程 `orderId` 範圍）；QR-44 加 O7 標題「保母已取消此訂單」；QR-45 / QR-46 改為 blocked message 開頁顯示、取消鈕隱藏；QR-26 改用 `precheck.reviewExpired` 走 UI；strip 含 U+3000 / U+00A0（QR-02、QR-12、QR-13、QR-53）；provision `roles[]` / `displayName`、`sitter-setup` 的 `emailPreferences` / `trustCirclePartnerIds`；§5 標註已解決項 | SD-ORDER / PRD-027 核准後修訂（commit 477c75d）；使用者決定 2026-11-22 |
 | 2026-11-22 | 建立，狀態 Draft。原 TS-006 Scenario 10（婉拒）依 PRD 拆卡移入並依新規格重寫（原因必填、通知雙方、兩步驟轉介、期限後仍可婉拒） | PRD-027、SD-ORDER Approved 2026-11-22 |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

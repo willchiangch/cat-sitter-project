@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-024（Approved 2026-11-22）；旅程中順帶使用 PRD-016 / PRD-023（變更、補款、退款，只作前置）、PRD-007（憑證）、PRD-008（行程開始）、PRD-009（Approved；O11 / O12 / O13 與 `DISPUTED` 畫面列 §4.4）、PRD-005（公開頁預約被鎖定擋下）；ADMIN 調解行為依 PRD-024 §4.5 與 SD-ORDER E29（PRD-020 待改寫） |
 | 對應 SD | SD-ORDER（§3.5、§6.3 E2、E10–E15、E17–E29、C1–C10、§6.5、§7.1、§7.2、§8.1 C4 / C6 / C8、§9.1、§9.3、§10.4）；SD-FULFILL（§6.3 F3、FT1、FT2） |
 | 類型 | 旅程（打真後端）：款項爭議申報、`DISPUTED` 凍結、ADMIN 調解結果、協商期間結案限制、結案基準、訂閱鎖定不擋 |
@@ -137,3 +137,4 @@
 |------|------|------|
 | 2026-11-22 | 建立：依 PRD-024 與 SD-ORDER 撰寫款項爭議申報、`DISPUTED` 凍結、ADMIN 調解結果、協商期間結案限制、結案基準、訂閱鎖定不擋 | PRD-024、SD-ORDER Approved 2026-11-22 |
 | 2026-11-22 | 依 SD 核准後修訂（commit 477c75d）更新：結案基準改以 `INSPECT.completionBasisAt` 直接斷言（PF-12、PF-14、PF-17）；待辦結果、`order_logs`、通知改以 `inspect` 斷言（PD-03 含 ADMIN 無通知，從 §4 移出；PD-04~PD-17、PF-04~PF-08、PF-10、PF-16）；C4 / C8 帶 `orderId` 並斷言精確計數（PF-10、PF-13、PF-16、PF-17）；目前總額改 E2 `quote.totalAmount`；帳號改 `roles[]`（`sitter` 雙角色、`admin`）與 setup upsert；補 SD-ORDER §9.3 testid（`payment-refund-dispute-link`、`admin-task-item-{taskId}`、`reject-submit-btn`、`submission-history-item-*`、`owner-order-detail-btn-modify`）；PRD-009 已 Approved，§5 只留 PRD-020；新增 PE-09（EX-12 站內通知） | SD-ORDER / SD-FULFILL 核准後修訂（commit 477c75d）；PRD-009 Approved |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

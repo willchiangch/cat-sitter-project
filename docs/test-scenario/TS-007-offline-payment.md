@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-007（前置資料借用 PRD-005 送單、PRD-006 報價、PRD-016 / PRD-023 變更、PRD-024 款項爭議、PRD-027 保母取消、PRD-025 收款帳號） |
 | 對應 SD | SD-ORDER（§6.3 E2、E10–E16、E27、E28、C1–C10；§8.1 C2–C4；§9.1、§9.3 testid；§10.3 後端測試類別；§10.4 測試資料端點與 inspect） |
 | 類型 | 旅程（打真後端） |
@@ -267,3 +267,4 @@
 |------|------|------|
 | 2026-11-22 | 依 SD-ORDER / PRD-007 核准後修訂（commit 477c75d）更新：前置資料改用 `provision-account` `roles[]`、setup upsert 與 key 對應 id；所有 order_logs / 通知 / 待辦 resolution / payment 時間欄斷言改由 inspect 在 E2E 驗證；C2–C4、C11 一律帶 `orderId` 並斷言精確 `processed` / `skipped` / `failed`，移除避開排程分鐘與被搶先重試的因應；套用 §9.3 testid（payment 容器、駁回送出、逾期確認框、ADMIN 作廢、待辦列表、退款爭議入口、submission 單筆與圖片）；補 E10 `verifiedAt` / `voidedAt`、E12 `reviewedAt` / `verifiedAt` 斷言；PV-10 補全形空白 strip；P-02 依 PRD-007 BR-1 / PRD-006 BR-16 回寫斷言付款區塊內無總額、同頁報價明細可顯示，§5-1 標已解決；AC-2.4 拆為 PV-17（駁回 403）、PV-18（確認 409），PV- 步驟改為 36 步；P-37 對齊新 AC-1.7 Given；§4 移除不可達 Given 列；§5 已解決項標註 | SD-ORDER §6.3、§9.3、§10.4 修訂；PRD-007 AC-1.7、AC-2.4、EX-11 修訂 |
 | 2026-11-22 | 依 PRD-007（Approved 2026-11-22）與 SD-ORDER 全文重寫：改用新範本；三子模組 24 條 AC 全部對應步驟；EX-1–EX-30 對應表；自動化路徑改為 journey spec；移除寫死 UUID 與 Controller 測試路徑；收款帳號設定移至 TS-025；狀態 Draft | 全面重建；抽樣缺陷 #14、#15、#16 |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

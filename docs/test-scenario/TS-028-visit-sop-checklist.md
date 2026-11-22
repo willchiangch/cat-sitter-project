@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-028（Approved 2026-11-22，含 §4.3 / §9 / EX-8 / BR-14 核准後回寫）；行程狀態與服務面板依 PRD-008；前置資料另經 PRD-005 / 006 / 007（建單、報價、付款）、PRD-016 / 023 / 024（變更、款項爭議）、PRD-009（O11 結案） |
 | 對應 SD | SD-FULFILL（F1、F2、F3、F4、F8–F12、FC1、FT1、FT2、§2.3.3 / §10.2 inspect 的 `fulfill.checklistItems`、§3.4 寫入窗口、§4.8 帶入、§6.5 錯誤碼、§9.1 testid 與文案）；SD-ORDER（E1、E2、E6、E8、E11、E14、E17、E20、E23–E25、§10.4 provision-account / sitter-setup（`plans[].defaultTasks`）/ owner-setup / inspect / cleanup） |
 | 類型 | 旅程（打真後端，正式站） |
@@ -222,3 +222,4 @@
 | 2026-11-22 | §5 L-8 標已解決（`DISPUTED` 維持完整流程，判定可接受）；K-43 FC1 計數以訂單為單位（SD-ORDER 已釐清，斷言不變） | 協調者回覆 §5 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`created_by` / `updated_by` / `updated_at`、無 `order_logs` / 通知改以 inspect 在 E2E 斷言（K-01、K-02、K-10、K-11、K-17、K-19、K-37）；打勾時間改用 `sitter-visit-panel-checklist-checked-at-{itemId}`（K-37、K-38、K-41）；已結束文案依 PRD-028 EX-8；新增 K-27（FT1 造 `CANCELLED`、編輯文案），訂單 Dm 改為直接造好 `DISPUTED`、刪除原以變更造 `CANCELLED` 的檢查步驟；方案預設任務改以 `sitter-setup` upsert；FC1 帶 `orderId` 並斷言精確計數；K-25 加全形空白；ADMIN 改用 `provision-account roles[]`；步驟重新編號（K-01–K-47）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-028 核准後修訂 |
 | 2026-11-22 | 建立：依 PRD-028（Approved，自 PRD-008 拆卡）與 SD-FULFILL / SD-ORDER | 全面重建 2026-11；PRD-028、SD-FULFILL 核准 |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

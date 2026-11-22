@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-008（Approved 2026-11-22，含 §4.6 步驟 3、§4.7 步驟 2 核准後回寫）；前置資料另經 PRD-005 / 006 / 007（建單、報價、付款）、PRD-016 / 023 / 024（變更、款項爭議）、PRD-009（O11 結案）、PRD-020（E29 調解） |
 | 對應 SD | SD-FULFILL（F1–F7、F12、F13、FC1、FT1、FT2、§2.3.3 / §10.2 inspect 的 `fulfill` 區塊、§6.5 錯誤碼、§9.1 testid 與文案）；SD-ORDER（E1、E2、E6、E11、E14、E17、E19、E20、E22–E25、E27、E29、C7、§10.4 provision-account / sitter-setup / owner-setup / inspect / cleanup） |
 | 類型 | 旅程（打真後端，正式站） |
@@ -328,3 +328,4 @@
 | 2026-11-22 | V-E14 改斷言 404（SD 統一排程 `orderId` 錯誤碼）；V-37 註明計數以訂單為單位；§5 L-9、L-12、L-13 標已解決 | 協調者回覆 §5；SD-FULFILL / SD-ORDER 修訂 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs`、通知類型 / Email 投遞、`completion_basis_at` 改以 inspect 在 E2E 斷言（V-03、V-11、V-18、V-23、V-31、V-36、V-39 等）；排程一律帶 `orderId` 並斷言精確計數，刪除避開排程分鐘與被搶先重跑；ADMIN / 雙角色改用 `provision-account roles[]`（V-E02、V-E13）；`CANCELLED` 行程改用 FT1，AC-3.1 V5（V-65）、AC-3.3 `CANCELLED` 列（V-74）改回 E2E；新增 V-64（AC-1.8-3 O17 先）、V-77（報價前取 O1 方案名稱）、V-E14（排程 `orderId` 範圍）；V-79 加全形空白（PRD-008 §4.7-2 回寫）；注意事項連結目的地依 SD-FULFILL §9.1（V-67）；步驟重新編號（V-01–V-87）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-008 核准後修訂 |
 | 2026-11-22 | 依 PRD-008（Approved，baseline 第 2 版改寫）與 SD-FULFILL / SD-ORDER 全文重寫；舊版（Check-in / Check-out、寫死 UUID、`MSG_DATA_INVALID_STATUS`）作廢。舊版「本測試發現並修復的真實 bug」紀錄屬舊實作（`VisitReportManager`、`/api/visits/{visitId}/start`），保留於 git 歷史 | 全面重建 2026-11；PRD-008、SD-FULFILL 核准 |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |

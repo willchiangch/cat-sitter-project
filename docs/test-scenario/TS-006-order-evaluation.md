@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-006（Approved 2026-11-22，含同日核准後回寫）；前置資料另用 PRD-005（送單）、PRD-007（上傳 / 核對憑證）、PRD-026（飼主撤回）、PRD-002 / PRD-003 / PRD-004 / PRD-025（毛孩、方案、問卷、收款帳號，以 `sitter-setup` / `owner-setup` upsert 造資料） |
 | 對應 SD | SD-ORDER（Approved 2026-11-22）：E1、E2、E5、E6、E8、E10、E11、E14、E25、E31、C2、§6.3 排程端點（`orderId`）、§6.5 錯誤碼、§7.1 `order_logs`、§7.2 通知、§9.1 / §9.3 testid、§10.4 測試支援端點（含 `inspect`）；SD-FULFILL FT1（造 COMPLETED 訂單） |
 | 類型 | 旅程（打真後端，§2.1–§2.11、§3）＋ 模組（mock，只有 §2.12 的 QM 列：正式站無法造出的錯誤回應與前端重試行為） |
@@ -280,3 +280,4 @@
 | 2026-11-22 | §1 新增 `upsertSitter` helper，明定 `plans[]` / `questions[]` 依 key 逐項 upsert、只送要改的項目；Q-03（`questions:[{key:"Q1", text}, {key:"Q2", active:false}]`）、Q-45、Q-90、Q-92（`plans:[{key:"P", …}]`）、Q-93（`plans:[{key:"P", active:false}]`）依此語意；§5 #5 標已解決 | SD-ORDER §10.4 補明陣列 upsert 語意 |
 | 2026-11-22 | 依核准後修訂更新：`order_logs`、通知類型 / `mandatory` / `emailStatus`、`remindAt` 改由 `inspect` 在 E2E 斷言（Q-31、Q-32、Q-34、Q-35、Q-36–Q-38、Q-40、Q-60、Q-63），§4 移除對應後端列；C2 帶 `orderId` 斷言精確計數（Q-38）；provision `roles[]` / `displayName`、`sitter-setup` / `owner-setup` upsert 取代 PRD-002 / 003 / 004 / 025 正式 API 造資料（Q-03、Q-04、Q-26、Q-45、Q-90–Q-93）；預檢阻擋三鈕全停用與 `sitter-order-eval-precheck-upgrade-link`（Q-20–Q-23、Q-84）；Q-71 改依 `precheck.reviewExpired` 開頁即停用；金額格式一律 `$ 1,800`（Q-32、Q-33、Q-41、Q-51、Q-90）；strip 含 U+3000 / U+00A0（Q-52、Q-55）；新增 Q-E10（401 先於冪等回放）；§5 標註已解決項 | SD-ORDER / PRD-006 核准後修訂（commit 477c75d）；使用者決定 2026-11-22 |
 | 2026-11-22 | 依新範本全文重寫，狀態 Draft。舊版 Scenario 1–10（`AUTH_PLAN_LIMIT`、樂觀鎖 version、`/confirm`、`/reject`、飼主 `/cancel`、`OrderEvaluationTest` 等）與舊實作綁定，全數作廢；婉拒移至 TS-027、飼主撤回移至 TS-026。舊版「本測試發現並修復的真實 bug」屬舊實作，不沿用 | PRD-006、SD-ORDER Approved 2026-11-22；全面重建 2026-11 |
+| 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |
