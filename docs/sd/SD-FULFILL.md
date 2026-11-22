@@ -794,7 +794,7 @@ Response 200：`{ "itemId", "isCompleted", "checkedAt" }`（`checked=true` 寫 `
 
 - SITTER（本人訂單）Response 200：`{ "visitId", "visitName", "serviceDate", "careLogId", "status", "text", "submittedAt", "deadlineAt", "expired", "editable", "submittable", "quota": { "planTier", "imageLimit", "imageUsed", "videoLimit", "videoUsed" }, "media": [ MediaItem ] }`；日誌不存在時 `careLogId` / `status` / `text` 不輸出、`media=[]`。`editable` / `submittable` 依 §3.2 與 PRD-022 §4.1-1、§4.2-1 以注入 `Clock` 計算（只供畫面）。
 - OWNER / ADMIN Response 200：`{ "visitId", "visitName", "serviceDate", "careLogId", "text", "submittedAt", "media": [ MediaItem ] }`。
-- `MediaItem`：`{ "mediaId", "mediaType", "caption", "sizeBytes", "durationSeconds", "uploadedAt", "url", "urlExpiresAt", "purged" }`；`url` 為 V4 簽名 GET 網址（`X-Goog-Expires=900`），`urlExpiresAt` 為該網址簽名時的原始到期時間（快取命中時不重算，§8.2）；`purged=true`（PRD-013 已刪實體檔）時不輸出 `url`，前端顯示「檔案已逾期移除」。簽名在讀取交易結束後執行。
+- `MediaItem`：`{ "mediaId", "mediaType", "caption", "sizeBytes", "durationSeconds", "uploadedAt", "url", "urlExpiresAt", "purged" }`；`url` 為 V4 簽名 GET 網址（`X-Goog-Expires=900`，含 `response-content-type` 與 `response-content-disposition=inline`，§8.2），`urlExpiresAt` 為該網址簽名時的原始到期時間（快取命中時不重算，§8.2）；`purged=true`（PRD-013 已刪實體檔）時不輸出 `url`，前端顯示「檔案已逾期移除」。簽名在讀取交易結束後執行。
 - 錯誤：G4（行程不存在 / 不屬路徑訂單；OWNER / ADMIN 讀取時日誌不存在或非 `SUBMITTED`）→ G4a → G5 → 503 `STORAGE_UNAVAILABLE`（簽名失敗）。**已知邊界**：該單保母以 OWNER token 讀自己的草稿，因 404 判斷依 token 角色而先得 404，而非 PRD-022 §3 第 3 步的 `ROLE_MISMATCH`（G4a 只能排在 404 之後）；`VisitCareLogAuthorizationIntegrationTest` 以此實際行為斷言，TS-022 同步。
 
 **F14 `PUT …/care-log/draft`**
@@ -981,7 +981,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `createSignedUploadUrl(objectKey, contentType, exactBytes, ttl)` | V4 簽名 PUT，綁定 `Content-Type`、`x-goog-content-length-range: {exactBytes},{exactBytes}`（宣告大小；GCS 在 PUT 階段就拒絕大小不符）、`x-goog-if-generation-match: 0`；不帶 `x-goog-acl`（套 bucket 預設，DF7 確認非公開） |
 | `openPrivateObject(objectKey)` | 串流讀取並回傳 `generation`；不存在回空 |
 | `deletePrivateObject(objectKey, Long generation)` | 刪除；`generation` 非 null 時帶前置條件；不存在視為成功 |
-| `generateSignedUrl(objectKey, ttl)`（既有） | 讀取網址 |
+| `generateSignedUrl(objectKey, ttl, contentType)`（既有，擴充參數） | V4 簽名 GET；簽入 query 參數 `response-content-type={contentType}` 與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7、SEC-FILE-3），讓 GCS 回應的 `Content-Type` 固定為伺服器判定的格式、不以下載或 metadata 值呈現；兩個參數屬簽名的一部分，改動即簽章失效。`contentType` 由物件鍵副檔名對映（`jpg` → `image/jpeg`、`png` → `image/png`、`webp` → `image/webp`、`mp4` → `video/mp4`、`mov` → `video/quicktime`；副檔名由 F18 判定格式決定，不需新欄位），對映不到 → 不簽發、記 ERROR、該媒體不輸出 `url` |
 | `isPubliclyReadable` / `revokePublicRead`（既有） | F18 防線檢查 |
 
 **物件鍵**：`{plan_tier 小寫}/{上傳日 UTC yyyy-MM-dd}/{orderId}/{uploadId}.{ext}`（沿用 SD-GLOBAL-SPEC §4.1 `/{plan_tier}/{date}/{order_id}/{file_uuid}` 格式，`plan_tier` 取 O2 快照；`ext` 由 `contentType` 決定：`jpg` / `png` / `webp` / `mp4` / `mov`）。**私有物件**（修正現況以 `uploadPublic` 上傳的問題）。
@@ -1011,7 +1011,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | # | 項目 | 內容 | 驗證 |
 |---|------|------|------|
 | DF1 | Cloud Scheduler | 新增 `visit-in-progress-timeout`（`7-59/15 * * * *`）、`care-log-orphans`（`27 * * * *`），時區 Asia/Taipei、`X-Internal-Secret`、attempt-deadline 60s、重試 0 次 | 手動觸發各回 200 與計數；整點與 FC1 同時觸發 C7 時，一般請求不逾時 |
-| DF2 | GCS bucket CORS | `cat-sitter-media-bucket` 只開 `PUT`；origin 逐一列出：Firebase Hosting 預設網域 `https://{site}.web.app`、`https://{site}.firebaseapp.com`、自訂網域（若有）、Cloud Run 服務網址 `https://{service}-{hash}.{region}.run.app`、local `http://localhost:5173`（實際值部署前以 `firebase hosting:sites:list`、`gcloud run services describe` 唯讀取得）；允許標頭 `Content-Type`、`x-goog-content-length-range`、`x-goog-if-generation-match`；`maxAgeSeconds` 3600。讀取以 `<img>` / `<video>` 直接載入，不開 `GET` | 正式站瀏覽器直傳 200；其他來源被擋 |
+| DF2 | GCS bucket CORS | `cat-sitter-media-bucket` 只開 `PUT`；origin 逐一列出：Firebase Hosting 預設網域 `https://{site}.web.app`、`https://{site}.firebaseapp.com`、自訂網域（若有）、local `http://localhost:5173`（實際值部署前以 `firebase hosting:sites:list` 唯讀取得）。**不列 Cloud Run `*.run.app`**（2026-11-22 依 NFR-003 U-6 移除）：前端只由 Firebase Hosting 提供（SD-GLOBAL-SPEC §1.2），瀏覽器直傳不會來自 run.app；允許標頭 `Content-Type`、`x-goog-content-length-range`、`x-goog-if-generation-match`；`maxAgeSeconds` 3600。讀取以 `<img>` / `<video>` 直接載入，不開 `GET` | 正式站瀏覽器直傳 200；其他來源被擋 |
 | DF3 | runner SA 權限 | `cat-sitter-runner` 在 bucket 有 `storage.objects.create` / `get` / `delete` 與 `iam.serviceAccounts.signBlob`（後者 SD-ORDER D9 已列） | FC2 手動觸發成功；F17 回網址可 PUT |
 | DF4 | Lifecycle | 確認 bucket 仍無 lifecycle 規則；本次不新增（媒體保留由 PRD-013 排程依 DB 刪除） | `gcloud storage buckets describe` 唯讀確認 |
 | DF5 | 舊公開日誌物件 | 現況 `{tier}/` 前綴下的日誌媒體為公開物件且遷移後已無 DB 參照，建議刪除 | 列表為空 |
@@ -1182,7 +1182,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `VisitCareLogMediaUploadIntegrationTest` | PRD-022 AC-2.1–2.5、AC-2.8 | 各快照額度（升降級不影響）、FREE 0；宣告值與實際物件檢驗（magic bytes、宣告 / 實際類型不同、大小邊界、時長）、`SHA256_MISMATCH` / `OBJECT_MISSING`；拒絕時無槽位 / 無物件或物件被刪；`MEDIA_UPLOADED` payload；GCS 讀取失敗 503 後同槽位重打成功；AC-2.3 情境 6 後半（宣告大小錯、宣告雜湊等於實際檔案、實際 1,048,576 bytes → 422 `CARE_LOG_MEDIA_TOO_LARGE`）以 fake 直接放置物件造出（正式環境 GCS 在 PUT 階段即依綁定的宣告大小拒絕，E2E 無法重現；PRD-022 由 writer 加註）；AC-2.8 情境 1–2 在 F17 注入簽名失敗；O15 介入後鎖內重驗刪物件；F17 TTL = min(15m, 剩餘)、剩餘 ≤ 0 → 409；F17 對 `COMPLETED` 先於逾期回 `alreadyCompleted` |
 | `VisitCareLogMediaDeleteIntegrationTest` | PRD-022 AC-2.6 | 額度釋放、重送 404、跨行程 404、GCS 刪除失敗仍 200 且 FC2 最終清除 |
 | `VisitCareLogConcurrencyIntegrationTest` | PRD-022 AC-2.7、AC-3.7 | 額度剩 1 兩筆同時完成恰 1 筆成功、被拒者物件刪除；**同 uploadId 兩條執行緒同時 F18：恰 1 筆媒體、物件仍存在**；送出 vs E29、送出 vs E25；F18 `ORDER_BUSY` 時物件保留、槽位 `PENDING`，鎖釋放後同槽位重打 F18 → 201 |
-| `VisitCareLogReadIntegrationTest` | PRD-022 AC-1.7、AC-3.2、AC-3.4 | 逾期草稿保母可讀、飼主 404；簽名網址含 `X-Goog-Expires=900`、快取命中時 `urlExpiresAt` 為原值；`purged` 不給網址；ADMIN `DRAFT` 404 |
+| `VisitCareLogReadIntegrationTest` | PRD-022 AC-1.7、AC-3.2、AC-3.4 | 逾期草稿保母可讀、飼主 404；簽名網址含 `X-Goog-Expires=900`、`response-content-type`（等於判定格式）、`response-content-disposition=inline`、快取命中時 `urlExpiresAt` 為原值；`purged` 不給網址；ADMIN `DRAFT` 404 |
 | `VisitCareLogAuthorizationIntegrationTest` | PRD-022 AC-3.3 | 401、他人保母 403、他人飼主 403、`ROLE_MISMATCH`、跨訂單路徑 404；保母以 OWNER token 讀自己草稿 → 404（§6.3 F13 已知邊界） |
 | `VisitCareLogIdempotencyIntegrationTest` | PRD-022 AC-3.5、AC-3.6 | 送出回放不重發通知；F16 同 key 換檔案 422；完成後超過 31 分鐘（槽位已逾時、期限已過）以同 key 走完 F16 → F17 → F18 仍 201 同一媒體（限冪等紀錄 24h 內）；F15、F16 同 key 處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`（PRD-022 AC-3.5 情境 3） |
 | `VisitCareLogErrorOrderIntegrationTest` | PRD-022 AC-3.8 | 「唯一結果」五例逐一 |
@@ -1215,7 +1215,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 |---|------|------|---------------|
 | 1 | 日誌媒體上傳路徑（使用者 2026-11-22 採用，CQ-5） | 瀏覽器以 V4 簽名 PUT 直傳 GCS，三段式「F16 預檢建槽位 → 交易外直傳 → F18 串流檢驗 + 訂單鎖重驗」；期限以 F16 的 `received_at` 判斷；槽位 30 分鐘；F18 `ORDER_BUSY` 保留物件 | (a) 後端代收 multipart（PRD-022 §4.3 原字面）：Cloud Run HTTP/1 單一請求上限 32 MiB（官方文件），影片上限 50 MB 無法通過；改 HTTP/2 端到端則前端經 Firebase Hosting 轉發 Cloud Run，代理層限制**未查證**（推測可能同樣受限），且 50 MB 上傳佔住實例；SD-ORDER 全域 multipart 上限只有 20 MB。(b) 照片代收、影片直傳：兩套流程與錯誤處理。(c) 影片上限降到 < 32 MB：業務規格變更 |
 | 2 | 影片時長檢測 | 後端自行解析 ISO BMFF / QuickTime 的 `moov/mvhd`（`MediaInspector`，單次串流同時算 SHA-256） | ffprobe：Cloud Run 映像需另裝二進位檔、啟動子行程；mp4parser 類函式庫：為一個欄位引入整套解析器，且仍需自行處理 `moov` 在尾端時的串流 |
-| 3 | 媒體檔格式判定 | 檔頭 magic bytes，且須與宣告 `contentType` 相同（不同即 422，不改寫 metadata） | 信任 `Content-Type` / 副檔名：可偽造；改寫 metadata：多一條 GCS 寫入路徑，規則較複雜 |
+| 3 | 媒體檔格式判定 | 檔頭 magic bytes，且須與宣告 `contentType` 相同（不同即 422，不改寫 metadata）；讀取時簽名 GET 加 `response-content-type`（等於判定格式）與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7），即使物件 metadata 異常，瀏覽器收到的型別仍是判定格式 | 信任 `Content-Type` / 副檔名：可偽造；改寫 metadata：多一條 GCS 寫入路徑，規則較複雜；讀取時不覆寫回應型別：物件 metadata 若被改動（例 bucket 權限設錯），瀏覽器會依 metadata 呈現 |
 | 4 | `Visit` 與 `Order` 的 JPA 關係 | 只存 `orderId` UUID | `@ManyToOne(LAZY) Order`：讓本模組能經行程改訂單聚合；代理在鎖前被觸發時有鎖後新鮮度問題 |
 | 5 | 鎖前讀取 | 只用投影（`VisitRef` 等） | 鎖前載入實體、鎖後 `refresh`：每支端點都要記得 refresh，漏一處就以舊值通過狀態檢查 |
 | 6 | 行程預設名稱 | 讀取時組成（`custom_name` → O2 快照名稱 → `booking_plan_title`），不落地 | 建立時寫入完整名稱：O2 報價時須回頭改所有行程（SD-ORDER 需呼叫本 SD），且變更新增 / 改名規則要同步多處 |
@@ -1256,6 +1256,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§8.3 DF2 bucket CORS 移除 Cloud Run `*.run.app` origin（U-6）；§8.2 `generateSignedUrl` 加 `contentType` 參數、簽名 GET 帶 `response-content-type` 與 `response-content-disposition=inline`（型別由物件鍵副檔名對映），§6.3 `MediaItem.url` 與 §11 決策 3 同步（U-7） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | TS 更新回饋小修（狀態維持 Approved）：FC1 / FC2 帶非測試帳號 `orderId` 改 404 與 SD-ORDER 一致；計數以訂單為單位 | TS-008 §5 L-12 |
 | 2026-11-22 | 使用者核准（與 SD-ORDER 同批）：CQ-6 / 8 / 9 採建議；狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | 使用者同意之核准後修訂：journey TS 回饋（狀態維持 Approved）。決定 C：「待處理」卡片於已過 `VISIT_ZOMBIE_AT` 且未關閉時改顯示「已超過可開始期限，系統將自動關閉」（testid `sitter-dashboard-visit-deadline-passed-{visitId}`），`DashboardCard` 新增後端計算的 `zombieDeadlinePassed`；保母訂單詳情行程列 testid 加 `{visitId}`；`FulfillTestInspectionQuery.visits[]` 補 `serviceDate`、`planId`；測試帳號收件者 Email 為 `SUPPRESSED_TEST` 的通知斷言說明；SD-FRONTEND-SPEC §6.4 狀態對照表對齊 baseline | TS-JOURNEY-03 / 04 §5；使用者同意 2026-11-22 |

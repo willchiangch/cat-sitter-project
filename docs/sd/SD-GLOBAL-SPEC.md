@@ -10,7 +10,8 @@
 ## 1.2 容器化標準 (Containerization Standard)
 - **基底鏡像**：
   - **Backend**: `eclipse-temurin:21-jre-jammy` (Java 21 LTS), **Spring Boot 4.0.x**。
-  - **Frontend**: React + Vite，`npm run build` 產出的靜態檔案於 CI 階段複製進 Backend 的 `src/main/resources/static`，由 Spring Boot 內嵌 serve，與後端打包成同一個 Docker Image、部署為同一個 Cloud Run service（非獨立 nginx/Next.js 容器）。
+  - **Frontend**（2026-11-22 依 NFR-003 U-1 改寫，原寫「打包進後端映像」與實際部署不符）：React + Vite，`npm run build` 產出的 `frontend/dist` 由 **Firebase Hosting** 提供；`firebase.json` 以 rewrite 把 `/api/**` 轉給 Cloud Run 服務 `cat-sitter-app`（asia-east1），其餘路徑回 `index.html`（SPA）。**後端映像不含前端靜態檔**，`SecurityConfig` 不得再對 `/`、`/index.html`、`/assets/**`、`/static/**`、`/*.js` 等靜態路徑 `permitAll`（現況殘留，NFR-003 G-21）。前端頁面的資安標頭由 Firebase Hosting 下發（SD-FRONTEND-SPEC §2.6），API 回應的資安標頭由 Spring 下發（§3.5）。
+  - **支援期**：Spring Boot、Java、建置用 Node.js 必須在官方開源支援期內，上線日距 EOL ≥ 90 天；Spring Boot 4.0.x 開源支援至 2026-12-31，上線前升到 4.1 以上當時最新 GA 版本列，Node.js 改用 24 LTS（NFR-003 SEC-SCA-3、CQ-37）。
 - **多階段構建 (Multi-stage Build)**：強制採用多階段構建，確保 Production Image 不包含原始碼與編譯工具。
 - **環境變數**：嚴禁將 Secrets 寫死在 Dockerfile。統一透過 `ENTRYPOINT` 讀取系統環境變數，並由 GCP Secret Manager 注入。
 - **時區對齊**：容器內 OS 時區統一強制設定為 `UTC`，與資料庫規格對齊。
@@ -58,7 +59,9 @@
 - **格式（全域）**：`{ "code", "message", "payload", "traceId", "timestamp" }`；值為 null 的欄位不輸出（`default-property-inclusion: non-null`）；`authenticationEntryPoint` 回 401 `UNAUTHENTICATED`、`accessDeniedHandler` 回 403 `FORBIDDEN`，皆用此格式。
 - **全域 `GlobalExceptionHandler`**：`@PreAuthorize` 拒絕（`AuthorizationDeniedException`）→ 403 `ROLE_MISMATCH`；其他 `AccessDeniedException` → 403 `FORBIDDEN`；進方法前的格式錯誤（`HttpMessageNotReadableException`、`MethodArgumentTypeMismatchException`、缺必填 part / param、不支援的 media type、multipart 解析失敗、超過容器上限）→ 400 `VALIDATION_FAILED`；未處理例外 → 500 `INTERNAL_ERROR`（不含堆疊）。`spring.jackson.deserialization.accept-float-as-int=false`。
 - **模組專屬 advice**：各模組以 `@RestControllerAdvice(basePackageClasses = 模組 controller 套件)` + 最高優先序處理自己的例外與碼（例：SD-ORDER `OrderExceptionHandler`、SD-FULFILL `FulfillExceptionHandler`）。
-- **traceId**：取 `X-Cloud-Trace-Context` 的 trace 部分；沒有就每個請求產生 UUID。
+- **traceId**（2026-11-22 依 NFR-003 U-2、SEC-LOG-5 改寫）：取 `X-Cloud-Trace-Context`（格式 `TRACE_ID/SPAN_ID;o=...`）斜線前的 trace 部分，**必須完全符合 `^[0-9a-f]{32}$`** 才採用；標頭缺漏、格式不符、含 CR / LF 或其他字元時一律重新產生（32 位小寫十六進位，即去掉連字號的隨機 UUID），所有 traceId 同一格式。traceId 同時寫入錯誤回應與 log，不得把未驗證的標頭值放進任一處。IT：送 `X-Cloud-Trace-Context: abc` + CRLF + `FAKE` → 回應 `traceId` 不等於輸入且符合格式（現況 `ApiErrors` 未驗證，NFR-003 G-16）。
+- **`message` 不得帶例外原文**（NFR-003 SEC-LOG-2）：錯誤 body 只有上列 5 欄；`message` 只能是固定文案——本專案 `application/exception/*Exception` 建構時傳入的業務文案可用，**框架、JDK、JDBC、Jackson、第三方程式庫例外的 `getMessage()` 一律不得出現在回應**（不得拼接、不得原樣回傳），也不得含堆疊、例外類別名、SQL、約束名、表名、檔案路徑、主機名。細節只進 ERROR / WARN log（帶 traceId）。現況違反處（實作清單）：`GlobalExceptionHandler` 對 `AuthenticationException` 拼接 `ex.getMessage()`、`IllegalArgumentException` / `IllegalStateException` 直接回 `ex.getMessage()`（BCrypt 超過 72 bytes 的例外訊息會原樣外洩），改為 400 `VALIDATION_FAILED` / 500 `INTERNAL_ERROR` 固定文案；未重建模組的 `DataIntegrityViolationException` 400 `DATA_ERROR` 維持固定文案。IT `ErrorResponseLeakIntegrationTest` 觸發：(a) 訊息含 `SELECT` 的未處理 RuntimeException、(b) SQLSTATE 23514、(c) 不合法 JSON、(d) `AuthenticationException`、(e) `IllegalArgumentException`、(f) 73 bytes 密碼，回應 body 皆不含原例外訊息、約束名與 Jackson 解析訊息。
+- **429 `RATE_LIMITED`**（NFR-003 CQ-28；跨模組碼，baseline §3.7 待 U-5 回寫）：由 §2.8 的限流 filter 直接寫出（不經 `GlobalExceptionHandler`、不列入 baseline 判斷順序），body 同上格式，必帶 `Retry-After`（整數秒，≥ 1）。CORS `exposedHeaders` 已含 `Retry-After`（§3.5）。
 - **鎖與資料完整性**（只在重建模組的 advice 基底 `AbstractModuleExceptionHandler` 生效；未重建模組維持舊對映，重建時改繼承基底）：SQLSTATE 55P03 / 40P01（含 Spring 轉換後的 `CannotAcquireLockException`、`PessimisticLockingFailureException`、`DeadlockLoserDataAccessException`）與 `@Version` 衝突 → 409 `ORDER_BUSY` + `Retry-After: 1`。`DataIntegrityViolationException` **只有 SQLSTATE 23505**（unique violation，含 commit 時的延遲唯一約束）可對映 409（依約束名對應模組碼，未列名者 `ORDER_BUSY`）；23514 / 23502 / 23503 等確定性錯誤一律 500 `INTERNAL_ERROR` 並記 ERROR log，不得對映為可重試碼。
 - **欄位驗證時點**：需遵守 baseline §3.7 判斷順序的端點，Request DTO 不掛 `@Valid`、必填 header 宣告為非必填，改由 Service 在第 6 步驗證；金額欄以 `BigDecimal` 接收並驗證為整數。
 
@@ -66,6 +69,38 @@
 - **「空白」的定義**：Java `String.strip()` 的判定（`Character.isWhitespace`，含 U+3000 全形空白、Tab、換行）**再加上 U+00A0 不換行空白**（`isWhitespace` 不含它，從網頁複製常帶入），實作集中在 `TextRules.isBlankChar`（2026-11-22 使用者確認）。全站所有「去前後空白 / 去頭尾空白」一律用它，不得用 `String.trim()`（只去 ≤ U+0020）。
 - **字數**：以 strip 後的 Unicode code point 計（與 PostgreSQL `char_length` 一致）；前端計數規則相同。
 - **儲存**：存 strip 後的值；strip 後為空的必填欄位 → 400 `VALIDATION_FAILED`，選填欄位存 NULL。
+
+### 2.8 請求解析與濫用防護（2026-11-22，NFR-003 SEC-INPUT-1 ~ 6）
+> 本節所有上限**不依 SaaS 方案區分**。
+
+| 項目 | 規則 | 出處 |
+|------|------|------|
+| 非冪等 body 上限 | 非 multipart 的請求 body 上限 **1,048,576 bytes**。`RequestBodySizeLimitFilter`（Servlet filter，排在 `IdempotencyBodyCachingFilter` 之前）：`Content-Length` > 上限 → 不讀串流，直接 400 `VALIDATION_FAILED`（`field=body`、`maxBytes=1048576`）；無 `Content-Length`（chunked）→ 以計數串流包裝，讀到第 1,048,577 bytes 時中止並拋 `RequestBodyTooLargeException` → 400 同上。不得先整包讀入再判斷。帶 `Idempotency-Key` 的 JSON 仍適用 §2.4 的 64 KB；multipart 適用全域 multipart 上限（單檔 20 MB、整個請求 21 MB，SD-ORDER §6.1） | SEC-INPUT-1、CQ-25 |
+| Jackson 解析限制 | 不得調高 Jackson 3 `StreamReadConstraints` 預設值（巢狀深度、數字長度、字串長度）；超限由 `HttpMessageNotReadableException` → 400 `VALIDATION_FAILED`，不得 500 或 StackOverflowError。`accept-float-as-int=false`（§2.6） | SEC-INPUT-2、SEC-INPUT-3 |
+| 金額 `BigDecimal` 範圍 | 金額欄以 `BigDecimal` 接收；共用 `AmountRules` 在**任何運算之前**（`setScale`、`toBigIntegerExact`、`stripTrailingZeros`、比較）先檢查 `precision() ≤ 15` 且 `-15 ≤ scale() ≤ 15`，不符 → 400 `VALIDATION_FAILED`（`field` = 該欄）；通過後才做「必須為整數」與業務上下限檢查。IT：送 `1e999999999` → 400 且回應 < 1 秒 | SEC-INPUT-3、CQ-26 |
+| 文字與 regex | 文字欄先依 §2.7 檢查字數上限再做其他處理；套用在使用者輸入的 regex 必須先限制長度，樣式不得含巢狀量詞（`(a+)+`、`(\w*)*`）或可重疊分支加量詞；AU 掃描 `Pattern.compile` 與 `@Pattern` 的樣式字串 | SEC-INPUT-3、SEC-INPUT-4 |
+| Request DTO 欄位 | 不得宣告代表呼叫者自己的身分欄位、`id`、`status`、`version`、伺服器計算的金額；多送時忽略（§3.4）。AU 白名單引用 §3.4「允許的例外」 | SEC-INPUT-2 |
+| 分頁 | `size` 預設 20、**全域上限 100**，超過 → 400 `VALIDATION_FAILED`（`field=size`、`max`）；模組可訂更小上限（例：SD-ORDER 50）。不得依賴 `spring.data.web.pageable.max-page-size`（它是靜默截斷，不回 400），由共用 `PageParams` 解析器明確驗證。不提供無上限的「全部匯出」端點給一般使用者 | SEC-INPUT-5、CQ-27 |
+| 全域限流 | 見下方「限流」 | SEC-INPUT-6、CQ-28 ~ 30 |
+
+**限流（`RateLimitFilter`）**
+
+- **位置**：Spring Security filter chain 內、`JwtAuthenticationFilter` 之後（才知道是否帶有效 token）、授權判斷之前。套用 `/api/**`；**不套** `/api/internal/**` 與 `OPTIONS`。
+- **計數鍵與上限**：帶有效 access token → 鍵 `U:{userId}`，每分鐘 300 次（CQ-29）；未帶或 token 無效 → 鍵 `IP:{來源 IP}`，每分鐘 60 次（SEC-INPUT-6.1）。帶有效 token 的請求不計入匿名額度；不同鍵互不影響。
+- **演算法**：每個鍵「首次請求起算」的 60 秒固定窗（窗內第 61 次 / 第 301 次起拒絕，`Retry-After` = 窗結束剩餘秒數無條件進位，≥ 1）；時間取注入的 `Clock`。計數放各實例記憶體（Caffeine，`expireAfterWrite` 2 分鐘、`maximumSize` 100,000，被淘汰的鍵視為歸零）；MVP 無 Redis，多實例時實際上限約為上限 × 實例數，接受（CQ-30）。
+- **超限回應**：429 `RATE_LIMITED` + `Retry-After`（§2.6），不進 controller；同一鍵每分鐘最多記 1 筆 WARN（含 traceId、路徑、鍵的類型、遮蔽後的 IP 或 userId，SEC-LOG-4）。
+- **來源 IP（`ClientIpResolver`，CQ-30）**：不得用 `request.getRemoteAddr()` 當計數鍵的唯一依據，`server.forward-headers-strategy` 明確設 `none`（不讓容器改寫 remote address 與 scheme）。規則：取 `X-Forwarded-For` **最右項**；只有當最右項落在 `app.security.trusted-proxy-cidrs`（實測得到的 Firebase Hosting 轉發出口網段，IPv4 / IPv6 都列）內時，才改取前一項，**最多往前退一項**，其餘項一律不採用；可信網段明確排除 GCP 客戶可用網段（Google 公開的 `cloud.json`）。沒有 XFF（local）→ `getRemoteAddr()`。**`trusted-proxy-cidrs` 未實測填入前，經 Firebase 的請求最右項都是 Firebase 出口 IP，全站匿名流量會共用同一個計數（＝全站 429）**，因此匿名限流另有開關 `app.security.rate-limit.anonymous-enforce`：預設 `false`（只計數並記 WARN、不回 429），待兩條路徑實測、填入網段並通過下方 (c) 驗證後才改 `true`，正式上線前必須為 `true`。登入使用者的 `U:{userId}` 限流不受此開關影響。Firebase 出口網段是否有公開清單、是否穩定未查證（推測需以實測 log 歸納），實測結果寫回本節。
+- **驗證**：(a) `ClientIpResolverTest` 以四種 XFF 樣本驗證：直打 run.app、經 Firebase 轉發、直打並偽造 XFF、自 GCP 客戶網段直打並偽造 XFF，後兩者的計數鍵必須是實際連線來源；(b) IT：同 IP 匿名 60 秒內打 61 次 `GET /api/sitters/{id}/plans` → 前 60 次 200、第 61 次 429 且帶 `Retry-After`；帶有效 token 的第 61 次 → 200；(c) 部署後 MAN：經 `web.app` 與直打 `run.app` 各一次，記錄 XFF 原文（寫回本節）。
+- **上限調整門檻**（SEC-INPUT-6.7）：E2E 實測記錄每個公開頁、登入後主要頁面（訂單詳情、日誌、帳務）單次載入的 API 呼叫數，寫回本節；公開頁單次 > 10 支或登入後頁面單次 > 30 支時提請使用者調整上限（台灣行動網路多為 CGNAT）。
+- **寄信類匿名端點**（註冊 OTP、重送 OTP、忘記密碼）另有每 email 每小時 5 封、每 IP 每小時 20 封的上限（SEC-INPUT-7、CQ-41），超過同樣回 429 `RATE_LIMITED`；計數儲存位置由 SD-IDENTITY 決定（本節的記憶體計數在 `min-instances: 0` 縮容時歸零，不適合小時級上限，建議 DB）。
+
+### 2.9 日誌遮蔽與注入防護（2026-11-22，NFR-003 SEC-LOG-1、SEC-LOG-4、SEC-LOG-5）
+- **不得出現在任何 log（含 DEBUG）**：`Authorization`、`Cookie`、`Set-Cookie`、`X-Internal-Secret` 標頭值；access / refresh token、密碼重設憑證、OTP；密碼（含目前密碼）；WebAuthn 原始 credential；完整收款帳號與戶名；簽名網址的 query 字串（只記 `objectKey`）；稽核 details 全文（現況 `AuditLogService` 以 `log.info` 印出，NFR-003 G-13）。
+- **遮蔽函式**集中在 `LogMask`：email → 首字元 + `***` + `@網域`（`w***@example.com`，CQ-16；需要追查時記 userId）；收款帳號 → 銀行代碼 + 帳號後五碼（PRD-025 BR-8）；IP 可完整記錄（SEC-LOG-4 需要）。
+- **禁止**：`CommonsRequestLoggingFilter` 或任何會印出 header / payload 的請求記錄器；`spring.mvc.log-request-details=true`；在 log 中拼接整個 request DTO（`toString()` 可能含密碼或帳號）。
+- **CR / LF 注入**：`logging.pattern.console` 沿用 Spring 預設格式，但訊息段改為 `%replace` 把 CR、LF 換成字面 `\r`、`\n`（堆疊段 `%ex` 不受影響）；使用者輸入（email、名稱、路徑參數）因此無法偽造新行。IT：以含 CRLF 的 email 登入失敗，擷取的 log 不出現偽造的新行。
+- **安全事件**記 WARN（含 traceId、路徑、token 身分若有、來源 IP，不含 secret）：登入鎖定、內部端點驗證失敗、refresh token 重用、限流觸發（同一鍵每分鐘最多 1 筆）、寄信上限觸發；加解密失敗記 ERROR。
+- **驗收**：IT 以 log 擷取跑「登入成功 / 失敗、換發、改密碼、重設密碼、OTP、修改收款帳號、建立 payment 快照、內部端點錯誤 secret、取得簽名網址」，擷取內容不含測試用的密碼、token、OTP、secret、帳號明文、`X-Goog-Signature=`（`LogRedactionIntegrationTest`；IDENTITY / SUPPLY 部分隨各 SD 實作補案例）。
 
 ## 3. 開發效率與權限規範 (SaaS Gating)
 ### 3.1 SaaS Gating via AOP
@@ -88,7 +123,77 @@
 - **部署相容**：移除身分參數時，後端不宣告該參數即可——Spring 對未宣告的 query param / Jackson 對未知 JSON 欄位（`FAIL_ON_UNKNOWN_PROPERTIES=false`）都直接忽略，舊前端在「後端已部署、前端未部署」的空窗期仍可運作。部署順序：先後端再前端。
 - **已套用的端點（fix-batch11）**：`POST /api/orders/{id}/confirm|quote|reject`（SITTER）、`/complete|/dispute`（OWNER）——原本 `@RequestParam sitterId/ownerId`；`POST /api/orders/booking`（OWNER）——原本 body `ownerId`。2026-10-25 全 controller 掃描（23 支）後，其餘端點的呼叫者身分都已取自 token；仍收 `sitterId` / `ownerId` 的只剩上列「允許的例外」（`/api/sitter/trust-circle/referral-candidates?ownerId=` 與 `CreateReferralRequest.ownerId` 是 PRD-010 D 主動分享的通知對象）。
 - **沒有身分時 → 401（2026-10-25 fix-batch12 J2）**：`TokenContext.getUserId()` 沒有身分（未帶 token、或 JWT 缺 `userId` claim）時拋 `AuthenticationCredentialsNotFoundException` → `GlobalExceptionHandler` 回 **401**，所有 profile 皆同（過去回全 0 的 dummy UUID，讓 permitAll 路徑 `/api/auth/switch-role|deactivate|logout-all-devices` 與漏掛 `@PreAuthorize` 的端點靜默以 0000 身分執行）。匿名可用、身分可選的端點（公開頁、WebAuthn、auditing、`PlanGatingAspect` 的 fallback）改用 `tryGetUserId()`。內部排程（`/api/internal/**`、`@Scheduled`）不經 `TokenContext.getUserId()`。迴歸：`TokenContextTest`、`TokenContextNoIdentityProdProfileTest`（prod profile）。
-- **迴歸測試**：`OrderIdentityFromTokenSecurityTest`（真 JWT + 真 `SecurityConfig` filter chain，不用 `@WithMockUser`）——每支端點「別人的 token 操作他人訂單 → 403」「錯角色 → 403」「本人 → 200（多帶亂填的舊身分參數也被忽略）」。
+- **迴歸測試**：`OrderIdentityFromTokenSecurityTest`（真 JWT + 真 `SecurityConfig` filter chain，不用 `@WithMockUser`）——每支端點「別人的 token 操作他人訂單 → 403」「錯角色 → 403」「本人 → 200（多帶亂填的舊身分參數也被忽略）」。重建模組的每支需登入端點涵蓋 NFR-003 SEC-AZ-1 的 5 案例（本人 2xx、他人 403 `FORBIDDEN`、錯角色 403 `ROLE_MISMATCH`、無 token 401、不存在 404；不適用者在模組 SD 的 AC 對應表註明）。
+- **身分只認 `Authorization` 標頭**（NFR-003 SEC-AUTH-4.4）：`JwtAuthenticationFilter` 只從 `Authorization: Bearer` 取身分。refresh token 改放 `__session` httpOnly cookie 後（SD-IDENTITY、SD-FRONTEND-SPEC §2.1），該 cookie **只有** refresh、logout 兩支端點讀取；`Path=/` 會讓每個 `/api/**` 請求都帶它，其他端點一律不得把 cookie 當身分。IT：只帶 cookie、不帶 `Authorization` 打任一需登入端點 → 401 `UNAUTHENTICATED`。refresh、logout 另檢查 `Origin` 必須在 §3.5 CORS 白名單內，缺漏或不符 → 403 `FORBIDDEN`（SEC-AUTH-4.6，SD-IDENTITY 實作）。
+
+#### 3.4.1 匿名白名單與 URL 層規則（2026-11-22，NFR-003 U-4、SEC-AZ-2）
+- **白名單**（路由樣板；變更須同步本表與 NFR-003 SEC-AZ-2.3）：
+
+| 方法 | 路由樣板 | 說明 |
+|------|---------|------|
+| OPTIONS | `/**` | CORS 預檢 |
+| GET | `/api/sitters/*/plans` | 公開方案 |
+| GET | `/api/sitters/*/questions` | 公開問卷題目 |
+| GET | `/api/sitters/*/booking-context` | SD-ORDER E31（帶 token 時仍解析身分） |
+| GET | `/api/sitter/profile/*` | 保母公開頁 |
+| POST | `/api/auth/login` | 密碼登入 |
+| POST | `/api/auth/register` | 註冊（寄 OTP） |
+| POST | `/api/auth/register/verify-otp` | 驗證 OTP |
+| POST | `/api/auth/register/resend-otp` | 重送 OTP |
+| POST | `/api/auth/refresh` | 以 `__session` cookie 換發（檢查 `Origin`） |
+| POST | `/api/auth/logout` | 清除 `__session`（檢查 `Origin`；SD-IDENTITY 新增，現況無此端點） |
+| POST | `/api/auth/forgot-password` | 申請重設信 |
+| POST | `/api/auth/reset-password` | 以重設憑證改密碼 |
+| POST | `/api/auth/google` | Google 登入 |
+| POST | `/api/auth/webauthn/login/options` | WebAuthn 登入 challenge |
+| POST | `/api/auth/webauthn/login/verify` | WebAuthn 登入驗證 |
+| GET | `/actuator/health` | 健康檢查（§6.3） |
+| 任何 | `/error` | 容器錯誤轉發 |
+| PUT | `/local-storage/**` | **只限 local profile**（SD-FULFILL §8.2） |
+| GET | `/swagger-ui/**`、`/swagger-ui.html`、`/v3/api-docs/**` | **只限非 prod profile**（§6.2） |
+
+  SD-IDENTITY 撰寫時若新增或改名匿名 auth 端點（例：ADMIN 註冊連結，NFR-003 CQ-11），同步改本表。`/api/internal/**` 不在白名單，由 `InternalSecretFilter` 認證（§3.7）。
+- **URL 層**：`SecurityConfig` **不得**對整個 `/api/auth/**` 設 `permitAll()`，只逐條放行上表路由；需要身分的 auth 端點（`POST /api/auth/switch-role`、`/deactivate`、`/logout-all-devices`、`/api/auth/webauthn/register/options`、`/register/verify`、`GET /api/auth/webauthn/credentials`、`DELETE /api/auth/webauthn/credentials/*`、日後的改密碼）落入 `anyRequest().authenticated()`，匿名請求由 `authenticationEntryPoint` 回 401 `UNAUTHENTICATED`，不會走到方法層 `@PreAuthorize`（否則會被 §2.6 對映成 403 `ROLE_MISMATCH`）。
+- **AU `EndpointAccessRuleArchTest`**：掃描所有 controller handler，不在上表、不在 `/api/internal/**` 者必須掛 `@PreAuthorize`（類別或方法層），且表達式不得為 `permitAll()`；`SecurityConfig` 內 `permitAll()` 的 matcher 集合必須等於上表（以常數表 `AnonymousEndpoints` 為單一來源，`SecurityConfig` 與 AU 都讀它）。
+- **IT `AnonymousAccessIntegrationTest`**：自 `RequestMappingHandlerMapping` 列舉所有 handler，以匿名請求逐一呼叫，不在白名單者必須 401 `UNAUTHENTICATED`；需要身分的 auth 端點匿名 → 401（不是 403）。
+
+### 3.5 API 回應資安標頭與 CORS（2026-11-22，NFR-003 SEC-WEB-3、SEC-WEB-4）
+- **資安標頭**（Spring Security `headers()`，對所有經 filter chain 的回應生效，含 2xx、401 / 403（entry point / denied handler）、404、429、500，含直接打 `*.run.app` 者）：
+
+| 標頭 | 值 | 備註 |
+|------|----|------|
+| `X-Content-Type-Options` | `nosniff` | |
+| `X-Frame-Options` | `DENY` | |
+| `Cache-Control` | `no-store` | 停用 Spring 預設的 cache-control writer，改寫這個單一值 |
+| `Content-Security-Policy` | `default-src 'none'; frame-ancestors 'none'` | 非 prod 的 Swagger 路徑（§6.2）不套，否則 UI 無法載入 |
+| `Referrer-Policy` | `no-referrer` | |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains`（CQ-23，不加 `preload`） | **不得依賴 `request.isSecure()`**：Cloud Run 在前端終結 TLS、§2.8 設 `forward-headers-strategy: none`，Spring 預設的 HSTS writer 只在 secure 請求輸出，須把 request matcher 改為所有請求 |
+
+  前端頁面的標頭（含前端 CSP）由 Firebase Hosting 下發（SD-FRONTEND-SPEC §2.6），且 Firebase `headers` 須排除 `/api/**`，經 rewrite 的 API 回應只帶本表這組。IT `SecurityHeadersIntegrationTest`：MockMvc 斷言 200、401、403、404、500 五種回應皆帶本表 6 個標頭；上線後 `curl -sI` 經 `web.app` 與直打 `run.app` 各檢查一次（MAN，NFR-003 G-19）。
+- **CORS**（取代現況 `allowedOrigins("*")`，NFR-003 G-8）：
+
+| 項目 | 值 |
+|------|----|
+| `allowedOrigins` | 設定 `app.security.cors.allowed-origins`（逐一列出，不得用 `*` 或 pattern）。prod：`https://{PROJECT_ID}.web.app`、`https://{PROJECT_ID}.firebaseapp.com`（CQ-24；之後有自訂網域再加）；local profile 另加 `http://localhost:5173`。prod 缺值 → 啟動失敗 |
+| `allowedMethods` | `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`OPTIONS` |
+| `allowedHeaders` | `Authorization`、`Content-Type`、`Idempotency-Key`（移除未使用的 `x-auth-token`） |
+| `exposedHeaders` | `Retry-After`（409 `ORDER_BUSY`、429 `RATE_LIMITED`）；移除 `x-auth-token` |
+| `allowCredentials` | `true`（refresh cookie 需要；只配合上列精確來源） |
+| `maxAge` | 3600 秒 |
+
+  前端經 Firebase rewrite 同源呼叫 API，但 Cloud Run 看到的 `Host` 與瀏覽器的 `Origin`（`web.app`）不同，Spring 仍會當成跨源請求處理，因此 `web.app` 必須在白名單內。同一份白名單也是 refresh / logout 的 `Origin` 檢查依據（§3.4）。IT `CorsIntegrationTest`：`Origin: https://evil.example` 的預檢 → 回應不含 `Access-Control-Allow-Origin`；白名單來源 → 回該來源原值。照護日誌直傳的 GCS bucket CORS 另見 SD-FULFILL §8.3 DF2。
+
+### 3.6 對外 HTTP 呼叫（SSRF，2026-11-22，NFR-003 SEC-INPUT-8）
+- 後端只呼叫固定主機（GCS、Resend、Google）；任何 HTTP client 的目標主機必須來自設定檔或程式常數，**不得**取自請求參數或資料庫中使用者填寫的值。
+- 日後確有需要（ICS 訂閱、金流回呼查詢）時：只允許主機白名單、DNS 解析後拒絕私有、loopback、link-local（含 `169.254.169.254` metadata server）位址、不跟隨重導；寫進該模組 SD 並同步本節。
+- AU `OutboundHttpArchTest`：`RestClient`、`WebClient`、`RestTemplate`、`java.net.http.HttpClient`、`URL.openConnection` 只允許列冊類別使用；現有列冊：`EmailService`（Resend）。GCS SDK、Google ID token verifier 為程式庫內部連線，不在掃描範圍，但其端點不得由使用者輸入覆寫。
+
+### 3.7 內部端點認證（2026-11-22，NFR-003 SEC-INT-1、CQ-34）
+- `/api/internal/**` 只認 `X-Internal-Secret`；標頭缺漏、不符、只帶一般使用者 token、只帶 ADMIN token → 403 `FORBIDDEN`（§2.6 格式），不處理任何資料；不套 §2.8 限流。
+- **比對方式**：`InternalSecretFilter` 啟動時先算設定值的 SHA-256；每次請求對收到的標頭值也做 SHA-256，再以 `MessageDigest.isEqual` 比較兩個 32 bytes 摘要（避免長度不同時提早返回造成時間差；現況直接比較原始 bytes）。
+- 驗證失敗只記 WARN（路徑、來源 IP、traceId），log 不含標頭值。
+- `INTERNAL_CRON_SECRET` ≥ 32 bytes 隨機、無預設值、只經 Secret Manager 注入；外洩立即輪替，平時每年一次，Cloud Scheduler 標頭與 GitHub Actions secret 同步更新（部署清單，雲端變更需使用者當次同意）。替代方案（Cloud Scheduler OIDC token）列為後續強化。
+- 迴歸：`InternalCronSecurityTest` 涵蓋上列四種拒絕情況與 log 擷取。
 
 ## 4. 檔案與資料共用機制
 ### 4.1 檔案儲存命名與清理 (GCS)
@@ -103,6 +208,10 @@
 
 ### 4.3 業務稽核日誌 (Audit Trail)
 - **實作規則**：全域使用 `order_logs` 表紀錄關鍵動作（狀態變更、財務修改、免責同意），作為日後爭議調解的唯一憑證。
+- **同交易（2026-11-22，NFR-003 SEC-AUDIT-1）**：稽核寫入方法（`OrderLogWriter` 與各模組稽核寫入者）交易傳播一律 `MANDATORY`，無交易呼叫即拋例外；**禁止** `REQUIRES_NEW`、`@Async`、`AFTER_COMMIT` / `TransactionSynchronization` hook 寫稽核（現況 `AuditLogService` 以 `REQUIRES_NEW` 寫帳號類稽核，NFR-003 G-13，隨 SD-IDENTITY 重建改寫）。唯一例外：登入鎖定的稽核寫在登入失敗計數器的獨立交易內（SD-IDENTITY）。
+- **外部 I/O 與稽核的順序**：刪除類（GCS 刪除）先在交易外完成 I/O，成功後才開交易寫狀態標記（例 `purged = true`、`object_deleted_at`）與稽核；寄信類在主交易內寫 outbox（`notifications`），不以寄送結果寫稽核。IT：注入失敗使主交易回滾 → 稽核 0 列；成功 → 恰 1 列。
+- **append-only（NFR-003 SEC-AUDIT-3）**：稽核實體（`order_logs` 與各稽核表）的 Repository 繼承共用 `AppendOnlyRepository<T, ID>`（只有 `insert` 與查詢方法，Spring Data `Repository` 標記介面），**不得**繼承 `CrudRepository` / `JpaRepository`（現況 `OrderLogRepository extends JpaRepository`，需改）。AU `AuditAppendOnlyArchTest`：稽核實體的 Repository 都不是 `CrudRepository` 子型別、沒有 `delete*` / `save*` 方法。沒有任何 API 可修改或刪除稽核。MVP 只做應用層防護，不加 DB trigger（CQ-33）；交易相關稽核保存 ≥ 5 年（NFR-008）。帳號註銷時稽核列保留，只存 userId。
+- **內容**：每列含操作者（userId；系統為 `SYSTEM`）、UTC 時間、動作碼、目標 id、變動摘要；收款帳號只存銀行代碼 + 帳號後五碼；不存密碼、token、完整帳號、戶名（SEC-AUDIT-2）。
 
 ## 5. 開發工作流與 CI/CD (DevOps & Workflow)
 ### 5.1 版本控制 (Git Strategy)
@@ -123,7 +232,7 @@
 - 嚴禁手動於控制台修改 Schema，所有異動必須轉化為 `V__xxx.sql` 腳本，確保「資料庫即代碼」。
 
 ### 6.2 自動化文檔與測試
-- **API 文檔**: 導入 `springdoc-openapi` (Swagger UI)，路徑固定為 `/swagger-ui.html`。
+- **API 文檔**: 導入 `springdoc-openapi` (Swagger UI)，路徑固定為 `/swagger-ui.html`。**prod 停用**（2026-11-22，NFR-003 U-3、SEC-LOG-3、CQ-31）：`application-prod.yml` 設 `springdoc.api-docs.enabled=false`、`springdoc.swagger-ui.enabled=false`；prod 的 `SecurityConfig` 不放行 Swagger 路徑（§3.4.1）。prod profile IT：帶有效 token `GET /v3/api-docs`、`GET /swagger-ui.html` → 404 `NOT_FOUND`（未映射路徑的 `NoResourceFoundException` 須對映 404，不得落入 500）；匿名 → 401。`docs/api/openapi.json` 以非 prod profile 產出。
 - **測試策略**: 優先確保「核心業務路徑 (Golden Path)」的整合測試通過。
 
 ### 6.3 監控與維運
@@ -138,4 +247,5 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§1.2 前端改由 Firebase Hosting 提供、後端映像不含前端、移除靜態檔 permitAll、支援期（U-1、SEC-SCA-3）；§2.6 traceId 限 `^[0-9a-f]{32}$` 否則重新產生（U-2）、`message` 不得帶框架 / JDK 例外原文、429 `RATE_LIMITED`；新增 §2.8 請求解析與濫用防護（非冪等 body 1 MB、Jackson 限制、`BigDecimal` 範圍、regex、分頁上限 100、限流與來源 IP 取法）、§2.9 日誌遮蔽與 CR / LF 注入；§3.4 身分只認 `Authorization`、新增 §3.4.1 匿名白名單逐條路由樣板與 URL 層規則、AU / IT（U-4）；新增 §3.5 API 資安標頭與 CORS 白名單、§3.6 SSRF、§3.7 內部端點雙邊 SHA-256 比對；§4.3 稽核同交易、外部 I/O 順序、append-only；§6.2 prod 停用 springdoc（U-3） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | §2.4 補空 body 視為 `{}`、64 KB 只限 JSON、認領前已完成回 409、錯誤欄位名；§2.6 補 traceId 來源、鎖 / 完整性對映只限重建模組；§2.7 空白定義加 U+00A0 | A 階段實作回饋，使用者 2026-11-22 核准 |

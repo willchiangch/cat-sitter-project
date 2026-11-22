@@ -49,6 +49,8 @@
 | PRD-005 | AC-3.7 熟客與無題目免填 | E1 `NOT_REQUIRED` + `questionnaire_exempt_reason` | `orders.questionnaire_exempt_reason`（`ix_orders_owner_sitter_completed`） | 無 | `BookingQuestionnaireIntegrationTest` |
 | PRD-005 | AC-3.8 送單附帶：我的最愛與通知 | E1；`NotificationService.enqueue()`；commit 後由協調者呼叫 SD-SUPPLY `FavoriteSitterService.addIfAbsent` | `notifications`（SD-NOTIFY） | enqueue 同交易；我的最愛 commit 後獨立短交易 | `BookingSideEffectIntegrationTest` |
 
+- **NFR-003 CQ-43 新增規則（2026-11-22）**：同一飼主對同一保母同時 `PENDING` 的訂單上限 3 張，超過 E1 422 `PENDING_ORDER_LIMIT_REACHED`（§6.3 E1、§6.5 #37、§11.4）；鎖：交易 B 內 `pg_advisory_xact_lock`（飼主 + 保母）；測試 `BookingIntegrationTest`。PRD-005 由另一流程回寫，AC 編號定案後在本表補列。
+
 ### 1.2 PRD-006 保母訂單評估與報價
 
 | PRD | AC | API / 畫面 | Table / 欄位 | 鎖 / 交易 | 測試 |
@@ -297,7 +299,7 @@
 | 介面 | 方法 | 規則 |
 |------|------|------|
 | `PayoutAccountQuery` | `isConfigured(sitterId)` | O2 前置檢查（CQ-63）與 E5 預檢 |
-| `PayoutAccountQuery` | `getSnapshot(sitterId)` | 單次讀取同一筆紀錄的四欄（銀行代碼、分行、帳號、戶名），不取鎖（PRD-025 BR-12）；本 SD 收到明文後立即以 `PayoutSnapshotCipher` 加密寫入 `payments.payee_account_snapshot`，不落 log |
+| `PayoutAccountQuery` | `getSnapshot(sitterId)` | 單次讀取同一筆紀錄的四欄（銀行代碼、分行、帳號、戶名），不取鎖（PRD-025 BR-12）；本 SD 收到明文後立即以 `PayoutSnapshotCipher` 加密寫入 `payments.payee_account_snapshot`（AAD 綁定該 payment 列，§8.2），不落 log |
 
 #### 2.3.3 給 SD-NOTIFY：`NotificationService.enqueue()` 依賴（本 SD 呼叫，SD-NOTIFY 實作）
 
@@ -444,7 +446,7 @@ stateDiagram-v2
 
 | # | 轉移 | 觸發 | 鎖 | 同交易附帶 | 不符時（依判斷順序） |
 |---|------|------|----|-----------|---------------------|
-| O1 | → `PENDING` | E1（OWNER） | 無業務鎖（新建；不做容量 / 檔期鎖）；冪等認領防重；新訂單 flush 後對自己這列取鎖，只為取得 `createVisits` 要求的 `LockedOrder`（他人不可見，無競爭） | 建 `order_items`、`order_item_pets`、`order_answers`（需填時）；SD-FULFILL `createVisits`；`review_expires_at`、`first_service_date`；`ORDER_CREATED`；enqueue 保母「新預約申請」；commit 後我的最愛 | 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE` → 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE` → 409 `QUESTIONNAIRE_CHANGED` / 400（問卷長度）→ 400（`baseAmount` 上限）→ 409 `PRICE_CHANGED` → 403 `SUBSCRIPTION_LOCKED`（PRD-005 §4.4 步驟 3.8–3.9） |
+| O1 | → `PENDING` | E1（OWNER） | 無訂單業務鎖（新建；不做容量 / 檔期鎖）；冪等認領防重；交易 B 取 `pg_advisory_xact_lock`（飼主 + 保母）序列化同一對的 `PENDING` 計數（NFR-003 CQ-43，§11.4）；新訂單 flush 後對自己這列取鎖，只為取得 `createVisits` 要求的 `LockedOrder`（他人不可見，無競爭） | 建 `order_items`、`order_item_pets`、`order_answers`（需填時）；SD-FULFILL `createVisits`；`review_expires_at`、`first_service_date`；`ORDER_CREATED`；enqueue 保母「新預約申請」；commit 後我的最愛 | 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE` → 422 `PENDING_ORDER_LIMIT_REACHED`（NFR-003 CQ-43）→ 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE` → 409 `QUESTIONNAIRE_CHANGED` / 400（問卷長度）→ 400（`baseAmount` 上限）→ 409 `PRICE_CHANGED` → 403 `SUBSCRIPTION_LOCKED`（PRD-005 §4.4 步驟 3.8–3.9） |
 | O2 | `PENDING → PENDING_PAYMENT` | E6（SITTER） | 訂單鎖 | 寫金額欄與 `quoted_at`；`order_plan_snapshots`、`order_snapshots`；建 INITIAL payment（`due_at`、`escalate_at`、`remind_at`、加密快照）；`ORDER_QUOTED`；enqueue 飼主報價通知（`quoted_at ≥ 首日 − 48h` 時併提醒、`mandatory`） | 409 `ORDER_STATE_CONFLICT` → 409 `DEADLINE_PASSED`（`REVIEW_EXPIRES_AT`）→ 409 `FIRST_VISIT_DATE_PASSED` → 422 `MONTHLY_QUOTA_REACHED` → 422 `PAYOUT_ACCOUNT_REQUIRED` → 409 `PRICE_CHANGED` → 422 `INVALID_QUOTE_AMOUNT` / 400 `totalAmount` → 403 `PLAN_REQUIRED` → 403 `SUBSCRIPTION_LOCKED`（PRD-006 §4.3） |
 | O3 | `PENDING → CANCELLED` | E7（SITTER，原因必填）/ E8（OWNER，原因選填） | 訂單鎖 | 取消共同附帶動作（§3.1.2）；`ORDER_REJECTED` / `ORDER_WITHDRAWN`；enqueue 雙方 | 409 `ORDER_STATE_CONFLICT`（E8 另含 `expectedStatus` 不符）；不檢查 `review_expires_at`（CQ-61） |
 | O4 | `PENDING → CANCELLED` | C1（SYSTEM） | 排程鎖 | 取消共同附帶動作；`cancel_reason_code=REVIEW_EXPIRED`；`ORDER_REVIEW_EXPIRED`；enqueue 雙方 | 鎖後重驗不符 → 略過（`skipped`） |
@@ -701,7 +703,7 @@ sequenceDiagram
 |------|------|
 | 物件鍵 | `payment-proofs/{yyyy-MM-dd}/{orderId}/{paymentId}/{idempotencyRecordId}.{ext}`（日期 = 上傳時 UTC 日期；CHARGE 與 REFUND 共用此前綴，不再寫 `refund-proofs/`） |
 | 前綴與 lifecycle | `payment-proofs/` 永久保存，必須排除於任何 GCS lifecycle 規則（SD-GLOBAL-SPEC §4.1）；2026-11-22 唯讀確認 `cat-sitter-media-bucket` 目前沒有任何 lifecycle 規則 |
-| 存取 | 私有物件（`uploadPrivate`）；E13 每次授權後產生 V4 簽名網址，TTL 5 分鐘（`app.order.proof-url-ttl=PT5M`），不寫入 DB 與冪等回放 body |
+| 存取 | 私有物件（`uploadPrivate`）；E13 每次授權後產生 V4 簽名網址，TTL 5 分鐘（`app.order.proof-url-ttl=PT5M`），不寫入 DB 與冪等回放 body。簽名 GET 另簽入 `response-content-type={payment_submissions.proof_content_type}`（上傳時以 magic bytes 判定的格式）與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7、SEC-FILE-3），GCS 回應型別固定為判定格式、不受物件 metadata 影響；呼叫 `MediaStorageService.generateSignedUrl(objectKey, ttl, contentType)`（與 SD-FULFILL §8.2 同一擴充） |
 | 檔案驗證 | GCS 前完成：恰好 1 檔、≤ 5 MB（`app.order.proof-max-bytes=5242880`）、以檔頭 magic bytes 判定 JPEG / PNG / WebP（不信任 `Content-Type`）；同時計算 SHA-256 供 hash 與 `proof_sha256` |
 | 失敗 | 上傳失敗 → 503 `STORAGE_UNAVAILABLE`、刪冪等紀錄；交易 B 失敗 → 交易 C 確認仍持有 `claim_token` 且無 submission 引用該物件鍵後才 best-effort 刪除，否則（或刪不掉）由 C10 清除 |
 | C10 權限 | Cloud Run runner SA（`cat-sitter-runner`）需 `storage.objects.list` 與 `storage.objects.delete`（`payment-proofs/` 前綴）；§8.3 D9 驗證 |
@@ -733,6 +735,7 @@ sequenceDiagram
     Note over ORC,DB: commit A
     Note over ORC,DB: 交易 B
     ORC->>EXT: KYC / 公開 / 門禁 / 等級 / 方案 / 題目（唯讀）
+    ORC->>DB: pg_advisory_xact_lock(飼主 + 保母)；COUNT 同一對 PENDING（上限 3，CQ-43）
     ORC->>DB: COUNT confirmed_at 當月（月額度，不鎖）
     ORC->>ORC: 業務規則依序（422 / 403 / 409 / 400），最後 SUBSCRIPTION_LOCKED
     ORC->>DB: INSERT orders、order_items、order_item_pets、order_answers
@@ -1145,7 +1148,7 @@ CREATE TABLE payments (
     reminded_at                TIMESTAMPTZ,
     escalate_at                TIMESTAMPTZ,
     escalated_at               TIMESTAMPTZ,
-    payee_account_snapshot     TEXT,          -- AES-256-GCM 密文（四欄 JSON），CHARGE + OFFLINE_TRANSFER 必填
+    payee_account_snapshot     TEXT,          -- AES-256-GCM 密文（四欄 JSON；AAD = 'payments:{id}:payee_account_snapshot'，§8.2），CHARGE + OFFLINE_TRANSFER 必填
     payee_account_key_version  SMALLINT,
     adjustment_basis           VARCHAR(500),  -- ADMIN_ADJUSTMENT 依據
     verified_at                TIMESTAMPTZ,
@@ -1465,7 +1468,9 @@ erDiagram
 
 Response 201：`{ "orderId", "status": "PENDING", "baseAmount", "reviewExpiresAt", "questionnaireStatus" }`
 
-錯誤（G4 起）：404 保母不存在 → 404 任一毛孩不存在或已刪除 → 403 毛孩非本人 → 400（`Idempotency-Key`、群組 / 日期 / `petIds` 空、`dailyCount`、群組數、日期總數、同方案同日、`questionId` 重複、日期格式）→ G7 → 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE`（`reason` = `NOT_VERIFIED` / `UNAVAILABLE`）→ 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE`（`dates`、`reason`）→ 409 `QUESTIONNAIRE_CHANGED`（`questions`）→ 400 答案長度（`questionId`）→ 400 `field=baseAmount`、`max=999999` → 409 `PRICE_CHANGED`（`baseAmount`）→ 403 `SUBSCRIPTION_LOCKED`。不取訂單鎖（新建）。
+錯誤（G4 起）：404 保母不存在 → 404 任一毛孩不存在或已刪除 → 403 毛孩非本人 → 400（`Idempotency-Key`、群組 / 日期 / `petIds` 空、`dailyCount`、群組數、日期總數、同方案同日、`questionId` 重複、日期格式）→ G7 → 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE`（`reason` = `NOT_VERIFIED` / `UNAVAILABLE`）→ 422 `PENDING_ORDER_LIMIT_REACHED`（`limit`）→ 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE`（`dates`、`reason`）→ 409 `QUESTIONNAIRE_CHANGED`（`questions`）→ 400 答案長度（`questionId`）→ 400 `field=baseAmount`、`max=999999` → 409 `PRICE_CHANGED`（`baseAmount`）→ 403 `SUBSCRIPTION_LOCKED`。不取訂單鎖（新建）。
+
+**同時 `PENDING` 上限（2026-11-22，NFR-003 CQ-43，PRD-005 待回寫）**：交易 B 中、`SITTER_NOT_BOOKABLE` 判斷之後，先 `SELECT pg_advisory_xact_lock(hashtextextended('order-owner-pending:' || :ownerId || ':' || :sitterId, 0))`（交易級，commit / rollback 自動釋放；取鎖前先執行 `SET LOCAL lock_timeout`（`app.order.lock-timeout`，3 秒），逾時 55P03 → 409 `ORDER_BUSY` + `Retry-After: 1`），再計數 `orders WHERE owner_id = :token AND sitter_id = :sitterId AND status = 'PENDING'`（走 `ix_orders_owner_list`，不需新索引）；計數 ≥ `app.order.owner-pending-per-sitter-max`（3）→ `OrderException(PENDING_ORDER_LIMIT_REACHED)` → 422，payload `{ "limit": 3 }`，冪等紀錄存錯誤回應（同 key 重送回放 422，前端重新送單須換新 key）。只計 `PENDING`；`PENDING_PAYMENT` 之後不計。不同飼主之間互不影響，與已定案的「不做接單容量控管」無關（這是飼主端濫用防護）。若 PRD-005 回寫時訂定的判斷位置不同，以 PRD-005 為準並回修本段。
 
 #### E2 `GET /api/orders/{orderId}`
 
@@ -1550,7 +1555,7 @@ Response 200：`[ { "submissionId", "status", "lastFive", "submittedAt", "discla
 
 #### E13 `GET .../submissions/{submissionId}/proof-url`
 
-Response 200：`{ "url", "expiresAt" }`（V4 簽名網址，TTL 5 分鐘，每次重新產生）。錯誤：G1、G3、G4、G5；簽名失敗 503 `STORAGE_UNAVAILABLE`。
+Response 200：`{ "url", "expiresAt" }`（V4 簽名網址，TTL 5 分鐘，每次重新產生；含 `response-content-type` 與 `response-content-disposition=inline`，§3.6.6）。錯誤：G1、G3、G4、G5；簽名失敗 503 `STORAGE_UNAVAILABLE`。
 
 #### E14 `POST .../payments/{paymentId}/verify`（P2）
 
@@ -1708,7 +1713,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `PessimisticLockingFailureException`、`CannotAcquireLockException`、`DeadlockLoserDataAccessException`（SQLSTATE 55P03 / 40P01，不論在 `OrderLockService` 內或交易後續語句拋出） | — | 409 `ORDER_BUSY` + `Retry-After: 1`；冪等紀錄刪除 |
 | `DataIntegrityViolationException` | SQLSTATE、約束名 | 只有 SQLSTATE **23505**（unique violation，partial unique 被撞，屬防線）才對映 409：`ux_modreq_open_per_order` → `MODIFICATION_IN_PROGRESS`；`ux_admin_tasks_open` → `ORDER_STATE_CONFLICT`；其他 23505 → `ORDER_BUSY`（可重試，重試時重驗會回正確錯誤）。其餘（23514 CHECK、23502 NOT NULL、23503 FK 等確定性錯誤）→ 500 `INTERNAL_ERROR` 並記 ERROR log，冪等紀錄刪除（SD-GLOBAL-SPEC §2.6）。全域 handler 中舊的 `idx_orders_payment_idempotency` 等對映移除 |
 
-### 6.5 錯誤碼總表（本 SD 使用，共 37 項）
+### 6.5 錯誤碼總表（本 SD 使用，共 38 項）
 
 | # | HTTP | code | 來源 | payload | 使用端點 |
 |---|------|------|------|---------|---------|
@@ -1730,7 +1735,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 16 | 409 | `DEADLINE_PASSED` | baseline | `deadline`（`REVIEW_EXPIRES_AT` / `PAYMENT_DUE_AT` / `MODIFICATION_EXPIRES_AT` / `DISPUTE_WINDOW_ENDS_AT`）、`deadlineAt` | E6、E11、E20–E23、E26 |
 | 17 | 409 | `FIRST_VISIT_DATE_PASSED` | baseline | — | E6 |
 | 18 | 409 | `PRICE_CHANGED` | baseline | E1 `baseAmount`；E6 `baseAmount`、`totalAmount` | E1、E6 |
-| 19 | 409 | `ORDER_BUSY` | baseline | —（標頭 `Retry-After: 1`） | 所有取訂單鎖的端點 |
+| 19 | 409 | `ORDER_BUSY` | baseline | —（標頭 `Retry-After: 1`） | 所有取訂單鎖的端點；E1（CQ-43 advisory lock 等待逾時） |
 | 20 | 409 | `IDEMPOTENCY_IN_PROGRESS` | baseline | — | 所有冪等端點 |
 | 21 | 422 | `IDEMPOTENCY_KEY_REUSED` | baseline | — | 所有冪等端點 |
 | 22 | 422 | `SELF_BOOKING_NOT_ALLOWED` | baseline | — | E1 |
@@ -1748,7 +1753,8 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 34 | 422 | `PLAN_NOT_IN_ORDER` | 模組（PRD-016） | `planId` | E17、E20 |
 | 35 | 422 | `INVALID_MODIFICATION_AMOUNT` | 模組（PRD-016） | — | E17、E20 |
 | 36 | 422 | `INVALID_ADJUSTMENT_AMOUNT` | 模組（本 SD CQ-7） | `maxAmount` | E29 |
-| 37 | 500 | `INTERNAL_ERROR` | 全域（§6.4，未處理例外的統一格式；非業務碼） | — | 全部 |
+| 37 | 422 | `PENDING_ORDER_LIMIT_REACHED` | 模組（NFR-003 CQ-43；PRD-005 待回寫）：同一飼主對同一保母已有 3 張 `PENDING` 訂單 | `limit` | E1 |
+| 38 | 500 | `INTERNAL_ERROR` | 全域（§6.4，未處理例外的統一格式；非業務碼） | — | 全部 |
 
 - 冪等回放只記錄 2xx 與 409 / 422 業務錯誤；`ORDER_BUSY`、`IDEMPOTENCY_IN_PROGRESS`、5xx 不記錄（baseline §3.6）。
 
@@ -1894,7 +1900,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 |------|------|----------|---------|--------------|
 | GCS | 付款 / 退款憑證私有物件、V4 簽名網址 | `@Profile("local")` → `LocalMediaStorageServiceImpl` | 上傳失敗 503 `STORAGE_UNAVAILABLE`（不記冪等，可重試）；交易失敗時僅在仍持有 `claim_token` 且無 submission 引用時刪物件，其餘交 C10；簽名失敗 503 | `gcp.storage.bucket-name`；Cloud Run 以 attached service account 簽名 |
 | Resend | Email | SD-NOTIFY 負責 | SD-NOTIFY 排程重試 5 次 | SD-NOTIFY |
-| 收款帳號加密 | 快照加解密（AES-256-GCM） | 無（本地以本地金鑰） | 金鑰缺失 → 應用程式啟動失敗；解密失敗 → 500 並告警，不回傳部分欄位 | `APP_CRYPTO_KEY`：**不得有預設值**（移除 `application.yml` 現有預設，CQ-72、抽樣缺陷 #1）；`deploy.yml` 以 `--set-secrets` 自 Secret Manager 注入 |
+| 收款帳號加密 | 快照加解密（AES-256-GCM，每次隨機 96-bit IV；**AAD = UTF-8 字串 `payments:{payments.id}:payee_account_snapshot`**，2026-11-22 依 NFR-003 U-8、CQ-48 新增）。`PayoutSnapshotCipher.encrypt(snapshot, paymentId)` / `decrypt(ciphertext, keyVersion, paymentId)`；payment 的 UUID 由 Service 在加密前產生（不依賴 DB `DEFAULT gen_random_uuid()`），INSERT 時寫入同一值。不需遷移（AAD 由既有欄位組成）、`payee_account_key_version` 維持 1；既有無 AAD 的密文只存在 local / 測試 DB（`V20261122_01` 尚未部署 prod），以 test-data cleanup 重建，不寫「無 AAD 也接受」的相容分支（相容分支等於保留可被搬移的舊格式） | 無（本地以本地金鑰） | 金鑰缺失 → 應用程式啟動失敗；解密失敗（含密文被搬到別列使 AAD 不符、竄改任一位元組）→ 500 `INTERNAL_ERROR` 並記 ERROR log，不回傳部分欄位 | `APP_CRYPTO_KEY`：**不得有預設值**（移除 `application.yml` 現有預設，CQ-72、抽樣缺陷 #1）；`deploy.yml` 以 `--set-secrets` 自 Secret Manager 注入 |
 | Cloud Scheduler | 觸發 C1–C10 | local 用 `LocalCronSimulator` | 單次失敗由下一輪補（條件以時間判斷） | `INTERNAL_CRON_SECRET`：prod 不得有預設值（現行 `application.yml` 有 `local-secret-123` 預設，需改為只在 local profile 提供） |
 
 | 參數（`app.order.*`，皆可由環境變數覆寫） | 值 | 出處 |
@@ -1910,6 +1916,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `proof-max-bytes` / `proof-url-ttl` | 5242880 / PT5M | PRD-007 BR-5、BR-17 |
 | `cron.batch-size` / `cron.time-budget` | 200 / PT50S | 技術決策 §11 |
 | `max-amount` | 999999 | baseline §4、CQ-74 |
+| `owner-pending-per-sitter-max` | 3 | NFR-003 CQ-43（PRD-005 待回寫） |
 
 ### 8.3 部署清單（只列，不在本文件執行）
 
@@ -2113,12 +2120,12 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `OrderIdentitySecurityTest` | PRD-005 AC-1.8；PRD-006 AC-1.4、AC-3.1；PRD-007 AC-1.3、AC-2.5；PRD-016 AC-1.7；PRD-024 AC-1.5；PRD-026 AC-1.6 | 每支 E 端點：未登入 401、錯角色 403 `ROLE_MISMATCH`、他人 403 `FORBIDDEN`、不存在 404、子資源不屬路徑訂單 404、混合角色端點「當事人用錯角色」→ 403 `ROLE_MISMATCH`（G4a，例：該單保母以 OWNER token 呼叫 E14 / E17）、當事人角色正確但方向不符 → 403 `FORBIDDEN`、本人成功（多帶亂填的身分欄位被忽略） |
 | `InternalCronSecurityTest` | PRD-027 AC-2.4 | C1–C10 缺 / 錯 secret、一般使用者 token → 403；log 不含 secret |
 | `BookingContextIntegrationTest` | PRD-005 AC-1.1–1.8 | 匿名 / OWNER / SITTER 檢視；五種 `bookability`；門禁依等級過濾；`UNAVAILABLE` 三情境回應相同 |
-| `BookingIntegrationTest` | PRD-005 AC-1.2–1.8、AC-2.1–2.3、AC-2.5–2.8、AC-3.1–3.3 | 業務規則逐條與先後順序；毛孩 403 先於 400；訂單、群組、毛孩綁定、行程、`ORDER_CREATED` 一次建立；`review_expires_at` 一般 / 緊急單；`PRICE_CHANGED`；金額上限邊界 999,999 |
+| `BookingIntegrationTest` | PRD-005 AC-1.2–1.8、AC-2.1–2.3、AC-2.5–2.8、AC-3.1–3.3 | 業務規則逐條與先後順序；毛孩 403 先於 400；訂單、群組、毛孩綁定、行程、`ORDER_CREATED` 一次建立；`review_expires_at` 一般 / 緊急單；`PRICE_CHANGED`；金額上限邊界 999,999；同一飼主對同一保母第 4 張 `PENDING` → 422 `PENDING_ORDER_LIMIT_REACHED`（`limit=3`）、其中 1 張轉 `PENDING_PAYMENT` / `CANCELLED` 後可再送、不同保母或不同飼主不受影響、判斷先於 `MONTHLY_QUOTA_REACHED` 晚於 `SITTER_NOT_BOOKABLE`、同一對 2 個請求在已有 2 張時並行送出只成功 1 張（NFR-003 CQ-43）；AC-1.7 情境 4 的 5 張 `PENDING` 測試資料須來自不同飼主 |
 | `BookingIdempotencyIntegrationTest` | PRD-005 AC-3.4 | §10.2 全部 |
 | `BookingQuestionnaireIntegrationTest` | PRD-005 AC-3.5–3.7 | 快照內容；`QUESTIONNAIRE_CHANGED` 各情境；字數邊界；熟客 / 無題目 / 兩者並存的免填原因；舊 `NO_QUESTIONNAIRE` 規則無效 |
 | `BookingSideEffectIntegrationTest` | PRD-005 AC-3.8 | 通知與偏好；我的最愛自動加入、已存在、50 位上限略過；加入失敗不回滾訂單 |
 | `EvaluationQueryIntegrationTest` | PRD-006 AC-1.1–1.3、AC-1.5 | 已刪除毛孩標示；答案快照不受題目修改影響；熟客標記即時判定；預檢三種 |
-| `QuoteIntegrationTest` | PRD-006 AC-2.1–2.5、AC-2.7、AC-3.2–3.8；PRD-007 AC-3.1 | 金額欄、快照、INITIAL payment 期限三欄、加密快照非明文且可解回四欄；報價通知是否併提醒；錯誤先後（`FIRST_VISIT_DATE_PASSED` 在 `DEADLINE_PASSED` 之後、`PLAN_REQUIRED` 最後） |
+| `QuoteIntegrationTest` | PRD-006 AC-2.1–2.5、AC-2.7、AC-3.2–3.8；PRD-007 AC-3.1 | 金額欄、快照、INITIAL payment 期限三欄、加密快照非明文且可解回四欄、同一明文加密兩次密文不同、把 A 列密文以 SQL 複製到 B 列後讀 B 列 → 500 `INTERNAL_ERROR`（AAD 不符，NFR-003 CQ-48）；報價通知是否併提醒；錯誤先後（`FIRST_VISIT_DATE_PASSED` 在 `DEADLINE_PASSED` 之後、`PLAN_REQUIRED` 最後） |
 | `QuoteConcurrencyIntegrationTest` | PRD-006 AC-2.6 | 報價 vs 撤回兩執行緒；鎖逾時；冪等；`@Version` 衝突（測試替身繞過訂單鎖直接造版本不符）→ 409 `ORDER_BUSY` + `Retry-After: 1`、冪等紀錄刪除（PRD-006 EX-22，CQ-2） |
 | `PaymentQueryIntegrationTest` | PRD-007 AC-1.1、AC-2.7 | 快照可讀者；REFUND 無帳號；簽名網址 5 分鐘；ADMIN 可讀範圍；回應不含簽名網址於冪等 body |
 | `PaymentSubmissionIntegrationTest` | PRD-007 AC-1.2、AC-1.4、AC-1.5、AC-1.7 | 欄位 / magic bytes / 5 MB 邊界；`receivedAt` 判斷期限（進交易時已過仍成功）；`SUBMITTED` 且過期回 `PAYMENT_STATE_CONFLICT`；`ADMIN_ADJUSTMENT` 409；驗證失敗時 GCS 無物件 |
@@ -2195,7 +2202,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | #4 GCS 上傳在 DB 交易內 | 三段式第 2 段：上傳在交易外、先於交易 B；失敗刪物件 + C10 兜底 | 交易內上傳：上傳期間佔連線、持有訂單鎖，其他當事人被 `ORDER_BUSY` |
 | #5 冪等回 409 而非回放；先查再寫有競態 | `idempotency_records` 存 hash 與回應，同 key 同內容回放；認領用 `INSERT ... ON CONFLICT`；處理中 `locked_until` 30 秒可接手；`claim_token` 讓被接手的原請求無法完成、刪紀錄或刪物件 | 只存 key 回 409：網路重試的客戶端看到錯誤 |
 | #6 verify / reject 不加鎖、各 Service 鎖策略不一 | 單一入口 `OrderLockService`，所有改訂單 / payment / 變更 / 行程的操作（含 SD-FULFILL）都經它；鎖後 refresh 與「先鎖 orders」的鎖順序規則；`OrderAggregateArchTest` 強制；`VisitReportService` 繞過鎖的路徑同發布改寫（§8.4 M1）；`orders` 等實體保留 `@Version` 防線 | 各 Service 自行 `findByIdForUpdate`：容易漏鎖、鎖子列而非父列會讓跨實體轉移互相看不到 |
-| #12 無錯誤碼表與 AC 對應表、貼實作程式碼 | §1 列 156 條 AC；§6.5 錯誤碼總表 37 項；§3 / §6.3 每個轉移與端點列錯誤碼與例外類別；全文不貼 Entity / Converter / Listener | — |
+| #12 無錯誤碼表與 AC 對應表、貼實作程式碼 | §1 列 156 條 AC；§6.5 錯誤碼總表 38 項；§3 / §6.3 每個轉移與端點列錯誤碼與例外類別；全文不貼 Entity / Converter / Listener | — |
 | #13 一份 SD 混付款憑證、收款帳號設定、訂單詳情端點 | 收款帳號設定歸 SD-SUPPLY（PRD-025），本 SD 只依賴 `PayoutAccountQuery`；訂單詳情是訂單聚合的一部分，與付款同屬本 SD | — |
 
 ### 11.2 使用者決策（2026-11-22 全部採用建議）
@@ -2237,6 +2244,8 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 冪等接手保護 | `claim_token`，所有完成 / 失敗寫入比對 token | 只比對 `status='PROCESSING'`：接手只改 `locked_until`，原請求仍能完成或刪紀錄，E11 會刪掉已提交 submission 的物件 |
 | C7 候選 | SD-FULFILL 唯讀 JOIN `orders` 過濾狀態（排程候選的表擁有權例外，CQ-22 已決） | 先取行程再由本 SD 過濾：`PENDING_PAYMENT` 長期滯留的單會佔滿 `LIMIT 200`，真正的殭屍單排不到 |
 | 收款帳號快照儲存 | 四欄 JSON 整體以 AES-256-GCM 加密成單一欄 `payee_account_snapshot` | 四欄各自加密：可能分次讀寫組出不一致的帳號（PRD-025 BR-12），且欄位多一倍 |
+| 快照密文綁定所在列（2026-11-22，NFR-003 U-8、CQ-48） | AES-GCM AAD = UTF-8 字串 `payments:{payments.id}:payee_account_snapshot`；加密與解密都帶同一 AAD | 不帶 AAD：有 DB 寫入權者可把 A 列密文複製到 B 列（例：把自己的收款帳號換到他人的 payment），解密照樣成功；AAD 放 `order_id`：同一訂單多筆 payment 之間仍可互搬 |
+| 同時 `PENDING` 上限的併發（2026-11-22，NFR-003 CQ-43） | 交易 B 內 `pg_advisory_xact_lock(hashtextextended('order-owner-pending:' 加 ownerId 加 ':' 加 sitterId, 0))` 後計數 | 不加鎖：同一飼主並行送出多張可同時讀到 2 張而全部通過，上限可被輕易繞過（這是濫用防護的核心，不屬「同人多裝置自我併發不處理」的範圍，需使用者確認）；鎖保母或訂單列：不同飼主互相阻擋，等同容量鎖；DB 部分唯一約束：無法表達「≤ 3」 |
 | 報價單價快照 | 新表 `order_plan_snapshots`（每訂單每方案一列）；`order_snapshots` 只留訂單層媒體額度 | 沿用 `order_snapshots.snapshot_unit_price` 單一欄：多方案訂單無法表示 |
 | 預約群組與變更新增 | 同一張 `order_items`（`source = BOOKING / MODIFICATION`），行程以 `order_item_id` 回指，毛孩綁定一律在 `order_item_pets` | 變更新增的毛孩綁定掛在行程上：評估頁與變更計價要合併兩種來源 |
 | 變更內容儲存 | `requested_content` / `quoted_content` JSONB；減少目標於鎖內以 SD-FULFILL 行程狀態驗證 | 子表 `modification_request_visits`：內容只在協商期間讀寫、無獨立查詢需求，子表只增加 join 與 flush 順序問題 |
@@ -2292,6 +2301,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | CQ-40 | 混合角色端點中「當事人錯角色」在哪一步回 `ROLE_MISMATCH` | G4（404）之後、G5 之前新增 G4a：當事人錯角色 → 403 `ROLE_MISMATCH`；非當事人 → 403 `FORBIDDEN`；寫入 §6.1、§6.2、§6.3、§10.3 | 已決（使用者 2026-11-22） |
 | CQ-41 | SITTER 拒絕 OWNER 發起的 `QUOTED`（E21）用哪個碼 | 409 `MODIFICATION_STATE_CONFLICT`（PRD-016 AC-2.6）；PRD-023 §3 / EX-2 的 `ROLE_MISMATCH` 限縮到同意端點 E23，由主流程回寫 PRD-023；寫入 §2.3.4、§6.3 E21 | 已決（使用者 2026-11-22） |
 | CQ-24 | PRD-027 只定 O3 婉拒的飼主結果標題「保母已婉拒此預約」，O4（評估逾期）、O7（付款前保母取消）在 `owner-order-detail-cancel-result` 的標題未定（TS-027 §5 #10） | 建議：O7「保母已取消此訂單」、O4「保母未於期限內回覆，預約已自動取消」（與 §7.2 通知文案同語意）；確認後由主流程回寫 PRD-027 | 已決（使用者 2026-11-22，採建議；PRD-027 同步回寫） |
+| CQ-25 | E31 是否預先顯示「同時 `PENDING` 已達上限」（NFR-003 CQ-43） | 建議不在 E31 增加狀態，送單 422 `PENDING_ORDER_LIMIT_REACHED` 時顯示 PRD-005 文案（建議「您已有 3 筆待保母回覆的預約，請等候回覆或撤回後再送出」）並保留表單內容；PRD-005 回寫時定案 | 待 PRD-005 回寫 |
 | CQ-42 | 新例外對映與錯誤格式的生效範圍 | `ROLE_MISMATCH`、401 `UNAUTHENTICATED`、§6.1 錯誤格式全域採用（受影響的其他模組測試列 §8.3 D7、§8.4.4）；`ORDER_BUSY`、`PROOF_FILE_TOO_LARGE`、`STORAGE_UNAVAILABLE`、約束名對映只套訂單 controller 的獨立 advice；5 MB 上限由 E11 自行檢查；寫入 §6.1、§6.4 | 已決（使用者 2026-11-22） |
 
 依賴（同一次發布，§8.4.1）：SD-FULFILL（visit 介面、開始 / 結束行程經鎖、`IN_PROGRESS` 逾時出口、行程造資料端點）、SD-NOTIFY（`enqueue()`、投遞欄位遷移、C11）、SD-CARE / IDENTITY / TRUST 各一個查詢方法、SD-SUPPLY / BILLING 的過渡查詢方法。非同發布：SD-BILLING 重寫時移除 `subscriptions.monthly_order_count`；PRD-009（O11–O13 文案與畫面）與 PRD-020（ADMIN 待辦 / 調解畫面）改寫時對齊 §6.3 E25–E30；PRD-023 §3 / EX-2 依 CQ-41 回寫。
@@ -2302,6 +2312,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§3.6.6 / E13 憑證簽名 GET 加 `response-content-type`（= `proof_content_type`）與 `response-content-disposition=inline`（U-7）；§8.2、§2.3.2、§5.1.1 註解、§11.4 收款帳號快照 AES-GCM AAD = `payments:{id}:payee_account_snapshot`，payment UUID 加密前由 Service 產生，不需遷移（U-8、CQ-48）；同一飼主對同一保母同時 `PENDING` 上限 3 張：E1 判斷順序在 `SITTER_NOT_BOOKABLE` 後、`MONTHLY_QUOTA_REACHED` 前，新模組碼 422 `PENDING_ORDER_LIMIT_REACHED`（§6.5 #37，總表 38 項）、交易 B 以 `pg_advisory_xact_lock`（飼主 + 保母）序列化、設定 `owner-pending-per-sitter-max`、`BookingIntegrationTest` 補案例、新增 CQ-25（U-13、CQ-43；PRD-005 由另一流程回寫） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §11.5 B 階段實作決定（JSONB 寫法、55P03 轉換、`tab` 必填、E2 不列取消行程、sitter-setup / provision-account 細節、M16 不改 plan_tier） | B 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §5.1.1a 通知外寄過渡遷移 `V20261122_02`；D1 / D2 測試設定改放 `src/test/resources/config/application.yml`；`INVALID_VISIT_DATE` 補 `reason=DATE_OUT_OF_RANGE`；未答問卷存 JSON null 註明；O1 對新訂單自取鎖以取得 `LockedOrder` | B 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§5.1 遷移第 0 行改 `SET LOCAL lock_timeout` | A 階段實作回饋，使用者 2026-11-22 核准 |
