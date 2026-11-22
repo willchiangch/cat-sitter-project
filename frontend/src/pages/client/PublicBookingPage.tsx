@@ -75,7 +75,7 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
   const hasSession = useHasSession();
   const isOwner = hasSession && currentRole === 'client';
   const ctxQuery = useBookingContextQuery(sitterId);
-  const { data: pets = [] } = usePetsQuery(isOwner);
+  const { data: pets = [], isSuccess: petsLoaded } = usePetsQuery(isOwner);
   const [restoredDraft] = useState(() => (sitterId ? loadBookingDraft(sitterId) : null));
   const [groups, setGroups] = useState<GroupDraft[]>(() =>
     (restoredDraft ?? []).map((g) => ({ ...g, petIds: null }))
@@ -97,6 +97,8 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
     id: string;
   })[];
   const petIdsOf = (g: GroupDraft): string[] => g.petIds ?? ownerPets.map((p) => p.id);
+  // PRD-005 AC-2.4 情境 3：登入飼主名下沒有毛孩 → 開啟頁面即顯示提示（不需先新增群組），送出停用
+  const noPets = isOwner && petsLoaded && ownerPets.length === 0;
   const questions = (questionsOverride ?? ctx?.questionnaire?.questions ?? [])
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -404,40 +406,34 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
                   ))}
                 </select>
               </div>
-              {isOwner && (
+              {isOwner && ownerPets.length > 0 && (
                 <div className="stack" style={{ gap: '0.375rem' }}>
                   <span className="field-label" style={{ margin: 0 }}>
                     照顧的毛孩
                   </span>
-                  {ownerPets.length === 0 ? (
-                    <p className="field-error" data-testid="public-booking-no-pet-message">
-                      您尚未新增毛孩，請先至個人檔案新增
-                    </p>
-                  ) : (
-                    <div className="btn-row">
-                      {ownerPets.map((pet) => (
-                        <label
-                          key={pet.id}
-                          style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={groupPetIds.includes(pet.id)}
-                            onChange={() =>
-                              updateGroup(idx, {
-                                petIds: groupPetIds.includes(pet.id)
-                                  ? groupPetIds.filter((x) => x !== pet.id)
-                                  : [...groupPetIds, pet.id]
-                              })
-                            }
-                            data-testid={`public-booking-group-${idx}-pet-checkbox-${pet.id}`}
-                          />
-                          {pet.name}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {ownerPets.length > 0 && groupPetIds.length === 0 && (
+                  <div className="btn-row">
+                    {ownerPets.map((pet) => (
+                      <label
+                        key={pet.id}
+                        style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={groupPetIds.includes(pet.id)}
+                          onChange={() =>
+                            updateGroup(idx, {
+                              petIds: groupPetIds.includes(pet.id)
+                                ? groupPetIds.filter((x) => x !== pet.id)
+                                : [...groupPetIds, pet.id]
+                            })
+                          }
+                          data-testid={`public-booking-group-${idx}-pet-checkbox-${pet.id}`}
+                        />
+                        {pet.name}
+                      </label>
+                    ))}
+                  </div>
+                  {groupPetIds.length === 0 && (
                     <p className="field-error">每個日期群組至少選擇 1 隻毛孩</p>
                   )}
                 </div>
@@ -592,6 +588,11 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
           {urgent && (
             <p className="field-error" data-testid="public-booking-urgent-hint">
               距服務日很近，保母可能來不及回覆
+            </p>
+          )}
+          {noPets && (
+            <p className="field-error" data-testid="public-booking-no-pet-message">
+              您尚未新增毛孩，請先至個人檔案新增
             </p>
           )}
           {!hasSession && (
