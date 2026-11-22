@@ -4,7 +4,7 @@
 |------|------|
 | 對應需求 | 全系統；重點 PRD-000、001（帳號身分）、005、007、016、027（訂單 / 付款 / 排程）、008、022（履約 / 日誌媒體）、017、020（KYC / ADMIN）、021（照護媒體）、025（收款帳號）。PRD-015 線上金流不在本版範圍，SD-015 撰寫前另補 SEC-PAY 節（§10.4、CQ-42） |
 | 負責人 | Will |
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 優先級 | P0 (Critical) |
 | 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.1–§1.2（角色、資源歸屬、403 / 404、CQ-81 未送出日誌 404）、§2.2（方案即時查詢）、§3.3（收款帳號快照加密 CQ-72）、§3.6（同交易稽核、外部 I/O、冪等、排程）、§3.7（錯誤碼與判斷順序）、§7 CQ-75（收款帳號修改不重驗）；`docs/sd/SD-GLOBAL-SPEC.md` §1.2、§2.4、§2.6、§2.7、§3.2、§3.4、§4.3、§6.2、§6.3；`docs/sd/SD-ORDER.md` §3.6.6、§6.3、§8.3 D1–D4、D7、§11 抽樣缺陷 #1（`payee_account_key_version`）；`docs/sd/SD-FULFILL.md` §3.3、§4.4、技術決策 3、DF2、DF7、§8 設定表 |
 | 更新日期 | 2026-11-22 |
@@ -319,3 +319,4 @@
 | 2026-11-22 | 全文重寫：舊稿 12 項要求改寫為可驗收條件，新增依賴漏洞管理、資安標頭、token 存放、secret 與 log 遮蔽、內部端點、上傳檔案內容檢查、請求解析防護、CORS 與開放重導、錯誤回應、稽核同交易等要求，共 44 條；新增現況落差、來源矛盾、CQ-1 ~ CQ-38。狀態維持 Draft | 全面重建；使用者 2026-11-22 同意補強安全缺口 |
 | 2026-11-22 | 依審查第 1 輪（`docs/reviews/NFR-003.review.md`，2 阻擋、20 重要、11 建議）修正：新增 SEC-AUTH-8 ~ 11（OTP / 重設憑證、token 雜湊存放、Google `email_verified`、密碼 72 bytes）、SEC-DATA-3（Supabase）、SEC-INPUT-7、8（寄信上限、SSRF）、SEC-LOG-5（log 注入、traceId 格式）、SEC-SCA-4（Actions 釘 SHA），共 52 條；SEC-FILE-1 納入照護媒體與毛孩頭像、日誌未送出改 404、bucket 拆分順序；SEC-FILE-3 對齊 SD-FULFILL 決策 3；SEC-WEB-4 對齊 DF2；SEC-INPUT-2 對齊 GLOBAL §3.4 例外；SEC-AUTH-3、CQ-2、CQ-3 改 token family 與絕對上限；SEC-AUTH-4 補 cookie 範圍、清除與 Origin；SEC-AUTH-5 改 email 鍵、假雜湊、不延長；SEC-AUDIT-1 補外部 I/O 與鎖定稽核；SEC-AUDIT-3 改 append-only Repository；SEC-INPUT-4 測試改為實際進入 regex；子項改 `[k]` 編號；X-1 標為已決；審查 R-CQ-1 ~ 8 併入 CQ（CQ-2、17、21、39 ~ 43），新增 CQ-45 ~ 52；§11 改寫（Spring Boot 4.0.10、`deploy.yml:47` Node 20、照護媒體公開、客戶端 Content-Type、token 明文存放、traceId、Actions、DB 帳號）；新增 §15 需回寫上游的項目。狀態維持 Draft | 審查第 1 輪；使用者決定 2026-11-22（X-1） |
 | 2026-11-22 | 依審查第 2 輪（N1–N9，0 阻擋、4 重要、5 建議）修正：SEC-AZ-2.2 改為 URL 層只放行匿名 auth 端點、需身分的 auth 端點走 `authenticated()`（匿名 401），併入 U-4（N1）；CQ-30 可信網段限實測的 Firebase 轉發出口、排除 GCP 客戶網段、最多退一項、IPv4 / IPv6 皆適用，SEC-INPUT-6.6 改為 XFF 樣本單元測試加部署後兩條路徑 MAN（N2）；CQ-3 同一顆舊 token 寬限內最多換發 3 次、兄弟 token 標 `SUPERSEDED`（N3）；CQ-11、CQ-12 改為 ADMIN 獨立無密碼帳號、註冊憑證由使用者本機產生只交雜湊，新增 CQ-44（密碼登入 ADMIN 回一般 401），CQ-10、CQ-24 補 RP ID 只用 `web.app`、`firebaseapp.com` 轉址或排除，SEC-AZ-4.4 同步（N4）；SEC-AUTH-4.4 限需登入端點、U-12 補 E2E 帶 `Origin`（N5）；SEC-AUTH-5.1 補計數列過期清除與共用正規化函式（N6）；CQ-44 補用，CQ-1 ~ CQ-52 連號共 52 條（N7）；SEC-AUTH-11 錯誤 payload 帶 `maxBytes=72`、前端同規則（N8）；SEC-INPUT-6.7 補登入後頁面超過 30 支 API 的門檻（N9）。要求仍 52 條，狀態維持 Draft | 審查第 2 輪 |
+| 2026-11-22 | 狀態改 Approved；CQ-1~52 全數採建議預設值 | 使用者核准 |
