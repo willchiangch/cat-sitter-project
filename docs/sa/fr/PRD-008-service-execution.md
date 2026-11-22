@@ -100,7 +100,7 @@
 ### 4.7 行程命名
 
 1. 服務面板的行程名稱旁有「編輯名稱」（`sitter-visit-panel-btn-edit-name`）→ 輸入框 `sitter-visit-panel-input-name`（placeholder 為目前預設名稱）→「儲存」（`sitter-visit-panel-btn-save-name`）。
-2. 伺服器記下收到請求的時間 `receivedAt`，依 BR-8（baseline §3.7）順序檢查；命名不帶 `Idempotency-Key`（BR-10），沒有冪等回放與冪等衝突兩步：401 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 名稱去前後空白後 > 20 字 → 400 `VALIDATION_FAILED`（`field=name`；固定格式檢查，第 6 步，在鎖之前）→ 鎖訂單列 → 訂單不是 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 409 `ORDER_STATE_CONFLICT` → 行程為 `CLOSED_BY_SYSTEM` / `CANCELLED` → 409 `VISIT_STATE_CONFLICT` → 行程 `DONE` 且 `receivedAt ≥ completed_at + CARE_LOG_EDIT_HOURS` → 409 `DEADLINE_PASSED`（`deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt`）。
+2. 伺服器記下收到請求的時間 `receivedAt`，依 BR-8（baseline §3.7）順序檢查；命名不帶 `Idempotency-Key`（BR-10），沒有冪等回放與冪等衝突兩步：401 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 名稱去前後空白（含全形空白，定義見 SD-GLOBAL-SPEC）後 > 20 字 → 400 `VALIDATION_FAILED`（`field=name`；固定格式檢查，第 6 步，在鎖之前）→ 鎖訂單列 → 訂單不是 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 409 `ORDER_STATE_CONFLICT` → 行程為 `CLOSED_BY_SYSTEM` / `CANCELLED` → 409 `VISIT_STATE_CONFLICT` → 行程 `DONE` 且 `receivedAt ≥ completed_at + CARE_LOG_EDIT_HOURS` → 409 `DEADLINE_PASSED`（`deadline=CARE_LOG_EDIT_ENDS_AT`、`deadlineAt`）。
 3. 通過後寫入名稱（去前後空白；空字串視為清除自訂名稱、回到預設名稱），經 `OrderLogWriter` 寫 `order_logs`（`VISIT_RENAMED`，payload 新舊名稱）；不通知。
 4. 行程名稱是行程與照護日誌的**唯一名稱來源**：雙方所有顯示處（今日行程、訂單詳情、服務面板、照護日誌編輯與檢視 PRD-022、日誌送出通知、本卡通知）一律顯示行程名稱（自訂名稱，未自訂時為預設名稱）；照護日誌不另設標題欄位（CQ-10 已決定 2026-11-22，PRD-022 同步移除日誌標題）。
 
@@ -255,6 +255,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：§4.7 步驟 2「名稱去前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。本卡畫面與通知無金額，金額格式不需改。不改 AC，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：§4.6 步驟 3 補「保母訂單詳情行程清單任何訂單狀態都顯示（報價前唯讀、預設名稱用 O1 帶入的方案名稱 CQ-15；`CANCELLED` 行程標已取消）；飼主仍依 PRD-009 BR-24」。回寫已由使用者決定的 SD-FULFILL CQ-11，不新增 AC；狀態維持 Approved | `docs/reviews/SD-FULFILL.api.review.md` 第 2 輪 S20；使用者決定 2026-11-22（SD-FULFILL CQ-11） |
 | 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | 依審查第 1 輪逐項修正：#1 4.7 步驟 2 改依 BR-8（400 長度在鎖前），AC-3.7 新增情境 6 組合錯誤；#2 行程列 testid 統一 `owner-order-detail-visit-row-`（CQ-14）；#3 BR-14 方案名稱取 O2 報價快照（CQ-9），AC-3.6 新增情境 5；#4 行程名稱為唯一名稱來源、日誌不另設標題（CQ-10，4.7 步驟 4、BR-14）；#5 `VISIT_STATE_CONFLICT` 於 `DONE` 時帶 `completionSource`，EX-7 文案表補 `DONE` + `SYSTEM`（CQ-11，BR-8 / 12、EX-13、AC-2.4）；#6 殭屍關閉通知由 SD-FULFILL `closeZombieVisits` 同交易 enqueue（CQ-12，4.3、BR-11 / 18、§9）；#7 4.1 步驟 3 改 401 先於冪等回放；#8 4.1 步驟 4 明定 `order_logs` 一操作一列、AC-1.1 加「無 `VISIT_STARTED`」、§9 列 `OrderLogWriter` 依賴；#9 欄位統一 `completed_at`（CQ-13）；#10 4.1 步驟 2 補已過 `VISIT_ZOMBIE_AT` 時按鈕停用與 `sitter-visit-panel-deadline-passed-message`，AC-1.3 新增情境 4；#11 權限表 ADMIN 補 403 `ROLE_MISMATCH`；#12 EX-12 改引 SD-ORDER E29 409 `VISITS_NOT_FINISHED`；#13 新增 EX-23（殭屍排程 vs 飼主同意減少），AC-2.5 擴為三情境並改標題；#14 4.2 步驟 1 n = 0 / 無檢核項不顯示，AC-1.5 新增情境 2；#15 命名期限改以伺服器收到請求時間 `receivedAt` 判斷；#16 T4 / 4.4 補訂單 `IN_PROGRESS` / `DISPUTED` 條件。新增 CQ-11~14（已決定）與 CQ-15（待回答）。AC 條數不變（8 / 6 / 7 = 21），狀態 `Needs Clarification` → `In Review` | 審查第 1 輪（`docs/reviews/PRD-008-service-execution.review.md`）；使用者決定 2026-11-22 |

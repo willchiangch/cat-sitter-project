@@ -182,6 +182,7 @@
 | 元素 | testid |
 |------|--------|
 | 申報款項爭議入口 | `modification-btn-payment-dispute` |
+| 退款頁導向本入口的連結（屬 PRD-007 §4.2 步驟 4，SD-ORDER §9.3） | `payment-refund-dispute-link`（導向協商頁 `modification-btn-payment-dispute`） |
 | 爭議說明輸入 / 送出 | `payment-dispute-input-description`、`payment-dispute-btn-submit` |
 | 可申報時間提示（未滿 72h） | `payment-dispute-available-at` |
 
@@ -199,6 +200,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：§9 testid 表補 SD-ORDER §9.3 的退款頁爭議入口 `payment-refund-dispute-link`（元件屬 PRD-007，本卡只列導向關係）。本卡畫面與通知無金額數字（調解作廢補款「不登記任何金額」），金額格式（SD-FRONTEND-SPEC §6.4.1）無需改；本卡無「去前後空白」字樣。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：§9 畫面「爭議中訂單顯示『訂單爭議處理中』並隱藏變更 / 付款動作」改為引用 PRD-009 §4.4 `DISPUTED` 列（橫幅文字、testid、隱藏動作以 PRD-009 為準，與 PRD-009 §9 跨卡「PRD-024 引用本卡 §4.4」對齊）。不改 AC 與規則；狀態維持 Approved | SD-FULFILL 第 2 輪審查回寫（主流程交辦 2026-11-22） |
 | 2026-11-22 | §9 補 E2E testid（SD-ORDER CQ-10，屬畫面識別補充，不改規格） | 主流程 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |

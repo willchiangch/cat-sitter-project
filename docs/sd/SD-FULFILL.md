@@ -159,7 +159,7 @@
 | `VisitCommandService.cancelVisits(LockedOrder, Set<UUID>, OffsetDateTime now)` | 全部為 `PENDING` 才整批取消；任一不是 → 拋 `VisitNotPendingException(visitIds)`，不改任何列 | 同上 |
 | `VisitCommandService.closeZombieVisits(LockedOrder, OffsetDateTime now, Duration zombieAfter)` | 防線：`order.status` 不在 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 回空。否則把 `PENDING` 且 `service_date 00:00（Asia/Taipei）+ zombieAfter ≤ now` 的行程 → `CLOSED_BY_SYSTEM`、`closed_at = now`；本批非空時同交易 `enqueue` 保母與飼主各 1 則（§7.2，列出本批所有日期與行程名稱）；本批為空 → 不通知、回空（SD-ORDER 據此略過，PRD-008 EX-23）。SD-ORDER §8.1 C7 的呼叫寫成 `closeZombieVisits(orderId, now)`，與本簽名不一致，由原作者修正（§12 CQ-3） | 同上 |
 | `VisitQueryService.listVisits(UUID orderId)` | `VisitView`：`visitId`、`orderItemId`、`planId`、`serviceDate`、`status`、`completedAt`、`closedAt`、`careLogSubmitted`（`visit_service_reports.status = SUBMITTED`）；一次查詢（LEFT JOIN 日誌），不 N+1 | `SUPPORTS` |
-| `VisitQueryService.findOrderIdsWithZombieVisits(LocalDate maxServiceDate, Set<OrderStatus>, int limit)` | `visits.status='PENDING' AND service_date <= :max`，唯讀 JOIN `orders.status IN (:statuses)`（SD-ORDER CQ-22 排程候選例外），`DISTINCT order_id`，`LIMIT` | `SUPPORTS` |
+| `VisitQueryService.findOrderIdsWithZombieVisits(LocalDate maxServiceDate, Set<OrderStatus>, int limit, CronScope scope)` | `visits.status='PENDING' AND service_date <= :max`，唯讀 JOIN `orders.status IN (:statuses)`（SD-ORDER CQ-22 排程候選例外），`DISTINCT order_id`，`LIMIT`。`CronScope`（使用者 2026-11-22 TS 回饋）：`orderId` 有值時只取該訂單；無值（Cloud Scheduler 自動觸發）時唯讀 JOIN `users` 排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單。`closeZombieVisits` 本身不變（範圍由候選決定） | `SUPPORTS` |
 
 - 寫入方法丟出的例外只有 `VisitNotPendingException`（業務）；其餘 DB 例外使呼叫端交易回滾。
 - **命名**：既有 `domain/model/CareLog.java` / `CareLogRepository`（`care_logs` 表）屬 SD-CARE 照護操作稽核，本模組一律不使用 `CareLog*` 作類別名，日誌相關類別沿用表名前綴 `VisitServiceReport*` / `ServiceReport*`，Service / Controller 用 `VisitCareLog*`；對外 port `CareLogMediaRetentionPort` 保留原名（SD-ORDER M32 已引用，且不與 `CareLog` / `CareLogRepository` 撞名）。
@@ -173,7 +173,11 @@
 | `markPurged` | `UUID mediaId`、`OffsetDateTime now` | 同交易：媒體 `is_purged = true`、`purged_at`；對應槽位寫 `object_deleted_at`（同模組表）。不鎖訂單（不是行程或日誌的狀態轉移，不影響額度：已送出或已結案的日誌不可再上傳） | `REQUIRED` |
 | `hasUnpurgedMedia` | `Set<UUID> orderIds` → `Set<UUID>`（仍有 `is_purged = false` 媒體的訂單） | 與 SD-ORDER M32 `findCompletedOrdersPendingMediaExpiryWarning`（只讀 orders）搭配，取代原本直讀 `service_report_media`（含已刪欄位 `is_deleted`）的 `EXISTS` 子查詢；協調者改寫見 §8.4.2 F-M22；單次查詢 | `SUPPORTS` |
 
-#### 2.3.3 給前端（本 SD 端點）
+#### 2.3.3 給 SD-ORDER test-data：`FulfillTestInspectionQuery`
+
+`inspect(UUID orderId)` → 行程 / 日誌 / 媒體 / 檢核項 / 上傳槽位的唯讀快照，掛進 SD-ORDER `GET /api/internal/test-data/orders/{orderId}/inspect`（限 `@e2e-journey.test` 訂單）；欄位見 §10.2。`SUPPORTS`、固定 5 次查詢、不含簽名網址；ArchUnit 限只有 test-data controller 可呼叫。
+
+#### 2.3.4 給前端（本 SD 端點）
 
 見 §6.2（F1–F19）。PRD-009 畫面另呼叫 SD-ORDER 的 E2、E3、E25、E26、E30。
 
@@ -665,7 +669,7 @@ erDiagram
 | 路徑歸屬 | `visit.order_id ≠ 路徑 orderId`、項目 / 媒體 / 槽位不屬於路徑行程 → 404（G4，以路徑上層為準；鎖前以投影判斷，§2.5） |
 | 混合角色 GET | F1、F2、F8、F13 允許 OWNER / SITTER / ADMIN：token 使用者是該單當事人但 `currentRole` 不是其當事人角色 → 403 `ROLE_MISMATCH`（G4a）；非當事人 → 403 `FORBIDDEN`；ADMIN 不在可讀範圍（`OrderContextView.adminReadable = false`）→ 403 `FORBIDDEN` |
 | DTO 型別 | 延後到 G6 才判型別（SD-ORDER §6.1 規則）：body 內的 UUID 欄（F11 `itemIds`）宣告為 `List<String>`；F5 `name`、F12 `checked`、F14 / F15 `text`、F16 `file` 以 `JsonNode` 接收，由 `FulfillRequestValidator` 判斷型別（避免 Jackson 把數字轉字串、把字串 `"true"` 轉布林） |
-| 字數 | 一律以 Unicode code point 計（§12 CQ-6）：名稱、檢核項標題先去前後空白再計；日誌文字與說明文字以原文計，送出時另檢查去空白後 ≥ 1 |
+| 字數 | 一律以 Unicode code point 計（§12 CQ-6）；「去前後空白」與「空白」一律依 SD-GLOBAL-SPEC 定義 = `String.strip()`（Unicode 空白）：名稱、檢核項標題先 `strip()` 再計；日誌文字與說明文字以原文計，送出時另檢查去空白後 ≥ 1 |
 | `receivedAt` | §2.5 第 9 點 |
 | 冪等 | F3、F4、F9、F15、F16 以 `@Idempotent` 宣告、必帶 `Idempotency-Key`（1–128 可見 ASCII），走 SD-GLOBAL-SPEC §2.4 的三段式與 `idempotency_records`（§12 CQ-2）；其餘寫入端點為整值寫入或天然冪等，不收 key |
 | 例外 | `FulfillException`（帶 `FulfillErrorCode`、`payload`，`application/exception/`）；`FulfillExceptionHandler`（`@RestControllerAdvice(basePackageClasses = 本模組 controller 套件)`、最高優先序）對映 §6.5，並對映 `OrderBusyException`、`IdempotencyException`、`StorageUnavailableException`、`ObjectOptimisticLockingFailureException`、鎖逾時 / 死結（55P03 / 40P01）→ 409 `ORDER_BUSY`。依 SD-GLOBAL-SPEC §2.6，`DataIntegrityViolationException` 只有 SQLSTATE **23505**（唯一約束防線，含 commit 時的延遲約束 `ux_checklist_sort`）→ 409 `ORDER_BUSY`（重試時重驗會回正確錯誤）；23514 / 23502 / 23503 等其他違反為程式錯誤 → 500 `INTERNAL_ERROR` 並記 ERROR log（使用者 2026-11-22 決定） |
@@ -837,22 +841,23 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 #### 排程與測試造資料
 
-**FC1 / FC2**：契約同 SD-ORDER C1–C10（`POST`、無 body、`X-Internal-Secret`；200 `{ "job", "processed", "skipped", "failed", "startedAt", "finishedAt" }`；驗證失敗 403 `FORBIDDEN`）。
+**FC1 / FC2**：契約同 SD-ORDER C1–C10（`POST`、無 body、`X-Internal-Secret`；200 `{ "job", "processed", "skipped", "failed", "startedAt", "finishedAt" }`；驗證失敗 403 `FORBIDDEN`）。另接受可選 query `orderId`（使用者 2026-11-22 TS 回饋，與 SD-ORDER C1–C10 同規則）：有值時只處理該訂單（FC1 = 該訂單逾時行程；FC2 = `order_id` 相同的槽位），該訂單須屬 `@e2e-journey.test` 帳號，否則 400 `VALIDATION_FAILED`（`field=orderId`）；無值（Cloud Scheduler 自動觸發）時候選查詢排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單 / 槽位（唯讀 JOIN `users`，排程候選例外），避免正式排程搶先處理測試資料。計數只含本次範圍。
 
 **FT1 `POST /api/internal/test-data/visits/{visitId}/force-status`**（SD-ORDER §10.4 改為引用本契約，§12 CQ-4）
 
 | 欄位 | 型別 | 必填 | 規則 |
 |------|------|------|------|
-| `status` | string | ✓ | `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` |
+| `status` | string | ✓ | `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED` |
 | `startedAt` | timestamp | | 預設 now |
 | `completedAt` | timestamp | | `DONE` 時，預設 now |
 | `completionSource` | string | | `DONE` 時，預設 `SITTER` |
 | `closedAt` | timestamp | | `CLOSED_BY_SYSTEM` 時，預設 now |
+| `cancelledAt` | timestamp | | `CANCELLED` 時，預設 now |
 | `careLogSubmitted` | boolean | | `DONE` 時建立 `SUBMITTED` 日誌（固定測試文字） |
 
-訂單非 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 409 `ORDER_STATE_CONFLICT`（不造出正式路徑不可能的狀態）。取訂單鎖後經本 SD 的 Service 改行程，並呼叫 `onVisitLeftPending` / `onVisitFinished`（與正式路徑一致）；寫 `order_logs` `TEST_VISIT_FORCED`（不列入業務 action）；不發通知。
+允許的轉換（其餘 → 409 `VISIT_STATE_CONFLICT`）：`PENDING → IN_PROGRESS`、`PENDING → DONE`（一併寫 `started_at` ≤ `completed_at`）、`PENDING → CLOSED_BY_SYSTEM`、`PENDING → CANCELLED`、`IN_PROGRESS → DONE`。訂單狀態限制（其餘 → 409 `ORDER_STATE_CONFLICT`，不造出正式路徑不可能的狀態）：`IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` 需訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`；`CANCELLED` 另允許 `PENDING_PAYMENT`（等同取消路徑的行程取消，不改訂單主狀態、不觸發 O9 / O10，供造「有已取消行程的訂單」；`CANCELLED` 只走 `cancelVisits`，不呼叫 `onVisitLeftPending`，但呼叫 `onVisitFinished` 重算基準）。取訂單鎖後經本 SD 的 Service 改行程，並呼叫 `onVisitLeftPending` / `onVisitFinished`（與正式路徑一致）；寫 `order_logs` `TEST_VISIT_FORCED`（不列入業務 action）；不發通知。
 
-**FT2 `POST /api/internal/test-data/visits/{visitId}/shift-time`**：`target` = `STARTED_AT` / `COMPLETED_AT` / `CLOSED_AT`（`minutes`，負值 = 提前）/ `SERVICE_DATE`（`days`，**同 `order_item_id` 整群組一起平移**，避免撞 `ux_visits_slot`）；取訂單鎖；`COMPLETED_AT` / `CLOSED_AT` / `SERVICE_DATE` 變更後呼叫 `onVisitFinished` 重算基準；寫 `TEST_TIME_SHIFTED`。TS 呼叫順序：先 FT1 / FT2，再 SD-ORDER `shift-time COMPLETION_BASIS_AT`（後者會被前者的重算覆蓋）。
+**FT2 `POST /api/internal/test-data/visits/{visitId}/shift-time`**：`target` = `STARTED_AT` / `COMPLETED_AT` / `CLOSED_AT`（`minutes`，負值 = 提前）/ `SERVICE_DATE`（`days`，**同 `order_item_id` 整群組一起平移**，避免撞 `ux_visits_slot`）；取訂單鎖；`COMPLETED_AT` / `CLOSED_AT` / `SERVICE_DATE` 變更後呼叫 `onVisitFinished` 重算基準；寫 `TEST_TIME_SHIFTED`。接受的訂單狀態：`PENDING_PAYMENT` / `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`（`PENDING`、`COMPLETED`、`CANCELLED` → 409 `ORDER_STATE_CONFLICT`）；`PENDING_PAYMENT` 只允許 `SERVICE_DATE`（供造過去日期的殭屍不處理情境，PRD-008 AC-2.2 情境 3）。TS 呼叫順序：先 FT1 / FT2，再 SD-ORDER `shift-time COMPLETION_BASIS_AT`（後者會被前者的重算覆蓋）。
 
 ### 6.4 例外類別
 
@@ -953,6 +958,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | FC2 | `/api/internal/cron/storage/care-log-orphans` | `27 * * * *`（`7-59/15` 已涵蓋 :37，避開 FC1 與 SD-ORDER D5 各分鐘） | ① `status='PENDING' AND expires_at <= :now − upload-delete-grace` → 條件式 UPDATE 為 `EXPIRED`（等過寬限才轉，不搶確認窗內已收到、仍在串流的 F18，主流程 2026-11-22）；② `status IN ('FAILED','EXPIRED','DISCARDED') AND object_deleted_at IS NULL AND expires_at <= :now − upload-delete-grace` | ② 每列：刪 GCS 物件（不存在視為成功）→ 短交易寫 `object_deleted_at`；失敗 `delete_attempts + 1`；不鎖訂單（不影響行程 / 日誌狀態） | 天然冪等 | `ix_uploads_cleanup` |
 | C7 | SD-ORDER | `*/15`（SD-ORDER） | 本 SD 提供 `findOrderIdsWithZombieVisits` | SD-ORDER C7 呼叫 `closeZombieVisits` | — | `ix_visits_zombie` |
 
+- 範圍：FC1 / FC2 接受可選 `orderId`；自動觸發時候選排除 owner 或 sitter 為 `@e2e-journey.test` 的訂單 / 槽位（§6.3 FC1 / FC2；C7 經 `CronScope` 同規則）。
 - 共通：時間預算 50 秒（`app.fulfill.cron.time-budget=PT50S`）、一次只佔 1 條連線、一筆失敗不影響其他筆、`now` 為注入 `Clock`（SD-ORDER §8.1 規則）。
 - 分工：FC2 清「未成為媒體、或已被刪除媒體」的槽位物件；PRD-013 的 `/api/internal/cron/media/cleanup`（SD-CARE）清「保留期滿」的媒體（經 `CareLogMediaRetentionPort`）。兩者不重疊。
 - 與其他排程錯開：完整分鐘表以 SD-ORDER §8.3 D5 為準（含現有 `/notifications/cleanup`、`/media/cleanup`、`/media/expiry-warning`、`/test-data/*` 端點的排定分鐘）；FC1 / FC2 使用其中未被佔用的分鐘，同樣遵守每支 50 秒預算；部署時以 `gcloud scheduler jobs list` 唯讀核對實際 job 清單。
@@ -1072,11 +1078,11 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 路由 | 角色 | 呼叫端點 | 載入 | 空 | 錯誤 | 無權限 | 主要 testid（出處） |
 |------|------|---------|------|----|------|-------|-------------------|
-| `/sitter/visits`（新；「行程」入口） | SITTER | F6 | 卡片骨架 | 兩區皆空：`sitter-dashboard-empty`「今天沒有行程」；`overdue` 為空不顯示該區 | 重試按鈕 | 角色不符導向角色切換 | `sitter-dashboard-section-today`、`sitter-dashboard-section-overdue`、`sitter-dashboard-visit-card-{visitId}`、`sitter-dashboard-visit-status-{visitId}`、`sitter-dashboard-visit-btn-open-{visitId}`、`sitter-dashboard-visit-link-pet-notes-{visitId}`、`sitter-dashboard-empty`（PRD-008 §9） |
+| `/sitter/visits`（新；「行程」入口） | SITTER | F6 | 卡片骨架 | 兩區皆空：`sitter-dashboard-empty`「今天沒有行程」；`overdue` 為空不顯示該區 | 重試按鈕 | 角色不符導向角色切換 | `sitter-dashboard-section-today`、`sitter-dashboard-section-overdue`、`sitter-dashboard-visit-card-{visitId}`、`sitter-dashboard-visit-status-{visitId}`、`sitter-dashboard-visit-btn-open-{visitId}`、`sitter-dashboard-visit-link-pet-notes-{visitId}`（導向 PRD-021 現行照護記事本路由 `/care-notes/manage/{sitterId}/{ownerId}`，`sitterId` = 本人、`ownerId` = 卡片 `counterpart.userId`；PRD-002 毛孩頁現無保母可用路由）、`sitter-dashboard-empty`（PRD-008 §9） |
 | `/owner/visits`（新；「行程」入口） | OWNER | F7 | 骨架 | `owner-dashboard-empty`「今天沒有保母到府行程」 | 重試 | 同上 | `owner-dashboard-visit-card-{visitId}`、`owner-dashboard-empty`（PRD-008 §9） |
 | `/sitter/orders/:orderId/visits/:visitId`（新；服務執行面板，取代 `/visit-reports/manage/:visitId`） | SITTER | F2、F3、F4、F5、F8–F19 | 面板骨架 | 檢核項空：`sitter-visit-panel-checklist-empty`「尚無檢核項，可新增照護項目」；日誌未建立時顯示空白輸入 | 404「找不到此行程」；其餘依下方「操作 × 錯誤碼」表；`ORDER_BUSY` 同 key 自動重試一次 | 403「無權限操作此行程」 | PRD-008：`sitter-visit-panel`、`-status`、`-btn-start`、`-date-not-reached-message`、`-deadline-passed-message`、`-btn-complete`、`-complete-dialog`、`-btn-complete-confirm`、`-auto-completed-label`、`-btn-edit-name`、`-input-name`、`-btn-save-name`；PRD-028：`sitter-visit-panel-checklist`、`-checklist-empty`、`-checklist-item-{itemId}`、`-checklist-input-new`、`-checklist-btn-add`、`-checklist-btn-delete-{itemId}`、`-checklist-drag-{itemId}`、`-checklist-check-{itemId}`；PRD-022：`sitter-care-log-input-text`、`-text-counter`、`-btn-save`、`-btn-submit`、`-deadline`、`-status`、`-quota`、`-btn-upload`、`-input-file`、`-input-caption`、`-media-item-{mediaId}`、`-btn-delete-media-{mediaId}` |
 | `/orders/:orderId/visits/:visitId/care-log`（新；取代 `/visit-reports/view/:visitId`） | OWNER、ADMIN | F13 | 骨架 | — | 404「找不到此日誌」（含草稿）；媒體網址失效時重新呼叫 F13；`purged` →「檔案已逾期移除」；503「媒體暫時無法載入」 | 403「無權限檢視此訂單」 | `owner-care-log-view`、`owner-care-log-visit-name`（PRD-022 §9） |
-| `/owner/orders/:orderId`（既有，行程區塊） | OWNER | F1（＋ SD-ORDER E2，§9.2） | 行程列骨架 | 訂單 `PENDING` / `PENDING_PAYMENT` / `CANCELLED` 不顯示行程區塊（PRD-009 BR-24）；展開的檢核項為空時顯示「保母未設定檢核項」（PRD-028 §4.4） | 重試 | 403 | `owner-order-detail-visit-row-{visitId}`、`-visit-status-{visitId}`、`-visit-started-at-{visitId}`、`-visit-completed-at-{visitId}`、`-visit-auto-completed-{visitId}`、`owner-order-detail-visit-checklist-{visitId}`（項目以 `data-checked` 標示；單項 testid 待 PRD-028 補，CQ-14）、`owner-order-detail-btn-view-log-{visitId}`（只在 `careLog.submitted`） |
+| `/owner/orders/:orderId`（既有，行程區塊） | OWNER | F1（＋ SD-ORDER E2，§9.2） | 行程列骨架 | 訂單 `PENDING` / `PENDING_PAYMENT` / `CANCELLED` 不顯示行程區塊（PRD-009 BR-24）；展開的檢核項為空時顯示「保母未設定檢核項」（PRD-028 §4.4） | 重試 | 403 | `owner-order-detail-visit-row-{visitId}`、`-visit-status-{visitId}`、`-visit-started-at-{visitId}`、`-visit-completed-at-{visitId}`、`-visit-auto-completed-{visitId}`、`owner-order-detail-visit-checklist-{visitId}`、`owner-order-detail-visit-checklist-item-{itemId}`（單項，帶 `data-checked`，PRD-028 §9）、`owner-order-detail-btn-view-log-{visitId}`（只在 `careLog.submitted`） |
 | `/sitter/orders/:orderId`（SD-ORDER §9.1 新路由，行程區塊） | SITTER | F1 | 同上 | **任何訂單狀態都顯示**（使用者 2026-11-22，CQ-11）：`PENDING` / `PENDING_PAYMENT` 唯讀、名稱用 `booking_plan_title` 組成的預設名稱（PRD-008 CQ-15）；`CANCELLED` 顯示並標「已取消」 | 同上 | 同上 | 沿用 `sitter-order-visit-label`（顯示 `name`）、`-date`、`-status`；`CONFIRMED` 之後點擊進入服務面板 |
 | `/admin/orders/:orderId`（SD-ORDER §9.1，行程區塊） | ADMIN | F1、F13 | 同上 | 同飼主規則 | 同上 | 403「無權限檢視此訂單」 | 唯讀；無開始 / 結束 / 命名 / 編輯元素（PRD-008 AC-3.5 情境 4）；其餘 PRD-020 改寫時定義 |
 
@@ -1085,11 +1091,12 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 操作 | `ORDER_STATE_CONFLICT` | `VISIT_STATE_CONFLICT` | `ROLE_MISMATCH` | 其他 |
 |------|-----------------------|------------------------|-----------------|------|
 | 行程（開始 / 結束 / 命名） | 「訂單狀態已變更，請重新整理」（PRD-008 EX-6） | 依 `currentVisitStatus` / `completionSource`：「此行程已取消」「此行程已由系統關閉」「此行程已結束」「此行程已由系統自動結束」「此行程已開始」（PRD-008 EX-7） | 「請切換至保母身分」 | `DEADLINE_PASSED`：`VISIT_ZOMBIE_AT`「此行程已超過可開始期限，系統將自動關閉」、`CARE_LOG_EDIT_ENDS_AT`「已超過可編輯期限」；`VISIT_DATE_NOT_REACHED` 顯示 `sitter-visit-panel-date-not-reached-message` |
-| 檢核項（新增 / 刪除 / 排序 / 打勾） | 「訂單狀態已變更，請重新整理」（PRD-028 EX-7） | 編輯：「此行程已結束，無法修改」；打勾且 `PENDING`：「開始行程後才能打勾」（PRD-028 EX-8） | 「請切換至保母身分」 | 20 項上限「每個行程最多 20 項」；標題「請輸入 1–50 字」 |
+| 檢核項（新增 / 刪除 / 排序 / 打勾） | 「訂單狀態已變更，請重新整理」（PRD-028 EX-7） | 編輯，或打勾時行程為 `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`：「此行程已結束，無法修改」；打勾且 `PENDING`：「開始行程後才能打勾」（PRD-028 EX-8；PRD-028 由 writer 同步） | 「請切換至保母身分」 | 20 項上限「每個行程最多 20 項」；標題「請輸入 1–50 字」 |
 | 照護日誌（暫存 / 送出 / 上傳 / 刪除） | 「訂單已結束，無法編輯日誌」（PRD-022 EX-6） | 前端不提供入口；送出鈕停用「行程結束後才能送出」（PRD-022 EX-7） | 「請切換至正確角色」（PRD-022 EX-3） | `CARE_LOG_STATE_CONFLICT` 畫面轉唯讀；`DEADLINE_PASSED`「已超過日誌送出期限」；`CARE_LOG_CONTENT_EMPTY`「請填寫日誌內容後再送出」；`CARE_LOG_UPLOAD_EXPIRED`「上傳逾時，請重新上傳」（EX-29）；400 `reason=SHA256_MISMATCH`「檔案上傳不完整，請重新選擇檔案」（EX-30）；400 `reason=OBJECT_MISSING` 不顯示文案，前端自動補傳後再確認（EX-30）；F17 503「儲存服務暫時無法使用，請稍候重試」（EX-21 (1)）；`CARE_LOG_MEDIA_*` 依 PRD-022 EX-11–14 |
 
 - 舊路由 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 以 F2 / F13 查出 `orderId` 後轉址到新路由（舊通知連結相容）。
 - 服務面板「開始行程」三態（PRD-008 §4.1 步驟 2）依 F2 的 `dateReached`、`zombieDeadlinePassed` 決定；按下後以伺服器結果為準。
+- 打勾時間：已打勾項目在 `sitter-visit-panel-checklist-item-{itemId}` 內以 `sitter-visit-panel-checklist-checked-at-{itemId}` 顯示 `checkedAt`（Asia/Taipei `YYYY-MM-DD HH:mm`）；未打勾不顯示該元素（PRD-028 AC-2.1 情境 1；testid 由 writer 回寫 PRD-028 §9）。
 - 結束確認框未打勾提示：`n = checklist.total − checklist.completed`；`n = 0` 或無檢核項時不顯示該行（PRD-008 AC-1.5 情境 2）。
 - 狀態文字依 SD-FRONTEND-SPEC §6.4；`completionSource=SYSTEM` 另加「系統自動結束」；時間一律 Asia/Taipei `YYYY-MM-DD HH:mm`，無值顯示「—」。
 
@@ -1097,7 +1104,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 路由 | 角色 | 呼叫端點 | 載入 | 空 | 錯誤 | 無權限 | 主要 testid（PRD-009 §9） |
 |------|------|---------|------|----|------|-------|-------------------|
-| `/owner/orders/:orderId`（結案區塊） | OWNER | E2、F1、E25、E26 | 詳情骨架 | — | E25 / E26 錯誤依 SD-ORDER §6.5 對應 PRD-009 §7 文案；`ORDER_BUSY` 自動同 key 重試一次 | 403「無權限操作此訂單」 | `owner-order-detail-btn-complete`、`owner-order-detail-complete-hint`、`owner-order-complete-btn-confirm`、`owner-order-detail-btn-report-issue`、`owner-order-detail-dispute-window-ends-at`、`owner-order-dispute-input-description`、`owner-order-dispute-btn-submit`、`owner-order-detail-disputed-banner`、`owner-order-detail-completed-at` |
+| `/owner/orders/:orderId`（結案區塊） | OWNER | E2、F1、E25、E26 | 詳情骨架 | — | E25 / E26 錯誤依 SD-ORDER §6.5 對應 PRD-009 §7 文案；`ORDER_BUSY` 自動同 key 重試一次 | 403「無權限操作此訂單」 | `owner-order-detail-btn-complete`、`owner-order-detail-complete-hint`、`owner-order-complete-btn-confirm`、`owner-order-detail-btn-report-issue`、`owner-order-detail-dispute-window-ends-at`、`owner-order-dispute-input-description`、`owner-order-dispute-description-counter`、`owner-order-dispute-btn-submit`、`owner-order-detail-disputed-banner`、`owner-order-detail-completed-at` |
 | `/sitter/orders/:orderId`（結案資訊） | SITTER | E2 | 同上 | — | 同上 | 同上 | `sitter-order-detail-disputed-banner`、`sitter-order-detail-completed-at`、`sitter-order-detail-auto-complete-at` |
 | `/sitter/ledger`（保母「收款」分頁） | SITTER | E30 | 骨架 | 總收入 NT$ 0 並顯示 `sitter-ledger-empty`「本月沒有已結束的訂單」 | 重試 | 角色不符導向角色切換 | `sitter-ledger-select-month`、`sitter-ledger-total-income`、`sitter-ledger-item-{orderId}`、`sitter-ledger-empty` |
 | `/owner/orders`（歷史分頁） | OWNER | E3 `tab=HISTORY` | 卡片骨架 | 無篩選「尚無歷史訂單」；有篩選「沒有符合條件的訂單」（`owner-orders-history-empty`）；SD-ORDER §9.1 的「各分頁尚無訂單」對歷史分頁改依本列（CQ-3） | 重試 | 同上 | `owner-orders-tab-history`、`owner-order-card-{orderId}`、`owner-orders-history-filter-status`、`owner-orders-history-select-month`、`owner-orders-history-btn-load-more`、`owner-orders-history-empty` |
@@ -1116,16 +1123,16 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 - `owner-order-detail-dispute-window-ends-at` 與 `sitter-order-detail-auto-complete-at` 顯示 `disputeWindowEndsAt`；`serverTime ≥ disputeWindowEndsAt` 且訂單仍 `IN_PROGRESS` 時改顯示「即將自動結案」（PRD-009 BR-21、CQ-15）。
 - **帳務預設月份**（AC-3.4）：前端先以瀏覽器 Asia/Taipei 月份呼叫 E30；回應 `serverMonth` 不同時改選 `serverMonth` 並重查一次。
-- 確認框文案「確認結案後將無法再回報服務問題，確定要結案嗎？」；回報問題表單只有說明欄（code point 計數 1–500，去頭尾空白後判斷），無類別、無附件元件。
+- 確認框文案「確認結案後將無法再回報服務問題，確定要結案嗎？」；回報問題表單只有說明欄，無類別、無附件元件；前端 `onChange` 以 code point 截斷於 500，計數器 `owner-order-dispute-description-counter` 顯示剩餘字數（`500 − code point 數`）；`strip()` 後為空時停用送出；後端仍驗證（使用者 2026-11-22 TS 回饋，PRD-009 由 writer 同步）。
 - `DISPUTED`：雙方顯示爭議橫幅；不顯示確認結案、回報問題、申請變更、付款動作；行程照常（保母服務面板可操作）。
 - `COMPLETED`：顯示「已結案」與 `completed_at`；行程清單與「查看日誌」照常；無任何操作按鈕；O15 調解結果區塊歸 PRD-020。
-- 帳務列表：訂單編號 = `orderId` 前 8 碼大寫，點擊進入 `/sitter/orders/{orderId}`；金額依 SD-FRONTEND-SPEC §6.4.1。
+- 帳務列表：訂單編號 = `orderId` 前 8 碼大寫，點擊進入 `/sitter/orders/{orderId}`。**金額一律依 SD-FRONTEND-SPEC §6.4.1 `formatMoney`（`$ 1,200`，`$` 後接 U+00A0）**，PRD-009 AC 文字中的「NT$ 2,900」以此格式呈現（使用者 2026-11-22 決定）。
 
 ### 9.3 共通行為
 
 - 錯誤一律經 `getApiError(e)`（SD-ORDER §9.2）；`ORDER_BUSY` 以同一 `Idempotency-Key` 自動重試一次；`IDEMPOTENCY_IN_PROGRESS` 同 key 自動重試不提示。
 - **媒體上傳**（每個檔案依序，多選時逐一）：
-  1. 照片：canvas 轉 `image/webp`，品質由高到低嘗試直到 < 1,048,576 bytes；仍不符 →「照片需小於 1MB」，不送出。影片：`<video>` 讀時長（half-up 後 15–30 秒）、格式 MP4 / MOV、< 50 MB，不符 →「影片需為 MP4 / MOV、長度 15–30 秒、小於 50MB」，不送出。某類型已用滿 → 前端擋下「此行程{照片 / 影片}額度已用完」。快照 FREE → 不顯示上傳按鈕，顯示「此訂單方案僅支援文字回報」。
+  1. 照片：先把長邊縮至 2048 px（原本較小則不放大），再以 canvas 轉 `image/webp`，品質依序 0.9、0.8、0.7、0.6、0.5，第一個 < 1,048,576 bytes 者即上傳；0.5 仍 ≥ 1,048,576 bytes →「照片需小於 1MB」，不送出（可測：以已知像素與雜訊的測試圖檔驗證最終尺寸 ≤ 2048 px、品質序列與拒絕分支；壓縮邏輯放在純函式，以單元測試覆蓋，E2E 可用 mock spec 驗拒絕畫面）。影片（文案依 PRD-022 EX-12–14 / AC-2.4 字面，writer 同步 PRD-022 §4.3-3）：`<video>` 讀時長 half-up 後不在 15–30 秒 →「影片長度需為 15–30 秒」；格式非 MP4 / MOV →「照片僅支援 JPG、PNG、WebP；影片僅支援 MP4、MOV」；≥ 50 MB →「影片需小於 50MB」；皆不送出。某類型已用滿 → 前端擋下「此行程{照片 / 影片}額度已用完」。快照 FREE → 不顯示上傳按鈕，顯示「此訂單方案僅支援文字回報」。
   2. 以 `crypto.subtle.digest('SHA-256')` 計算雜湊；產生 `Idempotency-Key`。
   3. F16 → F17（`alreadyCompleted=true` 時略過 PUT）→ `fetch PUT` 到 `uploadUrl`（帶回應指定的標頭）→ F18。PUT 回 412（物件已存在）視為已上傳，直接 F18。
   4. 重試規則（對應 §3.3 表）：
@@ -1155,15 +1162,15 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `VisitStartIntegrationTest` | PRD-008 AC-1.1–1.4 | O9 只寫 `ORDER_STARTED`；`IN_PROGRESS` / `DISPUTED` 寫 `VISIT_STARTED`；日期 / 殭屍邊界（等於即拒）；訂單先於行程檢查；不改資料不寫 log |
 | `VisitCompleteIntegrationTest` | PRD-008 AC-1.4、AC-1.5 | `completion_basis_at = completed_at + 24h`（唯一有效行程時）；不看打勾與日誌 |
 | `VisitAuthorizationIntegrationTest` | PRD-008 AC-1.6 | 他人保母 403、OWNER / ADMIN 403 `ROLE_MISMATCH`、404 先於 400 |
-| `VisitIdempotencyIntegrationTest` | PRD-008 AC-1.7 | 回放不重複 log；409 被記錄回放；同 key 換行程 422；鎖定帳號 200 |
-| `VisitConcurrencyIntegrationTest` | PRD-008 AC-1.8、AC-2.4 情境 2–3、AC-2.5；PRD-028 AC-2.2 情境 3 | 兩條執行緒真打：開始 vs E23 同意、開始 vs E29、開始 vs C7、結束 vs FC1、打勾 vs FC1（斷言 409 `VISIT_STATE_CONFLICT` 而非 `ORDER_BUSY`，驗證鎖前只用投影）；`ORDER_BUSY` + `Retry-After` |
+| `VisitIdempotencyIntegrationTest` | PRD-008 AC-1.7 | 回放不重複 log；409 被記錄回放；同 key 換行程 422；鎖定帳號 200；同 key 第一個請求處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`（F3、F4；PRD-008 EX-16）。PRD-008 EX-18（Resend 失敗）歸 SD-NOTIFY C11 測試，本 SD 不測 |
+| `VisitConcurrencyIntegrationTest` | PRD-008 AC-1.8、AC-2.4 情境 2–3、AC-2.5；PRD-028 AC-2.2 情境 3 | 兩條執行緒真打：開始 vs E23 同意、開始 vs E29、開始 vs C7、結束 vs FC1、打勾 vs FC1（斷言 409 `VISIT_STATE_CONFLICT` 而非 `ORDER_BUSY`，驗證鎖前只用投影）；`ORDER_BUSY` + `Retry-After`；打勾 vs E23 同意變更取消目標行程（PRD-028 EX-9：同意先 → 打勾 409 `VISIT_STATE_CONFLICT` `CANCELLED`；打勾先 → 打勾 200、之後同意照常） |
 | `CloseZombieVisitsIntegrationTest` | PRD-008 AC-2.1、AC-2.2、AC-2.6 | 經 C7 端點：O9 另寫 SYSTEM 列、基準重算、計數；雙方各 1 則合併通知、Email 投遞欄位依偏好；`PENDING_PAYMENT` 不處理；本批為空不通知 |
-| `InProgressTimeoutCronIntegrationTest` | PRD-008 AC-2.3、AC-2.4、AC-2.6 | `started_at + 24h` 邊界；`DISPUTED` 照常；重驗略過；失敗隔離；重跑；403 |
+| `InProgressTimeoutCronIntegrationTest` | PRD-008 AC-2.3、AC-2.4、AC-2.6 | `started_at + 24h` 邊界；`DISPUTED` 照常；重驗略過；失敗隔離；重跑；403；`orderId` 參數只處理該訂單、非測試帳號訂單帶 `orderId` → 400；無 `orderId` 時跳過 `@e2e-journey.test` 訂單（C7 / FC2 同規則，分別在 `CloseZombieVisitsIntegrationTest`、`ServiceReportUploadOrphanCronIntegrationTest` 驗） |
 | `VisitDashboardIntegrationTest` | PRD-008 AC-3.1、AC-3.2、AC-3.4 | 分區、排序、預設名稱「第 n 次」、排除 `PENDING_PAYMENT` / `CANCELLED`、`zombieAt` |
 | `OrderVisitListIntegrationTest` | PRD-008 AC-3.3、AC-3.5；PRD-009 AC-1.2、AC-1.8、AC-2.2（行程端資料） | 物件結構、含 `CANCELLED`、`PENDING` 訂單用 `booking_plan_title`；G4a；ADMIN 可讀範圍；OWNER 只見 `submitted`；`deadlineAt` |
 | `VisitRenameIntegrationTest` | PRD-008 AC-3.6、AC-3.7 | 清除回預設、方案改名後仍用 O2 快照、報價前用 `booking_plan_title`、`receivedAt` 邊界、組合錯誤順序 |
-| `ChecklistSeedIntegrationTest` | PRD-028 AC-1.1 | O1 帶入順序、`created_source=SYSTEM`；**以 OWNER token 走 E1，檢核項 `created_by IS NULL`**；方案改動不影響既有行程、變更新增行程取當下預設、空白 / 超過 20 / 超長截斷 / 非字串元素略過、方案下架回空；60 日 × 3 次 × 20 項時語句數 ≤ 50（datasource-proxy 計數） |
-| `ChecklistEditIntegrationTest` | PRD-028 AC-1.2–1.5 | 新增冪等、刪除重編、排序集合不符 400、非 UUID 字串 400（不在進方法前）、`DISPUTED` 可編、20 上限與 409 先後；commit 時延遲約束違反 → 409 |
+| `ChecklistSeedIntegrationTest` | PRD-028 AC-1.1 | O1 帶入順序、`created_source=SYSTEM`；**以 OWNER token 走 E1，檢核項 `created_by IS NULL`**；方案改動不影響既有行程、變更新增行程取當下預設、空白 / 超過 20 / 超長截斷 / 非字串元素略過、方案下架回空；60 日 × 3 次 × 20 項時語句數 ≤ 50（datasource-proxy 計數）；帶入寫入失敗（注入例外）→ 行程建立整筆回滾、E1 回 500 `INTERNAL_ERROR`、無訂單 / 行程 / 檢核項（PRD-028 EX-15） |
+| `ChecklistEditIntegrationTest` | PRD-028 AC-1.2–1.5 | 新增冪等、刪除重編、排序集合不符 400、非 UUID 字串 400（不在進方法前）、`DISPUTED` 可編、20 上限與 409 先後；commit 時延遲約束違反 → 409；新增 / 刪除 / 排序 / 打勾後 `updated_by` = token 保母、`updated_at` 更新、SITTER 新增者 `created_by` = token（PRD-028 BR-11）；F9 同 key 處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`（PRD-028 EX-11） |
 | `ChecklistAuthorizationIntegrationTest` | PRD-028 AC-1.6 | 403 / `ROLE_MISMATCH` / 跨行程項目 404 / 404 先於 400 |
 | `ChecklistCheckIntegrationTest` | PRD-028 AC-2.1、AC-2.2 | `checked_at` 寫入與清空、字串 `"true"` → 400、`CONFIRMED` → `ORDER_STATE_CONFLICT`、`PENDING` / `DONE` → `VISIT_STATE_CONFLICT` |
 | `ChecklistReadIntegrationTest` | PRD-028 AC-2.3、AC-2.4 | 飼主見 `PENDING` 行程項目；ADMIN 範圍 |
@@ -1175,7 +1182,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `VisitCareLogConcurrencyIntegrationTest` | PRD-022 AC-2.7、AC-3.7 | 額度剩 1 兩筆同時完成恰 1 筆成功、被拒者物件刪除；**同 uploadId 兩條執行緒同時 F18：恰 1 筆媒體、物件仍存在**；送出 vs E29、送出 vs E25；F18 `ORDER_BUSY` 時物件保留、槽位 `PENDING`，鎖釋放後同槽位重打 F18 → 201 |
 | `VisitCareLogReadIntegrationTest` | PRD-022 AC-1.7、AC-3.2、AC-3.4 | 逾期草稿保母可讀、飼主 404；簽名網址含 `X-Goog-Expires=900`、快取命中時 `urlExpiresAt` 為原值；`purged` 不給網址；ADMIN `DRAFT` 404 |
 | `VisitCareLogAuthorizationIntegrationTest` | PRD-022 AC-3.3 | 401、他人保母 403、他人飼主 403、`ROLE_MISMATCH`、跨訂單路徑 404；保母以 OWNER token 讀自己草稿 → 404（§6.3 F13 已知邊界） |
-| `VisitCareLogIdempotencyIntegrationTest` | PRD-022 AC-3.5、AC-3.6 | 送出回放不重發通知；F16 同 key 換檔案 422；完成後超過 31 分鐘（槽位已逾時、期限已過）以同 key 走完 F16 → F17 → F18 仍 201 同一媒體（限冪等紀錄 24h 內） |
+| `VisitCareLogIdempotencyIntegrationTest` | PRD-022 AC-3.5、AC-3.6 | 送出回放不重發通知；F16 同 key 換檔案 422；完成後超過 31 分鐘（槽位已逾時、期限已過）以同 key 走完 F16 → F17 → F18 仍 201 同一媒體（限冪等紀錄 24h 內）；F15、F16 同 key 處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`（PRD-022 AC-3.5 情境 3） |
 | `VisitCareLogErrorOrderIntegrationTest` | PRD-022 AC-3.8 | 「唯一結果」五例逐一 |
 | `MediaInspectorTest`（單元） | PRD-022 AC-2.3、AC-2.4 | JPEG / PNG / WebP / GIF / HEIC 檔頭；MP4 `moov` 在前 / 在後、MOV、`mvhd` v0 / v1、14.4 / 14.5 / 30.4 / 30.5 秒 half-up；`moov` 超過 8 MB |
 | `ServiceReportUploadOrphanCronIntegrationTest` | 共用（FC2） | 逾時槽位在 `expires_at + 寬限` 後才轉 `EXPIRED`、與 F18 完成互斥；F18 在 `expires_at` 前收到、串流期間 FC2 觸發 → 仍 201；寬限期前不刪、寬限後刪除並寫 `object_deleted_at`；提早刪除後被遲到 PUT 重寫的物件於最終清除時刪掉；`delete_attempts` 與 ERROR log；重跑冪等 |
@@ -1191,7 +1198,8 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 行程狀態造資料 | FT1（§6.3） | 本 SD |
 | 行程時間平移 | FT2（§6.3）；呼叫順序：先 FT1 / FT2，再 SD-ORDER `shift-time COMPLETION_BASIS_AT` | 本 SD |
 | 訂單時間平移 / 帳號 / 保母 / 飼主設定 | SD-ORDER §10.4 | SD-ORDER |
-| 排程觸發 | 直接呼叫 FC1、FC2、C7、C8（帶 `X-Internal-Secret`） | 本 SD / SD-ORDER |
+| 排程觸發 | 直接呼叫 FC1、FC2、C7、C8（帶 `X-Internal-Secret`），E2E 一律帶 `orderId` 只處理自己的訂單；自動觸發不處理測試帳號訂單 | 本 SD / SD-ORDER |
+| 訂單檢視 | SD-ORDER `GET /api/internal/test-data/orders/{orderId}/inspect`（限 `@e2e-journey.test` 訂單）掛入本 SD `FulfillTestInspectionQuery.inspect(orderId)` 的 `fulfill` 區塊：`visits[]`（`visitId`、`status`、`completionSource`、`startedAt`、`completedAt`、`closedAt`、`cancelledAt`、`customName`）；`careLogs[]`（`visitId`、`careLogId`、`status`、`submittedAt`、`createdBy`、`updatedBy`）；`media[]`（`mediaId`、`visitId`、`mediaType`、`sizeBytes`、`durationSeconds`、`objectKey`、`purged`）；`checklistItems[]`（`itemId`、`visitId`、`title`、`sortOrder`、`isCompleted`、`checkedAt`、`createdSource`、`createdBy`、`updatedBy`、`updatedAt`）；`uploads[]`（`uploadId`、`visitId`、`status`、`receivedAt`、`expiresAt`、`failureCode`、`objectDeletedAt`）。`SUPPORTS` 唯讀、固定 5 次查詢、不含簽名網址；只在 test-data 端點使用（ArchUnit 限制呼叫者） | SD-ORDER 端點 + 本 SD 查詢 |
 | 方案預設任務 | SD-ORDER §10.4 `sitter-setup` 的 `plans[]` 需可帶 `defaultTasks`（字串陣列，不擋超過 20 項，供驗 PRD-028 CQ-7 截斷） | SD-ORDER（CQ-4） |
 | Cleanup | `E2eJourneyDataCleanupService` 在 SD-ORDER §10.4 順序的 `service_report_media / visit_service_reports / visits` 位置改為（與 SD-ORDER §10.4 同一順序）：① 唯讀收集 `service_report_media.object_key` 與 `care_log_media_uploads.object_key` → ② DB 交易依序刪 `service_report_media` → `care_log_media_uploads` → `visit_service_reports` → `visit_checklist_items` → `visits` → ③ commit 後**交易外**刪 GCS 物件（以資料列為準，GCS 失敗只記 log）。槽位刪除後，仍在簽名效期內的遲到 PUT 會留下測試帳號殘檔，FC2 無法再追蹤，接受此殘留（只限 `@e2e-journey.test` 帳號） | SD-ORDER 清單擴充（CQ-4） |
 | mock E2E | 以 `page.route('https://storage.googleapis.com/**')` 攔 PUT；F16–F18 照一般 API mock | 前端 |
@@ -1238,7 +1246,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | CQ-11 | 保母訂單詳情行程區塊在 `PENDING` / `PENDING_PAYMENT` / `CANCELLED` 是否顯示 | 保母任何狀態都顯示（報價前名稱用 `booking_plan_title`、`CANCELLED` 標已取消）；飼主仍依 PRD-009 BR-24；由主流程回寫 PRD-008 §4.6 步驟 3；回寫前 TS-008 不得斷言保母 `PENDING` 訂單的行程列 | 已決定 2026-11-22（使用者）：採建議；已回寫 PRD-008 §4.6 步驟 3 |
 | CQ-12 | 底部導覽範圍（原 CQ-7） | 本次只加「行程」入口；全站 `BottomNav` 寫進 SD-FRONTEND-SPEC 待辦（已寫入 §3），不在本 SD 實作 | 已決定 2026-11-22（使用者） |
 | CQ-13 | **實體基底規則**：現況 `BaseEntity` 固定映射 `is_deleted`、`version`、`@CreatedBy`，本 SD 與 SD-ORDER 都刪了 `is_deleted`，新表不需 `version`，系統帶入的列不得被 `RequestAuditorAware` 填入 token 使用者 | SD-GLOBAL-SPEC 定義：基底不含 `is_deleted`；`@Version` 只放需要的實體；系統寫入的列不用 auditing 的建立人；業務時間欄由 Service 以注入 `Clock` 寫入。本模組用法見 §2.5 第 7、8 點 | 已決定 2026-11-22（使用者）；已寫入 SD-GLOBAL-SPEC §2.5 / §2.6，本 SD 引用 |
-| CQ-14 | 飼主行程列展開的檢核單項沒有 testid（PRD-028 §9 未定義），TS 定位單項只能靠 `data-checked` | 由主流程在 PRD-028 §9 補 `owner-order-detail-visit-checklist-item-{itemId}`；本 SD 不自取 | 已決定 2026-11-22：已回寫 PRD-028 §9 `owner-order-detail-visit-checklist-item-{itemId}`（核准後回寫，使用者已同意） |
+| CQ-14 | 飼主行程列展開的檢核單項 testid | PRD-028 §9 已補 `owner-order-detail-visit-checklist-item-{itemId}`（核准後回寫 2026-11-22），§9.1 已引用 | 已決定 2026-11-22 |
 
 ---
 
@@ -1247,6 +1255,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 日期 | 變更 | 原因 |
 |------|------|------|
 | 2026-11-22 | 使用者核准（與 SD-ORDER 同批）：CQ-6 / 8 / 9 採建議；狀態 In Review → Approved | 使用者 2026-11-22 |
+| 2026-11-22 | 使用者同意之核准後修訂：TS 撰寫回饋（狀態維持 Approved）。`findOrderIdsWithZombieVisits` 加 `CronScope`、FC1 / FC2 可選 `orderId` 且自動觸發跳過 `@e2e-journey.test` 訂單；SD-ORDER test-data `inspect` 端點的本 SD 欄位與 `FulfillTestInspectionQuery`；FT1 支援 `CANCELLED` 並列明允許轉換、FT2 列明接受的訂單狀態；空白定義 = `String.strip()`（GLOBAL）；金額依 SD-FRONTEND-SPEC §6.4.1；PRD-009 回報說明 code point 截斷與 `owner-order-dispute-description-counter`；打勾時間顯示 `sitter-visit-panel-checklist-checked-at-{itemId}`、打勾遇已結束行程文案；飼主檢核單項 testid 改引 PRD-028 §9；注意事項連結目的地路由；照片壓縮下限（2048 px、品質 0.9→0.5）；影片文案統一 PRD-022 EX-12–14；後端測試補 PRD-028 EX-15、EX-9、EX-11、BR-11，F 系列 `IDEMPOTENCY_IN_PROGRESS`，PRD-008 EX-18 註明歸 SD-NOTIFY | TS-008 / TS-028 / TS-009 / TS-022 §4、§5；使用者同意 2026-11-22 |
 | 2026-11-22 | 第 2 輪審查修訂（狀態不動）：N1 FC2 第 ① 步等過 `expires_at + 寬限` 才轉 `EXPIRED`；N2 日誌 `created_by` / `updated_by` 由 Service 寫入、媒體以 `uploaded_by` 為建立者、`visits.created_by` / `updated_by` 刪欄；N3 排程分鐘改引 SD-ORDER D5 完整表；S2 cleanup 對齊 SD-ORDER 順序並接受測試殘檔；S4 `ORDER_BUSY` 後跨 30 分鐘照 BR-28 字面作廢；I10 三處文案改 PRD-022 字面；I11 AC-2.3 情境 6 後半以整合測試放置物件造出；I12 表頭上游狀態（PRD-022 In Review）與核准順序；I13 / B2 §1.4 填 SD-ORDER 具名測試類別、`ZombieVisitCronIntegrationTest` 由 SD-ORDER 刪除；S14b `completionHint` 物件形狀；S15 刪除「剩餘不足 2 分鐘」規則；S16 iii 逾時文字沿用 PRD-009 CQ-15；S17 補 AC-1.6 情境 6 與 AC-2.8 情境 4；S18 EX-21 (1) 等價說明；S19 local 相對路徑 + Vite `/local-storage` 代理；S20 CQ-11 註明待回寫；冪等套件路徑改 `application/common/idempotency` | `docs/reviews/SD-FULFILL.data.review.md`、`SD-FULFILL.api.review.md` 第 2 輪；主流程決定 2026-11-22 |
 | 2026-11-22 | 第 1 輪審查修訂（狀態 Needs Clarification）。資料面：#1 F18 失敗路徑改條件式 UPDATE 成功才刪物件、鎖後見 `COMPLETED` 回 201、新增同 uploadId 並行測試；#2 F17 簽名 TTL 取 min、FC2 寬限期最終清除、F18 以自身 `receivedAt` 判槽位逾期；#3 實體基底（§2.5 第 7 點、CQ-13）；#4 鎖前只用投影；#5 §3.3 失敗類別表與 §9.3 重試表、400 `reason`、`DISCARDED` → 404；#6 FC1 `7-59/15`、FC2 `27 * * * *`（對齊 SD-ORDER D5 分鐘表）；#7 只有 23505 → `ORDER_BUSY`；#8 SD-ORDER 第 13 段整段刪除、`DROP INDEX idx_visits_order`；#9 / API #I8 local 上傳端點改 `/local-storage/**`；#10 DF2 origin 清單與只開 PUT、DF7 預設 ACL、F18 公開檢查；#11 Hibernate batch 設定；#12 `received_at` 定義統一；#13–#24 建議項（索引條件、CHECK、content-length 綁宣告大小、`object_generation`、快取 5 分鐘、FT2 整群組平移、時間欄用 `Clock`、`delete_attempts`、cleanup 交易邊界、`claim_token`、非字串任務略過、理由修正）。API 面：#B1 CQ-5 改列可觀察行為變更；#I1 F17 `COMPLETED` 先於逾期；#I2 `ORDER_BUSY` 保留物件直接重打 F18（使用者決定）；#I3 E2 `serverTime` / `completionHint`、E30 `serverMonth`（CQ-10）；#I4 F-M21 / F-M22、`hasUnpurgedMedia`；#I5 避開 `CareLog*` 撞名；#I6 補 hook、5 支 spec、2 個後端測試、journey 認領；#I7 保母行程區塊任何狀態顯示（CQ-11）；#I9 表頭改為需 SD-ORDER 配合修訂；S1–S14（文案表、DTO 型別、提示限 `IN_PROGRESS`、FT1 狀態限制與 `closedAt`、空狀態、SD-FRONTEND-SPEC §6.4、測試歸屬、F13 邊界、TTL 註記、`maxLength`、類型不符拒絕、FC1 不合併理由、FC2 與 media cleanup 分工）。PRD-009 後端測試改由 SD-ORDER 承接；測試類別 34 → 29。同步更新 SD-ERD、SD-FRONTEND-SPEC（§6.4、§2.3 N18、§3 BottomNav 待辦） | `docs/reviews/SD-FULFILL.data.review.md`、`SD-FULFILL.api.review.md` 第 1 輪；使用者決定 2026-11-22 |
 | 2026-11-22 | 建立草稿：涵蓋 PRD-008 / 009 / 022 / 028 共 79 條 AC；實作 SD-ORDER §2.4.2 `VisitCommandService` / `VisitQueryService`；新增 `visit_checklist_items`、`care_log_media_uploads`，改寫 `visits` / 日誌兩表（併入 `V20261122_01` 第 13–16 段）；19 支使用者端點、2 支排程、2 支測試造資料；媒體直傳 GCS 三段式；CQ-1~9 | 全面重建；baseline 第 3 版與 FULFILL PRD 核准（2026-11-22） |

@@ -61,6 +61,11 @@
 - **鎖與資料完整性**：SQLSTATE 55P03 / 40P01（含 Spring 轉換後的 `CannotAcquireLockException`、`PessimisticLockingFailureException`、`DeadlockLoserDataAccessException`）與 `@Version` 衝突 → 409 `ORDER_BUSY` + `Retry-After: 1`。`DataIntegrityViolationException` **只有 SQLSTATE 23505**（unique violation，含 commit 時的延遲唯一約束）可對映 409（依約束名對應模組碼，未列名者 `ORDER_BUSY`）；23514 / 23502 / 23503 等確定性錯誤一律 500 `INTERNAL_ERROR` 並記 ERROR log，不得對映為可重試碼。
 - **欄位驗證時點**：需遵守 baseline §3.7 判斷順序的端點，Request DTO 不掛 `@Valid`、必填 header 宣告為非必填，改由 Service 在第 6 步驗證；金額欄以 `BigDecimal` 接收並驗證為整數。
 
+### 2.7 文字欄位的空白與字數（2026-11-22）
+- **「空白」的定義**：等同 Java `String.strip()`（`Character.isWhitespace` 判定，含 U+3000 全形空白、U+00A0 不換行空白、Tab、換行）。全站所有「去前後空白 / 去頭尾空白」一律用它，不得用 `String.trim()`（只去 ≤ U+0020）。
+- **字數**：以 strip 後的 Unicode code point 計（與 PostgreSQL `char_length` 一致）；前端計數規則相同。
+- **儲存**：存 strip 後的值；strip 後為空的必填欄位 → 400 `VALIDATION_FAILED`，選填欄位存 NULL。
+
 ## 3. 開發效率與權限規範 (SaaS Gating)
 ### 3.1 SaaS Gating via AOP
 - **實作方式**：自定義註解 `@RequirePlan(PlanType)` 搭配 Spring AOP 攔截器。

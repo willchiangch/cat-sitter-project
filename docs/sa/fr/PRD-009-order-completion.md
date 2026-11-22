@@ -68,7 +68,7 @@
 ### 4.3 飼主回報服務問題（O13）
 
 1. 飼主在 `IN_PROGRESS` 訂單詳情頁看到「回報問題」按鈕（`owner-order-detail-btn-report-issue`）的條件：所有有效行程為 `DONE` 或 `CLOSED_BY_SYSTEM`（日誌是否送出不影響）、無未結束變更、`now < completion_basis_at + DISPUTE_WINDOW_HOURS`。同時顯示「可回報問題至 YYYY-MM-DD HH:mm，屆時未結案將自動結案」（`owner-order-detail-dispute-window-ends-at`，Asia/Taipei；時間值 = `completion_basis_at + 48h`，BR-21）。
-2. 點擊後填寫問題說明（`owner-order-dispute-input-description`；去頭尾空白後 1–500 字，以 Unicode code point 計，前端計數同規則；不選問題類別、無附件上傳元件，BR-6），按「送出」（`owner-order-dispute-btn-submit`）帶 `Idempotency-Key` 呼叫 E26。
+2. 點擊後填寫問題說明（`owner-order-dispute-input-description`；去頭尾空白（含全形空白，定義見 SD-GLOBAL-SPEC）後 1–500 字，以 Unicode code point 計，前端計數同規則；前端輸入以 code point 截斷於 500（不切斷 emoji 等代理對），計數器 `owner-order-dispute-description-counter` 顯示剩餘字數（500 − 去頭尾空白後 code point 數）；去頭尾空白後為空時「送出」停用；後端仍依 BR-6 驗證；不選問題類別、無附件上傳元件，BR-6），按「送出」（`owner-order-dispute-btn-submit`）帶 `Idempotency-Key` 呼叫 E26。
 3. 系統鎖訂單列、以取得鎖後的伺服器時間重驗 BR-5，同一交易：訂單 `IN_PROGRESS → DISPUTED`；建立 `admin_tasks`（`type=SERVICE_DISPUTE`、`OPEN`、關聯訂單）；寫 `order_logs`（payload 含問題說明）；經 outbox 寫入給 SITTER 的通知（BR-20）。ADMIN 不收站內通知或 Email，只從待辦清單得知（BASELINE O13、SD-ORDER CQ-9）。
 4. 之後雙方畫面依 4.4 呈現；ADMIN 待辦清單畫面與調解結案（O15 → `COMPLETED` / O17 → `CANCELLED`）見 PRD-020。
 
@@ -86,7 +86,7 @@
 
 1. 保母進入「收款」分頁的帳務總覽（BR-22；保母訂單「歷史」分頁不另顯示總收入），月份選擇器（`sitter-ledger-select-month`）預設為當下 Asia/Taipei 月份（依伺服器時間換算，與瀏覽器時區無關）。
 2. 前端以 `month=YYYY-MM` 呼叫 E30。系統回傳該月（Asia/Taipei 自然月）內 `completed_at` 或 `cancelled_at` 落在月內的本人訂單，以及每筆的已收淨額與加總（BR-10、BR-11）；淨額 0 的 `CANCELLED` 訂單不列出，淨額 0 的 `COMPLETED` 訂單照常列出（BR-22）；不分頁，一次回傳該月全部（CQ-11）。
-3. 頁面頂端顯示「本月總收入 NT$ X」（`sitter-ledger-total-income`，整數、千分位）；下方列表依終態時間新到舊，每筆一列（`sitter-ledger-item-{orderId}`），欄位：訂單編號（`orderId` 前 8 碼大寫，點擊進入 `/sitter/orders/{orderId}`，CQ-12）、飼主稱呼、服務期間（首末有效行程日）、終態（已結案 / 已取消）、終態日期、已收淨額（BR-22）；無資料 → 總收入 NT$ 0，顯示「本月沒有已結束的訂單」（`sitter-ledger-empty`）。
+3. 頁面頂端顯示「本月總收入 $ X」（`sitter-ledger-total-income`，整數、千分位，格式 `$ 2,900`，SD-FRONTEND-SPEC §6.4.1）；下方列表依終態時間新到舊，每筆一列（`sitter-ledger-item-{orderId}`），欄位：訂單編號（`orderId` 前 8 碼大寫，點擊進入 `/sitter/orders/{orderId}`，CQ-12）、飼主稱呼、服務期間（首末有效行程日）、終態（已結案 / 已取消）、終態日期、已收淨額（BR-22）；無資料 → 總收入 `$ 0`，顯示「本月沒有已結束的訂單」（`sitter-ledger-empty`）。
 4. 線上 / 線下支付方式篩選、待撥款佇列、撥款日屬第二階段，留給 SD-BILLING / PRD-015（BR-13）。
 
 **計算例**（已收淨額 = `Σ CHARGE VERIFIED − Σ REFUND VERIFIED`，BASELINE §4；非 `VERIFIED` 的 payment 一律不計；`ADMIN_ADJUSTMENT` 為退款方向，BASELINE §3.3）：
@@ -130,7 +130,7 @@
 | BR-3 | O12：條件同 T2；排程每 15 分鐘，到期判斷 `now ≥ completion_basis_at + AUTO_COMPLETE_HOURS`（`now` 為注入的伺服器時鐘）；先唯讀查候選，再逐筆獨立交易鎖住後重驗（`SKIP LOCKED`），一筆失敗不影響其他筆，可重跑；`completed_at` = 處理時間；端點回 200 與 `processed` / `skipped` / `failed`；非排程身分呼叫 → 403 `FORBIDDEN` | BASELINE O12、§3.6 排程、§5（`AUTO_COMPLETE_HOURS` 48，CQ-24；排程頻率）、CQ-40；SD-ORDER C1–C10 契約 |
 | BR-4 | `completion_basis_at` 只引用 BASELINE §5：`DONE` 行程結束時間 = `completed_at + CARE_LOG_EDIT_HOURS`（24h）、`CLOSED_BY_SYSTEM` = 被關閉時間、`CANCELLED` 不計，再與最後一筆 `SETTLED` 變更結束時間取最大值；`REJECTED` / `WITHDRAWN` / `EXPIRED` 變更不推遲 | BASELINE §5、CQ-17、CQ-40、CQ-69；PRD-024 BR-8 |
 | BR-5 | O13 前置條件：訂單 `IN_PROGRESS`；行程條件同 O12（不看日誌）；無未結束變更；`now < completion_basis_at + DISPUTE_WINDOW_HOURS`（48h），`now` = 取得訂單鎖後的伺服器時間（注入 `Clock`，不是收到請求的時間）。視窗以時間判斷，排程是否已跑不影響：`now ≥` 視窗終點 → 409 `DEADLINE_PASSED`（payload `deadline=DISPUTE_WINDOW_ENDS_AT`、`deadlineAt = completion_basis_at + 48h`） | BASELINE O13 錯誤碼（CQ-82）、§3.2 期限以時間判斷（CQ-46）、§3.7 payload 與期限名稱 `DISPUTE_WINDOW_ENDS_AT`（CQ-71）、§5（CQ-24）；SD-ORDER §3.1.1「期限以時間判斷」（鎖後以注入 `Clock` 比對）、CQ-5 |
-| BR-6 | O13 只收問題說明：必填，去頭尾空白後 1–500 字，字數以 Unicode code point 計（emoji 一個 code point 計 1 字），只有空白 → 400 `VALIDATION_FAILED`；前端計數與驗證同規則；不選問題類別、不可附圖；說明以去頭尾空白後的值寫入 `order_logs` payload（CQ-17）；同交易建立 `admin_tasks`（`type=SERVICE_DISPUTE`、`status=OPEN`、關聯訂單），`(type, order_id) WHERE status='OPEN'` 唯一；ADMIN 不收站內通知或 Email，只從待辦清單得知 | SD-ORDER CQ-5、CQ-9（使用者決定 2026-11-22）；BASELINE O13 附帶動作（CQ-82）、§3.6 ADMIN 待辦（CQ-55）；CQ-5、CQ-13（已決定 2026-11-22） |
+| BR-6 | O13 只收問題說明：必填，去頭尾空白後 1–500 字，字數以 Unicode code point 計（emoji 一個 code point 計 1 字），只有空白 → 400 `VALIDATION_FAILED`；前端計數與驗證同規則：輸入以 code point 截斷於 500、計數器 `owner-order-dispute-description-counter` 顯示剩餘字數、去頭尾空白後為空時停用送出，後端仍驗證（不信任前端）；不選問題類別、不可附圖；說明以去頭尾空白後的值寫入 `order_logs` payload（CQ-17）；同交易建立 `admin_tasks`（`type=SERVICE_DISPUTE`、`status=OPEN`、關聯訂單），`(type, order_id) WHERE status='OPEN'` 唯一；ADMIN 不收站內通知或 Email，只從待辦清單得知 | SD-ORDER CQ-5、CQ-9（使用者決定 2026-11-22）；BASELINE O13 附帶動作（CQ-82）、§3.6 ADMIN 待辦（CQ-55）；CQ-5、CQ-13（已決定 2026-11-22） |
 | BR-7 | `DISPUTED` 期間：自動結案暫停；雙方對 payment 與變更的所有操作 → 409 `ORDER_STATE_CONFLICT`；行程照常執行；只有 ADMIN 調解（O15 / O17，PRD-020）能離開 | BASELINE O13 附帶動作、§3.2 `DISPUTED` 凍結（CQ-48、CQ-57） |
 | BR-8 | `COMPLETED` 為終態：再次 O11 / O13、O14、發起變更一律 409 `ORDER_STATE_CONFLICT`（payload `currentStatus=COMPLETED`）；`completed_at` 只寫一次，重複呼叫不得改動 | BASELINE §3.1 狀態圖（`COMPLETED --> [*]`）、§3.4 可發起時機（限 `CONFIRMED` / `IN_PROGRESS`）、§3.7 |
 | BR-9 | 前端分頁：`CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 進行中；`COMPLETED` / `CANCELLED` → 歷史 | BASELINE §3.1 主狀態表 |
@@ -139,7 +139,7 @@
 | BR-12 | 非終態訂單（含 `DISPUTED`、`IN_PROGRESS` 已收款者）不列入帳務總覽與總收入，直到進入 `COMPLETED` / `CANCELLED` 的那個月 | BASELINE §4 保母收入 |
 | BR-13 | 帳務總覽的支付方式（線上 / 線下）篩選、待撥款佇列、撥款日（D+3）屬第二階段線上付款，由 SD-BILLING / PRD-015 定義；線上撥款的爭議凍結亦同。第一階段所有 payment 為 `OFFLINE_TRANSFER` 或 `ADMIN_ADJUSTMENT` | BR §5.6.1、§5.6.2（待撥款佇列「僅於第二階段出現」）；BASELINE §2.1 線上刷卡（SD-BILLING）；呼叫方交辦（使用者決定 2026-11-22） |
 | BR-14 | 帳務總覽無方案限制（FREE / BASIC / PRO / ULTIMATE 相同）；保母訂閱逾期 / 停權時仍可查看（屬既有訂單，不是新生意）。O11 / O12 / O13 同樣不受保母方案與鎖定影響 | BASELINE §2.1（無此能力列）、§2.2（只擋新生意，CQ-19） |
-| BR-15 | 金額一律整數 TWD；畫面以「NT$」加千分位顯示 | BASELINE §4 |
+| BR-15 | 金額一律整數 TWD；畫面與通知以 `$ 1,800` 格式顯示（`$` 後接不斷行空白 U+00A0、千分位固定 en-US） | BASELINE §4；SD-FRONTEND-SPEC §6.4.1 |
 | BR-16 | 時間 UTC 儲存、ISO-8601 傳輸，畫面以 Asia/Taipei `YYYY-MM-DD HH:mm` 顯示（與瀏覽器時區無關）；`month` 參數為 Asia/Taipei 的 `YYYY-MM`，格式錯誤 → 400 `VALIDATION_FAILED` | BASELINE §5 |
 | BR-17 | O11 / O13 帶 `Idempotency-Key`；範圍 =（使用者, method + 路由樣板, key），request hash 含路徑變數與 body；同 key 同內容 → 回放第一次結果；同 key 不同內容（含同 key 用於另一張訂單、E26 同 key 換說明）→ 422 `IDEMPOTENCY_KEY_REUSED`；處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`；缺 key → 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）；`ORDER_BUSY` 不記冪等紀錄，同 key 重試會重新處理 | BASELINE §3.6 冪等、§3.7；SD-ORDER §3.6.2 request hash |
 | BR-18 | O11 / O12 / O13 先鎖訂單列（`lock_timeout` 3s，逾時 409 `ORDER_BUSY` + `Retry-After: 1`）；`order_logs` 與狀態變更同交易；通知經 outbox 與轉移同交易寫入，Email 由排程寄送 | BASELINE §3.6 鎖、稽核、通知 |
@@ -206,14 +206,14 @@
 
 ### 子模組 3：保母帳務總覽與飼主歷史訂單
 
-- [ ] **AC-3.1 (收入 = 已收淨額)**：Given SITTER-S 在 2026-11 有 §4.5 計算例的訂單 A（`COMPLETED`；CHARGE 2000 `VERIFIED`；變更退款 REFUND 500 `VERIFIED`）、B（`CANCELLED`，`CONFIRMED` 整筆取消，CHARGE 1000 `VERIFIED`、REFUND 800 `VERIFIED`）、C（`COMPLETED` 經 O15，CHARGE 1500 `VERIFIED`、`ADMIN_ADJUSTMENT` 300 `VERIFIED`）、I（`CANCELLED`，未付款即取消，無 `VERIFIED` payment），When SITTER-S 選 2026-11，Then 列表 A 淨額 NT$ 1,500、B NT$ 200、C NT$ 1,200，I 不出現，`sitter-ledger-total-income` 顯示「NT$ 2,900」（不是 `total_amount` 加總）；每列 `sitter-ledger-item-{orderId}` 顯示訂單編號、飼主稱呼、服務期間（首末行程日）、終態（A、C「已結案」/ B「已取消」）、終態日期、已收淨額。對應：BR-10、BR-15、BR-22
+- [ ] **AC-3.1 (收入 = 已收淨額)**：Given SITTER-S 在 2026-11 有 §4.5 計算例的訂單 A（`COMPLETED`；CHARGE 2000 `VERIFIED`；變更退款 REFUND 500 `VERIFIED`）、B（`CANCELLED`，`CONFIRMED` 整筆取消，CHARGE 1000 `VERIFIED`、REFUND 800 `VERIFIED`）、C（`COMPLETED` 經 O15，CHARGE 1500 `VERIFIED`、`ADMIN_ADJUSTMENT` 300 `VERIFIED`）、I（`CANCELLED`，未付款即取消，無 `VERIFIED` payment），When SITTER-S 選 2026-11，Then 列表 A 淨額 $ 1,500、B $ 200、C $ 1,200，I 不出現，`sitter-ledger-total-income` 顯示「$ 2,900」（不是 `total_amount` 加總）；每列 `sitter-ledger-item-{orderId}` 顯示訂單編號、飼主稱呼、服務期間（首末行程日）、終態（A、C「已結案」/ B「已取消」）、終態日期、已收淨額。對應：BR-10、BR-15、BR-22
 - [ ] **AC-3.2 (月份歸屬邊界)**：Given 訂單 D 於 2026-10-28 付款、行程 2026-11-01～11-03、`completed_at` = `2026-11-30T15:59:00Z`（11-30 23:59）；訂單 E `completed_at` = `2026-11-30T16:00:00Z`（12-01 00:00）；訂單 F `cancelled_at` = `2026-10-31T16:30:00Z`（11-01 00:30），When 查 2026-11，Then 含 D、F，不含 E；When 查 2026-12，Then 含 E；When 查 2026-10，Then 不含 D、F。對應：BR-11、BR-16
 - [ ] **AC-3.3 (非終態不計，終態後才計入)**：Given 訂單 G `IN_PROGRESS`（CHARGE 3000 `VERIFIED`）、訂單 H 於 2026-11-20 `DISPUTED`（CHARGE 2000 `VERIFIED`），When 查 2026-11，Then G、H 皆不在列表、不計入總收入；Given H 於 2026-12-05 經 O15 `COMPLETED` 並登記 `ADMIN_ADJUSTMENT` 500，When 查 2026-12，Then H 淨額 1500 列入 12 月；2026-11 總收入不變。對應：BR-10、BR-11、BR-12
-- [ ] **AC-3.4 (位置、預設月份與空狀態)**：Given 時鐘 2026-11-22 12:00，When SITTER-S 進入「收款」分頁的帳務總覽，Then `sitter-ledger-select-month` 預設 2026-11 並顯示 11 月資料；When SITTER-S 切到訂單「歷史」分頁，Then 不顯示總收入；Given 時鐘 `2026-11-30T16:30:00Z`（台北 12-01 00:30）、瀏覽器時區 UTC，When 進入帳務總覽，Then `sitter-ledger-select-month` 預設 2026-12；When 切到無資料的 2026-08，Then `sitter-ledger-total-income` 為「NT$ 0」、顯示 `sitter-ledger-empty`「本月沒有已結束的訂單」；When 直接以 `month=2026-13` 或缺 `month` 呼叫 E30，Then 400 `VALIDATION_FAILED`。對應：BR-16、BR-22、EX-18
+- [ ] **AC-3.4 (位置、預設月份與空狀態)**：Given 時鐘 2026-11-22 12:00，When SITTER-S 進入「收款」分頁的帳務總覽，Then `sitter-ledger-select-month` 預設 2026-11 並顯示 11 月資料；When SITTER-S 切到訂單「歷史」分頁，Then 不顯示總收入；Given 時鐘 `2026-11-30T16:30:00Z`（台北 12-01 00:30）、瀏覽器時區 UTC，When 進入帳務總覽，Then `sitter-ledger-select-month` 預設 2026-12；When 切到無資料的 2026-08，Then `sitter-ledger-total-income` 為「$ 0」、顯示 `sitter-ledger-empty`「本月沒有已結束的訂單」；When 直接以 `month=2026-13` 或缺 `month` 呼叫 E30，Then 400 `VALIDATION_FAILED`。對應：BR-16、BR-22、EX-18
 - [ ] **AC-3.5 (權限、方案與鎖定)**：Given SITTER-S 與 SITTER-T 在 2026-11 各有已結束訂單，When SITTER-S 查 2026-11，Then 只看到自己的訂單；When OWNER-A（`currentRole=OWNER`）或 ADMIN 呼叫 E30，Then 403 `ROLE_MISMATCH`。Given SITTER-S 為 FREE，或訂閱已逾期鎖定 / 被停權，When 查帳務總覽，Then 200 並顯示與 PRO 相同的資料與欄位。對應：BR-14、EX-2、EX-4
 - [ ] **AC-3.6 (飼主訂單分頁歸屬與載入更多)**：Given OWNER-A 有 `PENDING`、`PENDING_PAYMENT`、`CONFIRMED`、`IN_PROGRESS`、`DISPUTED`、`COMPLETED`、`CANCELLED` 各一筆，When 切到「歷史」分頁 `owner-orders-tab-history`，Then 只出現 `COMPLETED` 與 `CANCELLED` 兩張 `owner-order-card-{orderId}`、無 `owner-orders-history-btn-load-more`；`CONFIRMED` / `IN_PROGRESS` / `DISPUTED` 在「進行中」，`PENDING` / `PENDING_PAYMENT` 在「評估中」；OWNER-B 的訂單不出現。Given OWNER-C 有 25 筆歷史訂單，When 進入歷史分頁，Then 顯示終態時間最新的 20 張卡片與 `owner-orders-history-btn-load-more`；When 點擊，Then 共 25 張、無重複、按鈕消失。對應：BR-9、BR-23
 - [ ] **AC-3.7 (飼主歷史卡片、篩選與空狀態)**：Given OWNER-A 歷史分頁有 `COMPLETED`（`completed_at` 2026-11-10）、`CANCELLED`（`cancelled_at` 2026-11-12）、`COMPLETED`（`completed_at` 2026-10-05）各一筆，When 進入歷史分頁（預設狀態全部、不篩月份），Then 三筆依終態時間新到舊排列（11-12、11-10、10-05），每張卡片顯示保母名稱、服務期間、狀態、終態日期、實付淨額；When 選 `owner-orders-history-filter-status` = 已結案，Then 只剩兩筆 `COMPLETED`；When 再選 `owner-orders-history-select-month` = 2026-11，Then 只剩 11-10 那筆；When 狀態選全部、月份 2026-11，Then 11-12 的 `CANCELLED` 排在 11-10 之前；When 狀態選已取消、月份 2026-10，Then 無卡片，`owner-orders-history-empty` 顯示「沒有符合條件的訂單」。Given OWNER-B 沒有任何 `COMPLETED` / `CANCELLED` 訂單，When 進入歷史分頁，Then `owner-orders-history-empty` 顯示「尚無歷史訂單」。對應：§4.6、BR-23
-- [ ] **AC-3.8 (修改單、淨額 0、排序與訂單編號)**：Given SITTER-S 在 2026-12 只有 §4.5 計算例的訂單 J（`completed_at` 2026-12-03；SUPPLEMENT 1000 逾時 `VOID`、系統退款 500 `VERIFIED`）、K（O15，`completed_at` 2026-12-10；CHARGE 800、`ADMIN_ADJUSTMENT` 800）、L（`completed_at` 2026-12-20；INITIAL 2000、SUPPLEMENT 1000 皆 `VERIFIED`），When SITTER-S 選 2026-12，Then 列表依序 L、K、J；L 淨額 NT$ 3,000、K「已結案」NT$ 0（仍列出）、J NT$ 1,500（`VOID` 補款不計）；`sitter-ledger-total-income` 顯示「NT$ 4,500」；三筆一次全部顯示、無分頁元件。Given L 的 `orderId` 為 `3f9a2c1e-7b4d-4e2a-9c1f-0a1b2c3d4e5f`，Then 該列訂單編號顯示「3F9A2C1E」，點擊導向 `/sitter/orders/3f9a2c1e-7b4d-4e2a-9c1f-0a1b2c3d4e5f`。對應：BR-10、BR-15、BR-22
+- [ ] **AC-3.8 (修改單、淨額 0、排序與訂單編號)**：Given SITTER-S 在 2026-12 只有 §4.5 計算例的訂單 J（`completed_at` 2026-12-03；SUPPLEMENT 1000 逾時 `VOID`、系統退款 500 `VERIFIED`）、K（O15，`completed_at` 2026-12-10；CHARGE 800、`ADMIN_ADJUSTMENT` 800）、L（`completed_at` 2026-12-20；INITIAL 2000、SUPPLEMENT 1000 皆 `VERIFIED`），When SITTER-S 選 2026-12，Then 列表依序 L、K、J；L 淨額 $ 3,000、K「已結案」$ 0（仍列出）、J $ 1,500（`VOID` 補款不計）；`sitter-ledger-total-income` 顯示「$ 4,500」；三筆一次全部顯示、無分頁元件。Given L 的 `orderId` 為 `3f9a2c1e-7b4d-4e2a-9c1f-0a1b2c3d4e5f`，Then 該列訂單編號顯示「3F9A2C1E」，點擊導向 `/sitter/orders/3f9a2c1e-7b4d-4e2a-9c1f-0a1b2c3d4e5f`。對應：BR-10、BR-15、BR-22
 
 ## 9. 影響範圍
 
@@ -234,12 +234,13 @@
 | 確認結案按鈕 / 不可結案提示 | `owner-order-detail-btn-complete`、`owner-order-detail-complete-hint` |
 | 確認結案確認框「確認」 | `owner-order-complete-btn-confirm` |
 | 回報問題按鈕 / 視窗截止時間 | `owner-order-detail-btn-report-issue`、`owner-order-detail-dispute-window-ends-at` |
-| 回報問題說明 / 送出 | `owner-order-dispute-input-description`、`owner-order-dispute-btn-submit` |
+| 回報問題說明 / 剩餘字數計數器 / 送出 | `owner-order-dispute-input-description`、`owner-order-dispute-description-counter`、`owner-order-dispute-btn-submit` |
 | 爭議橫幅 | `owner-order-detail-disputed-banner`、`sitter-order-detail-disputed-banner` |
 | 結案時間 | `owner-order-detail-completed-at`、`sitter-order-detail-completed-at` |
 | 保母端自動結案時間 | `sitter-order-detail-auto-complete-at` |
 | 行程列（PRD-008 定義）/ 查看日誌（PRD-022 共用） | `owner-order-detail-visit-row-{visitId}`、`owner-order-detail-btn-view-log-{visitId}` |
 | 帳務總覽 | `sitter-ledger-select-month`、`sitter-ledger-total-income`、`sitter-ledger-item-{orderId}`、`sitter-ledger-empty` |
+| 訂單列表其他分頁（§4.4「前端分頁」欄；名稱依 SD-ORDER §9.3） | `owner-orders-tab-evaluating`、`owner-orders-tab-active`、`sitter-orders-tab-evaluating`、`sitter-orders-tab-active`、`sitter-orders-tab-history`、`sitter-order-card-{orderId}` |
 | 飼主歷史分頁 | `owner-orders-tab-history`、`owner-order-card-{orderId}`、`owner-orders-history-filter-status`、`owner-orders-history-select-month`、`owner-orders-history-btn-load-more`、`owner-orders-history-empty` |
 
 ## 10. 待釐清事項
@@ -268,6 +269,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) §4.3 步驟 2、BR-6：回報問題說明前端以 code point 截斷於 500、計數器 `owner-order-dispute-description-counter` 顯示剩餘字數、去頭尾空白後為空時停用送出，後端仍驗證；(2) 畫面金額改為 SD-FRONTEND-SPEC §6.4.1 格式（§4.5 步驟 3、BR-15、AC-3.1、AC-3.4、AC-3.8，`NT$ 2,900` → `$ 2,900`）；(3) §4.3 步驟 2「去頭尾空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）；(4) §9 testid 表補 SD-ORDER §9.3 的訂單列表分頁（`owner-orders-tab-evaluating` 等）與計數器。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：BR-21 / CQ-15 擴充為 4.1 iii 提示在空窗期同樣改顯示「即將自動結案」（SD-FULFILL §9.2）；§4.4 引用改 PRD-008 §4.6（筆誤） | 使用者 2026-11-22 |
 | 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | BR-22 補帳務列表排序（終態時間新到舊） | 主流程（跨卡一致性） |

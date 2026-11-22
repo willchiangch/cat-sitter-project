@@ -45,7 +45,7 @@
 ### 4.1 保母婉拒（O3 SITTER）
 
 1. 保母在評估頁（PRD-006）按「婉拒預約」（`sitter-order-eval-btn-decline`）→ 對話框要求填寫原因（`sitter-order-decline-input-reason`），提供「檔期已滿」「超出服務範圍」「無法照顧此類毛孩」「其他」快速帶入按鈕（`sitter-order-decline-btn-quick-reason-{n}`，n = 1–4；帶入後可編輯，送出的仍是文字），並提示「婉拒後飼主將收到通知，含您填寫的原因」。
-2. 保母按「確認婉拒」（`sitter-order-decline-btn-confirm`，帶 `Idempotency-Key`）→ 系統依 baseline §3.7 判斷順序檢查（BR-14）：冪等回放 → 401 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 `VALIDATION_FAILED`（缺 `Idempotency-Key`；原因去除前後空白後為空或超過 200 字）→ 冪等衝突 → 鎖訂單列後訂單不是 `PENDING` → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。**不檢查** `review_expires_at`：已過評估期限、但排程尚未把訂單寫成 `CANCELLED` 時仍允許婉拒（baseline §3.2 例外、CQ-61）。
+2. 保母按「確認婉拒」（`sitter-order-decline-btn-confirm`，帶 `Idempotency-Key`）→ 系統依 baseline §3.7 判斷順序檢查（BR-14）：401 → 冪等回放 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 `VALIDATION_FAILED`（缺 `Idempotency-Key`；原因去除前後空白（含全形空白，定義見 SD-GLOBAL-SPEC）後為空或超過 200 字）→ 冪等衝突 → 鎖訂單列後訂單不是 `PENDING` → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。**不檢查** `review_expires_at`：已過評估期限、但排程尚未把訂單寫成 `CANCELLED` 時仍允許婉拒（baseline §3.2 例外、CQ-61）。
 3. 通過後同一交易：訂單 `PENDING → CANCELLED`、`cancelledBy = SITTER`、記錄原因；剩餘 `PENDING` 行程 → `CANCELLED`（BR-12）；寫 `order_logs`（`ORDER_REJECTED`，含原因）；通知雙方：飼主「預約已婉拒」（含原因、連到訂單詳情），保母「您已婉拒 {飼主顯示名稱} 的預約」（BR-2）。
 4. 回應成功後，對話框顯示「轉介信任圈夥伴」（`sitter-order-decline-btn-referral`）；保母選擇後進入 PRD-010 轉介流程（另一個請求）。不轉介則關閉；關閉後不再提供轉介入口（含歷史訂單頁，BR-3）。
 5. 飼主訂單詳情（`owner-order-detail-cancel-result`）顯示「保母已婉拒此預約」與原因；保母端該訂單移到「歷史」，無任何接單 / 報價按鈕。
@@ -53,7 +53,7 @@
 ### 4.2 評估逾期（O4）
 
 1. 排程每 15 分鐘執行一次（baseline §5），先唯讀查出 `status = PENDING` 且 `now ≥ review_expires_at` 的訂單。
-2. 逐筆以獨立交易處理：鎖訂單列（`SKIP LOCKED`）後重驗條件 → 仍成立則 `PENDING → CANCELLED`、`cancelledBy = SYSTEM`、原因「保母未於期限內回覆」；剩餘 `PENDING` 行程 → `CANCELLED`（BR-12）；寫 `order_logs`（`ORDER_REVIEW_EXPIRED`）；通知雙方：飼主「保母未於期限內回覆，預約已自動取消」，保母「預約已逾期自動取消」。條件不成立（已被報價 / 撤回 / 婉拒）則略過。
+2. 逐筆以獨立交易處理：鎖訂單列（`SKIP LOCKED`）後重驗條件 → 仍成立則 `PENDING → CANCELLED`、`cancelledBy = SYSTEM`、原因「保母未於期限內回覆」；剩餘 `PENDING` 行程 → `CANCELLED`（BR-12）；寫 `order_logs`（`ORDER_REVIEW_EXPIRED`）；通知雙方：飼主「保母未於期限內回覆，預約已自動取消」，保母「預約已逾期自動取消」；飼主訂單詳情 `owner-order-detail-cancel-result` 標題顯示「保母未於期限內回覆，預約已自動取消」（SD-ORDER CQ-24，使用者決定 2026-11-22）。條件不成立（已被報價 / 撤回 / 婉拒）則略過。
 3. 一筆失敗不影響其他筆（該筆交易回滾、寫錯誤 log）；排程可重跑。排程端點回 200，body 含 `processed`（已取消筆數）、`skipped`（重驗不成立或鎖不到而略過）、`failed`（拋例外）計數（BR-15）。
 4. 排程未跑之前：非取消類操作（報價）在期限後依時間被拒（PRD-006 AC-3.4）；取消類操作（保母婉拒、飼主撤回 PRD-026）仍允許，與排程以鎖訂單列序列化，先取得鎖者決定 `cancelledBy`（baseline §3.2、CQ-46、CQ-61）。
 
@@ -61,8 +61,8 @@
 
 1. 保母在 `PENDING_PAYMENT` 訂單詳情按「取消訂單」（`sitter-order-detail-btn-cancel`）→ 對話框要求填寫原因（`sitter-order-cancel-input-reason`，快速帶入按鈕 `sitter-order-cancel-btn-quick-reason-{n}`，同 4.1），提示「取消後飼主將收到通知，含您填寫的原因」。
 2. 保母按「確認取消」（`sitter-order-cancel-btn-confirm`，帶 `Idempotency-Key`）→ 系統依 baseline §3.7 判斷順序檢查（BR-14）：同 4.1 步驟 2 至冪等衝突 → 鎖訂單列後訂單不是 `PENDING_PAYMENT` → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）→ 首次收款 payment 為 `SUBMITTED` → 409 `PAYMENT_ALREADY_SUBMITTED`。**不檢查** `due_at`：已過付款期限、但 O8 排程（PRD-007）尚未把訂單寫成 `CANCELLED` 時仍允許（baseline §3.2 例外、CQ-61）。
-3. 通過後同一交易：payment `UNPAID → VOID`；訂單 `PENDING_PAYMENT → CANCELLED`、`cancelledBy = SITTER`、記錄原因；剩餘 `PENDING` 行程 → `CANCELLED`（BR-12）；寫 `order_logs`（`ORDER_CANCELLED_BY_SITTER`）；通知雙方：飼主「保母已取消訂單」（含原因），保母「您已取消訂單」（BR-2）。
-4. payment 為 `SUBMITTED`（飼主已上傳憑證）時不可取消，畫面顯示 `sitter-order-cancel-blocked-message` 並引導保母先核對或駁回（PRD-007）；駁回後 payment 回 `UNPAID`，才能取消。
+3. 通過後同一交易：payment `UNPAID → VOID`；訂單 `PENDING_PAYMENT → CANCELLED`、`cancelledBy = SITTER`、記錄原因；剩餘 `PENDING` 行程 → `CANCELLED`（BR-12）；寫 `order_logs`（`ORDER_CANCELLED_BY_SITTER`）；通知雙方：飼主「保母已取消訂單」（含原因），保母「您已取消訂單」（BR-2）；飼主訂單詳情 `owner-order-detail-cancel-result` 標題顯示「保母已取消此訂單」與原因（SD-ORDER CQ-24，使用者決定 2026-11-22）。
+4. payment 為 `SUBMITTED`（飼主已上傳憑證）時不可取消：保母開啟訂單詳情即顯示 `sitter-order-cancel-blocked-message`、隱藏「取消訂單」按鈕（與訂單詳情 `allowedActions` 不含取消一致），並引導保母先核對或駁回（PRD-007）；直接呼叫 API 仍回 409 `PAYMENT_ALREADY_SUBMITTED`。駁回後 payment 回 `UNPAID`，提示消失、按鈕恢復顯示，才能取消。
 5. 取消成功後不提供轉介入口（BR-13）。
 
 ## 5. 狀態轉移
@@ -82,7 +82,7 @@
 | # | 規則 | 出處 |
 |---|------|------|
 | BR-1 | 婉拒只在 `PENDING`；需原因；問卷狀態不影響婉拒 | baseline O3、§3.5；BR §3.6 步驟 4 |
-| BR-2 | 婉拒、付款前取消、評估逾期都通知雙方：婉拒 → 飼主「預約已婉拒」（含保母原因、連到訂單詳情）、保母「您已婉拒 {飼主顯示名稱} 的預約」；O7 → 飼主「保母已取消訂單」（含原因）、保母「您已取消訂單」；O4 → 飼主「保母未於期限內回覆，預約已自動取消」、保母「預約已逾期自動取消」。飼主訂單詳情顯示結果與原因；送出前確認框文字與實際行為一致 | BR §3.6 步驟 4「取消接單…需信件通知雙方」；沿用原 PRD-006 D 段（2026-10-26 fix-batch13 K1）；保母端文案為審查第 1 輪 #1；主流程一致性決定 #4 |
+| BR-2 | 婉拒、付款前取消、評估逾期都通知雙方：婉拒 → 飼主「預約已婉拒」（含保母原因、連到訂單詳情）、保母「您已婉拒 {飼主顯示名稱} 的預約」；O7 → 飼主「保母已取消訂單」（含原因）、保母「您已取消訂單」；O4 → 飼主「保母未於期限內回覆，預約已自動取消」、保母「預約已逾期自動取消」。飼主訂單詳情 `owner-order-detail-cancel-result` 顯示結果標題與原因：O3「保母已婉拒此預約」、O7「保母已取消此訂單」、O4「保母未於期限內回覆，預約已自動取消」；送出前確認框文字與實際行為一致 | BR §3.6 步驟 4「取消接單…需信件通知雙方」；沿用原 PRD-006 D 段（2026-10-26 fix-batch13 K1）；保母端文案為審查第 1 輪 #1；主流程一致性決定 #4；O4 / O7 詳情標題為使用者決定 2026-11-22（SD-ORDER CQ-24） |
 | BR-3 | 婉拒與轉介為兩步驟：婉拒先成立，成功後在同一對話框提供轉介入口；轉介是獨立請求，成功與否不影響已成立的婉拒（轉介失敗不回滾）。轉介前置條件（由 PRD-010 實作）：訂單 `CANCELLED`、`cancelledBy=SITTER`、有 `ORDER_REJECTED` log、呼叫者為該訂單 sitter。入口只在婉拒成功的對話框提供，關閉後不再提供（含歷史訂單頁）。轉介對象、黑名單過濾、通知內容依 PRD-010；PRD-010 的「不接單並轉介」單一動作須改為本卡兩步驟（卡外） | BR §5.3 轉介流程 1；PRD-010 B 段；使用者決定 2026-11-21（CQ-3、CQ-5） |
 | BR-4 | 評估逾期：`now ≥ review_expires_at` 且仍 `PENDING` → `CANCELLED`、`cancelledBy=SYSTEM`，通知雙方 | baseline O4、§5、CQ-12 |
 | BR-5 | 排程每 15 分鐘；候選唯讀查出後逐筆獨立交易、鎖後重驗、`SKIP LOCKED`、可重跑；判斷以「`now ≥` 到期時間」為準（等於到期時間即處理），不依賴排程頻率 | baseline §3.6 排程、§5 |
@@ -94,7 +94,7 @@
 | BR-11 | 婉拒、取消須帶 `Idempotency-Key`（缺少 → 400 `VALIDATION_FAILED`，`field=Idempotency-Key`），依 baseline §3.6 回放 | baseline §3.6、§3.7 |
 | BR-12 | 取消的共同附帶動作：T1 / T2 / T3 同一交易內把剩餘 `PENDING` 行程轉 `CANCELLED`、未結束 payment 轉 `VOID`。O3 / O4 時訂單尚未報價、沒有 payment，實際只取消行程；O7 時首次收款 payment `UNPAID → VOID`（T4）。取消不影響月接單額度（額度只在 `CONFIRMED` 計數） | baseline §3.2（取消的共同附帶動作）、CQ-65、§2.2；使用者決定 2026-11-21 |
 | BR-13 | O7 付款前取消成功後不提供轉介入口；轉介只在婉拒（O3）後提供 | BR §5.3（只寫評估頁）；使用者決定 2026-11-21（CQ-4） |
-| BR-14 | 錯誤判斷順序依 baseline §3.7（CQ-70）：冪等回放 → 401 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 → 冪等衝突 → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`，前端依此選文案）→ 409 `PAYMENT_ALREADY_SUBMITTED`（僅 O7） | baseline §3.7、CQ-70、payload 共通欄位 |
+| BR-14 | 錯誤判斷順序依 baseline §3.7（CQ-70）：401 → 冪等回放 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 → 冪等衝突 → 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`，前端依此選文案）→ 409 `PAYMENT_ALREADY_SUBMITTED`（僅 O7） | baseline §3.7、CQ-70、payload 共通欄位 |
 | BR-15 | O4 排程端點回 200，body 含 `processed` / `skipped` / `failed` 計數；失敗筆寫錯誤 log（含訂單 id），不影響其他筆；非 Cloud Scheduler 身分 → 403 `FORBIDDEN`，不處理任何訂單 | baseline §3.6 排程；審查第 1 輪 #4、#8 |
 
 ## 7. 例外處理
@@ -108,7 +108,7 @@
 | EX-5 | 原因去空白後為空或超過 200 字；缺 `Idempotency-Key` | 拒絕 | 400 `VALIDATION_FAILED`（`field=reason` / `Idempotency-Key`） | 欄位下方「請填寫原因」/「原因最多 200 字」 |
 | EX-6 | 婉拒時訂單已非 `PENDING`（已報價、飼主已撤回、已被 O4 取消） | 拒絕 | 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`） | 「訂單狀態已變更，請重新整理」 |
 | EX-7 | 取消時訂單非 `PENDING_PAYMENT`（已 `CONFIRMED`、已取消含 O8、仍 `PENDING`） | 拒絕；`CONFIRMED` 後改走變更協商整筆取消（PRD-016） | 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`） | `currentStatus=CONFIRMED` / `IN_PROGRESS` →「訂單已成立，如需取消請申請訂單變更」；其他 →「訂單狀態已變更，請重新整理」 |
-| EX-8 | 取消時飼主已上傳憑證（payment `SUBMITTED`） | 拒絕，不改資料 | 409 `PAYMENT_ALREADY_SUBMITTED` | `sitter-order-cancel-blocked-message`「飼主已上傳付款憑證，請先核對或駁回」與核對頁連結（PRD-007） |
+| EX-8 | 取消時飼主已上傳憑證（payment `SUBMITTED`） | 拒絕，不改資料 | 409 `PAYMENT_ALREADY_SUBMITTED` | 開啟訂單詳情即顯示 `sitter-order-cancel-blocked-message`「飼主已上傳付款憑證，請先核對或駁回」與核對頁連結（PRD-007），`sitter-order-detail-btn-cancel` 隱藏；409 只在直接呼叫 API 或畫面過期時出現 |
 | EX-9 | 已過 `review_expires_at`（婉拒）/ `due_at`（取消），排程尚未處理 | 照常執行（BR-8），`cancelledBy = SITTER` | 200 | 同正常流程 |
 | EX-10 | 跨角色併發：保母取消與飼主上傳憑證（PRD-007）同時 | 鎖訂單列序列化。上傳先 → 取消得 EX-8；取消先 → 上傳被拒，已上傳的 GCS 物件刪除（PRD-007 AC-1.8） | 取消後到：409 `PAYMENT_ALREADY_SUBMITTED`；上傳後到：409 `PAYMENT_STATE_CONFLICT` | 依先後 |
 | EX-11 | 跨角色併發：保母婉拒與飼主撤回（PRD-026）同時 | 先到者生效（`cancelledBy` 記先到者），後到者 EX-6 | 409 `ORDER_STATE_CONFLICT` | 同 EX-6 |
@@ -136,15 +136,15 @@
 
 ### 子模組 2：評估逾期（O4）
 
-- [ ] **AC-2.1 (逾期取消)**：Given 訂單 `PENDING`（2 個 `PENDING` 行程）、`review_expires_at = 2026-12-10T16:00:00Z`、雙方訂單類 Email 偏好開啟，When 排程於 `2026-12-10T16:05:00Z` 執行，Then 訂單 `CANCELLED`、`cancelledBy = SYSTEM`、原因「保母未於期限內回覆」；2 個行程皆 `CANCELLED`；寫 `order_logs`（`ORDER_REVIEW_EXPIRED`）；飼主有 1 則站內通知「保母未於期限內回覆，預約已自動取消」、保母有 1 則站內通知「預約已逾期自動取消」，雙方各 1 筆 Email 投遞紀錄；排程回 200、`processed=1`。對應：T2、T5、BR-2、BR-4、BR-12、BR-15
+- [ ] **AC-2.1 (逾期取消)**：Given 訂單 `PENDING`（2 個 `PENDING` 行程）、`review_expires_at = 2026-12-10T16:00:00Z`、雙方訂單類 Email 偏好開啟，When 排程於 `2026-12-10T16:05:00Z` 執行，Then 訂單 `CANCELLED`、`cancelledBy = SYSTEM`、原因「保母未於期限內回覆」；2 個行程皆 `CANCELLED`；寫 `order_logs`（`ORDER_REVIEW_EXPIRED`）；飼主有 1 則站內通知「保母未於期限內回覆，預約已自動取消」、保母有 1 則站內通知「預約已逾期自動取消」，雙方各 1 筆 Email 投遞紀錄；飼主 `owner-order-detail-cancel-result` 標題顯示「保母未於期限內回覆，預約已自動取消」；排程回 200、`processed=1`。對應：T2、T5、BR-2、BR-4、BR-12、BR-15
 - [ ] **AC-2.2 (到期邊界)**：Given `review_expires_at = 2026-12-10T16:00:00Z`。情境 1：When 排程於 `2026-12-10T15:59:00Z` 執行，Then 訂單維持 `PENDING`、行程維持 `PENDING`、無通知。情境 2：When 排程於 `2026-12-10T16:00:00Z` 整執行，Then 訂單 `CANCELLED`、`cancelledBy = SYSTEM`，結果同 AC-2.1。對應：BR-4、BR-5
 - [ ] **AC-2.3 (重驗與略過)**：情境 1：Given 候選查出後、處理前保母已報價（`PENDING_PAYMENT`）、已婉拒或飼主已撤回，When 排程處理該筆，Then 略過，不改狀態、不寫 log、不發通知，回應 `skipped` 計入該筆。情境 2：Given 同一批次 3 筆候選，其中 1 筆處理拋例外，When 排程執行，Then 該筆訂單與行程皆未變更、有含訂單 id 的錯誤 log，其他 2 筆照常取消，回 200、`processed=2`、`failed=1`；When 下次排程執行且例外原因已排除，Then 該筆被取消。對應：BR-5、BR-15、EX-12、EX-19
 - [ ] **AC-2.4 (重跑冪等與端點身分)**：情境 1：Given 訂單已被 O4 取消，When 排程再跑一次，Then 該筆不再出現於候選，回應 `processed=0`，通知與 `order_logs` 各只有一筆。情境 2：When 以一般使用者 token（任一角色）呼叫 O4 排程端點，Then 403 `FORBIDDEN`，所有已到期的 `PENDING` 訂單維持 `PENDING`。對應：BR-5、BR-15、EX-20
 
 ### 子模組 3：付款前保母取消（O7）
 
-- [ ] **AC-3.1 (取消成功)**：Given 訂單 `PENDING_PAYMENT`、首次收款 payment `UNPAID`、`now < due_at`、雙方訂單類 Email 偏好開啟，When SITTER A 按 `sitter-order-detail-btn-cancel`、在 `sitter-order-cancel-input-reason` 填「臨時生病無法服務」並按 `sitter-order-cancel-btn-confirm`，Then 200；payment `VOID`；訂單 `CANCELLED`、`cancelledBy = SITTER`、原因已記錄；所有行程 `CANCELLED`；寫 `order_logs`（`ORDER_CANCELLED_BY_SITTER`）；飼主有 1 則站內通知「保母已取消訂單」（含原因）、A 有 1 則站內通知「您已取消訂單」，雙方各 1 筆 Email 投遞紀錄；飼主詳情不再顯示付款入口，`owner-order-detail-cancel-result` 顯示取消原因；取消成功畫面不出現 `sitter-order-decline-btn-referral`。對應：T3、T4、T5、BR-2、BR-6、BR-12、BR-13
-- [ ] **AC-3.2 (已上傳憑證不可取消)**：情境 1：Given payment `SUBMITTED`，When A 取消，Then 409 `PAYMENT_ALREADY_SUBMITTED`，訂單、行程與 payment 不變；畫面出現 `sitter-order-cancel-blocked-message`「飼主已上傳付款憑證，請先核對或駁回」與核對頁連結。情境 2：Given A 駁回（PRD-007，payment 回 `UNPAID`），When A 再取消，Then 200。對應：BR-6、EX-8
+- [ ] **AC-3.1 (取消成功)**：Given 訂單 `PENDING_PAYMENT`、首次收款 payment `UNPAID`、`now < due_at`、雙方訂單類 Email 偏好開啟，When SITTER A 按 `sitter-order-detail-btn-cancel`、在 `sitter-order-cancel-input-reason` 填「臨時生病無法服務」並按 `sitter-order-cancel-btn-confirm`，Then 200；payment `VOID`；訂單 `CANCELLED`、`cancelledBy = SITTER`、原因已記錄；所有行程 `CANCELLED`；寫 `order_logs`（`ORDER_CANCELLED_BY_SITTER`）；飼主有 1 則站內通知「保母已取消訂單」（含原因）、A 有 1 則站內通知「您已取消訂單」，雙方各 1 筆 Email 投遞紀錄；飼主詳情不再顯示付款入口，`owner-order-detail-cancel-result` 標題顯示「保母已取消此訂單」並顯示取消原因；取消成功畫面不出現 `sitter-order-decline-btn-referral`。對應：T3、T4、T5、BR-2、BR-6、BR-12、BR-13
+- [ ] **AC-3.2 (已上傳憑證不可取消)**：情境 1：Given payment `SUBMITTED`，When A 開啟訂單詳情，Then 不出現 `sitter-order-detail-btn-cancel`，出現 `sitter-order-cancel-blocked-message`「飼主已上傳付款憑證，請先核對或駁回」與核對頁連結；When A 直接呼叫取消 API，Then 409 `PAYMENT_ALREADY_SUBMITTED`，訂單、行程與 payment 不變。情境 2：Given A 駁回（PRD-007，payment 回 `UNPAID`），When A 重新開啟訂單詳情，Then 出現 `sitter-order-detail-btn-cancel`、不出現 `sitter-order-cancel-blocked-message`；When A 取消，Then 200。對應：BR-6、EX-8
 - [ ] **AC-3.3 (狀態不允許)**：情境 1：Given 訂單 `CONFIRMED`，When A 取消，Then 409 `ORDER_STATE_CONFLICT`（`currentStatus=CONFIRMED`），畫面提示「訂單已成立，如需取消請申請訂單變更」。情境 2：Given 訂單 `PENDING`（應走婉拒）或 `CANCELLED`，When A 取消，Then 409 `ORDER_STATE_CONFLICT`（`currentStatus` 分別為 `PENDING`、`CANCELLED`），畫面提示「訂單狀態已變更，請重新整理」。皆不改資料。對應：BR-14、EX-7
 - [ ] **AC-3.4 (越權與原因)**：情境 1：When SITTER B 取消，Then 403 `FORBIDDEN`。情境 2：When A 以 OWNER 角色取消，Then 403 `ROLE_MISMATCH`。情境 3：When ADMIN 取消，Then 403 `ROLE_MISMATCH`。情境 4：When 原因空白或只有空白字元，Then 400 `VALIDATION_FAILED`（`field=reason`）。情境 5：When 不帶 `Idempotency-Key`，Then 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。皆不改資料。對應：BR-11、EX-1–EX-3、EX-5
 - [ ] **AC-3.5 (跨角色併發)**：Given 訂單 `PENDING_PAYMENT`、payment `UNPAID`，When 飼主上傳憑證（PRD-007）與 A 取消同時送出，Then 只有一個成立。情境 1（上傳先）：A 得 409 `PAYMENT_ALREADY_SUBMITTED`、payment `SUBMITTED`、訂單 `PENDING_PAYMENT`。情境 2（取消先）：payment `VOID`、訂單 `CANCELLED`，飼主上傳得 409 `PAYMENT_STATE_CONFLICT`，該次上傳的 GCS 物件已刪除（PRD-007 AC-1.8），無新 submission。兩個情境都不會出現 payment `VOID` 但留有 `SUBMITTED` submission 的狀態。對應：EX-10
@@ -156,7 +156,7 @@
 | 面向 | 內容 |
 |------|------|
 | 資料 | 訂單：`status`、`cancelledBy`、取消原因；剩餘 `PENDING` 行程隨訂單同交易轉 `CANCELLED`；首次收款 payment `VOID`（O7）；`order_logs` 動作 `ORDER_REJECTED`、`ORDER_REVIEW_EXPIRED`、`ORDER_CANCELLED_BY_SITTER`。DDL 在 SD-ORDER |
-| 畫面 | 保母：評估頁「婉拒預約」對話框（含快速帶入原因）與轉介入口（PRD-006 頁面）、`PENDING_PAYMENT` 訂單詳情「取消訂單」對話框；飼主：訂單詳情的婉拒 / 取消 / 逾期結果顯示。testid：`sitter-order-eval-btn-decline`、`sitter-order-decline-input-reason`、`sitter-order-decline-btn-quick-reason-{n}`、`sitter-order-decline-btn-confirm`、`sitter-order-decline-btn-referral`、`sitter-order-detail-btn-cancel`、`sitter-order-cancel-input-reason`、`sitter-order-cancel-btn-quick-reason-{n}`、`sitter-order-cancel-btn-confirm`、`sitter-order-cancel-blocked-message`、`owner-order-detail-cancel-result`（命名依 SD-FRONTEND-SPEC §4） |
+| 畫面 | 保母：評估頁「婉拒預約」對話框（含快速帶入原因）與轉介入口（PRD-006 頁面）、`PENDING_PAYMENT` 訂單詳情「取消訂單」對話框；飼主：訂單詳情的婉拒 / 取消 / 逾期結果顯示（`owner-order-detail-cancel-result` 標題：O3「保母已婉拒此預約」、O7「保母已取消此訂單」、O4「保母未於期限內回覆，預約已自動取消」）。testid：`sitter-order-eval-btn-decline`、`sitter-order-decline-input-reason`、`sitter-order-decline-btn-quick-reason-{n}`、`sitter-order-decline-btn-confirm`、`sitter-order-decline-btn-referral`、`sitter-order-detail-btn-cancel`、`sitter-order-cancel-input-reason`、`sitter-order-cancel-btn-quick-reason-{n}`、`sitter-order-cancel-btn-confirm`、`sitter-order-cancel-blocked-message`、`owner-order-detail-cancel-result`（命名依 SD-FRONTEND-SPEC §4） |
 | 通知 | 婉拒 → OWNER「預約已婉拒」（含原因）、SITTER「您已婉拒 {飼主} 的預約」；評估逾期 → OWNER「保母未於期限內回覆，預約已自動取消」、SITTER「預約已逾期自動取消」；付款前取消 → OWNER「保母已取消訂單」（含原因）、SITTER「您已取消訂單」。站內必寫，Email 依 PRD-014 偏好 |
 | 排程 | 有：評估逾期，每 15 分鐘，`/api/internal/cron/*`（僅 Cloud Scheduler 身分）；時間基準 `orders.review_expires_at`（UTC 儲存，顯示 Asia/Taipei）；回 200 + `processed` / `skipped` / `failed` 計數 |
 | API | 婉拒、付款前取消、評估逾期排程端點。契約在 SD-ORDER |
@@ -176,6 +176,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) §4.3 步驟 4、EX-8、AC-3.2：`sitter-order-cancel-blocked-message` 改為開頁即顯示、`sitter-order-detail-btn-cancel` 隱藏（與 `allowedActions` 一致），409 `PAYMENT_ALREADY_SUBMITTED` 只在直接呼叫 API 時出現；(2) §4.1 步驟 2 與 BR-14 改為 401 先於冪等回放（baseline §3.7）；(3) §4.1 步驟 2「去除前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。(4) 飼主取消結果標題（SD-ORDER §9.3、CQ-24，使用者決定 2026-11-22）：`owner-order-detail-cancel-result` O7「保母已取消此訂單」、O4「保母未於期限內回覆，預約已自動取消」（§4.2 步驟 2、§4.3 步驟 3、BR-2、AC-2.1、AC-3.1、§9）。本卡畫面與通知無金額，金額格式不需改。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 第 1 輪審查修正總覽：處理全部 12 項（重要 2、建議 10）；CQ-5 已決並寫入正文；錯誤判斷順序改依 baseline §3.7（新增 BR-14）；排程端點回應與身分（新增 BR-15、EX-20）；補 testid；狀態 Needs Clarification → In Review。子模組 7 / 4 / 7 = 18 條 AC | `docs/reviews/PRD-027-order-decline-expiry-cancel.review.md` 第 1 輪；使用者決定 2026-11-21；baseline 第 2 版 CQ-70、73；主流程一致性決定 2026-11-21 |
 | 2026-11-21 | R1-#1（重要）：婉拒、O7 改為通知雙方，保母端文案「您已婉拒 {飼主} 的預約」「您已取消訂單」（§4.1、§4.3、BR-2、§9）；AC-1.1、AC-3.1 補保母站內通知斷言 | 第 1 輪 #1；BR §3.6 步驟 4；主流程一致性決定 #4 |

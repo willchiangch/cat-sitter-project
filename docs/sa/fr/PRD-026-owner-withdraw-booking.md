@@ -41,10 +41,10 @@
 
 1. 飼主在訂單詳情（評估中分頁）按「撤回預約」（`owner-order-detail-btn-withdraw`），確認視窗可填撤回原因（`owner-order-withdraw-input-reason`，選填，最多 200 字，BR-11），按確認（`owner-order-withdraw-btn-confirm`）。前端送出 `expectedStatus`（畫面上的訂單主狀態）並帶 `Idempotency-Key`。
 2. 系統依 baseline §3.7 判斷順序檢查（BR-12）：
-   1. 冪等回放：同 key 同內容 → 回放第一次的狀態碼與 body。
-   2. 未登入 → 401 `UNAUTHENTICATED`；`currentRole` 不是 OWNER → 403 `ROLE_MISMATCH`。
+   1. 未登入 → 401 `UNAUTHENTICATED`（先於冪等回放，baseline §3.7）。
+   2. 冪等回放：同使用者同 key 同內容 → 回放第一次的狀態碼與 body；否則 `currentRole` 不是 OWNER → 403 `ROLE_MISMATCH`。
    3. 訂單不存在 → 404 `NOT_FOUND`；不是該訂單 owner → 403 `FORBIDDEN`。
-   4. 格式 → 400 `VALIDATION_FAILED`：缺 `Idempotency-Key`（`field=Idempotency-Key`）；缺 `expectedStatus` 或值不是主狀態（`field=expectedStatus`）；原因去除前後空白後超過 200 字（`field=reason`）。
+   4. 格式 → 400 `VALIDATION_FAILED`：缺 `Idempotency-Key`（`field=Idempotency-Key`）；缺 `expectedStatus` 或值不是主狀態（`field=expectedStatus`）；原因去除前後空白（含全形空白，定義見 SD-GLOBAL-SPEC）後超過 200 字（`field=reason`）。
    5. 同 key 不同內容 → 422 `IDEMPOTENCY_KEY_REUSED`；處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`。
    6. 以訂單列鎖序列化（baseline §3.6，`lock_timeout 3s`，逾時 409 `ORDER_BUSY`），鎖住後：訂單主狀態不是 `PENDING` / `PENDING_PAYMENT`（含已被 O4 / O8 排程取消），或不等於 `expectedStatus`（畫面過期，例如撤回送出前保母已報價）→ 409 `ORDER_STATE_CONFLICT`（payload `currentStatus`）。
    7. `PENDING_PAYMENT` 時首次收款 payment 為 `SUBMITTED` → 409 `PAYMENT_ALREADY_SUBMITTED`。
@@ -82,7 +82,7 @@
 | BR-9 | 保母訂閱鎖定 / 停權不擋飼主撤回 | baseline §2.2、CQ-19（只擋新生意） |
 | BR-10 | 撤回須帶 `Idempotency-Key`（缺少 → 400 `VALIDATION_FAILED`，`field=Idempotency-Key`），同 key 同內容回放第一次結果；`expectedStatus` 必填（缺少 → 400 `VALIDATION_FAILED`）；`order_logs` 與通知 enqueue 與狀態變更同一交易 | baseline §3.6、§3.7 |
 | BR-11 | 撤回原因選填；先去除前後空白，結果為空 → 視為未填、存 null；長度以去空白後的 Unicode 字元計，最多 200 字（超過 → 400 `VALIDATION_FAILED`）；有填則寫入訂單取消原因並顯示在保母通知中 | CQ-1（使用者 2026-11-21）；去空白規則為審查第 1 輪 #3（與 PRD-027 BR-9 一致） |
-| BR-12 | 錯誤判斷順序依 baseline §3.7（CQ-70）：冪等回放 → 401 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 → 冪等衝突 → 409 `ORDER_STATE_CONFLICT` → 409 `PAYMENT_ALREADY_SUBMITTED` | baseline §3.7、CQ-70 |
+| BR-12 | 錯誤判斷順序依 baseline §3.7（CQ-70）：401 → 冪等回放 → 403 `ROLE_MISMATCH` → 404 → 403 `FORBIDDEN` → 400 → 冪等衝突 → 409 `ORDER_STATE_CONFLICT` → 409 `PAYMENT_ALREADY_SUBMITTED` | baseline §3.7、CQ-70 |
 
 ## 7. 例外處理
 
@@ -142,6 +142,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：§4.1 步驟 2.1–2.2 與 BR-12 改為 401 先於冪等回放（baseline §3.7）；§4.1 步驟 2.4「去除前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。本卡畫面與通知無金額，金額格式不需改。狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-21 | 第 1 輪審查修正總覽：處理全部 9 項（重要 1、建議 8）；錯誤判斷順序改依 baseline §3.7（§4.1 步驟 2 重排，新增 BR-12）；仍 1 個子模組 8 條 AC；狀態維持 In Review | `docs/reviews/PRD-026-owner-withdraw-booking.review.md` 第 1 輪；baseline 第 2 版 CQ-70、71、73；主流程一致性決定 2026-11-21 |
 | 2026-11-21 | R1-#1（重要）：AC-1.1、AC-1.2、AC-1.8 的 Given 固定雙方訂單類 Email 偏好，AC-1.1 新增偏好關閉情境；BR-6、§4.1 步驟 3.4 註明此類別不屬 CQ-73 不可關閉 | 第 1 輪 #1；主流程一致性決定 #5 |
