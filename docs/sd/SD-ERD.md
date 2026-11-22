@@ -80,7 +80,7 @@ erDiagram
   - `plan_id`: UUID (FK, 關聯方案)
   - `status`: `PENDING` / `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`
   - `service_date`: DATE（Asia/Taipei 日期；取代以 UTC 午夜存的 `scheduled_at`，定義權屬 SD-FULFILL）
-  - `finished_at`、`cancelled_at`、`closed_at`: TIMESTAMPTZ
+  - `completed_at`（原 `finished_at`，`V20261122_01` 更名）、`cancelled_at`、`closed_at`: TIMESTAMPTZ
 
 ### 2.3 SITTER & PROFILE (含審核與彈性資料)
 - **SITTER**
