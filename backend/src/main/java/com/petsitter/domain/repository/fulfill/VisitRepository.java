@@ -91,6 +91,12 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
     List<UUID> findInProgressTimeoutOrderIds(@Param("startedAtMax") OffsetDateTime startedAtMax,
                                              @Param("orderId") UUID orderId, @Param("limit") int limit);
 
+    /** FT2 SERVICE_DATE：同 order_item_id 整群組一起平移（避免撞 ux_visits_slot）。 */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE visits SET service_date = service_date + :days, updated_at = now() WHERE order_item_id = :orderItemId",
+            nativeQuery = true)
+    int shiftGroupServiceDate(@Param("orderItemId") UUID orderItemId, @Param("days") int days);
+
     /** FT1 / FT2：行程所屬訂單的 owner 或 sitter 是否為 {@code @e2e-journey.test} 帳號。 */
     @Query(value = """
             SELECT EXISTS (SELECT 1 FROM visits v JOIN users u ON u.id IN (v.owner_id, v.sitter_id)

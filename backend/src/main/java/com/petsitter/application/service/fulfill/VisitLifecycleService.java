@@ -108,7 +108,7 @@ public class VisitLifecycleService {
             lifecycleService.onVisitFinished(locked);
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("visitId", visitId.toString());
-            payload.put("completedAt", now.toString());
+            payload.put("completedAt", FulfillException.ts(now));
             payload.put("transitions", java.util.List.of(OrderLogWriter.transition("VISIT", visitId, VisitStatus.IN_PROGRESS, VisitStatus.DONE)));
             orderLogWriter.write(locked, "VISIT_COMPLETED", Actor.sitter(actor.userId()), payload);
             VisitResponses.Completed resp = new VisitResponses.Completed(visitId, VisitStatus.DONE.name(), now,

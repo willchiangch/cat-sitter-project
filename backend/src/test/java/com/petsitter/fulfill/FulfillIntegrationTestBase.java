@@ -180,6 +180,35 @@ public abstract class FulfillIntegrationTestBase extends OrderIntegrationTestBas
         return jdbc.queryForList("SELECT title FROM visit_checklist_items WHERE visit_id = ? ORDER BY sort_order", String.class, visitId);
     }
 
+    protected static final String SECRET = "local-secret-123";
+
+    protected ResultActions cronRaw(String path, String query) throws Exception {
+        return mvc.perform(post("/api/internal/cron/" + path + (query == null ? "" : "?" + query)).header("X-Internal-Secret", SECRET));
+    }
+
+    protected JsonNode cron(String path) throws Exception {
+        return body(cronRaw(path, null).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()));
+    }
+
+    protected static void counts(JsonNode r, int processed, int skipped, int failed) {
+        org.assertj.core.api.Assertions.assertThat(r.get("processed").asInt()).as("processed").isEqualTo(processed);
+        org.assertj.core.api.Assertions.assertThat(r.get("skipped").asInt()).as("skipped").isEqualTo(skipped);
+        org.assertj.core.api.Assertions.assertThat(r.get("failed").asInt()).as("failed").isEqualTo(failed);
+    }
+
+    /** 另一位 {@code @e2e-journey.test} 飼主與本測試保母的 CONFIRMED 訂單（測試帳號訂單）。 */
+    protected UUID testAccountConfirmedOrder(LocalDate... dates) throws Exception {
+        UUID testOwner = fx.user("journey-o-" + UUID.randomUUID() + "@e2e-journey.test", "OWNER");
+        fx.profile(testOwner, "CLIENT", "UNVERIFIED");
+        UUID pet = fx.pet(testOwner, "測試貓");
+        String token = bearer(testOwner, "OWNER");
+        Map<String, Object> body = bookingBody(sitter, List.of(dates), 1, 500 * dates.length, pet);
+        UUID orderId = UUID.fromString(body(mvc.perform(postJson("/api/orders", token, key(), body))).get("orderId").asString());
+        UUID pay = quote(orderId);
+        verify(orderId, pay, submitProof(orderId, pay, token), sitterToken());
+        return orderId;
+    }
+
     protected void advanceTo(OffsetDateTime t) {
         clock.advance(Duration.between(OffsetDateTime.now(clock), t));
     }

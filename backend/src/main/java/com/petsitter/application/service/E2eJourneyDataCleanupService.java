@@ -55,7 +55,7 @@ public class E2eJourneyDataCleanupService {
         }
         List<String> objectKeys = tx.execute(s -> collectObjectKeys(userIds));
         Integer deleted = tx.execute(s -> deleteRows(userIds));
-        objectKeys.forEach(this::deleteMediaSafely);
+        objectKeys.stream().filter(java.util.Objects::nonNull).distinct().forEach(this::deleteMediaSafely);
         return deleted == null ? 0 : deleted;
     }
 
