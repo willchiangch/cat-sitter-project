@@ -166,6 +166,13 @@ public class FakeMediaStorageService implements MediaStorageService {
     }
 
     @Override
+    public String generateSignedUrl(String objectKey, Duration ttl, String contentType) {
+        return generateSignedUrl(objectKey, ttl) + "&response-content-type="
+                + java.net.URLEncoder.encode(contentType, java.nio.charset.StandardCharsets.UTF_8)
+                + "&response-content-disposition=inline";
+    }
+
+    @Override
     public boolean isPubliclyReadable(String objectKey) {
         return publicObjects.contains(objectKey);
     }

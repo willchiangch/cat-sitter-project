@@ -246,6 +246,13 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String generateSignedUrl(String objectKey, java.time.Duration ttl, String contentType) {
+        return localBaseUrl + "/" + objectKey + "?response-content-type="
+                + java.net.URLEncoder.encode(contentType, java.nio.charset.StandardCharsets.UTF_8)
+                + "&response-content-disposition=inline";
+    }
+
+    @Override
     public void uploadPrivateIfAbsent(String objectKey, byte[] content, String contentType) {
         try {
             Path target = Paths.get(localStorageDir).resolve(objectKey).normalize();

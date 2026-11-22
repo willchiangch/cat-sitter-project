@@ -200,6 +200,22 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
+    public String generateSignedUrl(String objectKey, Duration ttl, String contentType) {
+        try {
+            BlobInfo blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).build();
+            URL url = storage.signUrl(blobInfo, ttl.toSeconds(), TimeUnit.SECONDS,
+                    Storage.SignUrlOption.withV4Signature(),
+                    Storage.SignUrlOption.withQueryParams(java.util.Map.of(
+                            "response-content-type", contentType,
+                            "response-content-disposition", "inline")),
+                    Storage.SignUrlOption.signWith(urlSigner));
+            return url.toString();
+        } catch (RuntimeException e) {
+            throw new com.petsitter.application.exception.StorageUnavailableException("gcs sign read url failed", e);
+        }
+    }
+
+    @Override
     public void uploadPrivateIfAbsent(String objectKey, byte[] content, String contentType) {
         try {
             BlobInfo info = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).setContentType(contentType).build();

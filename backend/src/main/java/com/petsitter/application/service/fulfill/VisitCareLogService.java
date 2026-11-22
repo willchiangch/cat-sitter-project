@@ -114,7 +114,7 @@ public class VisitCareLogService {
         }
         MediaUrlSigner.SignedUrl url = urlSigner.sign(m.getObjectKey());
         return new VisitCareLogResponses.MediaItem(m.getId(), m.getMediaType(), m.getCaption(), m.getSizeBytes(), duration,
-                m.getUploadedAt(), url.url(), url.expiresAt(), false);
+                m.getUploadedAt(), url == null ? null : url.url(), url == null ? null : url.expiresAt(), false);
     }
 
     // ------------------------------------------------------------------ F14

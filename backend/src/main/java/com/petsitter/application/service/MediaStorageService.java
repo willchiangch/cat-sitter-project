@@ -63,6 +63,12 @@ public interface MediaStorageService {
     String generateSignedUrl(String objectKey, java.time.Duration ttl);
 
     /**
+     * V4 簽名 GET，另簽入 {@code response-content-type={contentType}} 與 {@code response-content-disposition=inline}
+     * （SD-FULFILL §8.2、NFR-003 U-7）：GCS 回應型別固定為伺服器判定的格式，不受物件 metadata 影響。
+     */
+    String generateSignedUrl(String objectKey, java.time.Duration ttl, String contentType);
+
+    /**
      * 將 DB 內存放的媒體參照轉為 Object Key。2026-10 之前的付款憑證存的是公開網址
      * (https://storage.googleapis.com/{bucket}/payment-proofs/...)，新資料存的是 Object Key，
      * 讀取端一律先過這裡再簽名，兩種格式都能相容。

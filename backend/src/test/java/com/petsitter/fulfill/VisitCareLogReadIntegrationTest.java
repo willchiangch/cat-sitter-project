@@ -35,7 +35,7 @@ class VisitCareLogReadIntegrationTest extends VisitCareLogTestBase {
     }
 
     @Test
-    @DisplayName("PRD-022 AC-3.2 飼主檢視已送出日誌（名稱、文字、媒體與說明）、簽名網址 X-Goog-Expires=900、快取命中時 urlExpiresAt 為原值；DRAFT 日誌 404；purged 不給網址；預設名稱")
+    @DisplayName("PRD-022 AC-3.2 飼主檢視已送出日誌（名稱、文字、媒體與說明）、簽名網址 X-Goog-Expires=900 且含 response-content-type（判定格式）與 response-content-disposition=inline、快取命中時 urlExpiresAt 為原值；DRAFT 日誌 404；purged 不給網址；預設名稱")
     void ownerView() throws Exception {
         UUID orderId = runningOrder("PRO", 2);
         List<UUID> vs = visits(orderId);
@@ -54,7 +54,8 @@ class VisitCareLogReadIntegrationTest extends VisitCareLogTestBase {
         assertThat(r.has("quota")).isFalse();
         assertThat(r.get("media").get(0).get("caption").asString()).isEqualTo("睡午覺");
         String url = r.get("media").get(0).get("url").asString();
-        assertThat(url).contains("X-Goog-Expires=900");
+        assertThat(url).contains("X-Goog-Expires=900").contains("response-content-type=image%2Fjpeg")
+                .contains("response-content-disposition=inline");
         String expiresAt = r.get("media").get(0).get("urlExpiresAt").asString();
         int signs = storage.signReadCalls.get();
         advance(java.time.Duration.ofMinutes(2));
