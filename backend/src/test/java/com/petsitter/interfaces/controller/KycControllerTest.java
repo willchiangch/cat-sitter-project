@@ -2,7 +2,6 @@ package com.petsitter.interfaces.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petsitter.application.exception.KycException;
-import com.petsitter.application.service.BookingService;
 import com.petsitter.application.service.KycService;
 import com.petsitter.application.service.MediaStorageService;
 import com.petsitter.domain.model.KycRecord;

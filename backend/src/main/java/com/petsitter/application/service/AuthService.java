@@ -20,7 +20,7 @@ import com.petsitter.domain.model.RefreshToken;
 import com.petsitter.domain.model.RegistrationOtp;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.FavoriteSitterRepository;
-import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.application.service.order.OrderQueryService;
 import com.petsitter.domain.repository.PasswordResetTokenRepository;
 import com.petsitter.domain.repository.RefreshTokenRepository;
 import com.petsitter.domain.repository.RegistrationOtpRepository;
@@ -66,7 +66,7 @@ public class AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final RegistrationOtpRepository registrationOtpRepository;
     private final RegistrationOtpAttemptService registrationOtpAttemptService;
-    private final OrderRepository orderRepository;
+    private final OrderQueryService orderQueryService;
     private final TrustRelationshipRepository trustRelationshipRepository;
     private final FavoriteSitterRepository favoriteSitterRepository;
     private final GoogleTokenVerifierService googleTokenVerifierService;
@@ -376,7 +376,7 @@ public class AuthService {
             // 全域 refresh-token 靜默重試機制，把「密碼驗證失敗」誤判成 session 過期
             throw new AccessDeniedException("密碼驗證失敗，無法執行帳號註銷");
         }
-        if (orderRepository.existsActiveOrderForParty(userId)) {
+        if (orderQueryService.hasActiveOrder(userId)) {
             throw new AccountDeactivationException(HttpStatus.CONFLICT, "ACCOUNT_DEACTIVATION_BLOCKED",
                     "您尚有未結案的訂單，請先完成或取消後再嘗試註銷帳號");
         }

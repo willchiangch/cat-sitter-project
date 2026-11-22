@@ -22,6 +22,18 @@ class TextRulesTest {
     }
 
     @Test
+    @DisplayName("U+00A0 不換行空白也視為空白（GLOBAL §2.7 修訂）：頭尾去除、中間保留、全為 U+00A0 → 空")
+    void stripNoBreakSpace() {
+        assertThat(TextRules.isBlankChar(0x00A0)).isTrue();
+        assertThat(TextRules.strip(" 　原因  ")).isEqualTo("原因");
+        assertThat(TextRules.strip("a b")).isEqualTo("a b");
+        assertThat(TextRules.stripToNull("  ")).isNull();
+        assertThat(TextRules.strippedLength(" 好 ")).isEqualTo(1);
+        // JDK String.strip() 不去 U+00A0，本實作刻意比它多去一個字元
+        assertThat(" x".strip()).isEqualTo(" x");
+    }
+
+    @Test
     @DisplayName("選填欄位 strip 後為空 → NULL；isBlank 判定")
     void stripToNull() {
         assertThat(TextRules.stripToNull("　 \t")).isNull();

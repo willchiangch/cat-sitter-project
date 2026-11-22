@@ -1,6 +1,6 @@
 package com.petsitter.application.service;
 
-import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.application.service.order.OrderQueryService;
 import com.petsitter.infrastructure.security.TokenContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CareRelationshipGuard {
 
-    private final OrderRepository orderRepository;
+    private final OrderQueryService orderQueryService;
 
     /** 讀取：token 必須是 sitterId 或 ownerId，且雙方有過訂單 */
     public void requireReadable(UUID sitterId, UUID ownerId) {
@@ -40,7 +40,7 @@ public class CareRelationshipGuard {
     }
 
     private void requireOrderRelationship(UUID sitterId, UUID ownerId) {
-        if (!orderRepository.existsOrderBetween(sitterId, ownerId)) {
+        if (!orderQueryService.hasAnyOrderBetween(sitterId, ownerId)) {
             throw new AccessDeniedException("您與此對象之間沒有任何訂單，無法存取照護記事本與媒體");
         }
     }

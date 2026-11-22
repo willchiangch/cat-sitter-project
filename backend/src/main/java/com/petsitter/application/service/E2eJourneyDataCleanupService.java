@@ -51,13 +51,32 @@ public class E2eJourneyDataCleanupService {
 
         deleteOrphanedMedia(userIds);
 
-        nativeDelete("DELETE FROM order_logs WHERE order_id IN "
-                + "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))", userIds);
-        nativeDelete("DELETE FROM order_snapshots WHERE order_id IN "
-                + "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))", userIds);
-        nativeDelete("DELETE FROM visits WHERE order_id IN "
-                + "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))", userIds);
+        // SD-ORDER §10.4 Cleanup：依 FK 順序硬刪除訂單聚合與行程 / 日誌（必須在 service_plans、pets 之前）
+        String orders = "(SELECT id FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids))";
+        String payments = "(SELECT id FROM payments WHERE order_id IN " + orders + ")";
+        String visits = "(SELECT id FROM visits WHERE order_id IN " + orders + ")";
+        nativeDelete("DELETE FROM payment_submissions WHERE payment_id IN " + payments, userIds);
+        nativeDelete("DELETE FROM admin_tasks WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM payments WHERE source_payment_id IS NOT NULL AND order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM payments WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM service_report_media WHERE report_id IN (SELECT id FROM visit_service_reports "
+                + "WHERE visit_id IN " + visits + ")", userIds);
+        nativeDelete("DELETE FROM care_log_media_uploads WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM visit_service_reports WHERE visit_id IN " + visits, userIds);
+        nativeDelete("DELETE FROM visit_checklist_items WHERE visit_id IN " + visits, userIds);
+        nativeDelete("DELETE FROM visits WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_item_pets WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id IN "
+                + orders + ")", userIds);
+        nativeDelete("DELETE FROM order_items WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM modification_requests WHERE initiated_by = 'SYSTEM' AND order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM modification_requests WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_answers WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_plan_snapshots WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_snapshots WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM order_logs WHERE order_id IN " + orders, userIds);
+        nativeDelete("DELETE FROM referral_logs WHERE order_id IN " + orders, userIds);
         nativeDelete("DELETE FROM orders WHERE owner_id IN (:ids) OR sitter_id IN (:ids)", userIds);
+        nativeDelete("DELETE FROM idempotency_records WHERE user_id IN (:ids)", userIds);
 
         nativeDelete("DELETE FROM gatekeeper_rules WHERE sitter_id IN (:ids) OR target_user_id IN (:ids)", userIds);
         nativeDelete("DELETE FROM kyc_records WHERE sitter_id IN (:ids)", userIds);
@@ -97,7 +116,13 @@ public class E2eJourneyDataCleanupService {
                 .forEach(this::deleteMediaSafely);
         selectStrings("SELECT photo_url FROM pets WHERE owner_id IN (:ids) AND photo_url IS NOT NULL", userIds)
                 .forEach(this::deleteMediaSafely);
-        selectStrings("SELECT srm.media_url FROM service_report_media srm "
+        selectStrings("SELECT proof_object_key FROM payment_submissions ps JOIN payments p ON p.id = ps.payment_id "
+                + "JOIN orders o ON o.id = p.order_id WHERE o.owner_id IN (:ids) OR o.sitter_id IN (:ids)", userIds)
+                .forEach(this::deleteMediaSafely);
+        selectStrings("SELECT u.object_key FROM care_log_media_uploads u JOIN orders o ON o.id = u.order_id "
+                + "WHERE o.owner_id IN (:ids) OR o.sitter_id IN (:ids)", userIds)
+                .forEach(this::deleteMediaSafely);
+        selectStrings("SELECT srm.object_key FROM service_report_media srm "
                 + "JOIN visit_service_reports vsr ON srm.report_id = vsr.id "
                 + "JOIN visits v ON vsr.visit_id = v.id "
                 + "JOIN orders o ON v.order_id = o.id "

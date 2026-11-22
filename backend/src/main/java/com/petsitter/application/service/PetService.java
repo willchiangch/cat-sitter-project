@@ -2,11 +2,10 @@ package com.petsitter.application.service;
 
 import com.petsitter.application.dto.PetDto;
 import com.petsitter.application.dto.PetNotesDto;
-import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.Pet;
 import com.petsitter.domain.model.PetEditLog;
 import com.petsitter.domain.model.User;
-import com.petsitter.domain.repository.OrderRepository;
+import com.petsitter.application.service.order.OrderQueryService;
 import com.petsitter.domain.repository.PetEditLogRepository;
 import com.petsitter.domain.repository.PetRepository;
 import com.petsitter.domain.repository.UserRepository;
@@ -28,7 +27,7 @@ public class PetService {
 
     private final PetRepository petRepository;
     private final PetEditLogRepository petEditLogRepository;
-    private final OrderRepository orderRepository;
+    private final OrderQueryService orderQueryService;
     private final UserRepository userRepository;
     private final MediaStorageService mediaStorageService;
 
@@ -120,19 +119,9 @@ public class PetService {
             throw new AccessDeniedException("權限不足，僅限飼主本人刪除毛孩");
         }
 
-        // 檢查是否有進行中的服務 (未結案訂單)
-        List<Order> activeOrders = orderRepository.findByOwnerIdAndStatusNotIn(
-                ownerId, List.of("COMPLETED", "CANCELLED")
-        );
-
-        for (Order order : activeOrders) {
-            if (order.getItems() != null) {
-                for (var item : order.getItems()) {
-                    if (item.getPetIds() != null && item.getPetIds().contains(petId)) {
-                        throw new IllegalArgumentException("此毛孩尚有進行中的服務，無法刪除");
-                    }
-                }
-            }
+        // 檢查是否有進行中的服務（未結案訂單綁定此毛孩，SD-ORDER M18）
+        if (orderQueryService.hasActiveOrderWithPet(petId)) {
+            throw new IllegalArgumentException("此毛孩尚有進行中的服務，無法刪除");
         }
 
         pet.setDeleted(true);
@@ -246,11 +235,8 @@ public class PetService {
     }
 
     private boolean isAuthorizedSitter(UUID ownerId, UUID sitterId) {
-        // 查詢該 owner 與 sitter 之間是否有未結案的訂單
-        List<Order> activeOrders = orderRepository.findByOwnerIdAndStatusNotIn(
-                ownerId, List.of("COMPLETED", "CANCELLED")
-        );
-        return activeOrders.stream().anyMatch(order -> order.getSitter().getId().equals(sitterId));
+        // 該 owner 與 sitter 之間是否有未結案的訂單（SD-ORDER M18）
+        return orderQueryService.hasActiveOrderBetween(sitterId, ownerId);
     }
 
     private PetDto toDto(Pet pet) {

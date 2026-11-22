@@ -12,14 +12,13 @@ import com.petsitter.application.service.EmailService;
 import com.petsitter.application.service.GoogleTokenVerifierService;
 import com.petsitter.application.service.GoogleUserInfo;
 import com.petsitter.domain.model.FavoriteSitter;
-import com.petsitter.domain.model.Order;
-import com.petsitter.domain.model.OrderItem;
 import com.petsitter.domain.model.Profile;
 import com.petsitter.domain.model.RegistrationOtp;
 import com.petsitter.domain.model.TrustRelationship;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.FavoriteSitterRepository;
-import com.petsitter.domain.repository.OrderRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
+import testsupport.order.OrderFixtures;
 import com.petsitter.domain.repository.ProfileRepository;
 import com.petsitter.domain.repository.RegistrationOtpRepository;
 import com.petsitter.domain.repository.TrustRelationshipRepository;
@@ -102,7 +101,7 @@ class AuthControllerTest {
     private RegistrationOtpRepository registrationOtpRepository;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private TrustRelationshipRepository trustRelationshipRepository;
@@ -123,7 +122,6 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        orderRepository.deleteAll();
         trustRelationshipRepository.deleteAll();
         favoriteSitterRepository.deleteAll();
         subscriptionRepository.deleteAll();
@@ -133,18 +131,8 @@ class AuthControllerTest {
         userRepository.deleteAll();
     }
 
-    private Order createOrder(User owner, User sitter, String status) {
-        OrderItem item = new OrderItem();
-        item.setDates(List.of("2026-05-25", "2026-05-27"));
-        Order order = Order.builder()
-                .owner(owner)
-                .sitter(sitter)
-                .status(status)
-                .planId(UUID.randomUUID())
-                .items(new ArrayList<>(List.of(item)))
-                .totalAmount(2400)
-                .build();
-        return orderRepository.save(order);
+    private void createOrder(User owner, User sitter, String status) {
+        new OrderFixtures(jdbcTemplate).order(owner.getId(), sitter.getId(), status);
     }
 
     // --- 測試輔助方法 ---

@@ -1,6 +1,5 @@
 package com.petsitter.infrastructure.cron;
 
-import com.petsitter.application.service.CompletionService;
 import com.petsitter.application.service.NotificationCleanupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,17 +18,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LocalCronSimulator {
 
-    private final CompletionService completionService;
     private final NotificationCleanupService notificationCleanupService;
-
-    /**
-     * 每小時執行一次自動結案邏輯模擬 (本地開發使用)
-     */
-    @Scheduled(cron = "0 0 * * * *")
-    public void simulateAutoCompletion() {
-        log.info("[LocalCronSimulator] Simulating external cron trigger for auto-completion");
-        completionService.triggerAutoCompletion();
-    }
 
     /**
      * 每天凌晨 3 點執行通知清理模擬 (本地開發使用)

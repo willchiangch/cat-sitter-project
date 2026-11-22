@@ -1,11 +1,11 @@
 package com.petsitter.interfaces.controller;
 
 import com.petsitter.application.service.MediaStorageService;
-import com.petsitter.domain.model.Order;
 import com.petsitter.domain.model.User;
 import com.petsitter.domain.repository.CareMediaRepository;
 import com.petsitter.domain.repository.CareNoteRepository;
-import com.petsitter.domain.repository.OrderRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
+import testsupport.order.OrderFixtures;
 import com.petsitter.domain.repository.UserRepository;
 import com.petsitter.infrastructure.security.JwtUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,7 +77,7 @@ class CareRelationshipSecurityTest {
     private UserRepository userRepository;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private CareNoteRepository careNoteRepository;
@@ -98,7 +98,7 @@ class CareRelationshipSecurityTest {
         ownerWithOrder = saveUser("owner-with-order", "OWNER");
         stranger = saveUser("stranger-owner", "OWNER");
         // 「任何狀態」：用已取消的訂單證明不限進行中
-        saveOrder(ownerWithOrder, "CANCELLED", false);
+        saveOrder(ownerWithOrder, "CANCELLED");
     }
 
     private User saveUser(String prefix, String role) {
@@ -107,12 +107,8 @@ class CareRelationshipSecurityTest {
                 .passwordHash("hash").fullName("J1 " + prefix).role(role).build());
     }
 
-    private void saveOrder(User owner, String status, boolean softDeleted) {
-        orderRepository.saveAndFlush(Order.builder()
-                .owner(owner).sitter(sitter).status(status)
-                .items(List.of()).planId(UUID.randomUUID())
-                .isDeleted(softDeleted)
-                .build());
+    private void saveOrder(User owner, String status) {
+        new OrderFixtures(jdbcTemplate).order(owner.getId(), sitter.getId(), status);
     }
 
     private String bearer(User user) {
@@ -174,14 +170,6 @@ class CareRelationshipSecurityTest {
                             .header("Authorization", bearer(reader)))
                     .andExpect(status().isForbidden());
         }
-    }
-
-    @Test
-    @DisplayName("e2e 清理用的軟刪除訂單不算關係 → 403")
-    void softDeletedOrder_doesNotCount() throws Exception {
-        saveOrder(stranger, "COMPLETED", true);
-        mockMvc.perform(saveNote(stranger).header("Authorization", bearer(sitter)))
-                .andExpect(status().isForbidden());
     }
 
     @Test

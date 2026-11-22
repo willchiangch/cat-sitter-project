@@ -1,7 +1,7 @@
 package com.petsitter.application.service;
 
-import com.petsitter.domain.model.ServiceReportMedia;
-import com.petsitter.domain.repository.ServiceReportMediaRepository;
+import com.petsitter.domain.model.fulfill.ServiceReportMedia;
+import com.petsitter.domain.repository.fulfill.ServiceReportMediaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;

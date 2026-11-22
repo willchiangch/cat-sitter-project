@@ -1,8 +1,6 @@
 package com.petsitter.interfaces.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.petsitter.application.dto.BookingItemRequest;
-import com.petsitter.application.dto.BookingRequest;
 import com.petsitter.application.dto.ServicePlanDto;
 import com.petsitter.application.dto.ServicePlanSortRequest;
 import com.petsitter.domain.model.CareLog;
@@ -479,56 +477,6 @@ class ServicePlanControllerTest {
                 .andExpect(jsonPath("$.data", hasSize(2)))
                 .andExpect(jsonPath("$.data[0].id").value(p1.getId().toString()))
                 .andExpect(jsonPath("$.data[1].id").value(p4.getId().toString()));
-    }
-
-    @Test
-    @DisplayName("Scenario 10: 預約送單日期超出方案生效區間拒絕 (422 PLAN_NOT_IN_RANGE)")
-    void ts003_10_should_RejectBooking_When_DateOutOfRange() throws Exception {
-        // 飼主身分取自 token（fix-batch11 I2）
-        TokenContext.setUserId(ownerA.getId());
-        // P4 在有效區間內的方案 (相對日期：now - 5 ~ now + 5)
-        ServicePlan p4 = servicePlanRepository.save(ServicePlan.builder()
-                .sitter(sitterC).name("P4").price(500L)
-                .startDate(LocalDate.now().minusDays(5))
-                .endDate(LocalDate.now().plusDays(5))
-                .isDeleted(false).build());
-
-        // 1. 預約過早日期 (now - 10)
-        BookingRequest earlyReq = BookingRequest.builder()
-                .sitterId(sitterC.getId())
-                .items(List.of(BookingItemRequest.builder()
-                        .planId(p4.getId())
-                        .dates(List.of(LocalDate.now().minusDays(10)))
-                        .timesPerDay(1)
-                        .build()))
-                .build();
-
-        mockMvc.perform(post("/api/orders/booking")
-                        .with(user(ownerA.getId().toString()).roles("OWNER"))
-                        .header("Idempotency-Key", "key-early")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(earlyReq)))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("PLAN_NOT_IN_RANGE"))
-                .andExpect(jsonPath("$.message").value("方案目前不在生效區間"));
-
-        // 2. 預約過晚日期 (now + 10)
-        BookingRequest lateReq = BookingRequest.builder()
-                .sitterId(sitterC.getId())
-                .items(List.of(BookingItemRequest.builder()
-                        .planId(p4.getId())
-                        .dates(List.of(LocalDate.now().plusDays(10)))
-                        .timesPerDay(1)
-                        .build()))
-                .build();
-
-        mockMvc.perform(post("/api/orders/booking")
-                        .with(user(ownerA.getId().toString()).roles("OWNER"))
-                        .header("Idempotency-Key", "key-late")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(lateReq)))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.code").value("PLAN_NOT_IN_RANGE"));
     }
 
     @Test

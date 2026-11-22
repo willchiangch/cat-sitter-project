@@ -1,9 +1,7 @@
 package com.petsitter.interfaces.controller;
 
-import com.petsitter.application.service.CompletionService;
 import com.petsitter.application.service.E2eJourneyDataCleanupService;
 import com.petsitter.application.service.NotificationCleanupService;
-import com.petsitter.application.service.TestDataCleanupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -19,21 +17,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InternalCronController {
 
-    private final CompletionService completionService;
     private final NotificationCleanupService notificationCleanupService;
     private final com.petsitter.application.service.MediaRetentionService mediaRetentionService;
-    private final TestDataCleanupService testDataCleanupService;
     private final E2eJourneyDataCleanupService e2eJourneyDataCleanupService;
-
-    /**
-     * 外部排程器觸發自動結案
-     */
-    @PostMapping("/orders/auto-complete")
-    public ResponseEntity<Map<String, String>> triggerAutoComplete() {
-        log.info("[InternalCronController] Received auto-complete trigger");
-        completionService.triggerAutoCompletion();
-        return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "Auto-completion task triggered"));
-    }
 
     /**
      * 外部排程器觸發物理清理 90 天前的通知
@@ -74,20 +60,6 @@ public class InternalCronController {
                 "status", "SUCCESS",
                 "message", "Media expiry warning task completed",
                 "warnedCount", warnedCount
-        ));
-    }
-
-    /**
-     * CI E2E 測試跑完後觸發，軟刪除種子測試帳號 (sitter@test.com/owner@test.com) 累積的訂單
-     */
-    @PostMapping("/test-data/cleanup-seed-orders")
-    public ResponseEntity<Map<String, Object>> cleanupSeedTestOrders() {
-        log.info("[InternalCronController] Received seed test order cleanup trigger");
-        int deletedCount = testDataCleanupService.cleanupSeedTestOrders();
-        return ResponseEntity.ok(Map.of(
-                "status", "SUCCESS",
-                "message", "Seed test order cleanup task completed",
-                "deletedCount", deletedCount
         ));
     }
 

@@ -1,6 +1,5 @@
 package com.petsitter.infrastructure.security.gating;
 
-import com.petsitter.application.dto.QuoteRequest;
 import com.petsitter.application.exception.AuthPlanLimitException;
 import com.petsitter.domain.model.Subscription;
 import com.petsitter.domain.repository.SubscriptionRepository;
@@ -51,17 +50,6 @@ public class PlanGatingAspect {
                 .map(Subscription::getPlanTier)
                 .map(PlanTier::fromString)
                 .orElse(PlanTier.FREE);
-
-        // 3. 特殊邏輯：對於報價請求，如果涉及調價，強制要求 PRO 方案
-        Object[] args = joinPoint.getArgs();
-        for (Object arg : args) {
-            if (arg instanceof QuoteRequest quoteRequest) {
-                if (quoteRequest.getAdjustmentAmount() != 0) {
-                    requiredTier = PlanTier.PRO;
-                    log.debug("[PlanGatingAspect] Adjustment detected, upgrading required tier to PRO");
-                }
-            }
-        }
 
         // 4. 驗證權限
         if (!currentTier.isAtLeast(requiredTier)) {

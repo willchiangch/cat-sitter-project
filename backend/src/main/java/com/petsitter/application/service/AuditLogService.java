@@ -1,10 +1,7 @@
 package com.petsitter.application.service;
 
 import com.petsitter.domain.model.CareLog;
-import com.petsitter.domain.model.Order;
-import com.petsitter.domain.model.OrderLog;
 import com.petsitter.domain.repository.CareLogRepository;
-import com.petsitter.domain.repository.OrderLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,10 +14,10 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+/** 非訂單稽核（SD-ORDER M4：writeOrderLog 已刪除，訂單稽核一律 OrderLogWriter，同交易）。 */
 public class AuditLogService {
 
     private final CareLogRepository careLogRepository;
-    private final OrderLogRepository orderLogRepository;
     private final com.petsitter.domain.repository.UserActionLogRepository userActionLogRepository;
 
 
@@ -41,22 +38,6 @@ public class AuditLogService {
         }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void writeOrderLog(Order order, String operatorId, String actionType, Map<String, Object> payload) {
-        log.info("ORDER AUDIT LOG [REQUIRES_NEW] - Order: {}, Operator: {}, Action: {}, Payload: {}", 
-                 order.getId(), operatorId, actionType, payload);
-        try {
-            OrderLog orderLog = OrderLog.builder()
-                    .order(order)
-                    .operatorId(operatorId)
-                    .actionType(actionType)
-                    .payload(payload)
-                    .build();
-            orderLogRepository.save(orderLog);
-        } catch (Exception e) {
-            log.error("Failed to write order log to database", e);
-        }
-     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void writeUserActionLog(String funcCode, String actionType, UUID operatorId, UUID targetId, String targetTable) {

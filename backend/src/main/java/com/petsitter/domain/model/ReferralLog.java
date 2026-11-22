@@ -20,9 +20,9 @@ public class ReferralLog extends BaseEntity {
     @JoinColumn(name = "referring_sitter_id", nullable = false)
     private User referringSitter;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id")
-    private Order order;
+    /** 轉介來源訂單（SD-ORDER 擁有 orders；此處只存 id，不建 JPA 關聯）。 */
+    @Column(name = "order_id")
+    private java.util.UUID orderId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)

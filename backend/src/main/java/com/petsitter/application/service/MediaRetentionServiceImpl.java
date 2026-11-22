@@ -1,11 +1,9 @@
 package com.petsitter.application.service;
 
-import com.petsitter.domain.model.Order;
-import com.petsitter.domain.model.OrderSnapshot;
-import com.petsitter.domain.model.ServiceReportMedia;
-import com.petsitter.domain.repository.OrderRepository;
-import com.petsitter.domain.repository.OrderSnapshotRepository;
-import com.petsitter.domain.repository.ServiceReportMediaRepository;
+import com.petsitter.application.service.order.OrderQueryService;
+import com.petsitter.application.service.order.OrderSnapshotService;
+import com.petsitter.domain.model.fulfill.ServiceReportMedia;
+import com.petsitter.domain.repository.fulfill.ServiceReportMediaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -26,8 +24,8 @@ public class MediaRetentionServiceImpl implements MediaRetentionService {
     private final ServiceReportMediaRepository mediaRepository;
     private final MediaStorageService mediaStorageService;
     private final MediaPurgeBatchDeleter batchDeleter;
-    private final OrderRepository orderRepository;
-    private final OrderSnapshotRepository orderSnapshotRepository;
+    private final OrderQueryService orderQueryService;
+    private final OrderSnapshotService orderSnapshotService;
     private final MediaExpiryWarningBatchProcessor warningProcessor;
     private final AuditLogService auditLogService;
 
@@ -48,32 +46,41 @@ public class MediaRetentionServiceImpl implements MediaRetentionService {
             for (ServiceReportMedia media : expired) {
                 try {
                     // 1. 事務外執行實體儲存空間物理刪除 (deleteMedia)
-                    mediaStorageService.deleteMedia(media.getMediaUrl());
+                    mediaStorageService.deleteMedia(media.getObjectKey());
 
                     // 2. 跨 Bean 呼叫標記 DB 刪除 (REQUIRES_NEW 獨立 Commit)
                     batchDeleter.markAsPurged(media.getId());
                     deletedCount++;
                 } catch (Exception e) {
-                    log.error("Failed to purge media file: " + media.getMediaUrl(), e);
+                    log.error("Failed to purge media file: " + media.getObjectKey(), e);
                 }
             }
         }
         return deletedCount;
     }
 
+    /**
+     * SD-ORDER M32 / SD-FULFILL F-M22：候選拆兩步——訂單側（只讀 orders / order_snapshots）與
+     * 「仍有未清除媒體」（日誌媒體表，TODO(C 階段 F-M22) 改經 CareLogMediaRetentionPort.hasUnpurgedMedia）。
+     * 提醒時點沿用現行：到期前 3 天起（{@code completed_at + 保留天數 <= now + 3 天}）。
+     */
     @Override
     public int sendExpiryWarnings() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        List<Order> pendingOrders = orderRepository.findOrdersPendingMediaExpiryWarning(now);
+        List<UUID> candidates = orderQueryService.findCompletedOrdersPendingMediaExpiryWarning(
+                now.minusYears(100), now.plusDays(3), 500);
+        if (candidates.isEmpty()) {
+            return 0;
+        }
+        java.util.Set<UUID> withMedia = new java.util.HashSet<>(mediaRepository.findOrderIdsWithUnpurgedMedia(candidates));
+        java.util.Map<UUID, OrderQueryService.MediaExpiryView> views = orderQueryService.getMediaExpiryViews(withMedia);
         int warnedCount = 0;
-
-        for (Order order : pendingOrders) {
+        for (OrderQueryService.MediaExpiryView view : views.values()) {
             try {
-                // 3. 呼叫 REQUIRES_NEW 的處理器 (單筆獨立事務提交，失敗不阻塞下一筆)
-                warningProcessor.processWarning(order);
+                warningProcessor.processWarning(view);
                 warnedCount++;
             } catch (Exception e) {
-                log.error("Failed to send expiry warning for order: " + order.getId(), e);
+                log.error("Failed to send expiry warning for order: " + view.orderId(), e);
             }
         }
         return warnedCount;
@@ -85,21 +92,9 @@ public class MediaRetentionServiceImpl implements MediaRetentionService {
         PlanTier tier = PlanTier.fromString(newPlanTier);
         int newRetentionDays = tier.getMediaRetentionDays();
 
-        // 1. 查詢該保母名下所有已完成之訂單快照
-        List<OrderSnapshot> snapshots = orderSnapshotRepository.findActiveSnapshotsForUpgrade(sitterId);
-        
-        for (OrderSnapshot snapshot : snapshots) {
-            int current = snapshot.getMediaRetentionDays();
-            // 降級保護：新天數為永久 (-1)，或者 (舊天數不是永久，且新天數比舊天數長) 才允許更新天數
-            boolean isExtension = newRetentionDays == -1 || (current != -1 && newRetentionDays > current);
-            if (!isExtension) {
-                continue; // 降級或更短的合約不予以縮短既有保留天數
-            }
-            snapshot.setMediaRetentionDays(newRetentionDays);
-            snapshot.setPlanTier(newPlanTier);
-            orderSnapshotRepository.save(snapshot);
-        }
-        
+        // SD-ORDER M16：只延長不縮短，經 OrderSnapshotService
+        orderSnapshotService.extendMediaRetentionForSitter(sitterId, newRetentionDays);
+
         // 2. 寫入審計日誌 (5 參數簽章)
         // 參數順序: funcCode, actionType, operatorId, targetId, targetTable
         auditLogService.writeUserActionLog(

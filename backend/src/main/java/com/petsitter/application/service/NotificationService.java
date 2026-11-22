@@ -8,6 +8,9 @@ import com.petsitter.domain.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import com.petsitter.application.service.notify.NotificationCommand;
+import com.petsitter.application.service.notify.NotificationTemplates;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -32,6 +35,42 @@ public class NotificationService {
      */
     public void sendNotification(UUID userId, String message) {
         createNotification(userId, "系統通知", message, "ACCOUNT_AUTH", null, "ALL");
+    }
+
+    /** 訂單事務類別（PRD-014）。 */
+    public static final String CATEGORY_ORDER_AFFAIR = "ORDER_AFFAIR";
+
+    /**
+     * Outbox 寫入（SD-ORDER §2.3.3、baseline §3.6）：傳播 {@code MANDATORY}，必須在呼叫端的轉移交易內；
+     * 轉移回滾則通知一併回滾。站內通知一律寫入；Email 投遞狀態：{@code mandatory} → PENDING，
+     * 否則依收件人 {@code ORDER_AFFAIR} 偏好（關 → SKIPPED_PREFERENCE）。實際寄送由 C11 排程負責。
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public UUID enqueue(NotificationCommand cmd) {
+        NotificationTemplates.Rendered rendered = NotificationTemplates.render(cmd.type(), cmd.params());
+        boolean emailWanted = cmd.mandatory() || emailEnabled(cmd.recipientUserId(), CATEGORY_ORDER_AFFAIR);
+        Notification notification = Notification.builder()
+                .userId(cmd.recipientUserId())
+                .title(rendered.title())
+                .content(rendered.content())
+                .category(CATEGORY_ORDER_AFFAIR)
+                .linkUrl(cmd.linkPath())
+                .roleTarget(cmd.recipientRole())
+                .type(cmd.type())
+                .mandatory(cmd.mandatory())
+                .relatedOrderId(cmd.relatedOrderId())
+                .emailStatus(emailWanted ? "PENDING" : "SKIPPED_PREFERENCE")
+                .build();
+        return notificationRepository.save(notification).getId();
+    }
+
+    private boolean emailEnabled(UUID userId, String category) {
+        return notificationPreferenceRepository.findByUserIdAndCategoryAndIsDeletedFalse(userId, category)
+                .map(NotificationPreference::isEnableEmail)
+                .orElseGet(() -> {
+                    NotificationPreferenceDefaults.PreferenceValue def = NotificationPreferenceDefaults.DEFAULTS.get(category);
+                    return def == null || def.isEnableEmail();
+                });
     }
 
     /**
