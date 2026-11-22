@@ -9,7 +9,7 @@ export interface NotificationDto {
   createdAt: string;
   linkUrl: string;
   roleTarget: 'SITTER' | 'OWNER' | 'ALL';
-  /** 通知類型代碼（SD-ORDER / SD-FULFILL §7.2）；後端列表目前未輸出，輸出後前端顯示類型標籤 */
+  /** 通知類型代碼（SD-ORDER / SD-FULFILL §7.2，SD-GLOBAL-SPEC §4.4）；舊通知為 null → 不輸出 */
   type?: string;
 }
 

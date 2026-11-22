@@ -1,7 +1,8 @@
 /**
  * 通知類型（後端 `notifications.type`，SD-ORDER §7.2 / SD-FULFILL §7.2）→ 前端顯示用標籤。
- * 通知標題與內文由後端範本產生（NotificationTemplates），前端不重組文案；本表只在列表回應帶 `type` 時
- * 顯示類型標籤（目前 GET /api/notifications 尚未輸出 `type`，未輸出時不顯示，依 linkUrl 導頁）。
+ * 通知標題與內文由後端範本產生（NotificationTemplates），前端不重組文案。GET /api/notifications 回傳
+ * `type`（SD-GLOBAL-SPEC §4.4，舊列為 null 時不輸出）：本表有對應標籤才顯示；缺 `type` 或本表未定義的代碼
+ * （SD-ORDER §7.2 訂單類目前未定標籤）不顯示類型標籤，退回只顯示 `category` 標籤與後端 `title`。
  *
  * SD-FULFILL 新增四種（皆 ORDER_AFFAIR、可關閉 Email）：
  * - VISIT_CLOSED_BY_SYSTEM_SITTER → `/sitter/orders/{orderId}`

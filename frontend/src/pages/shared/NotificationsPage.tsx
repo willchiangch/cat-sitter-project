@@ -139,6 +139,8 @@ export const NotificationsPage: React.FC = () => {
         >
           {data.content.map((noti) => {
             const styles = getCategoryStyles(noti.category);
+            // SD-GLOBAL-SPEC §4.4：有已定義標籤才顯示類型；缺 type 時只顯示 category 與 title
+            const typeLabel = notificationTypeLabel(noti.type);
             return (
               <div
                 key={noti.id}
@@ -209,7 +211,7 @@ export const NotificationsPage: React.FC = () => {
                     >
                       {getCategoryLabel(noti.category)}
                     </span>
-                    {notificationTypeLabel(noti.type) && (
+                    {typeLabel && (
                       <span
                         style={{
                           fontSize: '0.75rem',
@@ -218,7 +220,7 @@ export const NotificationsPage: React.FC = () => {
                         }}
                         data-testid={`${currentRole}-notifications-type-${noti.id}`}
                       >
-                        {notificationTypeLabel(noti.type)}
+                        {typeLabel}
                       </span>
                     )}
                     <span style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
