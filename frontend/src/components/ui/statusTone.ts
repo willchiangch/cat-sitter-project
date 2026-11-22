@@ -39,3 +39,32 @@ export const INFO_BANNER_STYLE: React.CSSProperties = {
   fontWeight: '500',
   cursor: 'default'
 };
+
+/** 子流程狀態 → 色調（文字仍由 statusLabels.ts 決定） */
+export const SUB_STATUS_TONE: Record<string, StatusTone> = {
+  // payments / submissions
+  UNPAID: 'warning',
+  SUBMITTED: 'info',
+  VERIFIED: 'success',
+  ACCEPTED: 'success',
+  VOID: 'neutral',
+  // modifications
+  REQUESTED: 'warning',
+  QUOTED: 'warning',
+  AWAITING_SUPPLEMENT: 'warning',
+  AWAITING_REFUND: 'warning',
+  SETTLED: 'success',
+  WITHDRAWN: 'neutral',
+  EXPIRED: 'neutral',
+  REJECTED: 'danger',
+  // visits / care log
+  PENDING: 'neutral',
+  IN_PROGRESS: 'warning',
+  DONE: 'success',
+  CLOSED_BY_SYSTEM: 'neutral',
+  CANCELLED: 'neutral',
+  DRAFT: 'warning'
+};
+
+export const subStatusTone = (s: string | null | undefined): StatusTone =>
+  (s && SUB_STATUS_TONE[s]) || 'neutral';
