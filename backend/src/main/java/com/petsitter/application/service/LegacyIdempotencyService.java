@@ -10,9 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+/**
+ * 舊冪等（`idempotency_keys`，重複回 409 DUPLICATE_REQUEST）。SD-GLOBAL-SPEC §2.4：只留給尚未重建的 KYC、
+ * 照護記事 / 媒體與照護日誌（後者隨 SD-FULFILL 改用 {@link com.petsitter.application.common.idempotency.IdempotencyService}）。
+ */
 @Service
 @RequiredArgsConstructor
-public class IdempotencyService {
+public class LegacyIdempotencyService {
 
     private final IdempotencyKeyRepository idempotencyKeyRepository;
 

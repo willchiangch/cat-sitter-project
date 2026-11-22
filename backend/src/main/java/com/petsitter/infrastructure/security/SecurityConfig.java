@@ -1,5 +1,8 @@
 package com.petsitter.infrastructure.security;
 
+import com.petsitter.application.exception.ApiErrors;
+import com.petsitter.application.exception.CommonErrorCode;
+import com.petsitter.application.exception.ErrorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +24,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -33,6 +38,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final InternalSecretFilter internalSecretFilter;
     private final Environment environment;
+    private final JsonMapper jsonMapper;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -43,12 +49,12 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // SD-GLOBAL-SPEC §2.6 / SD-ORDER §8.3 D7：401 / 403 皆為 {code, message, traceId, timestamp} 格式
             .exceptionHandling(exception -> exception
-                .authenticationEntryPoint((request, response, authException) -> {
-                    response.setContentType("application/json;charset=UTF-8");
-                    response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
-                    response.getWriter().write("{\"error\":\"UNAUTHORIZED\",\"message\":\"請先登入系統\"}");
-                })
+                .authenticationEntryPoint((request, response, authException) ->
+                    writeError(request, response, CommonErrorCode.UNAUTHENTICATED))
+                .accessDeniedHandler((request, response, accessDeniedException) ->
+                    writeError(request, response, CommonErrorCode.FORBIDDEN))
             )
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -72,13 +78,22 @@ public class SecurityConfig {
         return http.build();
     }
 
+    private void writeError(jakarta.servlet.http.HttpServletRequest request,
+                            jakarta.servlet.http.HttpServletResponse response,
+                            CommonErrorCode code) throws java.io.IOException {
+        ErrorResponse body = ApiErrors.build(request, code.name(), code.defaultMessage());
+        response.setStatus(code.status().value());
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(jsonMapper.writeValueAsString(body));
+    }
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("*")); // 生產環境應限制來源
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("authorization", "content-type", "x-auth-token", "idempotency-key"));
-        configuration.setExposedHeaders(List.of("x-auth-token"));
+        configuration.setExposedHeaders(List.of("x-auth-token", "retry-after")); // retry-after：409 ORDER_BUSY（SD-ORDER §6.1）
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

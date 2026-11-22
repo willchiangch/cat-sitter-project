@@ -264,7 +264,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_CONCURRENCY_CONFLICT"))
+                .andExpect(jsonPath("$.code").value("MSG_DATA_CONCURRENCY_CONFLICT"))
                 .andExpect(jsonPath("$.message").value(containsString("內容已被更新")));
 
         // 驗證 DB 中依然為更新過的名字且 version 為 1
@@ -347,7 +347,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto1)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 
         // 2. price = 0
         ServicePlanDto dto2 = ServicePlanDto.builder()
@@ -360,7 +360,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto2)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
 
     @Test
@@ -380,7 +380,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dto)))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("AUTH_PLAN_LIMIT"));
+                .andExpect(jsonPath("$.code").value("AUTH_PLAN_LIMIT"));
 
         // 驗證失敗日誌寫入 care_logs
         List<CareLog> logs = careLogRepository.findAll();
@@ -509,7 +509,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(earlyReq)))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_IN_RANGE"))
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_IN_RANGE"))
                 .andExpect(jsonPath("$.message").value("方案目前不在生效區間"));
 
         // 2. 預約過晚日期 (now + 10)
@@ -528,7 +528,7 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(lateReq)))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_IN_RANGE"));
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_IN_RANGE"));
     }
 
     @Test
@@ -554,13 +554,13 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
         // 2. Sitter B 嘗試刪除 P1
         mockMvc.perform(delete("/api/sitter/plans/{planId}", p1.getId())
                         .with(user(sitterB.getId().toString()).roles("SITTER")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -582,13 +582,13 @@ class ServicePlanControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateDto)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_FOUND"));
 
         // 2. DELETE 404
         mockMvc.perform(delete("/api/sitter/plans/{planId}", nonExistentId)
                         .with(user(sitterA.getId().toString()).roles("SITTER")))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_FOUND"));
     }
 
     @Test

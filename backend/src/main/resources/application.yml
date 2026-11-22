@@ -10,6 +10,9 @@ spring:
     open-in-view: false
   jackson:
     default-property-inclusion: non-null
+    deserialization:
+      # SD-GLOBAL-SPEC §2.6：整數欄拒絕 JSON 小數（100.5 / 100.0 不會被截成 100）
+      accept-float-as-int: false
   datasource:
     hikari:
       maximum-pool-size: 10
@@ -35,6 +38,9 @@ app:
   email:
     resend-api-key: ${RESEND_API_KEY:}
     from-address: ${EMAIL_FROM_ADDRESS:WhiskerWatch <onboarding@resend.dev>}
+  idempotency:
+    # baseline §5 IDEMPOTENCY_KEY_TTL_HOURS（SD-GLOBAL-SPEC §2.4）
+    ttl-hours: ${IDEMPOTENCY_KEY_TTL_HOURS:24}
   frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
   google:
     # Client ID 非機密（設計上會嵌入前端 JS），直接寫版控預設值方便本地開發免設定即可用

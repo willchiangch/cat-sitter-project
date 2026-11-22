@@ -123,7 +123,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_REGISTRATION_FAILED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_REGISTRATION_FAILED"));
     }
 
     @Test
@@ -147,7 +147,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_CHALLENGE_EXPIRED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_CHALLENGE_EXPIRED"));
     }
 
     @Test
@@ -215,7 +215,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_LOGIN_FAILED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_LOGIN_FAILED"));
     }
 
     @Test
@@ -229,7 +229,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_LOGIN_FAILED"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_LOGIN_FAILED"));
     }
 
     @Test
@@ -246,7 +246,7 @@ class WebAuthnControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("AUTH_FAILED"));
+                .andExpect(jsonPath("$.code").value("AUTH_FAILED"));
     }
 
     @Test
@@ -279,7 +279,7 @@ class WebAuthnControllerTest {
 
         mockMvc.perform(delete("/api/auth/webauthn/credentials/" + UUID.randomUUID()))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("WEBAUTHN_CREDENTIAL_NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("WEBAUTHN_CREDENTIAL_NOT_FOUND"));
     }
 
     @Test

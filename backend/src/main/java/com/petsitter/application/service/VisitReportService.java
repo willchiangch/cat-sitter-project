@@ -46,7 +46,7 @@ public class VisitReportService {
     private final VisitRepository visitRepository;
     private final OrderRepository orderRepository;
     private final OrderSnapshotRepository orderSnapshotRepository;
-    private final IdempotencyService idempotencyService;
+    private final LegacyIdempotencyService legacyIdempotencyService;
     private final MediaStorageService mediaStorageService;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
@@ -120,7 +120,7 @@ public class VisitReportService {
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             try {
-                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+                legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
             } catch (DataIntegrityViolationException e) {
                 throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
             }
@@ -178,7 +178,7 @@ public class VisitReportService {
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             try {
-                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+                legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
             } catch (DataIntegrityViolationException e) {
                 throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
             }
@@ -315,7 +315,7 @@ public class VisitReportService {
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             try {
-                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+                legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
             } catch (DataIntegrityViolationException e) {
                 throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
             }
@@ -359,7 +359,7 @@ public class VisitReportService {
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             try {
-                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+                legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
             } catch (DataIntegrityViolationException e) {
                 throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
             }
@@ -509,7 +509,7 @@ public class VisitReportService {
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             try {
-                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+                legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
             } catch (DataIntegrityViolationException e) {
                 throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
             }
@@ -554,7 +554,7 @@ public class VisitReportService {
 
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             try {
-                idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+                legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
             } catch (DataIntegrityViolationException e) {
                 throw new VisitReportException(HttpStatus.CONFLICT, "MSG_DATA_IDEMPOTENCY_CONFLICT", "系統已受理此請求，請勿重複提交");
             }

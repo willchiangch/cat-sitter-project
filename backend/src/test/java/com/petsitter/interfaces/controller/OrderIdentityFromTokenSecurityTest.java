@@ -268,7 +268,7 @@ class OrderIdentityFromTokenSecurityTest {
                         .content("{\"adjustmentAmount\":100,\"expectedTotalAmount\":700,\"adjustmentReason\":\"I1\",\"version\":"
                                 + versionOf(order) + "}"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("AUTH_PLAN_LIMIT"));
+                .andExpect(jsonPath("$.code").value("AUTH_PLAN_LIMIT"));
         assertThat(statusOf(order)).isEqualTo("PENDING");
     }
 

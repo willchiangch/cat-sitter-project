@@ -215,7 +215,7 @@ class OrderControllerTest {
                 .with(user(ownerId.toString()).roles("OWNER"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"version\":" + paidVersion + "}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("STATE_CONFLICT"))
+                .andExpect(jsonPath("$.code").value("STATE_CONFLICT"))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("PRD-016")));
     }
 
@@ -237,7 +237,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/orders/{orderId}/complete", realOrderId)
                 .with(user(ownerId.toString()).roles("OWNER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("STATE_CONFLICT"))
+                .andExpect(jsonPath("$.code").value("STATE_CONFLICT"))
                 .andExpect(jsonPath("$.message").value("此訂單已結案，不可重複結案"));
 
         Order after = orderRepository.findById(realOrderId).orElseThrow();
@@ -465,7 +465,7 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newTotalAmount\":9999,\"version\":0}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("STATE_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("STATE_CONFLICT"));
 
         var saved = modRequestRepository.findById(modReq.getId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(saved.getStatus()).isEqualTo("QUOTED");
@@ -605,7 +605,7 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("PLAN_NOT_IN_RANGE"))
+                .andExpect(jsonPath("$.code").value("PLAN_NOT_IN_RANGE"))
                 .andExpect(jsonPath("$.message").value("變更日期 2027-01-19 不在方案「寒假限定」的可預訂日期區間"));
 
         org.assertj.core.api.Assertions.assertThat(modRequestRepository.count()).isZero();

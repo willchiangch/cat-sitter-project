@@ -292,7 +292,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(wrongRequest)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("OTP_INVALID"));
+                .andExpect(jsonPath("$.code").value("OTP_INVALID"));
 
         RegistrationOtp otp = registrationOtpRepository.findByEmail(email).orElseThrow();
         assertEquals(1, otp.getAttempts());
@@ -319,14 +319,14 @@ class AuthControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(wrongRequest)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.error").value("OTP_INVALID"));
+                    .andExpect(jsonPath("$.code").value("OTP_INVALID"));
         }
 
         mockMvc.perform(post("/api/auth/register/verify-otp")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(wrongRequest)))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("OTP_LOCKED"));
+                .andExpect(jsonPath("$.code").value("OTP_LOCKED"));
     }
 
     @Test
@@ -350,7 +350,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(verifyRequest)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("OTP_EXPIRED"));
+                .andExpect(jsonPath("$.code").value("OTP_EXPIRED"));
     }
 
     @Test
@@ -369,7 +369,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(resendRequest)))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("OTP_RESEND_TOO_SOON"));
+                .andExpect(jsonPath("$.code").value("OTP_RESEND_TOO_SOON"));
     }
 
     @Test
@@ -444,7 +444,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(correctLogin)))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("ACCOUNT_LOCKED"));
+                .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
     }
 
     @Test
@@ -522,7 +522,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"not-a-real-token\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("REFRESH_TOKEN_INVALID"))
+                .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"))
                 .andExpect(jsonPath("$.message").value("Refresh token 找不到或無效"));
     }
 
@@ -596,7 +596,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("ACCOUNT_DEACTIVATION_BLOCKED"));
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DEACTIVATION_BLOCKED"));
     }
 
     @Test
@@ -836,7 +836,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("GOOGLE_TOKEN_INVALID"));
+                .andExpect(jsonPath("$.code").value("GOOGLE_TOKEN_INVALID"));
     }
 
     @Test
@@ -852,7 +852,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error").value("GOOGLE_EMAIL_NOT_VERIFIED"));
+                .andExpect(jsonPath("$.code").value("GOOGLE_EMAIL_NOT_VERIFIED"));
     }
 
     // --- SD-000 單一 session：同帳號併發登入（backlog F1）---
@@ -1013,7 +1013,7 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(correctLogin)))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("ACCOUNT_LOCKED"));
+                .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
     }
 
     @Test

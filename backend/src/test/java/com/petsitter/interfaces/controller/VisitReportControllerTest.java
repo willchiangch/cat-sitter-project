@@ -181,7 +181,7 @@ class VisitReportControllerTest {
                 .content(objectMapper.writeValueAsString(Map.of("content", "今日餵食正常", "version", 0)))
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_REPORT_EXPIRED"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_REPORT_EXPIRED"));
     }
 
     @Test
@@ -212,7 +212,7 @@ class VisitReportControllerTest {
                 .param("caption", "貓咪喝水")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
     }
 
     @Test
@@ -232,7 +232,7 @@ class VisitReportControllerTest {
                 .param("caption", "貓咪喝水")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_PLAN_LIMIT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_PLAN_LIMIT"));
     }
 
     @Test
@@ -251,7 +251,7 @@ class VisitReportControllerTest {
         mockMvc.perform(get("/api/visits/{visitId}/report", visit.getId())
                 .with(user(owner.getId().toString()).roles("OWNER")))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_F11"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_F11"));
     }
 
     @Test
@@ -271,7 +271,7 @@ class VisitReportControllerTest {
                 .header("Idempotency-Key", "submit-test-key")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_VISIT_NOT_FINISHED"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_VISIT_NOT_FINISHED"));
     }
 
     @Test
@@ -474,7 +474,7 @@ class VisitReportControllerTest {
                 .content(objectMapper.writeValueAsString(Map.of("content", "衝突的暫存", "version", 0)))
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_VERSION_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_VERSION_CONFLICT"));
     }
 
     @Test
@@ -500,7 +500,7 @@ class VisitReportControllerTest {
                 .content(objectMapper.writeValueAsString(Map.of("content", "想偷改", "version", 0)))
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_STATE_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_STATE_CONFLICT"));
     }
 
     @Test
@@ -518,7 +518,7 @@ class VisitReportControllerTest {
                 .param("caption", "GIF圖片")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_MEDIA"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_MEDIA"));
 
         // 圖片大小過大 (1MB = 1024*1024 限制，所以 1024*1024 + 1 bytes 就過大)
         byte[] largeBytes = new byte[1024 * 1024 + 1];
@@ -531,7 +531,7 @@ class VisitReportControllerTest {
                 .param("caption", "大圖片")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_MEDIA"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_MEDIA"));
     }
 
     @Test
@@ -552,7 +552,7 @@ class VisitReportControllerTest {
                 .param("caption", "故障測試")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_STORAGE_ERROR"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_STORAGE_ERROR"));
 
         // 驗證 DB 沒有新增 media
         List<ServiceReportMedia> mediaList = mediaRepository.findAll();
@@ -843,7 +843,7 @@ class VisitReportControllerTest {
                 .header("Idempotency-Key", key)
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
     }
 
     @Test
@@ -882,7 +882,7 @@ class VisitReportControllerTest {
                 .header("Idempotency-Key", "start-visit-key-invalid-status")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_STATUS"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_STATUS"));
     }
 
     @Test
@@ -946,7 +946,7 @@ class VisitReportControllerTest {
                 .header("Idempotency-Key", key)
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_IDEMPOTENCY_CONFLICT"));
     }
 
     @Test
@@ -962,6 +962,6 @@ class VisitReportControllerTest {
                 .header("Idempotency-Key", "end-visit-key-invalid-status")
                 .with(user(sitter.getId().toString()).roles("SITTER")))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.error").value("MSG_DATA_INVALID_STATUS"));
+                .andExpect(jsonPath("$.code").value("MSG_DATA_INVALID_STATUS"));
     }
 }

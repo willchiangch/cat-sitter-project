@@ -29,7 +29,7 @@ public class EvaluationService {
     private final ServicePlanRepository servicePlanRepository;
     private final VisitRepository visitRepository;
     private final OrderLogRepository orderLogRepository;
-    private final IdempotencyService idempotencyService;
+    private final LegacyIdempotencyService legacyIdempotencyService;
     private final ApplicationEventPublisher eventPublisher;
 
     @RequirePlan(PlanTier.FREE)
@@ -37,7 +37,7 @@ public class EvaluationService {
     public void sendQuote(UUID sitterId, UUID orderId, QuoteRequest request, String idempotencyKey) {
         log.info("[EvaluationService] Sitter {} quoting for order {}", sitterId, orderId);
 
-        idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
 
         // 鎖住訂單列：與原價接單 ConfirmOrderService 同一張單併發時，後到者讀到 PENDING_PAYMENT → 409
         // fix-batch11 I1：找得到訂單但不是自己的 → 403（過去 findByIdAndSitterId 查不到一律 400，分不出越權）
@@ -124,7 +124,7 @@ public class EvaluationService {
     public void rejectOrder(UUID sitterId, UUID orderId, RejectOrderRequest request, String idempotencyKey) {
         log.info("[EvaluationService] Sitter {} rejecting order {}", sitterId, orderId);
 
-        idempotencyService.checkAndConsume(idempotencyKey, sitterId);
+        legacyIdempotencyService.checkAndConsume(idempotencyKey, sitterId);
 
         // fix-batch11 I1：找得到訂單但不是自己的 → 403
         Order order = orderRepository.findById(orderId)

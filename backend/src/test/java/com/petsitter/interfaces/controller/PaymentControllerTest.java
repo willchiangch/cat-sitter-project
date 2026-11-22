@@ -206,7 +206,7 @@ class PaymentControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
 
     @Test
@@ -263,7 +263,7 @@ class PaymentControllerTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .with(user(owner.getEmail()).roles("OWNER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.message").value("必須勾選並同意線下交易免責聲明"));
     }
 
@@ -283,7 +283,7 @@ class PaymentControllerTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .with(user(owner.getEmail()).roles("OWNER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.message").value("轉帳帳號後五碼必須為 5 位數字"));
     }
 
@@ -304,7 +304,7 @@ class PaymentControllerTest {
                 .header("Idempotency-Key", UUID.randomUUID().toString())
                 .with(user(otherUser.getEmail()).roles("OWNER")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -488,7 +488,7 @@ class PaymentControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("rejectReason", ""))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 
         // 2. 超過 500 字元
         String longReason = "a".repeat(501);
@@ -497,7 +497,7 @@ class PaymentControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("rejectReason", longReason))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
     }
 
     @Test
@@ -538,7 +538,7 @@ class PaymentControllerTest {
                 .header("Idempotency-Key", longKey)
                 .with(user(owner.getEmail()).roles("OWNER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.message").value("Idempotency-Key 長度不得超過 100 字元"));
     }
 
@@ -570,7 +570,7 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/orders/{orderId}/payment-proof/signed-url", order.getId())
                         .with(user(otherUser.getEmail()).roles("OWNER")))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
         org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).generateSignedUrl(any(), any());
     }
@@ -922,7 +922,7 @@ class PaymentControllerTest {
                         .header("Idempotency-Key", "initial-key")
                         .with(user(owner.getEmail()).roles("OWNER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").value("DUPLICATE_REQUEST"));
+                .andExpect(jsonPath("$.code").value("DUPLICATE_REQUEST"));
 
         org.mockito.Mockito.verify(mediaStorageService, org.mockito.Mockito.never()).uploadPaymentProof(any(), any(), any());
     }
