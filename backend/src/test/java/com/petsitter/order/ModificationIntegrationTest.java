@@ -480,16 +480,37 @@ class ModificationIntegrationTest extends OrderIntegrationTestBase {
     @DisplayName("ModificationConcurrencyIntegrationTest")
     class Concurrency {
 
+        /**
+         * 訂單鎖序列化後只有兩種合法順序（PRD-016 T5 / §4.4 / AC-3.1：OWNER 發起者可撤回 {@code REQUESTED} 與 {@code QUOTED}）：
+         * (a) 撤回先 → 報價依新狀態重驗 409 {@code MODIFICATION_STATE_CONFLICT}；
+         * (b) 報價先（→ {@code QUOTED}）→ 撤回 {@code QUOTED} 合法，兩者皆 200。
+         * AC-3.6「恰有一個成功」只描述 (a)；(b) 依 T5 為合法結果（判斷依據見 S2 回報）。兩種順序最終皆 {@code WITHDRAWN}，
+         * 且 {@code order_logs} 只記成功的轉移、不重複。
+         */
         @Test
-        @DisplayName("PRD-016 AC-3.6 撤回 vs 報價兩執行緒：恰一方成功")
+        @DisplayName("PRD-016 AC-3.6 撤回 vs 報價兩執行緒：訂單鎖序列化；撤回先 → 報價 409，報價先 → 撤回 QUOTED 合法（T5）；最終 WITHDRAWN、log 只記成功者")
         void withdrawVsQuote() throws Exception {
             UUID orderId = order3();
             UUID v1 = visitIds(orderId, "PENDING").get(0);
             UUID modId = modificationId(modify(orderId, ownerToken(), change("x", List.of(v1), List.of())));
             int[] codes = race(() -> withdrawMod(orderId, modId, ownerToken()),
                     () -> quoteMod(orderId, modId, Map.of("removeVisitIds", List.of(v1.toString()))));
-            assertThat(Arrays.stream(codes).filter(c -> c == 200).count()).isEqualTo(1);
-            assertThat(Arrays.stream(codes).filter(c -> c == 409).count()).isEqualTo(1);
+            assertThat(codes[0]).as("撤回在兩種順序下都成功").isEqualTo(200);
+            assertThat(codes[1]).as("報價：撤回先 → 409；報價先 → 200").isIn(200, 409);
+            String status = jdbc.queryForObject("SELECT status FROM modification_requests WHERE id = ?", String.class, modId);
+            assertThat(status).isEqualTo("WITHDRAWN");
+            List<String> actions = logActions(orderId);
+            assertThat(actions.stream().filter("MODIFICATION_WITHDRAWN"::equals).count()).isEqualTo(1);
+            long quoted = actions.stream().filter("MODIFICATION_QUOTED"::equals).count();
+            if (codes[1] == 200) {
+                assertThat(quoted).isEqualTo(1);
+                assertThat(actions.indexOf("MODIFICATION_QUOTED")).isLessThan(actions.indexOf("MODIFICATION_WITHDRAWN"));
+            } else {
+                assertThat(quoted).isZero();
+            }
+            // 撤回不改行程、訂單狀態（PRD-016 AC-3.1）
+            assertThat(orderStatus(orderId)).isEqualTo("CONFIRMED");
+            assertThat(jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1)).isEqualTo("PENDING");
         }
 
         @Test

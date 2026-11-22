@@ -44,9 +44,10 @@ public class GlobalExceptionHandler {
     }
 
     // 故意用 429 而非 401：避免撞上前端 axiosClient 全域的 refresh-token 靜默重試機制 (PRD-000 AC-4)
+    // §2.6（SEC-LOG-2）：LockedException 是框架例外，不回 getMessage()，改固定文案（與 AuthService 拋出時的文案相同）
     @ExceptionHandler(LockedException.class)
     public ResponseEntity<ErrorResponse> handleLocked(LockedException ex) {
-        return ApiErrors.of(HttpStatus.TOO_MANY_REQUESTS, "ACCOUNT_LOCKED", ex.getMessage());
+        return ApiErrors.of(HttpStatus.TOO_MANY_REQUESTS, "ACCOUNT_LOCKED", "嘗試次數過多，請於 10 分鐘後再試");
     }
 
     /** {@code TokenContext.getUserId()} 無身分（GLOBAL §3.4）→ 401 {@code UNAUTHENTICATED}。 */
@@ -55,9 +56,11 @@ public class GlobalExceptionHandler {
         return ApiErrors.of(CommonErrorCode.UNAUTHENTICATED);
     }
 
+    /** §2.6（SEC-LOG-2、G-14）：不拼接 {@code ex.getMessage()}。 */
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex) {
-        return ApiErrors.of(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "認證失敗: " + ex.getMessage());
+        log.warn("authentication failed: {}", ex.getClass().getSimpleName());
+        return ApiErrors.of(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "認證失敗");
     }
 
     /** {@code @PreAuthorize} 拒絕 → 403 {@code ROLE_MISMATCH}（CQ-42）；未登入 → 401 {@code UNAUTHENTICATED}。 */
@@ -89,7 +92,34 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof RequestBodyTooLargeException tooLarge) {
+                return bodyTooLarge(tooLarge);
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
         return ApiErrors.of(CommonErrorCode.VALIDATION_FAILED, Map.of("field", "body"));
+    }
+
+    /** §2.8：chunked body 超過 1 MB（{@code RequestBodySizeLimitFilter}）→ 400 {@code field=body}、{@code maxBytes}。 */
+    @ExceptionHandler(RequestBodyTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handleBodyTooLarge(RequestBodyTooLargeException ex) {
+        return bodyTooLarge(ex);
+    }
+
+    private static ResponseEntity<ErrorResponse> bodyTooLarge(RequestBodyTooLargeException ex) {
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("field", "body");
+        payload.put("maxBytes", ex.getMaxBytes());
+        return ApiErrors.of(CommonErrorCode.VALIDATION_FAILED, payload);
+    }
+
+    /** §6.2：未映射路徑（含 prod 停用後的 {@code /v3/api-docs}、{@code /swagger-ui.html}）→ 404 {@code NOT_FOUND}。 */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        return ApiErrors.of(CommonErrorCode.NOT_FOUND);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -187,14 +217,27 @@ public class GlobalExceptionHandler {
         return ApiErrors.of(HttpStatus.BAD_REQUEST, "PRICING_MISMATCH", ex.getMessage());
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
-        return ApiErrors.of(HttpStatus.BAD_REQUEST, "INVALID_PARAMETER", ex.getMessage());
+    /** 未重建模組的業務錯誤（原 Illegal*Exception 呼叫點），保留既有碼與業務文案。 */
+    @ExceptionHandler(LegacyBusinessException.class)
+    public ResponseEntity<ErrorResponse> handleLegacyBusiness(LegacyBusinessException ex) {
+        return ApiErrors.of(ex.getStatus(), ex.getError(), ex.getMessage());
     }
 
+    /**
+     * §2.6（SEC-LOG-2、G-14）：JDK / 程式庫拋的 {@code IllegalArgumentException}（例：BCrypt 超過 72 bytes）訊息不得外洩
+     * → 400 {@code VALIDATION_FAILED} 固定文案，細節只進 WARN log。
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("IllegalArgumentException mapped to VALIDATION_FAILED", PersistenceErrorClassifier.sanitized(ex));
+        return ApiErrors.of(CommonErrorCode.VALIDATION_FAILED);
+    }
+
+    /** §2.6：{@code IllegalStateException} → 500 {@code INTERNAL_ERROR} 固定文案，細節只進 ERROR log。 */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException ex) {
-        return ApiErrors.of(HttpStatus.CONFLICT, "STATE_CONFLICT", ex.getMessage());
+        log.error("IllegalStateException mapped to INTERNAL_ERROR", PersistenceErrorClassifier.sanitized(ex));
+        return ApiErrors.of(CommonErrorCode.INTERNAL_ERROR);
     }
 
     @ExceptionHandler(KycException.class)

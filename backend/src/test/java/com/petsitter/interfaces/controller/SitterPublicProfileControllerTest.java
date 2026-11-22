@@ -96,7 +96,7 @@ class SitterPublicProfileControllerTest {
         sitterTagRepository.deleteAll();
         sitterServiceAreaRepository.deleteAll();
         forbiddenKeywordRepository.deleteAll();
-        userActionLogRepository.deleteAll();
+        // 稽核表 append-only（GLOBAL §4.3）：不提供 deleteAll；DatabaseCleanupListener 每個測試前已清空
         profileRepository.deleteAll();
         userRepository.deleteAll();
 

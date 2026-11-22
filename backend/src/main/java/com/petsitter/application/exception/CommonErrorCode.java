@@ -15,6 +15,8 @@ public enum CommonErrorCode {
     ORDER_BUSY(HttpStatus.CONFLICT, "資料正在處理中，請稍後再試"),
     IDEMPOTENCY_IN_PROGRESS(HttpStatus.CONFLICT, "相同請求正在處理中"),
     IDEMPOTENCY_KEY_REUSED(HttpStatus.UNPROCESSABLE_CONTENT, "此請求識別碼已用於不同內容"),
+    /** 429：§2.8 限流 filter 直接寫出（不經 GlobalExceptionHandler），必帶 {@code Retry-After}。 */
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "請求過於頻繁，請稍後再試"),
     STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "檔案儲存服務暫時無法使用，請稍後再試"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "系統發生錯誤，請稍後再試");
 

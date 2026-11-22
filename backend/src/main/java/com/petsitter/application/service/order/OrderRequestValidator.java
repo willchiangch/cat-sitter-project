@@ -3,6 +3,7 @@ package com.petsitter.application.service.order;
 import com.petsitter.application.common.idempotency.IdempotencyContext;
 import com.petsitter.application.common.idempotency.IdempotencyService;
 import com.petsitter.application.common.text.TextRules;
+import com.petsitter.application.common.validation.AmountRules;
 import com.petsitter.application.exception.OrderException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -31,13 +32,19 @@ public class OrderRequestValidator {
         return idempotencyService.currentContext().orElseThrow(() -> OrderException.validation(IDEMPOTENCY_FIELD));
     }
 
-    /** 整數金額：必須是整數字面值（{@code 100.5}、{@code 100.0} 都 400），範圍 [min, max]。 */
+    /**
+     * 整數金額：先檢查 {@link AmountRules}（GLOBAL §2.8，任何運算之前），再要求整數字面值（{@code 100.5}、{@code 100.0} 都 400），
+     * 範圍 [min, max]。
+     */
     public int amount(BigDecimal value, String field, int min, int max, boolean required, int defaultValue) {
         if (value == null) {
             if (required) {
                 throw OrderException.validation(field);
             }
             return defaultValue;
+        }
+        if (!AmountRules.withinRange(value)) {
+            throw OrderException.validation(field);
         }
         if (value.scale() > 0 || value.stripTrailingZeros().scale() > 0) {
             throw OrderException.validation(field);

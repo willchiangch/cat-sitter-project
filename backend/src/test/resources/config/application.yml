@@ -3,6 +3,8 @@
 app:
   security:
     internal-secret: ${INTERNAL_CRON_SECRET:local-secret-123}
+    # NFR-003 G-12：main 已移除 JWT 預設值；測試專用簽章金鑰（非正式金鑰，≥ 512 bits）
+    jwt-secret: ${APP_SECURITY_JWT_SECRET:test-only-jwt-signing-key-not-for-production-0123456789abcdef0123456789abcdef}
   crypto:
     key: ${APP_CRYPTO_KEY:dGVzdC1vbmx5LWtleS1ub3QtZm9yLXByb2R1Y3Rpb24=}
   local-cron:

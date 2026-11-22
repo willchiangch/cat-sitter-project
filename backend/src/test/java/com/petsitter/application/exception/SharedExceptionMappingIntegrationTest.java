@@ -255,13 +255,17 @@ class SharedExceptionMappingIntegrationTest {
     }
 
     @Test
-    @DisplayName("GLOBAL §2.6 authenticationEntryPoint → 401 UNAUTHENTICATED；trace id 取自 X-Cloud-Trace-Context")
+    @DisplayName("GLOBAL §2.6 authenticationEntryPoint → 401 UNAUTHENTICATED；trace id 取自 X-Cloud-Trace-Context（須符合 ^[0-9a-f]{32}$，否則重新產生）")
     void entryPointFormat() throws Exception {
+        mockMvc.perform(get("/api/test-global/sitter-only")
+                        .header("X-Cloud-Trace-Context", "0123456789abcdef0123456789abcdef/456;o=1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.traceId").value("0123456789abcdef0123456789abcdef"));
         mockMvc.perform(get("/api/test-global/sitter-only")
                         .header("X-Cloud-Trace-Context", "abc123def/456;o=1"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
-                .andExpect(jsonPath("$.traceId").value("abc123def"));
+                .andExpect(jsonPath("$.traceId").value(org.hamcrest.Matchers.matchesPattern("^[0-9a-f]{32}$")));
     }
 
     @Test

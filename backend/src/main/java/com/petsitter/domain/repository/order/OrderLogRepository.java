@@ -1,12 +1,14 @@
 package com.petsitter.domain.repository.order;
 
 import com.petsitter.domain.model.order.OrderLog;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.petsitter.domain.repository.AppendOnlyInsert;
+import com.petsitter.domain.repository.AppendOnlyRepository;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface OrderLogRepository extends JpaRepository<OrderLog, UUID> {
+/** 稽核實體：append-only（SD-GLOBAL-SPEC §4.3、NFR-003 SEC-AUDIT-3）。 */
+public interface OrderLogRepository extends AppendOnlyRepository<OrderLog, UUID>, AppendOnlyInsert<OrderLog> {
 
     List<OrderLog> findByOrderIdOrderByCreatedAtAscIdAsc(UUID orderId);
 

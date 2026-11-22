@@ -91,7 +91,7 @@ public class AuthService {
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("電子郵件已存在");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("電子郵件已存在");
         }
 
         String otpCode = generateOtpCode();
@@ -144,7 +144,7 @@ public class AuthService {
 
         if (userRepository.existsByEmail(registrationOtp.getEmail())) {
             registrationOtpRepository.delete(registrationOtp);
-            throw new IllegalArgumentException("電子郵件已存在");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("電子郵件已存在");
         }
 
         User user = User.builder()
@@ -157,7 +157,7 @@ public class AuthService {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             // 併發防禦：同一 Email 兩個分頁同時完成驗證時，DB UNIQUE 約束兜底，回友善錯誤而非未映射 500
-            throw new IllegalArgumentException("電子郵件已存在");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("電子郵件已存在");
         }
         registrationOtpRepository.delete(registrationOtp);
         auditLogService.writeUserActionLogInline("AUTH_REGISTER", "CREATE", user.getId(), user.getId(), "users");
@@ -249,7 +249,7 @@ public class AuthService {
                 .map(token -> {
                     User user = token.getUser();
                     if (token.getActiveRole() == null) {
-                        log.warn("[AuthService] Refresh token has no activeRole, falling back to user default role: {} for email: {}", user.getRole(), user.getEmail());
+                        log.warn("[AuthService] Refresh token has no activeRole, falling back to user default role: {} for userId: {}", user.getRole(), user.getId());
                     }
                     // Null-safety fallback: 若 activeRole 欄位為 NULL，則 fallback 回退至 user.getRole()
                     String role = token.getActiveRole() != null ? token.getActiveRole() : user.getRole();
@@ -282,10 +282,10 @@ public class AuthService {
 
     @Transactional
     public AuthResponse switchRole(User user, String targetRole) {
-        log.info("[AuthService] Switching role for user: {} to targetRole: {}", user.getEmail(), targetRole);
+        log.info("[AuthService] Switching role for userId: {} to targetRole: {}", user.getId(), targetRole);
         if (!"CLIENT".equals(targetRole) && !"SITTER".equals(targetRole)) {
-            log.warn("[AuthService] Invalid targetRole: {} for user: {}", targetRole, user.getEmail());
-            throw new IllegalArgumentException("無效的目標角色");
+            log.warn("[AuthService] Invalid targetRole: {} for userId: {}", targetRole, user.getId());
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("無效的目標角色");
         }
 
         ensureProfileExists(user.getId(), targetRole);
@@ -299,7 +299,7 @@ public class AuthService {
         extraClaims.put("userId", user.getId().toString());
         String accessToken = jwtUtils.generateToken(user.getEmail(), targetRole, extraClaims, ACCESS_TOKEN_EXPIRY);
         
-        log.info("[AuthService] Switched role successfully for user: {} to role: {}", user.getEmail(), targetRole);
+        log.info("[AuthService] Switched role successfully for userId: {} to role: {}", user.getId(), targetRole);
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(newRefreshToken.getToken())
@@ -357,7 +357,7 @@ public class AuthService {
     @Transactional
     public void logoutAllDevices(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到使用者資訊"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到使用者資訊"));
         refreshTokenRepository.deleteByUser(user);
         auditLogService.writeUserActionLog("AUTH_LOGOUT_ALL", "DELETE", userId, userId, "refresh_tokens");
     }
@@ -369,7 +369,7 @@ public class AuthService {
     @Transactional
     public void deactivateAccount(UUID userId, String password) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到使用者資訊"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到使用者資訊"));
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             // 故意用 403 而非 401，理由同 SD-009 管理員二次驗證：避免撞上前端 axios 對所有 401 的
@@ -417,7 +417,7 @@ public class AuthService {
                     .build();
         }
         if (!"OWNER".equals(request.getRole()) && !"SITTER".equals(request.getRole())) {
-            throw new IllegalArgumentException("角色必須是 OWNER 或 SITTER");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("角色必須是 OWNER 或 SITTER");
         }
 
         User newUser = User.builder()
@@ -430,7 +430,7 @@ public class AuthService {
             userRepository.saveAndFlush(newUser);
         } catch (DataIntegrityViolationException e) {
             // 併發防禦：同一 Email 兩個分頁同時完成角色選擇時，DB UNIQUE 約束兜底，回友善錯誤而非未映射 500
-            throw new IllegalArgumentException("電子郵件已存在");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("電子郵件已存在");
         }
         auditLogService.writeUserActionLogInline("AUTH_REGISTER", "CREATE", newUser.getId(), newUser.getId(), "users");
 
@@ -532,13 +532,13 @@ public class AuthService {
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken())
-                .orElseThrow(() -> new IllegalArgumentException("無效的重設連結"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("無效的重設連結"));
 
         if (resetToken.isUsed()) {
-            throw new IllegalStateException("此重設連結已被使用過");
+            throw com.petsitter.application.exception.LegacyBusinessException.stateConflict("此重設連結已被使用過");
         }
         if (resetToken.getExpiresAt().isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw new IllegalStateException("此重設連結已過期，請重新申請");
+            throw com.petsitter.application.exception.LegacyBusinessException.stateConflict("此重設連結已過期，請重新申請");
         }
 
         User user = resetToken.getUser();

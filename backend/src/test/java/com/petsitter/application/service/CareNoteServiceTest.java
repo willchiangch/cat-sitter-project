@@ -78,7 +78,7 @@ class CareNoteServiceTest {
         templateItemRepository.deleteAll();
         templateRepository.deleteAll();
         careNoteRepository.deleteAll();
-        careLogRepository.deleteAll();
+        // 稽核表 append-only（GLOBAL §4.3）：不提供 deleteAll；DatabaseCleanupListener 每個測試前已清空
         subscriptionRepository.deleteAll();
         userRepository.deleteAll();
 

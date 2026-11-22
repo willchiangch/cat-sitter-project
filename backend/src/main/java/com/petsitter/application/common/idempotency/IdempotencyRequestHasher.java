@@ -29,6 +29,8 @@ final class IdempotencyRequestHasher {
             .enable(DeserializationFeature.USE_BIG_INTEGER_FOR_INTS)
             .build();
 
+    private static final int PLAIN_SCALE_LIMIT = 1000;
+
     private IdempotencyRequestHasher() {
     }
 
@@ -124,7 +126,11 @@ final class IdempotencyRequestHasher {
         } else if (node.isIntegralNumber()) {
             sb.append(node.bigIntegerValue().toString());
         } else if (node.isNumber()) {
-            sb.append(node.decimalValue().toPlainString());
+            java.math.BigDecimal d = node.decimalValue();
+            // GLOBAL §2.8（SEC-INPUT-3）：極端指數（例 1e999999999）不得展開成十進位字串；改用科學記號（仍具決定性），
+            // 該請求之後由欄位驗證（AmountRules）回 400
+            int scale = d.scale();
+            sb.append(scale > PLAIN_SCALE_LIMIT || scale < -PLAIN_SCALE_LIMIT ? d.toString() : d.toPlainString());
         } else if (node.isBoolean()) {
             sb.append(node.booleanValue());
         } else if (node.isNull()) {

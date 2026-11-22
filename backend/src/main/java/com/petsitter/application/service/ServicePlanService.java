@@ -51,7 +51,8 @@ public class ServicePlanService {
         ServicePlan plan = ServicePlan.builder()
                 .sitter(sitter)
                 .name(dto.getName())
-                .price(dto.getPrice().setScale(0, RoundingMode.HALF_UP).longValue())
+                .price(com.petsitter.application.common.validation.AmountRules.require(dto.getPrice(), "price")
+                        .setScale(0, RoundingMode.HALF_UP).longValue())
                 .durationMinutes(dto.getDurationMinutes())
                 .defaultTasks(dto.getDefaultTasks() != null ? dto.getDefaultTasks() : List.of())
                 .applicablePetTypes(dto.getApplicablePetTypes() != null ? dto.getApplicablePetTypes() : List.of())
@@ -98,7 +99,8 @@ public class ServicePlanService {
         }
 
         plan.setName(dto.getName());
-        plan.setPrice(dto.getPrice().setScale(0, RoundingMode.HALF_UP).longValue());
+        plan.setPrice(com.petsitter.application.common.validation.AmountRules.require(dto.getPrice(), "price")
+                .setScale(0, RoundingMode.HALF_UP).longValue());
         plan.setDurationMinutes(dto.getDurationMinutes());
         plan.setDefaultTasks(dto.getDefaultTasks() != null ? dto.getDefaultTasks() : List.of());
         plan.setApplicablePetTypes(dto.getApplicablePetTypes() != null ? dto.getApplicablePetTypes() : List.of());

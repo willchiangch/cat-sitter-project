@@ -1,5 +1,6 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.application.service.NotificationService;
 import com.petsitter.domain.model.Notification;
 import com.petsitter.infrastructure.security.TokenContext;
@@ -22,6 +23,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/notifications")
 @RequiredArgsConstructor
+// SD-GLOBAL-SPEC §3.4.1：不在匿名白名單的 handler 必須掛 @PreAuthorize（EndpointAccessRuleArchTest）
+@PreAuthorize("isAuthenticated()")
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -34,7 +37,9 @@ public class NotificationController {
             @RequestParam(required = false) String role) {
 
         UUID userId = TokenContext.getUserId();
-        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // GLOBAL §2.8：size 上限 100，超過 400（不靜默截斷）
+        com.petsitter.application.common.validation.PageParams pp = com.petsitter.application.common.validation.PageParams.of(page, size);
+        PageRequest pageable = PageRequest.of(pp.page(), pp.size(), Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Notification> notifications = notificationService.getNotifications(userId, role, isRead, pageable);
 
         List<Map<String, Object>> content = notifications.getContent().stream()

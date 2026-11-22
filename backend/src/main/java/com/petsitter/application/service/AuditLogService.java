@@ -1,30 +1,39 @@
 package com.petsitter.application.service;
 
 import com.petsitter.domain.model.CareLog;
+import com.petsitter.domain.model.UserActionLog;
 import com.petsitter.domain.repository.CareLogRepository;
+import com.petsitter.domain.repository.UserActionLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 非訂單稽核（SD-ORDER M4：writeOrderLog 已刪除，訂單稽核一律 OrderLogWriter，同交易）。
+ * <p>
+ * SD-GLOBAL-SPEC §2.9 / §4.3（NFR-003 SEC-AUDIT-1、SEC-LOG-1、G-13）：
+ * <ul>
+ *   <li>{@link #writeUserActionLog} 與主操作同交易（{@code MANDATORY}，無交易呼叫即拋例外）；寫入失敗讓主交易一起回滾。</li>
+ *   <li>不以 {@code log.info} 印出稽核 details 全文。</li>
+ *   <li>{@link #writeLog}（照護 / 方案的 {@code care_logs}）暫維持 {@code REQUIRES_NEW}：呼叫端在主操作失敗後仍寫 FAILED 紀錄，
+ *       改同交易需重寫未重建模組（SD-CARE / SD-SUPPLY 重建時處理）。</li>
+ * </ul>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-/** 非訂單稽核（SD-ORDER M4：writeOrderLog 已刪除，訂單稽核一律 OrderLogWriter，同交易）。 */
 public class AuditLogService {
 
     private final CareLogRepository careLogRepository;
-    private final com.petsitter.domain.repository.UserActionLogRepository userActionLogRepository;
-
+    private final UserActionLogRepository userActionLogRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void writeLog(UUID userId, String action, String status, String details) {
-        log.info("AUDIT LOG [REQUIRES_NEW] - User: {}, Action: {}, Status: {}, Details: {}", 
-                 userId, action, status, details);
+        log.debug("care audit log written: user={}, action={}, status={}", userId, action, status);
         try {
             CareLog careLog = CareLog.builder()
                     .userId(userId)
@@ -32,54 +41,32 @@ public class AuditLogService {
                     .status(status)
                     .details(details)
                     .build();
-            careLogRepository.save(careLog);
+            careLogRepository.insert(careLog);
         } catch (Exception e) {
-            log.error("Failed to write audit log to database", e);
+            log.error("Failed to write audit log to database: action={}", action, e);
         }
     }
 
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /** 帳號類稽核：與主操作同交易（§4.3 MANDATORY）。 */
+    @Transactional(propagation = Propagation.MANDATORY)
     public void writeUserActionLog(String funcCode, String actionType, UUID operatorId, UUID targetId, String targetTable) {
-        log.info("USER ACTION AUDIT LOG [REQUIRES_NEW] - FuncCode: {}, ActionType: {}, Operator: {}, TargetId: {}, TargetTable: {}",
-                 funcCode, actionType, operatorId, targetId, targetTable);
-        try {
-            com.petsitter.domain.model.UserActionLog auditLog = com.petsitter.domain.model.UserActionLog.builder()
-                    .funcCode(funcCode)
-                    .actionType(actionType)
-                    .operatorId(operatorId)
-                    .targetId(targetId)
-                    .targetTable(targetTable)
-                    .actionResult("SUCCESS")
-                    .build();
-            userActionLogRepository.save(auditLog);
-        } catch (Exception e) {
-            log.error("Failed to write user action log to database", e);
-        }
+        UserActionLog auditLog = UserActionLog.builder()
+                .funcCode(funcCode)
+                .actionType(actionType)
+                .operatorId(operatorId)
+                .targetId(targetId)
+                .targetTable(targetTable)
+                .actionResult("SUCCESS")
+                .build();
+        userActionLogRepository.insert(auditLog);
     }
 
     /**
-     * 與呼叫端共用同一交易（不用 REQUIRES_NEW）。
-     * operator_id/target_id 若指向「本次交易內才剛建立、尚未 commit」的使用者（如註冊當下），
-     * REQUIRES_NEW 會切到另一個連線／交易，在該交易眼中那筆使用者尚不存在，
-     * 會直接違反 log_user_action.operator_id 的 FK 約束；此方法讓稽核紀錄與主體資料一起 commit/rollback。
+     * 與呼叫端共用同一交易（舊名，行為同 {@link #writeUserActionLog}）。
+     * operator_id/target_id 指向本次交易內才建立的使用者（如註冊當下）時，同交易才不會違反 FK。
      */
+    @Transactional(propagation = Propagation.MANDATORY)
     public void writeUserActionLogInline(String funcCode, String actionType, UUID operatorId, UUID targetId, String targetTable) {
-        log.info("USER ACTION AUDIT LOG [INLINE] - FuncCode: {}, ActionType: {}, Operator: {}, TargetId: {}, TargetTable: {}",
-                 funcCode, actionType, operatorId, targetId, targetTable);
-        try {
-            com.petsitter.domain.model.UserActionLog auditLog = com.petsitter.domain.model.UserActionLog.builder()
-                    .funcCode(funcCode)
-                    .actionType(actionType)
-                    .operatorId(operatorId)
-                    .targetId(targetId)
-                    .targetTable(targetTable)
-                    .actionResult("SUCCESS")
-                    .build();
-            userActionLogRepository.save(auditLog);
-        } catch (Exception e) {
-            log.error("Failed to write user action log to database", e);
-        }
+        writeUserActionLog(funcCode, actionType, operatorId, targetId, targetTable);
     }
 }
-

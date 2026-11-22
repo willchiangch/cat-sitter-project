@@ -49,7 +49,7 @@ public class OrderLogWriter {
                 .payload(body)
                 .createdAt(OffsetDateTime.now(clock).withOffsetSameInstant(ZoneOffset.UTC))
                 .build();
-        return orderLogRepository.save(log).getId();
+        return orderLogRepository.insert(log).getId();
     }
 
     /** {@code transitions[]} 的一個元素（{@code entity}、{@code id}、{@code from}、{@code to}）。 */

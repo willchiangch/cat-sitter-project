@@ -63,7 +63,7 @@ public class WebAuthnService {
     @Transactional
     public String startRegistration(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到使用者資訊"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到使用者資訊"));
 
         UserIdentity userIdentity = UserIdentity.builder()
                 .name(user.getEmail())

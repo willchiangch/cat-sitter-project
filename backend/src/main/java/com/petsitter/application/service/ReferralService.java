@@ -103,7 +103,7 @@ public class ReferralService {
             User recommendedSitter = relationship.getRequester().getId().equals(recommendedSitterId)
                     ? relationship.getRequester() : relationship.getTarget();
 
-            referralLogRepository.save(ReferralLog.builder()
+            referralLogRepository.insert(ReferralLog.builder()
                     .referringSitter(referringSitter)
                     .orderId(orderId)
                     .owner(owner)

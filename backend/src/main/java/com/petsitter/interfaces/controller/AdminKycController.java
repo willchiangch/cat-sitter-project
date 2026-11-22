@@ -35,7 +35,8 @@ public class AdminKycController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size) {
         
-        Pageable pageable = PageRequest.of(page, size);
+        // GLOBAL §2.8：size 上限 100，超過 400（不靜默截斷）
+        Pageable pageable = com.petsitter.application.common.validation.PageParams.of(page, size).toPageRequest();
         Page<Object[]> recordPage = kycService.getPendingKycRecordsWithUser(pageable);
         
         List<Map<String, Object>> content = recordPage.getContent().stream().map(row -> {

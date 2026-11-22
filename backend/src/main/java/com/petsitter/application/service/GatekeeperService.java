@@ -40,8 +40,8 @@ public class GatekeeperService {
         // 2. 查無帳號防禦
         User targetUser = userRepository.findByEmail(targetEmail)
                 .orElseThrow(() -> {
-                    log.warn("[GatekeeperService] Failed to add rule: email {} not found for sitterId {}", targetEmail, sitterId);
-                    return new IllegalArgumentException("查無此 Email 帳號");
+                    log.warn("[GatekeeperService] Failed to add rule: email {} not found for sitterId {}", com.petsitter.application.common.log.LogMask.email(targetEmail), sitterId);
+                    return com.petsitter.application.exception.LegacyBusinessException.invalidParameter("查無此 Email 帳號");
                 });
 
         UUID targetUserId = targetUser.getId();
@@ -61,7 +61,7 @@ public class GatekeeperService {
             }
             if (conflictExists) {
                 log.warn("[GatekeeperService] Mutual exclusion conflict: targetUserId {} cannot be both BLACK and WHITE in same scope {} for sitterId {}", targetUserId, scopeType, sitterId);
-                throw new IllegalArgumentException("同一對象在同範圍內不能同時並存於黑名單與白名單中");
+                throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("同一對象在同範圍內不能同時並存於黑名單與白名單中");
             }
         }
 
@@ -78,7 +78,7 @@ public class GatekeeperService {
         }
         if (duplicateExists) {
             log.warn("[GatekeeperService] Duplicate rule: targetUserId {} already has ruleType {} in scope {} for sitterId {}", targetUserId, ruleType, scopeType, sitterId);
-            throw new IllegalArgumentException("規則已存在，請勿重複設定");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("規則已存在，請勿重複設定");
         }
 
         // 5. 儲存規則
@@ -103,7 +103,7 @@ public class GatekeeperService {
                 .targetId(savedRule.getId())
                 .targetTable("gatekeeper_rules")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         return savedRule;
     }
@@ -113,7 +113,7 @@ public class GatekeeperService {
         GatekeeperRule rule = gatekeeperRuleRepository.findById(ruleId)
                 .orElseThrow(() -> {
                     log.warn("[GatekeeperService] Delete rule failed: ruleId {} not found for sitterId {}", ruleId, sitterId);
-                    return new IllegalArgumentException("找不到該門禁規則");
+                    return com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到該門禁規則");
                 });
 
         if (!rule.getSitterId().equals(sitterId)) {
@@ -133,7 +133,7 @@ public class GatekeeperService {
                 .targetId(ruleId)
                 .targetTable("gatekeeper_rules")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
     }
 
     @Transactional(readOnly = true)

@@ -1,5 +1,6 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.application.dto.*;
 import com.petsitter.application.service.CareNoteService;
 import com.petsitter.application.service.CareRelationshipGuard;
@@ -21,6 +22,8 @@ import java.util.UUID;
 @RequestMapping("/api/care-notes")
 @RequiredArgsConstructor
 @RequirePlan(PlanTier.FREE)
+// SD-GLOBAL-SPEC §3.4.1：不在匿名白名單的 handler 必須掛 @PreAuthorize（EndpointAccessRuleArchTest）
+@PreAuthorize("isAuthenticated()")
 public class CareNoteController {
 
     private final CareNoteService careNoteService;

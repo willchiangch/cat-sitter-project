@@ -1,5 +1,6 @@
 package com.petsitter.interfaces.controller;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.petsitter.application.dto.PetDto;
 import com.petsitter.application.dto.PetNotesDto;
 import com.petsitter.application.service.PetService;
@@ -21,6 +22,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/pets")
 @RequiredArgsConstructor
+// SD-GLOBAL-SPEC §3.4.1：不在匿名白名單的 handler 必須掛 @PreAuthorize（EndpointAccessRuleArchTest）
+@PreAuthorize("isAuthenticated()")
 public class PetController {
 
     private final PetService petService;

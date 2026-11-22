@@ -41,10 +41,10 @@ public class PetService {
     @Transactional(readOnly = true)
     public PetDto getPetById(UUID petId, UUID currentUserId) {
         Pet pet = petRepository.findByIdAndIsDeletedFalse(petId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到指定的毛孩資料"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到指定的毛孩資料"));
 
         User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到當前使用者"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到當前使用者"));
         String currentUserRole = user.getRole();
 
         // 權限檢查：必須是飼主本人，或者是與該飼主有進行中訂單的保母，或管理員
@@ -83,7 +83,7 @@ public class PetService {
     @Transactional
     public PetDto updatePet(UUID ownerId, UUID petId, PetDto dto) {
         Pet pet = petRepository.findByIdAndIsDeletedFalse(petId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到指定的毛孩資料"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到指定的毛孩資料"));
 
         if (!pet.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("權限不足，僅限飼主本人編輯毛孩基本資料");
@@ -113,7 +113,7 @@ public class PetService {
     @Transactional
     public void deletePet(UUID ownerId, UUID petId) {
         Pet pet = petRepository.findByIdAndIsDeletedFalse(petId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到指定的毛孩資料"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到指定的毛孩資料"));
 
         if (!pet.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("權限不足，僅限飼主本人刪除毛孩");
@@ -121,7 +121,7 @@ public class PetService {
 
         // 檢查是否有進行中的服務（未結案訂單綁定此毛孩，SD-ORDER M18）
         if (orderQueryService.hasActiveOrderWithPet(petId)) {
-            throw new IllegalArgumentException("此毛孩尚有進行中的服務，無法刪除");
+            throw com.petsitter.application.exception.LegacyBusinessException.invalidParameter("此毛孩尚有進行中的服務，無法刪除");
         }
 
         pet.setDeleted(true);
@@ -133,10 +133,10 @@ public class PetService {
     @Transactional
     public PetDto updatePetNotes(UUID currentUserId, UUID petId, PetNotesDto dto) {
         Pet pet = petRepository.findByIdAndIsDeletedFalse(petId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到指定的毛孩資料"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到指定的毛孩資料"));
 
         User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到當前使用者"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到當前使用者"));
         String userRole = user.getRole();
 
         // 權限檢查：必須是飼主本人，或者是與該飼主有進行中訂單的保母，或管理員
@@ -186,7 +186,7 @@ public class PetService {
                     .isNew(true)
                     .build();
 
-            petEditLogRepository.save(logEntry);
+            petEditLogRepository.insert(logEntry);
 
             pet.setMedicalPersonalityNotes(newMedical);
             pet.setEnvironmentalNotes(newEnv);
@@ -201,10 +201,10 @@ public class PetService {
     @Transactional(readOnly = true)
     public List<PetEditLog> getEditLogs(UUID petId, UUID currentUserId) {
         Pet pet = petRepository.findByIdAndIsDeletedFalse(petId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到指定的毛孩資料"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到指定的毛孩資料"));
 
         User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到當前使用者"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到當前使用者"));
         String userRole = user.getRole();
 
         // 權限檢查：必須是飼主本人，或者是與該飼主有進行中訂單的保母，或管理員
@@ -220,7 +220,7 @@ public class PetService {
     @Transactional
     public String uploadAvatar(UUID ownerId, UUID petId, MultipartFile file) {
         Pet pet = petRepository.findByIdAndIsDeletedFalse(petId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到指定的毛孩資料"));
+                .orElseThrow(() -> com.petsitter.application.exception.LegacyBusinessException.invalidParameter("找不到指定的毛孩資料"));
 
         if (!pet.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("權限不足，僅限飼主上傳大頭照");

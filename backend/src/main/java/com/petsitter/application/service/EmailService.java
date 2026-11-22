@@ -38,7 +38,7 @@ public class EmailService {
 
     public void sendEmail(String to, String subject, String html) {
         if (apiKey == null || apiKey.isBlank()) {
-            log.warn("RESEND_API_KEY 未設定，略過實際寄信。收件者: {}, 主旨: {}", to, subject);
+            log.warn("RESEND_API_KEY 未設定，略過實際寄信。收件者: {}, 主旨: {}", com.petsitter.application.common.log.LogMask.email(to), subject);
             return;
         }
 
@@ -62,10 +62,10 @@ public class EmailService {
             if (response.statusCode() >= 400) {
                 log.error("Resend 寄信失敗，狀態碼: {}, 回應: {}", response.statusCode(), response.body());
             } else {
-                log.info("已透過 Resend 寄出郵件給 {}", to);
+                log.info("已透過 Resend 寄出郵件給 {}", com.petsitter.application.common.log.LogMask.email(to));
             }
         } catch (Exception e) {
-            log.error("寄信時發生例外，收件者: {}", to, e);
+            log.error("寄信時發生例外，收件者: {}", com.petsitter.application.common.log.LogMask.email(to), e);
         }
     }
 

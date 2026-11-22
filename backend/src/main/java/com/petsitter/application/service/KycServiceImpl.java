@@ -91,7 +91,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(record.getId())
                 .targetTable("kyc_records")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         log.info("Successfully submitted KYC for sitter: {}, record: {}", sitterId, record.getId());
         return record;
@@ -200,7 +200,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(record.getId())
                 .targetTable("kyc_records")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         // 發布非同步通知事件
         eventPublisher.publishEvent(new KycReviewedEvent(record.getId(), record.getSitterId(), record.getStatus(), record.getRejectReason()));
@@ -237,7 +237,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(profile.getId())
                 .targetTable("profiles")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         eventPublisher.publishEvent(new SitterSuspendedEvent(sitterId, reason));
         log.info("Successfully suspended sitter: {}", sitterId);
@@ -269,7 +269,7 @@ public class KycServiceImpl implements KycService {
                 .targetId(profile.getId())
                 .targetTable("profiles")
                 .build();
-        userActionLogRepository.save(auditLog);
+        userActionLogRepository.insert(auditLog);
 
         eventPublisher.publishEvent(new SitterUnsuspendedEvent(sitterId));
         log.info("Successfully unsuspended sitter: {}", sitterId);
