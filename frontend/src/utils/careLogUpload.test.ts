@@ -70,6 +70,13 @@ describe('prepareCareLogMedia：照片', () => {
     });
   });
 
+  it('無法編碼 WebP 的瀏覽器回 JPEG：F16 宣告 contentType 取實際 blob.type', async () => {
+    const out = new Blob(['abc'], { type: 'image/jpeg' });
+    reencode.mockResolvedValue(out);
+    const r = await prepareCareLogMedia(new File(['x'], 'a.png', { type: 'image/png' }), QUOTA);
+    expect(r.contentType).toBe('image/jpeg');
+  });
+
   it('額度用完不編碼', async () => {
     await expect(
       prepareCareLogMedia(new File(['x'], 'a.png', { type: 'image/png' }), {

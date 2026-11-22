@@ -1135,7 +1135,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 - 錯誤一律經 `getApiError(e)`（SD-ORDER §9.2）；`ORDER_BUSY` 以同一 `Idempotency-Key` 自動重試一次；`IDEMPOTENCY_IN_PROGRESS` 同 key 自動重試不提示。
 - **媒體上傳**（每個檔案依序，多選時逐一）：
-  1. 照片：先把長邊縮至 2048 px（原本較小則不放大），再以 canvas 轉 `image/webp`，品質依序 0.9、0.8、0.7、0.6、0.5，第一個 < 1,048,576 bytes 者即上傳；0.5 仍 ≥ 1,048,576 bytes →「照片需小於 1MB」，不送出（可測：以已知像素與雜訊的測試圖檔驗證最終尺寸 ≤ 2048 px、品質序列與拒絕分支；壓縮邏輯放在純函式，以單元測試覆蓋，E2E 可用 mock spec 驗拒絕畫面）。影片（文案依 PRD-022 EX-12–14 / AC-2.4 字面，writer 同步 PRD-022 §4.3-3）：`<video>` 讀時長 half-up 後不在 15–30 秒 →「影片長度需為 15–30 秒」；格式非 MP4 / MOV →「照片僅支援 JPG、PNG、WebP；影片僅支援 MP4、MOV」；≥ 50 MB →「影片需小於 50MB」；皆不送出。某類型已用滿 → 前端擋下「此行程{照片 / 影片}額度已用完」。快照 FREE → 不顯示上傳按鈕，顯示「此訂單方案僅支援文字回報」。
+  1. 照片：先把長邊縮至 2048 px（原本較小則不放大），再以 canvas 轉 `image/webp`，品質依序 0.9、0.8、0.7、0.6、0.5，第一個 < 1,048,576 bytes 者即上傳；瀏覽器無法編碼 WebP 時改以 JPEG 同品質階梯壓縮（canvas 回傳的格式與要求不符即切換；F16 宣告的 `contentType` 一律取實際輸出格式，`image/jpeg` 在允許清單內）；0.5 仍 ≥ 1,048,576 bytes →「照片需小於 1MB」，不送出（可測：以已知像素與雜訊的測試圖檔驗證最終尺寸 ≤ 2048 px、品質序列與拒絕分支；壓縮邏輯放在純函式，以單元測試覆蓋，E2E 可用 mock spec 驗拒絕畫面）。影片（文案依 PRD-022 EX-12–14 / AC-2.4 字面，writer 同步 PRD-022 §4.3-3）：`<video>` 讀時長 half-up 後不在 15–30 秒 →「影片長度需為 15–30 秒」；格式非 MP4 / MOV →「照片僅支援 JPG、PNG、WebP；影片僅支援 MP4、MOV」；≥ 50 MB →「影片需小於 50MB」；皆不送出。某類型已用滿 → 前端擋下「此行程{照片 / 影片}額度已用完」。快照 FREE → 不顯示上傳按鈕，顯示「此訂單方案僅支援文字回報」。
   2. 以 `crypto.subtle.digest('SHA-256')` 計算雜湊；產生 `Idempotency-Key`。
   3. F16 → F17（`alreadyCompleted=true` 時略過 PUT）→ `fetch PUT` 到 `uploadUrl`（帶回應指定的標頭）→ F18。PUT 回 412（物件已存在）視為已上傳，直接 F18。
   4. 重試規則（對應 §3.3 表）：
@@ -1257,6 +1257,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 實作審查回饋（狀態維持 Approved）：§9.3 日誌照片壓縮補「瀏覽器無法編碼 WebP 時改以 JPEG 同品質階梯壓縮」，F16 宣告 `contentType` 取實際輸出格式 | Safari canvas 不支援 WebP 編碼會靜默回 PNG 並忽略品質，導致照片一律「照片需小於 1MB」 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§6.3 F13 非當事人與不在可讀範圍的 ADMIN 改為不論日誌是否送出一律 404 `NOT_FOUND`（取代 403 `FORBIDDEN`），移除以 403 / 404 推知日誌是否送出的存在性預言；判斷順序改為歸屬（404）→ G4a → OWNER / ADMIN 讀非 `SUBMITTED`（404），原「保母以 OWNER token 讀自己草稿得 404」已知邊界消失、改回 `ROLE_MISMATCH`；§6.1 混合角色 GET、§9.1 飼主日誌頁、§10.3 `VisitCareLogAuthorizationIntegrationTest` 同步。PRD-022 AC-3.3 情境 2（讀取部分）/ 情境 3、AC-3.4 情境 2 與 TS-022 待同步 | `docs/reviews/IMPL-ORDER-FULFILL.review.md` #13；使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§9.1 舊路由 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 由「以 F2 / F13 查出 `orderId` 後轉址」改為顯示提示頁 `LegacyVisitLinkPage`（`legacy-visit-link`、`legacy-visit-link-btn-back`，依角色導向行程列表 / 我的訂單）；§8 F-M15 同步；§7.2 補註通知列表 `type` 欄位見 SD-GLOBAL-SPEC §4.4。理由：後端無 `visitId` → `orderId` 反查、系統未上線不存在舊連結 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者決定（核准後小修，狀態維持 Approved）：§8.2 物件鍵副檔名改為 F16 依宣告 `contentType` 決定（對齊實作），影片 MP4 / MOV 同族時以宣告型別存放與回應 | 使用者 2026-11-22 決定 |

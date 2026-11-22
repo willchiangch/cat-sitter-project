@@ -47,8 +47,12 @@ interface CanvasMock {
 
 let mock: CanvasMock;
 
-/** 依序回傳 sizes[i] 大小的 blob（最後一個重複使用） */
-const setupCanvas = (sizes: number[] = [JPEG_NO_EXIF.length], noContext = false) => {
+/** 依序回傳 sizes[i] 大小的 blob（最後一個重複使用）；`noWebp` 模擬 Safari：要 WebP 時回 PNG */
+const setupCanvas = (
+  sizes: number[] = [JPEG_NO_EXIF.length],
+  noContext = false,
+  noWebp = false
+) => {
   mock = { drawImage: vi.fn(), toBlobCalls: [], sizes };
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
     this: HTMLCanvasElement
@@ -67,7 +71,8 @@ const setupCanvas = (sizes: number[] = [JPEG_NO_EXIF.length], noContext = false)
     mock.toBlobCalls.push({ type: type ?? 'image/png', quality });
     const size = mock.sizes[Math.min(i, mock.sizes.length - 1)];
     const bytes = size === JPEG_NO_EXIF.length ? JPEG_NO_EXIF : new Uint8Array(size).fill(0x20);
-    cb(new Blob([bytes], { type: type ?? 'image/png' }));
+    const actual = noWebp && type === 'image/webp' ? 'image/png' : (type ?? 'image/png');
+    cb(new Blob([bytes], { type: actual }));
   });
 };
 
@@ -123,6 +128,45 @@ describe('reencodeImage', () => {
     expect(out.size).toBe(900_000);
   });
 
+  it('瀏覽器無法編碼 WebP（回 PNG）→ 改 JPEG，從同一品質起走完整階梯', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap(3000, 4000)));
+    // 第 1 次（WebP→PNG）不論大小都不採用；之後 JPEG 0.9、0.8 太大，0.7 採用
+    setupCanvas([5_000_000, 2_000_000, 1_048_576, 900_000], false, true);
+    const out = await reencodeImage(
+      new Blob([JPEG_WITH_EXIF], { type: 'image/jpeg' }),
+      CARE_LOG_PHOTO_OPTIONS
+    );
+    expect(mock.toBlobCalls).toEqual([
+      { type: 'image/webp', quality: 0.9 },
+      { type: 'image/jpeg', quality: 0.9 },
+      { type: 'image/jpeg', quality: 0.8 },
+      { type: 'image/jpeg', quality: 0.7 }
+    ]);
+    expect(out.type).toBe('image/jpeg');
+    expect(out.size).toBe(900_000);
+  });
+
+  it('WebP 回 PNG 即使已小於上限也不採用（避免宣告 WebP 實為 PNG）', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap(100, 100)));
+    setupCanvas([500], false, true);
+    const out = await reencodeImage(
+      new Blob([JPEG_WITH_EXIF], { type: 'image/jpeg' }),
+      CARE_LOG_PHOTO_OPTIONS
+    );
+    expect(out.type).toBe('image/jpeg');
+    expect(mock.toBlobCalls.map((c) => c.type)).toEqual(['image/webp', 'image/jpeg']);
+  });
+
+  it('WebP 改 JPEG 後全部品質仍 ≥ 上限 → ImageTooLargeError（JPEG 走滿 5 階）', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap(100, 100)));
+    setupCanvas([2_000_000], false, true);
+    await expect(
+      reencodeImage(new Blob([JPEG_WITH_EXIF], { type: 'image/jpeg' }), CARE_LOG_PHOTO_OPTIONS)
+    ).rejects.toBeInstanceOf(ImageTooLargeError);
+    expect(mock.toBlobCalls).toHaveLength(6);
+    expect(mock.toBlobCalls.slice(1).every((c) => c.type === 'image/jpeg')).toBe(true);
+  });
+
   it('小圖不放大', async () => {
     vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap(800, 600)));
     await reencodeImage(new Blob([JPEG_WITH_EXIF], { type: 'image/jpeg' }), { maxLongEdge: 2048 });
@@ -170,6 +214,20 @@ describe('reencodeImageFile', () => {
     expect(out.name).toBe('IMG_0001.jpg');
     expect(out.type).toBe('image/jpeg');
     expect(hasExifApp1(new Uint8Array(await out.arrayBuffer()))).toBe(false);
+  });
+
+  it('WebP 原檔在無法編碼 WebP 的瀏覽器 → 輸出 JPEG，File 型別與副檔名跟著實際格式', async () => {
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap(10, 10)));
+    setupCanvas(undefined, false, true);
+    const out = await reencodeImageFile(
+      new File([new Uint8Array(4)], 'cat.webp', { type: 'image/webp' })
+    );
+    expect(out.type).toBe('image/jpeg');
+    expect(out.name).toBe('cat.jpg');
+    expect(mock.toBlobCalls).toEqual([
+      { type: 'image/webp', quality: 0.92 },
+      { type: 'image/jpeg', quality: 0.92 }
+    ]);
   });
 
   it('非 JPEG / PNG / WebP（影片、HEIC）原樣交回，不經 canvas', async () => {

@@ -13,6 +13,7 @@ import {
 /**
  * 照護日誌媒體直傳 GCS（SD-FULFILL §4.4、§9.3）：
  * 1. 照片：長邊 2048 px、WebP 品質 0.9 → 0.5，第一個 < 1 MB 者採用（重新編碼同時移除 EXIF，SD-FRONTEND-SPEC §2.7）；
+ *    瀏覽器無法編碼 WebP 時改 JPEG 同品質階梯；F16 宣告的 contentType 一律取實際 blob.type。
  *    影片：<video> 讀時長 half-up，需 15–30 秒、MP4 / MOV、< 50 MB。
  * 2. 以重新編碼後的 bytes 計算 SHA-256，產生 Idempotency-Key。
  * 3. F16 → F17（alreadyCompleted 略過 PUT）→ PUT uploadUrl（帶回應指定標頭；412 視為已上傳）→ F18。

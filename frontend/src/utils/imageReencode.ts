@@ -4,6 +4,8 @@
  *
  * - 模組未指定格式：維持原格式（JPEG / WebP 品質 0.92，PNG 無損重繪，避免轉帳截圖文字被有損壓縮糊掉）。
  * - 模組指定（SD-FULFILL §9.3 日誌照片）：長邊 2048 px、WebP、品質 0.9 → 0.5，第一個小於上限者採用。
+ * - 瀏覽器無法以 canvas 編碼 WebP（Safari 會靜默回 PNG 並忽略品質）→ 改以 JPEG 同品質階梯壓縮；
+ *   呼叫端一律以回傳 blob 的 `type` 作為宣告的 contentType / 副檔名。
  * 需要宣告雜湊或大小的流程，一律以「重新編碼後」的 bytes 計算（`sha256Hex`）。
  */
 
@@ -86,10 +88,16 @@ export const reencodeImage = async (file: Blob, options: ReencodeOptions = {}): 
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   if ('close' in source) source.close();
 
-  const type = options.mimeType ?? pickOutputType(file.type);
+  let type: string = options.mimeType ?? pickOutputType(file.type);
   const qualities = type === 'image/png' ? [1] : (options.qualities ?? [0.92]);
-  for (const q of qualities) {
-    const blob = await toBlob(canvas, type, q);
+  for (let i = 0; i < qualities.length; i++) {
+    const blob = await toBlob(canvas, type, qualities[i]);
+    if (blob.type !== type && type !== 'image/jpeg' && type !== 'image/png') {
+      // 不支援的格式（Safari 的 WebP）會回 PNG 且忽略品質：改 JPEG，從同一品質重試
+      type = 'image/jpeg';
+      i--;
+      continue;
+    }
     if (options.maxBytes === undefined || blob.size < options.maxBytes) return blob;
   }
   throw new ImageTooLargeError();
