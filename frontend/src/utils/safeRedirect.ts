@@ -24,3 +24,10 @@ export const isSafeRedirect = (raw: string | null | undefined): raw is string =>
 
 export const getSafeRedirectTarget = (raw: string | null | undefined, fallback: string): string =>
   isSafeRedirect(raw) ? raw : fallback;
+
+/**
+ * 登入 ⇄ 註冊互連時帶上目前的 redirect：只有通過 isSafeRedirect 才帶，否則回傳不含參數的 `path`。
+ * `raw` 為 `URLSearchParams.get('redirect')` 的值（已解碼），這裡重新編碼一次。
+ */
+export const withSafeRedirect = (path: string, raw: string | null | undefined): string =>
+  isSafeRedirect(raw) ? `${path}?redirect=${encodeURIComponent(raw)}` : path;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getSafeRedirectTarget, isSafeRedirect } from './safeRedirect';
+import { getSafeRedirectTarget, isSafeRedirect, withSafeRedirect } from './safeRedirect';
 
 // SD-FRONTEND-SPEC §2.5（NFR-003 SEC-WEB-5）
 const FALLBACK = '/demo';
@@ -54,4 +54,20 @@ describe('safeRedirect', () => {
       );
     }
   });
+});
+
+describe('withSafeRedirect（登入 ⇄ 註冊互連帶 redirect）', () => {
+  it('安全目標重新編碼後帶上，往返解碼一致', () => {
+    const target = '/booking/abc?x=1&y=2';
+    const href = withSafeRedirect('/register', target);
+    expect(href).toBe(`/register?redirect=${encodeURIComponent(target)}`);
+    expect(new URLSearchParams(href.split('?')[1]).get('redirect')).toBe(target);
+  });
+
+  it.each([null, undefined, '', '//evil.example', '/\\evil.example', 'https://evil.example'])(
+    '不安全或缺值 %s 不帶參數',
+    (raw) => {
+      expect(withSafeRedirect('/register', raw)).toBe('/register');
+    }
+  );
 });

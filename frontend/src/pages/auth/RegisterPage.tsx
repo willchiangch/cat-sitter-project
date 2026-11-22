@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { applyLoginRole } from '../../contexts/loginRole';
-import { getSafeRedirectTarget } from '../../utils/safeRedirect';
+import { getSafeRedirectTarget, withSafeRedirect } from '../../utils/safeRedirect';
 import { getApiError } from '../../api/apiError';
 import PasswordRuleHint from '../../components/auth/PasswordRuleHint';
 import { checkPassword, passwordViolationFromPayload } from '../../utils/passwordRules';
@@ -242,7 +242,10 @@ const RegisterPage: React.FC = () => {
             </button>
 
             <Link
-              to={`/login${window.location.search}`}
+              to={withSafeRedirect(
+                '/login',
+                new URLSearchParams(window.location.search).get('redirect')
+              )}
               style={{
                 fontSize: '0.8rem',
                 textAlign: 'center',

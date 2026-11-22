@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../../api/axiosClient';
 import { applyLoginRole } from '../../contexts/loginRole';
-import { getSafeRedirectTarget } from '../../utils/safeRedirect';
+import { getSafeRedirectTarget, withSafeRedirect } from '../../utils/safeRedirect';
 import { getApiError } from '../../api/apiError';
 import { isWebAuthnSupported, loginWithBiometricCredential } from '../../api/webauthnApi';
 
@@ -346,7 +346,13 @@ const LoginPage: React.FC = () => {
                   color: 'var(--color-on-surface-variant)'
                 }}
               >
-                <Link to="/register" data-testid="login-register-link">
+                <Link
+                  to={withSafeRedirect(
+                    '/register',
+                    new URLSearchParams(window.location.search).get('redirect')
+                  )}
+                  data-testid="login-register-link"
+                >
                   建立新帳號
                 </Link>
                 <Link to="/forgot-password" data-testid="login-forgot-password-link">
