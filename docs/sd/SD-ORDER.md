@@ -444,7 +444,7 @@ stateDiagram-v2
 
 | # | 轉移 | 觸發 | 鎖 | 同交易附帶 | 不符時（依判斷順序） |
 |---|------|------|----|-----------|---------------------|
-| O1 | → `PENDING` | E1（OWNER） | 無訂單鎖（新建；不做容量 / 檔期鎖）；冪等認領防重 | 建 `order_items`、`order_item_pets`、`order_answers`（需填時）；SD-FULFILL `createVisits`；`review_expires_at`、`first_service_date`；`ORDER_CREATED`；enqueue 保母「新預約申請」；commit 後我的最愛 | 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE` → 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE` → 409 `QUESTIONNAIRE_CHANGED` / 400（問卷長度）→ 400（`baseAmount` 上限）→ 409 `PRICE_CHANGED` → 403 `SUBSCRIPTION_LOCKED`（PRD-005 §4.4 步驟 3.8–3.9） |
+| O1 | → `PENDING` | E1（OWNER） | 無業務鎖（新建；不做容量 / 檔期鎖）；冪等認領防重；新訂單 flush 後對自己這列取鎖，只為取得 `createVisits` 要求的 `LockedOrder`（他人不可見，無競爭） | 建 `order_items`、`order_item_pets`、`order_answers`（需填時）；SD-FULFILL `createVisits`；`review_expires_at`、`first_service_date`；`ORDER_CREATED`；enqueue 保母「新預約申請」；commit 後我的最愛 | 422 `SELF_BOOKING_NOT_ALLOWED` → 403 `SITTER_NOT_BOOKABLE` → 422 `MONTHLY_QUOTA_REACHED` → 422 `PLAN_NOT_BOOKABLE` → 422 `INVALID_VISIT_DATE` → 409 `QUESTIONNAIRE_CHANGED` / 400（問卷長度）→ 400（`baseAmount` 上限）→ 409 `PRICE_CHANGED` → 403 `SUBSCRIPTION_LOCKED`（PRD-005 §4.4 步驟 3.8–3.9） |
 | O2 | `PENDING → PENDING_PAYMENT` | E6（SITTER） | 訂單鎖 | 寫金額欄與 `quoted_at`；`order_plan_snapshots`、`order_snapshots`；建 INITIAL payment（`due_at`、`escalate_at`、`remind_at`、加密快照）；`ORDER_QUOTED`；enqueue 飼主報價通知（`quoted_at ≥ 首日 − 48h` 時併提醒、`mandatory`） | 409 `ORDER_STATE_CONFLICT` → 409 `DEADLINE_PASSED`（`REVIEW_EXPIRES_AT`）→ 409 `FIRST_VISIT_DATE_PASSED` → 422 `MONTHLY_QUOTA_REACHED` → 422 `PAYOUT_ACCOUNT_REQUIRED` → 409 `PRICE_CHANGED` → 422 `INVALID_QUOTE_AMOUNT` / 400 `totalAmount` → 403 `PLAN_REQUIRED` → 403 `SUBSCRIPTION_LOCKED`（PRD-006 §4.3） |
 | O3 | `PENDING → CANCELLED` | E7（SITTER，原因必填）/ E8（OWNER，原因選填） | 訂單鎖 | 取消共同附帶動作（§3.1.2）；`ORDER_REJECTED` / `ORDER_WITHDRAWN`；enqueue 雙方 | 409 `ORDER_STATE_CONFLICT`（E8 另含 `expectedStatus` 不符）；不檢查 `review_expires_at`（CQ-61） |
 | O4 | `PENDING → CANCELLED` | C1（SYSTEM） | 排程鎖 | 取消共同附帶動作；`cancel_reason_code=REVIEW_EXPIRED`；`ORDER_REVIEW_EXPIRED`；enqueue 雙方 | 鎖後重驗不符 → 略過（`skipped`） |
@@ -1100,7 +1100,7 @@ CREATE TABLE order_answers (
     sort_order    SMALLINT NOT NULL,
     question_text VARCHAR(200) NOT NULL,
     question_type VARCHAR(16) NOT NULL,   -- 沿用 sitter_questions 的題型值
-    answer        JSONB NOT NULL,         -- 選擇題存選項文字陣列；簡答 / 詳答存字串；未答存 JSON null
+    answer        JSONB NOT NULL,         -- 選擇題存選項文字陣列；簡答 / 詳答存字串；未答存 JSON null（Jackson 3 null 節點，非 SQL NULL）
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ux_order_answers_question UNIQUE (order_id, question_id)
 );
@@ -1305,6 +1305,10 @@ CREATE INDEX ix_idempotency_expires ON idempotency_records (expires_at);
 --        ix_visits_order_status / ix_visits_zombie 只在 SD-FULFILL 段落建立一次（CQ-3）。
 -- ============================================================
 ```
+
+#### 5.1.1a `V20261122_02__notification_outbox.sql`（過渡版，SD-NOTIFY 撰寫時接手）
+
+`notifications` 加 `type`、`mandatory`、`related_order_id`、`email_status`（`PENDING` / `SENT` / `SKIPPED_PREFERENCE` / `FAILED` / `NOT_APPLICABLE` / `SUPPRESSED_TEST`）、`email_attempts`、`email_next_attempt_at`、`email_last_error` 與兩個索引，供 §2.3.3 `enqueue()`、§7.2 與 C11 使用。DDL 以 repo 遷移檔為準。
 
 #### 5.1.2 約束與索引理由摘要
 
@@ -1732,7 +1736,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 22 | 422 | `SELF_BOOKING_NOT_ALLOWED` | baseline | — | E1 |
 | 23 | 422 | `MONTHLY_QUOTA_REACHED` | baseline | — | E1、E6 |
 | 24 | 422 | `INVALID_QUOTE_AMOUNT` | baseline | — | E6 |
-| 25 | 422 | `INVALID_VISIT_DATE` | baseline | `dates`；變更時 `reason=PLAN_NOT_IN_RANGE` | E1、E17、E20 |
+| 25 | 422 | `INVALID_VISIT_DATE` | baseline | `dates`；`reason`：超出今天 ~ 今天 + 365 天 `DATE_OUT_OF_RANGE`、方案區間外 `PLAN_NOT_IN_RANGE` | E1、E17、E20 |
 | 26 | 422 | `PAYOUT_ACCOUNT_REQUIRED` | baseline | — | E6 |
 | 27 | 403 | `SITTER_NOT_BOOKABLE` | 模組（PRD-005） | `reason` = `NOT_VERIFIED` / `UNAVAILABLE` | E1 |
 | 28 | 422 | `PLAN_NOT_BOOKABLE` | 模組（PRD-005） | — | E1 |
@@ -1911,8 +1915,8 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | # | 項目 | 內容 | 驗證 |
 |---|------|------|------|
-| D1 | `APP_CRYPTO_KEY` | 移除 `application.yml` 的預設值（`${APP_CRYPTO_KEY}`，無 `:` 後備值）；Secret Manager 建立 `APP_CRYPTO_KEY`；`deploy.yml` 的 `--set-secrets` 加 `APP_CRYPTO_KEY=APP_CRYPTO_KEY:latest`；local profile 在 `application-local.yml` 提供本機用金鑰（該檔被 `.gitignore`）；**測試用金鑰放 `backend/src/test/resources/application.yml`**（只在測試 classpath，不進 prod image），讓 CI checkout 後 `mvn test` 不因 placeholder 無法解析而失敗。遷移同時清空 `profiles.bank_account_info`（CQ-20），部署後通知測試保母重設收款帳號 | prod 缺值時應用程式啟動失敗；`gcloud run services describe` 的 env 清單出現 `APP_CRYPTO_KEY`（只看名稱）；CI `mvn test` 綠燈 |
-| D2 | `INTERNAL_CRON_SECRET` | 移除 `application.yml` 的 `local-secret-123` 預設值，只在 `application-local.yml` 與 `backend/src/test/resources/application.yml`（測試值）提供；prod 由現有 `--set-secrets` 注入；`deploy.yml` 的 E2E 步驟已用 secret | prod 缺值時啟動失敗；CI `mvn test` 綠燈 |
+| D1 | `APP_CRYPTO_KEY` | 移除 `application.yml` 的預設值（`${APP_CRYPTO_KEY}`，無 `:` 後備值）；Secret Manager 建立 `APP_CRYPTO_KEY`；`deploy.yml` 的 `--set-secrets` 加 `APP_CRYPTO_KEY=APP_CRYPTO_KEY:latest`；local profile 在 `application-local.yml` 提供本機用金鑰（該檔被 `.gitignore`）；**測試用金鑰放 `backend/src/test/resources/config/application.yml`**（只在測試 classpath，不進 prod image；放 `config/` 子目錄是為了只覆蓋同名屬性，放 classpath 根目錄會整份取代主程式 `application.yml`），讓 CI checkout 後 `mvn test` 不因 placeholder 無法解析而失敗。遷移同時清空 `profiles.bank_account_info`（CQ-20），部署後通知測試保母重設收款帳號 | prod 缺值時應用程式啟動失敗；`gcloud run services describe` 的 env 清單出現 `APP_CRYPTO_KEY`（只看名稱）；CI `mvn test` 綠燈 |
+| D2 | `INTERNAL_CRON_SECRET` | 移除 `application.yml` 的 `local-secret-123` 預設值，只在 `application-local.yml` 與 `backend/src/test/resources/config/application.yml`（測試值）提供；prod 由現有 `--set-secrets` 注入；`deploy.yml` 的 E2E 步驟已用 secret | prod 缺值時啟動失敗；CI `mvn test` 綠燈 |
 | D3 | `InternalSecretFilter` | 驗證失敗回 403 `FORBIDDEN`（§6.5 格式），不再回 401；移除 debug log 中的 header 值，失敗只記路徑；改用常數時間比較 | `InternalCronSecurityTest`：缺 / 錯 secret、一般使用者 token → 403，且 log 不含 secret |
 | D4 | multipart 上限 | 全域 `spring.servlet.multipart.max-file-size=20MB`、`max-request-size=21MB`、`server.tomcat.max-swallow-size=21MB`；E11 自行檢查 5 MB（§6.1）；其他模組上傳端點須各自檢查上限（§8.4 影響清單） | E11 傳 5.5 MB → 422 `PROOF_FILE_TOO_LARGE`；KYC / 照護媒體上傳既有上限測試仍通過 |
 | D5 | Cloud Scheduler | 建立下表 10 支 job 與 SD-NOTIFY 的 C11（`notification-email-dispatch`，`4-59/5 * * * *`，同發布；SD-NOTIFY 撰寫時沿用此分鐘）：HTTP POST 到 `https://{Cloud Run 網址}{path}`、標頭 `X-Internal-Secret`（值取 Secret Manager）、時區 `Asia/Taipei`、`attempt-deadline` 60s、重試 0 次（下一輪自然補） | 每支手動觸發一次回 200 與計數 |
@@ -2285,6 +2289,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §5.1.1a 通知外寄過渡遷移 `V20261122_02`；D1 / D2 測試設定改放 `src/test/resources/config/application.yml`；`INVALID_VISIT_DATE` 補 `reason=DATE_OUT_OF_RANGE`；未答問卷存 JSON null 註明；O1 對新訂單自取鎖以取得 `LockedOrder` | B 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§5.1 遷移第 0 行改 `SET LOCAL lock_timeout` | A 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：E10 註明 ADMIN 在待辦結案後仍可讀 `accountSnapshot`，不遮蔽 | 使用者 2026-11-22 確認 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
