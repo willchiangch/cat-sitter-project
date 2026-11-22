@@ -176,10 +176,10 @@
 | 步驟 | EX / AC | 操作 | 預期 |
 |------|---------|------|------|
 | J3-E1 | 008 AC-1.6-1；028 AC-1.6-1；022 AC-3.3-2（TS-008 §3、TS-028 §3、CL-78） | `sitterB` 對訂單 `J` V2 送 F3（新 key）、F12（V2 的 `I1`）、F14 | 皆 403 `FORBIDDEN`；V2 仍 `PENDING` |
-| J3-E2 | 022 AC-3.3-3；009 AC-1.5、EX-1（CL-78、OC-17） | `ownerB` 呼叫 F13 V1、E25 訂單 `J`（新 key） | 皆 403 `FORBIDDEN` |
+| J3-E2 | 022 AC-3.3-3；009 AC-1.5、EX-1（CL-78、OC-17） | `ownerB` 呼叫 F13 V1、E25 訂單 `J`（新 key） | F13 404 `NOT_FOUND`（非當事人讀日誌不論是否送出一律 404，使用者 2026-11-22 決定）；E25 403 `FORBIDDEN` |
 | J3-E3 | 008 AC-1.6-2；022 AC-3.3-4；009 AC-1.5、AC-2.8、EX-2（OC-18、OC-50） | `owner`（`currentRole=OWNER`）呼叫 F3 V2、F15 V1；`sitter`（`currentRole=SITTER`）呼叫 E25、E26 訂單 `J` | 皆 403 `ROLE_MISMATCH` |
 | J3-E4 | 022 AC-3.3-1；009 AC-1.5 | 不帶 token 呼叫 F13 V1、E25 訂單 `J` | 皆 401 `UNAUTHENTICATED` |
-| J3-E5 | 008 AC-3.5-4（後半）；022 AC-3.4-2（V-58、CL-80） | `admin` 呼叫 F1、F13 V1、E27（訂單 `J` 為 `IN_PROGRESS`，且從未有任何 `admin_tasks`；SD-ORDER `AdminOrderAccessPolicy`：唯讀範圍 = `DISPUTED` 或曾有任何待辦，含 `RESOLVED`） | 皆 403 `FORBIDDEN`。對照：訂單 `JB` 有 `SERVICE_DISPUTE` 待辦（J3-36）→ 200 |
+| J3-E5 | 008 AC-3.5-4（後半）；022 AC-3.4-2（V-58、CL-80） | `admin` 呼叫 F1、F13 V1、E27（訂單 `J` 為 `IN_PROGRESS`，且從未有任何 `admin_tasks`；SD-ORDER `AdminOrderAccessPolicy`：唯讀範圍 = `DISPUTED` 或曾有任何待辦，含 `RESOLVED`） | F1、E27 403 `FORBIDDEN`；F13 404 `NOT_FOUND`（不在可讀範圍的 ADMIN 讀日誌一律 404，使用者 2026-11-22 決定）。對照：訂單 `JB` 有 `SERVICE_DISPUTE` 待辦（J3-36）→ 200 |
 | J3-E6 | 008 AC-2.6-4、EX-21；009 AC-2.4（OC-35） | 以 `owner` token、不帶 `X-Internal-Secret` 呼叫 C7、FC1、C8（`orderId=J`） | 皆 403 `FORBIDDEN`；訂單 `J` 不變 |
 
 ## 4. 不在 E2E 覆蓋的項目
@@ -213,6 +213,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 核准後小修（狀態維持 Approved），使用者 2026-11-22 決定：F13 非當事人與不在可讀範圍的 ADMIN 不論日誌是否送出一律 404 `NOT_FOUND`；J3-E2 `ownerB` F13 改 404（E25 仍 403），J3-E5 `admin` F13 改 404（F1、E27 仍 403） | 使用者 2026-11-22 決定；PRD-022 AC-3.3 / AC-3.4、SD-FULFILL §6.3 F13 同步 |
 | 2026-11-22 | 子流程狀態文字依 SD-FRONTEND-SPEC §6.4 定稿；狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意），狀態維持 Draft：`[EMAIL]` 收斂為 `SUPPRESSED_TEST`（影響 J3-13、J3-23、J3-32、J3-46、J3-52）；J3-18 改用 `sitter-order-visit-label-{visitId}` / `-status-{visitId}` / `-date-{visitId}`；J3-50 VD1 改斷言 `sitter-dashboard-visit-deadline-passed-{VD1}` 與 F6 `zombieDeadlinePassed`；J3-52 補 inspect `fulfill.visits[].serviceDate`；J3-24 補報價明細三段（無變更時不顯示 `order-detail-quote-modification-*`）與無「查看進行中變更」按鈕；J3-E5 依 ADMIN 唯讀範圍放寬（`DISPUTED` 或曾有任何待辦）改寫前提並加 E27；§5 #1、#3、#4、#5 標已解決 | 協調者 TS 更新第 2 批；SD-ORDER §6.3 / §10.4、SD-FULFILL §7.2 / §9.1 / §10.2 |
 | 2026-11-22 | 依 PRD-008 / 028 / 022 / 009（Approved）、SD-FULFILL、SD-ORDER、SD-FRONTEND-SPEC 全文重寫為新範本，狀態 Draft。主線改為正式端點走完「開始 → SOP 打勾 → 結束 → 直傳照片 → 送出日誌 → 飼主查看 → 第二行程 → O11」；新增分支 O13（`JB`）、無人操作 O12（`JC`）、系統出口 C7 + FC1（`JD`）；斷言改以 inspect；排程帶 `orderId`；步驟前綴 `J3-`（J3-01–J3-60、J3-E1–J3-E6）；自動化路徑改為 `service-execution-completion.spec.ts`。舊版（Check-in / Check-out、`/api/visits/{visitId}/start`、`/visit-reports/*` 路由、`trackOrderActionCalls`）作廢；舊版「本測試發現並修復的真實 bug」屬舊實作（`StatusBadge` 英文狀態、`isServiceStage` 遺漏），保留於 git 歷史 | 全面重建 2026-11；上游 PRD / SD 核准 |

@@ -30,7 +30,7 @@
 |------|------|---------|------|
 | `O1` | OWNER | `roles=[OWNER]`；`owner-setup`：寵物 1 隻、`emailPreferences.ORDER_AFFAIR = 開` | — |
 | `O2` | OWNER | `roles=[OWNER]`；寵物 1 隻（他人飼主） | — |
-| `S1` | OWNER + SITTER | `roles=[OWNER, SITTER]`（雙角色，供 F13 已知邊界）；`sitter-setup`：`tier=BASIC`、`kycStatus=VERIFIED`、`profileVisible=true`、`payoutAccount` 四欄、`plans=[{ key: "feed", 標題 "到府餵食", 單價 500 }]` | — |
+| `S1` | OWNER + SITTER | `roles=[OWNER, SITTER]`（雙角色，供 F13 當事人錯角色 `ROLE_MISMATCH`，CL-79）；`sitter-setup`：`tier=BASIC`、`kycStatus=VERIFIED`、`profileVisible=true`、`payoutAccount` 四欄、`plans=[{ key: "feed", 標題 "到府餵食", 單價 500 }]` | — |
 | `S2` | SITTER | `roles=[SITTER]`，同 `S1` 設定（他人保母，另有自己的訂單 `B2`） | — |
 | `SF` | SITTER | 同 `S1` 但 `roles=[SITTER]`、`tier=FREE`；報價後 upsert `tier=ULTIMATE`（AC-2.1） | — |
 | `SP` | SITTER | `tier=PRO` | — |
@@ -191,9 +191,9 @@
 | CL-75 | AC-3.2 情境 1；BR-6；BR-18 | O1 | 開 `/owner/orders/{A}`，點 `owner-order-detail-btn-view-log-{V1}` | `owner-order-detail-visit-row-{V1}` 內有查看日誌、`{V3}`（`DRAFT`）內沒有；`owner-care-log-view` 顯示 `owner-care-log-visit-name`「早上服務」、文字「已餵藥」、2 張照片已載入（`naturalWidth > 0`）及說明「吃飯中」「睡午覺」、送出時間 = F15 `submittedAt` 的 Asia/Taipei `YYYY-MM-DD HH:mm` | F13 V1（OWNER）→ 無 `status` / `editable` 等保母欄位；`media[].url` 含 `X-Goog-Expires=900` | 截圖 ×2 + API JSON |
 | CL-76 | AC-3.2 情境 2；BR-16 | O1 | F13 V3 | — | 404 `NOT_FOUND` | API JSON |
 | CL-77 | AC-3.2 情境 3；BR-6 | O1 | 開 `/orders/{F}/visits/{F2}/care-log`（F2 未自訂名稱、每日 1 次） | `owner-care-log-visit-name`「到府餵食」 | — | 截圖 |
-| CL-78 | AC-3.3 情境 1–5；EX-1–EX-4 | 匿名、S2、O2、O1、admin | 對訂單 `A` V1：無 token F13 / F14；無 token 以 K 與相同 body 重送 F15；S2 F13、F14、F16、F19、F15；O2 F13；O1（OWNER token）F14、F16、F19、F15；admin F14；隨機 UUID 行程 F13；以 `B2` 的 orderId 搭 V1 路徑 F13 | — | 依序 401 `UNAUTHENTICATED` ×3（401 先於冪等回放）；S2 403 `FORBIDDEN` ×5；O2 403 `FORBIDDEN`；O1 403 `ROLE_MISMATCH` ×4；admin 403 `ROLE_MISMATCH`；404 `NOT_FOUND` ×2；`INSPECT(A)` V1 日誌、媒體數與 CL-20 相同，`uploads` 無新槽位 | API JSON |
-| CL-79 | AC-3.3（SD-FULFILL §6.3 F13 已知邊界） | S1 | S1 切換為 `currentRole=OWNER` 的 token，F13 訂單 `A` 的 V3（自己身為保母的草稿） | — | 404 `NOT_FOUND`（依 SD 已知行為，非 `ROLE_MISMATCH`） | API JSON |
-| CL-80 | AC-3.4 情境 2 | admin | admin F13 訂單 `A`（`IN_PROGRESS`、從未有任何待辦）V1 | — | 403 `FORBIDDEN`（ADMIN 唯讀範圍 = `DISPUTED` 或曾有任何待辦，SD-ORDER §3.5） | API JSON |
+| CL-78 | AC-3.3 情境 1–5；EX-1–EX-4 | 匿名、S2、O2、O1、admin | 對訂單 `A` V1：無 token F13 / F14；無 token 以 K 與相同 body 重送 F15；S2 F14、F16、F19、F15；S2 F13 V1（已送出）、F13 V3（`DRAFT`）；O2 F13 V1、F13 V3；O1（OWNER token）F14、F16、F19、F15；admin F14；隨機 UUID 行程 F13；以 `B2` 的 orderId 搭 V1 路徑 F13 | — | 依序 401 `UNAUTHENTICATED` ×3（401 先於冪等回放）；S2 寫入 403 `FORBIDDEN` ×4；S2 F13 ×2、O2 F13 ×2 皆 404 `NOT_FOUND`，且同一呼叫者讀 V1 與 V3 的 HTTP 狀態與錯誤 `code` / `message` 相同（不洩漏日誌是否已送出）；O1 403 `ROLE_MISMATCH` ×4；admin 403 `ROLE_MISMATCH`；404 `NOT_FOUND` ×2；`INSPECT(A)` V1 日誌、媒體數與 CL-20 相同，`uploads` 無新槽位 | API JSON |
+| CL-79 | AC-3.3；PRD-022 §3 判斷順序第 3 步（SD-FULFILL §6.3 F13） | S1 | S1 切換為 `currentRole=OWNER` 的 token，F13 訂單 `A` 的 V3（自己身為保母的草稿） | — | 403 `ROLE_MISMATCH`（當事人錯角色；不是 404） | API JSON |
+| CL-80 | AC-3.4 情境 2；EX-2 | admin | admin F13 訂單 `A`（`IN_PROGRESS`、從未有任何待辦）V1（已送出）、V3（`DRAFT`） | — | 皆 404 `NOT_FOUND`，兩者 HTTP 狀態與錯誤 `code` / `message` 相同（ADMIN 唯讀範圍 = `DISPUTED` 或曾有任何待辦，SD-ORDER §3.5） | API JSON |
 | CL-81 | AC-3.6 情境 1；EX-15；BR-28 | SP | `START(T3)` → `UPLOAD(T3, jpg500, key KU)` 得 mU；以 KU 與相同 body 重送 F16；F17；F18 | — | F16 回放 201、`uploadId` 與第一次相同；F17 200 `alreadyCompleted=true`（不需 PUT）；F18 201、`mediaId=mU`；`INSPECT(T)` T3 `media` 1 筆、槽位 1 個；F13 `imageUsed=1` | API JSON |
 | CL-82 | AC-3.6 情境 2；EX-16 | SP | 以 KU 改宣告 `jpg900` 送 F16 | — | 422 `IDEMPOTENCY_KEY_REUSED` | API JSON |
 | CL-83 | AC-3.6 情境 3（期限部分） | SP | `FINISH(T3)` → `EXPIRE(T3)`；以 KU、相同 body 重跑 F16 → F17 → F18 | — | F16 回放 201；F17 `alreadyCompleted=true`；F18 201、`mediaId=mU`（不是 `DEADLINE_PASSED`）；`INSPECT(T)` T3 `media` 仍 1 筆 | API JSON |
@@ -207,9 +207,9 @@
 
 | 步驟 | EX / AC | 操作 | 預期 |
 |------|---------|------|------|
-| CL-21、CL-78 | EX-1 | 他人保母 / 他人飼主讀寫 | 403 `FORBIDDEN`，資料不變 |
-| CL-43、CL-44、CL-78、CL-79 | EX-2 | 媒體已刪 / 跨行程 / 跨訂單 / 不存在 | 404 `NOT_FOUND` |
-| CL-78 | EX-3 | OWNER / ADMIN 呼叫保母端寫入 | 403 `ROLE_MISMATCH` |
+| CL-21、CL-78 | EX-1 | 他人保母寫入 | 403 `FORBIDDEN`，資料不變 |
+| CL-43、CL-44、CL-78、CL-80 | EX-2 | 媒體已刪 / 跨行程 / 跨訂單 / 不存在；他人保母 / 他人飼主 / 不在可讀範圍的 ADMIN 讀日誌（已送出與未送出） | 404 `NOT_FOUND`（讀日誌時已送出與未送出回應相同） |
+| CL-78、CL-79 | EX-3 | OWNER / ADMIN 呼叫保母端寫入；雙角色保母以 OWNER token 讀自己草稿 | 403 `ROLE_MISMATCH` |
 | CL-78 | EX-4 | 未登入（含帶 key 重送） | 401 `UNAUTHENTICATED` |
 | CL-08、CL-11 | EX-5 | 文字 > 1000、說明 > 100、檔案數不符、缺 key | 400 `VALIDATION_FAILED` |
 | CL-01、CL-66、CL-68、CL-69 | EX-6 | 訂單 `CONFIRMED` / `COMPLETED`（O11 / O12 / O15） | 409 `ORDER_STATE_CONFLICT` + `currentStatus` |
@@ -271,7 +271,7 @@
 | # | 項目 | 影響 | 建議 |
 |---|------|------|------|
 | 1 | 大量真 GCS 上傳（CL-46 12 支、CL-47 30 支，含 30 MB）拉長 CI 時間並產生測試物件 | CI 時間、GCS 成本 | 由 cleanup 刪除；e2e-author 可平行上傳 |
-| — | 已解決（2026-11-22）：`emailStatus` 列舉（SD-ORDER §10.4：`SUPPRESSED_TEST` / `SKIPPED_PREFERENCE`）；`SHIFT-WINDOW` 改以 `INSPECT.completionBasisAt` 計算；ADMIN 帳號（`provision-account roles[]`）；`sitter-setup` upsert 改 `tier` / 訂閱；FT1 `PENDING → DONE / CLOSED_BY_SYSTEM / CANCELLED`、FT2 接受 `DISPUTED`；影片文案統一「影片長度需為 15–30 秒」；照片壓縮下限（SD-FULFILL §9.3：長邊 2048 px、品質 0.9 → 0.5）；排程搶先（`?orderId=`、自動觸發跳過測試訂單）；通知查詢改 `INSPECT`；雙角色帳號（F13 已知邊界改 E2E，CL-79） | — | — |
+| — | 已解決（2026-11-22）：`emailStatus` 列舉（SD-ORDER §10.4：`SUPPRESSED_TEST` / `SKIPPED_PREFERENCE`）；`SHIFT-WINDOW` 改以 `INSPECT.completionBasisAt` 計算；ADMIN 帳號（`provision-account roles[]`）；`sitter-setup` upsert 改 `tier` / 訂閱；FT1 `PENDING → DONE / CLOSED_BY_SYSTEM / CANCELLED`、FT2 接受 `DISPUTED`；影片文案統一「影片長度需為 15–30 秒」；照片壓縮下限（SD-FULFILL §9.3：長邊 2048 px、品質 0.9 → 0.5）；排程搶先（`?orderId=`、自動觸發跳過測試訂單）；通知查詢改 `INSPECT`；雙角色帳號（F13 已知邊界改 E2E，CL-79；2026-11-22 使用者決定後已知邊界消失，CL-79 改斷言 `ROLE_MISMATCH`） | — | — |
 
 ## 6. 本測試發現並修復的真實 bug
 
@@ -286,3 +286,4 @@
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`order_logs` / 通知 / `emailStatus` / 日誌、媒體、上傳槽位狀態改以 `INSPECT` 斷言（CL-01、03、04、06、07、10~12、16~19、22、25、26、28~31、36、38、42、44、45、53~57、61、62、66、78、81、83）；`CANCELLED` 行程改 E2E（CL-04，FT1 支援）；Email 偏好關閉改 E2E（CL-25，AC-3.1 情境 2）；FC1 / C8 帶 `?orderId=` 並斷言精確計數（CL-30、31、69）；401 先於冪等回放（CL-78）；雙角色帳號驗 F13 已知邊界（新增 CL-79，原 CL-79~83 順延為 CL-80~84）；AC-3.8 情境 5 移到 V5 仍可編輯時（新 CL-13，原 CL-84 改為原 CL-83 內容）；全形空白（CL-17）；影片文案與 `noise-big` fixture 依 SD-FULFILL §9.3；帳號改 `roles[]` / upsert（§1.1）；§4、§5 移除已解決項目 | 主流程交辦（核准後修訂） |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：`SHIFT-WINDOW` 改以 `INSPECT.completionBasisAt + 48h` 計算（§1.2，影響 CL-69）；`emailStatus` 收斂為 `SUPPRESSED_TEST`（CL-18）/ `SKIPPED_PREFERENCE`（CL-25）；CL-18 通知日期改取 `INSPECT.fulfill.visits[].serviceDate`；ADMIN 唯讀範圍改「`DISPUTED` 或曾有任何待辦」：CL-66 加調解後 admin F13 D1 仍 200 / D2 仍 404，CL-80 註明「從未有待辦」→ 403；§5 `emailStatus` 項標已解決 | 核准後修訂（主流程交辦） |
+| 2026-11-22 | 核准後小修（狀態維持 Approved），使用者 2026-11-22 決定：F13 非當事人（他人飼主、他人保母）與不在可讀範圍的 ADMIN 不論日誌是否送出一律 404 `NOT_FOUND`。CL-78 S2 / O2 讀取改 404 並加讀 V3（`DRAFT`）對照、斷言回應相同，S2 寫入維持 403 ×4；CL-79 移除「已知邊界」，改斷言 403 `ROLE_MISMATCH`；CL-80 改 404 並加 V3 對照；§1.1 S1 用途、§3 EX-1 / EX-2 / EX-3 對應、§5 已解決項註記同步 | 使用者 2026-11-22 決定；PRD-022 / SD-FULFILL §6.3 F13 同步 |

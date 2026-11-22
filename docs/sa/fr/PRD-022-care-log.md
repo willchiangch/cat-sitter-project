@@ -41,14 +41,15 @@
 | 讀取日誌（保母視角，含草稿與逾期草稿） | ✗ 403 `ROLE_MISMATCH` | 本人訂單 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 無 |
 | 讀取已送出日誌與媒體 | 本人訂單（僅 `SUBMITTED`，BR-16；baseline §1.2 CQ-81） | 本人訂單 | 可讀訂單範圍內唯讀（`DISPUTED` 或曾有任何 ADMIN 待辦，不論狀態；§1.2、CQ-84），僅 `SUBMITTED`（CQ-81） | ✗ 401 | 無 |
 
-- 「本人訂單」= 該行程所屬訂單的 owner / sitter，以 token 身分判斷；存在但不屬於呼叫者 → 403 `FORBIDDEN`；不存在 → 404 `NOT_FOUND`；token `currentRole` 與端點要求不符 → 403 `ROLE_MISMATCH`（§1.1、§1.2）。同一帳號兼具 OWNER / SITTER 時，以 OWNER token 呼叫保母端點一律 `ROLE_MISMATCH`。
+- 「本人訂單」= 該行程所屬訂單的 owner / sitter，以 token 身分判斷；存在但不屬於呼叫者 → 403 `FORBIDDEN`（例外：讀取日誌見下一點）；不存在 → 404 `NOT_FOUND`；token `currentRole` 與端點要求不符 → 403 `ROLE_MISMATCH`（§1.1、§1.2）。同一帳號兼具 OWNER / SITTER 時，以 OWNER token 呼叫保母端點一律 `ROLE_MISMATCH`。
+- **讀取日誌例外（使用者決定 2026-11-22）**：非訂單當事人（他人飼主、他人保母）或 ADMIN 不在可讀範圍時讀取日誌，**不論日誌是否送出一律 404 `NOT_FOUND`**（不回 403 `FORBIDDEN`），避免以 403 / 404 差異推知某行程日誌是否已送出；訂單當事人以錯誤角色讀取仍 403 `ROLE_MISMATCH`（第 3 步，例：雙角色保母以 OWNER token 讀自己的草稿）。寫入端點維持 403 `FORBIDDEN`。
 - 路徑上的媒體不屬於路徑上的日誌 / 行程，或行程不屬於路徑上的訂單 → 404 `NOT_FOUND`，以路徑上層資源為準。
 - **錯誤判斷順序**（多個錯誤同時成立時回第一個；依 baseline §3.7，CQ-70、CQ-76），本卡端點對應如下：
   1. 401 `UNAUTHENTICATED`
   2. 冪等回放（同使用者、同端點、同 key、同內容；只有申請上傳與送出帶 key，BR-21；確認上傳以「此次上傳」本身冪等，已確認成功者回放第一次結果，BR-28）
   3. 403 `ROLE_MISMATCH`
-  4. 404 `NOT_FOUND`（含路徑資源不相屬；OWNER / ADMIN 讀取非 `SUBMITTED` 日誌，BR-16）
-  5. 403 `FORBIDDEN`（非訂單當事人；ADMIN 不在可讀範圍）
+  4. 404 `NOT_FOUND`（含路徑資源不相屬；OWNER / ADMIN 讀取非 `SUBMITTED` 日誌，BR-16；讀取日誌時非訂單當事人或 ADMIN 不在可讀範圍，見上方讀取日誌例外）
+  5. 403 `FORBIDDEN`（寫入端點的非訂單當事人）
   6. 400 `VALIDATION_FAILED`（文字 / 說明文字長度、申請上傳未宣告檔案或多於 1 檔、缺 `Idempotency-Key`）
   7. 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS`
   8. 409 `ORDER_STATE_CONFLICT`（訂單非 `IN_PROGRESS` / `DISPUTED`，含 `COMPLETED`（不論 O11 / O12 / O15）與 `CANCELLED`，BR-4）
@@ -199,8 +200,8 @@ stateDiagram-v2
 
 | # | 情境 | 系統行為 | HTTP / 錯誤碼 | 使用者看到 |
 |---|------|---------|--------------|-----------|
-| EX-1 | 非訂單當事人讀寫日誌 / 媒體（BOLA，含他人訂單的保母） | 拒絕，不改資料、不寫 GCS | 403 `FORBIDDEN` | 「無權限操作此行程」 |
-| EX-2 | 行程 / 日誌 / 媒體不存在，或路徑資源不相屬 | 拒絕 | 404 `NOT_FOUND` | 「找不到此行程」 |
+| EX-1 | 非訂單當事人寫入日誌 / 媒體（BOLA，含他人訂單的保母）；讀取見 EX-2 | 拒絕，不改資料、不寫 GCS | 403 `FORBIDDEN` | 「無權限操作此行程」 |
+| EX-2 | 行程 / 日誌 / 媒體不存在，或路徑資源不相屬；非訂單當事人（他人飼主、他人保母）或 ADMIN 不在可讀範圍時讀取日誌，不論日誌是否送出（使用者決定 2026-11-22） | 拒絕 | 404 `NOT_FOUND` | 「找不到此行程」 |
 | EX-3 | 飼主或 ADMIN 呼叫保母端寫入；以 OWNER token 呼叫保母端點 | 拒絕 | 403 `ROLE_MISMATCH` | 「請切換至正確角色」 |
 | EX-4 | 未登入 | 拒絕 | 401 `UNAUTHENTICATED` | 導向登入 |
 | EX-5 | 文字 > 1000 字、說明 > 100 字、申請上傳未宣告檔案 / 多於 1 檔、申請上傳或送出缺 `Idempotency-Key` | 拒絕，不會有檔案進入儲存服務 | 400 `VALIDATION_FAILED` | 欄位下方錯誤訊息 |
@@ -263,8 +264,8 @@ stateDiagram-v2
 
 - [ ] **AC-3.1 (送出通知)**：情境 1：Given O1 未關閉 PRD-014「訂單事務」Email，V1 行程日期 2026-11-25、行程名稱「早上服務」，When S1 送出 V1 日誌，Then O1 收到站內通知 1 則，內容「2026-11-25 早上服務 的照護日誌已由保母回報，快來看看毛孩的近況吧！」，點擊開啟 V1 日誌；並排入 Email 1 封。情境 2：Given O1 已關閉「訂單事務」Email，When S1 送出 V1 日誌，Then 站內通知仍 1 則、無 Email 投遞紀錄。情境 3：Given V1 可編輯，When S1 暫存、上傳、刪除媒體，或草稿逾期，Then 皆不產生通知。情境 4：Given Resend 回 5xx，When S1 送出 V1 日誌，Then 送出 200、日誌 `SUBMITTED`、站內通知存在。對應：BR-6、BR-17、EX-25
 - [ ] **AC-3.2 (飼主檢視)**：情境 1：Given V1 日誌 `SUBMITTED`（2 張照片含說明）、V2 日誌 `DRAFT`，When O1 開啟訂單詳情，Then `owner-order-detail-visit-row-{V1}` 內有 `owner-order-detail-btn-view-log-{V1}`、`owner-order-detail-visit-row-{V2}` 內無查看日誌入口；開啟 `owner-care-log-view` 顯示 `owner-care-log-visit-name`「早上服務」、文字、2 張照片與說明、送出時間（台北 `YYYY-MM-DD HH:mm`）。情境 2：Given 同上，When O1 呼叫讀取 V2 日誌，Then 404 `NOT_FOUND`。情境 3：Given V3 未自訂名稱、所屬方案群組名稱「到府餵食」且每日 1 次、日誌 `SUBMITTED`，When O1 開啟 V3 日誌，Then `owner-care-log-visit-name` 顯示「到府餵食」（PRD-008 BR-14 預設名稱）。情境 4：Given 媒體簽名網址已失效，When 前端重新請求讀取，Then 取得新網址並載入（15 分鐘有效期以後端整合測試驗證簽名參數 `X-Goog-Expires=900`，E2E 不等待過期）。情境 5：Given 訂單轉 `DISPUTED` 或 `COMPLETED`，When O1 開啟 V1 日誌，Then 仍可查看；Given 媒體已依 PRD-013 刪除，Then 該媒體位置顯示「檔案已逾期移除」。對應：BR-6、BR-16、BR-18、BR-25、EX-24
-- [ ] **AC-3.3 (越權)**：情境 1：When 未帶 token 讀寫 V1 日誌，Then 401 `UNAUTHENTICATED`。情境 2：When 他人訂單的保母 S2 讀取、暫存、上傳、刪除、送出 V1 日誌，Then 403 `FORBIDDEN`。情境 3：When 飼主 O2 讀 V1 已送出日誌，Then 403 `FORBIDDEN`。情境 4：When O1 以 OWNER token 呼叫暫存 / 上傳 / 刪除 / 送出，Then 403 `ROLE_MISMATCH`；When ADMIN 呼叫任何寫入，Then 403 `ROLE_MISMATCH`。情境 5：When 行程 ID 不存在，或以訂單 B 的路徑存取 V1，Then 404 `NOT_FOUND`。以上情境日誌與媒體皆不變、GCS 無新物件。對應：EX-1–EX-4
-- [ ] **AC-3.4 (ADMIN 唯讀)**：情境 1：Given 訂單 A `DISPUTED`、V1 `SUBMITTED`、V2 `DRAFT`，When ADMIN 讀 V1 日誌與媒體，Then 200 且畫面無編輯元素；When ADMIN 讀 V2，Then 404 `NOT_FOUND`。情境 2：Given 訂單 C `IN_PROGRESS` 且從未有任何 ADMIN 待辦，When ADMIN 讀其已送出日誌，Then 403 `FORBIDDEN`。對應：BR-16、EX-1
+- [ ] **AC-3.3 (越權)**：情境 1：When 未帶 token 讀寫 V1 日誌，Then 401 `UNAUTHENTICATED`。情境 2：When 他人訂單的保母 S2 暫存、上傳、刪除、送出 V1 日誌，Then 403 `FORBIDDEN`；When S2 讀取 V1（已送出）或 V2（`DRAFT`）日誌，Then 皆 404 `NOT_FOUND` 且兩者回應相同。情境 3：When 飼主 O2 讀 V1 已送出日誌或 V2 `DRAFT` 日誌，Then 皆 404 `NOT_FOUND` 且兩者回應相同（不洩漏日誌是否已送出）。情境 4：When O1 以 OWNER token 呼叫暫存 / 上傳 / 刪除 / 送出，Then 403 `ROLE_MISMATCH`；When ADMIN 呼叫任何寫入，Then 403 `ROLE_MISMATCH`。情境 5：When 行程 ID 不存在，或以訂單 B 的路徑存取 V1，Then 404 `NOT_FOUND`。以上情境日誌與媒體皆不變、GCS 無新物件。對應：EX-1–EX-4
+- [ ] **AC-3.4 (ADMIN 唯讀)**：情境 1：Given 訂單 A `DISPUTED`、V1 `SUBMITTED`、V2 `DRAFT`，When ADMIN 讀 V1 日誌與媒體，Then 200 且畫面無編輯元素；When ADMIN 讀 V2，Then 404 `NOT_FOUND`。情境 2：Given 訂單 C `IN_PROGRESS` 且從未有任何 ADMIN 待辦，When ADMIN 讀其已送出日誌，Then 404 `NOT_FOUND`（與讀未送出日誌相同）。對應：BR-16、EX-2
 - [ ] **AC-3.5 (送出冪等)**：情境 1：Given S1 以 key K 送出 V1 成功（200），When 以 K 與相同 body 重送，Then 回 200 與第一次相同的 body，`order_logs` 的 `CARE_LOG_SUBMITTED` 仍 1 筆、O1 站內通知仍 1 則。情境 2：Given 同上，When 以 K 改送不同文字，Then 422 `IDEMPOTENCY_KEY_REUSED`。情境 3：Given 以 K 的第一次送出仍處理中，When 再以 K 送出，Then 409 `IDEMPOTENCY_IN_PROGRESS`。情境 4：Given 情境 1 之後，When 以新 key K2 送出，Then 409 `CARE_LOG_STATE_CONFLICT`。情境 5：Given V1 可送出，When 不帶 key 送出，Then 400 `VALIDATION_FAILED`（`field = "Idempotency-Key"`）。對應：BR-21、EX-15、EX-16
 - [ ] **AC-3.6 (上傳冪等)**：情境 1：Given S1 以 key K 上傳照片並確認成功（201），When 以 K 與相同檔案、相同說明重跑申請與確認，Then 申請回放同一次上傳、不需重傳檔案，確認回 201 與第一次相同 body（不含簽名網址），媒體紀錄仍 1 筆、儲存服務中檔案仍 1 個、已用量只計 1。情境 2：Given 同上，When 以 K 改申請不同檔案，Then 422 `IDEMPOTENCY_KEY_REUSED`。情境 3：Given 第一次確認成功後已過編輯期限且距申請已超過 30 分鐘，When 以 K 同內容重跑申請與確認，Then 仍回放 201（非 `DEADLINE_PASSED`、非 `CARE_LOG_UPLOAD_EXPIRED`）。對應：BR-21、BR-26、BR-28、EX-15、EX-16
 - [ ] **AC-3.7 (跨角色競爭與鎖逾時)**：情境 1：Given 訂單 `DISPUTED`、V1 `DONE` 未逾期、日誌 `DRAFT`，When S1 送出與 ADMIN O15 調解結案同時送出，Then 依取得訂單鎖先後：送出先 → 日誌 `SUBMITTED`、訂單 `COMPLETED`；O15 先 → 訂單 `COMPLETED`、送出回 409 `ORDER_STATE_CONFLICT`、日誌仍 `DRAFT`。情境 2：Given 訂單 `IN_PROGRESS`、全部行程 `DONE`、僅 V1 日誌未送出，When S1 送出與 O1 確認結案同時送出，Then 送出先 → O11 成功；O11 先 → O11 回 409 `VISITS_NOT_FINISHED`、送出成功。情境 3：Given 訂單鎖被占用 > 3 秒，When S1 暫存，Then 409 `ORDER_BUSY` 且標頭 `Retry-After: 1`。情境 4：Given S1 以 key K 申請上傳照片並傳檔完成、訂單鎖被占用 > 3 秒，When S1 確認，Then 409 `ORDER_BUSY` 且標頭 `Retry-After: 1`、已上傳檔案保留、無媒體紀錄、已用量不變；When 鎖釋放後 S1 對同一次上傳直接重試確認（不重新傳檔），Then 201、媒體紀錄 1 筆（`ORDER_BUSY` 未被記錄為回放結果）。對應：BR-4、BR-20、BR-21、BR-28、EX-18、EX-19
@@ -314,6 +315,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後小修（狀態維持 Approved），使用者 2026-11-22 決定：讀取日誌時非訂單當事人（他人飼主、他人保母）或 ADMIN 不在可讀範圍，不論日誌是否送出一律 404 `NOT_FOUND`（取代 403 `FORBIDDEN`，移除以 403 / 404 推知日誌是否送出的存在性預言）；當事人錯角色仍 403 `ROLE_MISMATCH`。§3「本人訂單」說明加讀取例外、判斷順序第 4 / 5 步、EX-1 / EX-2、AC-3.3 情境 2（讀取部分）/ 情境 3（403 → 404，並加未送出日誌對照）、AC-3.4 情境 2（403 → 404，對應改 EX-2）同步。寫入端點仍 403 `FORBIDDEN`。AC 數不變 | 使用者 2026-11-22 決定；SD-FULFILL §6.3 F13（commit 8c1b164） |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。引用基準、§3 與 AC-3.4 情境 2 的 ADMIN 唯讀範圍改「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) §4.3-3 影片前端錯誤文案由合併句改為與 AC-2.4 / EX-12–EX-14 字面一致的三則（格式「照片僅支援 JPG、PNG、WebP；影片僅支援 MP4、MOV」、大小「影片需小於 50MB」、時長「影片長度需為 15–30 秒」，依格式 → 大小 → 時長取第一個）；(2) §7 例外表 EX-29 移到 EX-28 之後（僅排版，內容不變）；(3) §4.2 步驟 2.1 補 401 先於冪等回放（baseline §3.7，與 §3 判斷順序一致）；(4) §4.2 步驟 2.5「文字去空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。本卡畫面與通知無金額，金額格式不需改。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 使用者核准（直傳修訂後再核准，含 CQ-19~22、BR-24 建立者寫法）：狀態 In Review → Approved | 使用者 2026-11-22 |
