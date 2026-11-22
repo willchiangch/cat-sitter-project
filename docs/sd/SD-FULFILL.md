@@ -933,6 +933,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 - 範本參數：`orderId`、`visitId`（或 `visits[]` 的 `serviceDate` + `name`）、`careLogDeadlineAt`。通知不含媒體網址。
 - 測試帳號收件者：SD-NOTIFY C11 對 `@e2e-journey.test` 收件者不寄信，Email 投遞狀態標 `SUPPRESSED_TEST`（SD-ORDER 定義）。站內通知照常寫入。因此 E2E 對本 SD 四種通知只斷言站內通知內容，以及「依偏好應寄者 = `SUPPRESSED_TEST`、偏好關閉者 = 無投遞」；實際寄送與 Resend 行為由整合測試（非測試網域收件者）與 SD-NOTIFY 測試覆蓋。
 - 開始 / 結束行程、檢核項、暫存、上傳、刪除、逾期一律不通知（PRD-008 BR-18、PRD-022 BR-17）。
+- 前端通知列表依類型代碼顯示上述四種標籤與深連結，需要 `GET /api/notifications` 回傳 `type`：過渡契約見 SD-GLOBAL-SPEC §4.4（使用者 2026-11-22 決定；SD-NOTIFY 撰寫時接手）。
 
 ### 7.3 失敗處理
 
@@ -1050,7 +1051,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | F-M12 | `IdempotencyService.checkAndConsume`（`VisitReportService` 內使用） | 舊冪等（重複回 409） | 本模組改用 SD-GLOBAL-SPEC 共用的 `idempotency_records` 三段式（`@Idempotent`）；SD-ORDER M28「照護日誌維持舊表」由原作者改寫（CQ-2） |
 | F-M13 | `ServicePlanService`（`defaultTasks`） | 無對外查詢 | 新增 `findDefaultTasks`（SD-SUPPLY 過渡，§8.4.1） |
 | F-M14 | `E2eJourneyDataCleanupService.java:54–60` | 只刪 `visits` 等 | 依 §10.2 新順序與交易邊界（CQ-4） |
-| F-M15 | 前端 `pages/sitter/VisitReportManager.tsx`、`pages/client/VisitReportView.tsx`、`api/visitReportApi.ts`、`hooks/useVisitReport.ts`（舊日誌 API 與 `version`）、`routes.tsx:62–70、141、155`（`/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId`） | 舊頁面、hook 與路徑 | 刪除；改 §9.1 新頁面、hook 與路由，舊路徑轉址 |
+| F-M15 | 前端 `pages/sitter/VisitReportManager.tsx`、`pages/client/VisitReportView.tsx`、`api/visitReportApi.ts`、`hooks/useVisitReport.ts`（舊日誌 API 與 `version`）、`routes.tsx:62–70、141、155`（`/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId`） | 舊頁面、hook 與路徑 | 刪除；改 §9.1 新頁面、hook 與路由，舊路徑改顯示提示頁 `LegacyVisitLinkPage`（不轉址，§9.1） |
 | F-M16 | 前端 `pages/sitter/SitterOrders.tsx:44–84`（`sitter-order-visit-*`）、`pages/client/OwnerOrderDetail.tsx`、`api/orderApi.ts`、`hooks/useOrders.ts:36–39`（`useOrderVisitsQuery`，型別 `VisitSummaryDto[]`） | 讀舊 `GET /orders/{id}/visits`（陣列）、`label` 為方案名 | 改呼叫 F1（回應為物件 `{ orderId, orderStatus, visits }`）；`sitter-order-visit-label-{visitId}` / `-date-{visitId}` / `-status-{visitId}`，label 顯示 `name`（PRD-008 4.6 步驟 3） |
 | F-M17 | 前端 `components/notifications/resolveNotificationLink.ts` | 舊行程 / 日誌通知連結 | 支援 §7.2 四種 type 與新連結 |
 | F-M18 | 前端 `components/ui/statusLabels.ts` 行程 `CONFIRMED` 對照 | 舊狀態 | 移除 `CONFIRMED`；新增完成來源「系統自動結束」（SD-FRONTEND-SPEC §6.4 已同步修正） |
@@ -1096,7 +1097,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 照護日誌（暫存 / 送出 / 上傳 / 刪除） | 「訂單已結束，無法編輯日誌」（PRD-022 EX-6） | 前端不提供入口；送出鈕停用「行程結束後才能送出」（PRD-022 EX-7） | 「請切換至正確角色」（PRD-022 EX-3） | `CARE_LOG_STATE_CONFLICT` 畫面轉唯讀；`DEADLINE_PASSED`「已超過日誌送出期限」；`CARE_LOG_CONTENT_EMPTY`「請填寫日誌內容後再送出」；`CARE_LOG_UPLOAD_EXPIRED`「上傳逾時，請重新上傳」（EX-29）；400 `reason=SHA256_MISMATCH`「檔案上傳不完整，請重新選擇檔案」（EX-30）；400 `reason=OBJECT_MISSING` 不顯示文案，前端自動補傳後再確認（EX-30）；F17 503「儲存服務暫時無法使用，請稍候重試」（EX-21 (1)）；`CARE_LOG_MEDIA_*` 依 PRD-022 EX-11–14 |
 
 - 「待處理」區 `PENDING` 卡片（PRD-008 §4.5-2）：`zombieDeadlinePassed=false` 時顯示「系統將於 {`zombieAt`，YYYY-MM-DD HH:mm} 關閉」；`zombieDeadlinePassed=true`（已過 `VISIT_ZOMBIE_AT`、排程尚未關閉）改以 `sitter-dashboard-visit-deadline-passed-{visitId}` 顯示「已超過可開始期限，系統將自動關閉」，與服務面板 `sitter-visit-panel-deadline-passed-message` 一致（使用者 2026-11-22 決定 C；PRD-008 由 writer 同步）。
-- 舊路由 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 以 F2 / F13 查出 `orderId` 後轉址到新路由（舊通知連結相容）。
+- 舊路由 `/visit-reports/manage/:visitId`（SITTER）、`/visit-reports/view/:visitId`（OWNER）**不轉址**，改顯示提示頁 `LegacyVisitLinkPage`（使用者 2026-11-22 決定）：容器 `legacy-visit-link`，文案「此連結已更新，請從行程或訂單詳情進入照護日誌。」，一顆按鈕 `legacy-visit-link-btn-back` 依目前角色導向 SITTER `/sitter/visits`（「前往行程」）或 OWNER `/owner/orders`（「前往我的訂單」）；不呼叫任何 API、無載入 / 空 / 錯誤狀態；角色守門沿用路由現行 `RequireRole`。理由：F2 / F13 路徑本身就需要 `orderId`，後端沒有以 `visitId` 反查訂單的端點；系統尚未上線，外部不存在舊通知連結，不為此新增反查 API（反查端點另需歸屬檢查與 404 / 403 區分，成本大於效益）。
 - 服務面板「開始行程」三態（PRD-008 §4.1 步驟 2）依 F2 的 `dateReached`、`zombieDeadlinePassed` 決定；按下後以伺服器結果為準。
 - 打勾時間：已打勾項目在 `sitter-visit-panel-checklist-item-{itemId}` 內以 `sitter-visit-panel-checklist-checked-at-{itemId}` 顯示 `checkedAt`（Asia/Taipei `YYYY-MM-DD HH:mm`）；未打勾不顯示該元素（PRD-028 AC-2.1 情境 1；testid 由 writer 回寫 PRD-028 §9）。
 - 結束確認框未打勾提示：`n = checklist.total − checklist.completed`；`n = 0` 或無檢核項時不顯示該行（PRD-008 AC-1.5 情境 2）。
@@ -1256,6 +1257,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§9.1 舊路由 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 由「以 F2 / F13 查出 `orderId` 後轉址」改為顯示提示頁 `LegacyVisitLinkPage`（`legacy-visit-link`、`legacy-visit-link-btn-back`，依角色導向行程列表 / 我的訂單）；§8 F-M15 同步；§7.2 補註通知列表 `type` 欄位見 SD-GLOBAL-SPEC §4.4。理由：後端無 `visitId` → `orderId` 反查、系統未上線不存在舊連結 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者決定（核准後小修，狀態維持 Approved）：§8.2 物件鍵副檔名改為 F16 依宣告 `contentType` 決定（對齊實作），影片 MP4 / MOV 同族時以宣告型別存放與回應 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者決定之核准後修訂（狀態維持 Approved，同步實作細節）：(1) §6.3 F1 OWNER / ADMIN 的 `careLog` 加 `deadlineAt`（由行程時間推導，不洩漏草稿）；(2) §4.4 影片 MP4 / MOV 視為同一格式族，照片實際格式須與宣告相同；(3) §6.3 FC1 / FC2 批次上限與計數：FC1 以訂單、FC2 以上傳槽位為單位（取代前一列「計數以訂單為單位」對 FC2 的描述）；(4) §10.1 PRD-028 EX-9 改為「新增檢核項 vs 同意取消」（打勾 vs 同意取消不會發生）；(5) §6.3 FT1 / FT2 操作者記 `SYSTEM`、`careLogSubmitted` 預設文字，僅供測試；(6) §8.2 local 上傳簽名金鑰未設定時每次啟動隨機產生（`@Profile("local")`） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§8.3 DF2 bucket CORS 移除 Cloud Run `*.run.app` origin（U-6）；§8.2 `generateSignedUrl` 加 `contentType` 參數、簽名 GET 帶 `response-content-type` 與 `response-content-disposition=inline`（型別由物件鍵副檔名對映），§6.3 `MediaItem.url` 與 §11 決策 3 同步（U-7） | NFR-003 核准回寫，使用者 2026-11-22 同意 |

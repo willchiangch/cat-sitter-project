@@ -134,6 +134,8 @@
 | PRD-016 | AC-3.7 發起與報價冪等 | E17 / E20 回放 | `idempotency_records` | 三段式 | `ModificationIdempotencyIntegrationTest` |
 | PRD-016 | AC-3.8 寄信失敗不影響轉移 | E17；outbox | `notifications` | enqueue 同交易 | `ModificationInitiateIntegrationTest` |
 
+- 變更金額試算 E32（發起前，對應 E17 輸入）/ E33（報價前，對應 E20 輸入）不新增 AC：它讓 AC-1.3、AC-2.1、AC-2.3、AC-2.4 在畫面上顯示的新總額與差額由伺服器以送出時同一條計價路徑算出（使用者 2026-11-22 決定，§6.3 E32 / E33）；測試 `ModificationPreviewIntegrationTest`（§10.3）。
+
 ### 1.5 PRD-023 訂單變更：飼主回應、補款、退款與結清
 
 | PRD | AC | API / 畫面 | Table / 欄位 | 鎖 / 交易 | 測試 |
@@ -345,6 +347,8 @@
 | E29 | POST | `/api/admin/orders/{orderId}/mediation` | ADMIN | O15 / O17（終態由系統依行程判斷，CQ-57） | PRD-020 |
 | E30 | GET | `/api/orders/sitter/ledger` | SITTER | 帳務總覽（payments 加總） | PRD-009 |
 | E31 | GET | `/api/sitters/{sitterId}/booking-context` | 匿名 / 任一角色 | 可預約判斷、門禁過濾後方案、問卷是否需填與題目 | PRD-005 |
+| E32 | POST | `/api/orders/{orderId}/modifications/preview` | OWNER / SITTER（當事人） | 發起變更前的金額試算（唯讀，輸入同 E17） | PRD-016 變更精靈 |
+| E33 | POST | `/api/orders/{orderId}/modifications/{modificationId}/quote/preview` | SITTER | 變更報價前的金額試算（唯讀，輸入同 E20） | PRD-016 協商頁報價表單 |
 
 #### 2.3.5 其他 SD 可用的查詢
 
@@ -567,6 +571,8 @@ stateDiagram-v2
 
 - **內容儲存**：OWNER 期望內容存 `requested_content`，SITTER 報價內容存 `quoted_content`（JSONB，結構：減少的行程 id 陣列 + 新增項目陣列〔日期、方案、每日次數、毛孩 id〕）；鎖內以 SD-FULFILL 行程狀態驗證減少目標。
 - **計價**：`system_amount = Σ(新內容有效行程的 order_plan_snapshots.unit_price)`；PRO / ULTIMATE 未鎖定可加減（`PlanPolicy`），新總額 0–999,999。
+- **有效行程**（PRD-016 BR-12、baseline §3.1 / §3.4）：本訂單非 `CANCELLED` 且不在減少目標內的行程（含 `DONE`、`CLOSED_BY_SYSTEM`、`IN_PROGRESS`、保留的 `PENDING`）+ 新增行程（單價 × 每日次數）。實作以 `VisitView.effective()`（`status != CANCELLED`）判斷，`CLOSED_BY_SYSTEM` 計價。
+- **計價與檢查單一來源**（使用者 2026-11-22 決定）：E17 / E20 / E32 / E33 / C6（`removedAmount`）共用 `ModificationPlanner`。`ModificationPlanner.price(content, ctx)` 回傳明細（保留行程逐列單價、新增項目逐列小計）與 `system_amount`，`systemAmount()` 只是取其合計；E17 / E20 在鎖內、E32 / E33 在唯讀交易內呼叫**同一個**檢查序列方法（`ModificationEvaluator.evaluateInitiate` / `evaluateQuote`：G6 伺服器資料檢查 → 409 → 422 → 403 → 計價 → 已收淨額），不得在試算端點另寫公式或檢查；前端不得自行加總單價。
 
 ### 3.4 事前問卷（只有 O1 寫入）
 
@@ -1402,7 +1408,7 @@ erDiagram
 | G2 | 冪等回放 | `IdempotencyInterceptor` |
 | G3 | 403 `ROLE_MISMATCH` | `@PreAuthorize` |
 | G4 | 404 `NOT_FOUND`（訂單、路徑子資源；子資源不屬路徑訂單也是 404） | Service，`OrderException(NOT_FOUND)` |
-| G4a | 403 `ROLE_MISMATCH`：token `userId` 是此訂單的 owner 或 sitter，但 `currentRole` 不是其在此訂單的當事人角色（例：該單保母以 OWNER token 呼叫 E14、E17）（CQ-40 已決） | Service，`OrderException(ROLE_MISMATCH)`；只在允許 OWNER 與 SITTER 兩種角色的端點（E2、E10–E15、E17–E19、E21、E22、E24）需要，單一角色端點已由 G3 擋下 |
+| G4a | 403 `ROLE_MISMATCH`：token `userId` 是此訂單的 owner 或 sitter，但 `currentRole` 不是其在此訂單的當事人角色（例：該單保母以 OWNER token 呼叫 E14、E17）（CQ-40 已決） | Service，`OrderException(ROLE_MISMATCH)`；只在允許 OWNER 與 SITTER 兩種角色的端點（E2、E10–E15、E17–E19、E21、E22、E24、E32）需要，單一角色端點已由 G3 擋下 |
 | G5 | 403 `FORBIDDEN`（非當事人；ADMIN 不在可讀範圍；當事人且角色正確但非此動作的操作方，例：保母以 SITTER 上傳 CHARGE、飼主確認 CHARGE） | Service，`OrderException(FORBIDDEN)` |
 | G6 | 400 `VALIDATION_FAILED`（含缺 `Idempotency-Key`） | `OrderRequestValidator` |
 | G7 | 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` | `IdempotencyService.claim`，`IdempotencyException` |
@@ -1443,9 +1449,11 @@ erDiagram
 | E29 | POST | `/api/admin/orders/{orderId}/mediation` | ADMIN | — | 訂單 `DISPUTED`（可讀範圍） | 必填 |
 | E30 | GET | `/api/orders/sitter/ledger` | SITTER | — | 只查 `sitter_id = token` | — |
 | E31 | GET | `/api/sitters/{sitterId}/booking-context` | 匿名可（Optional JWT） | — | — | — |
+| E32 | POST | `/api/orders/{orderId}/modifications/preview` | OWNER, SITTER | SITTER 第 13 步 `PLAN_REQUIRED`（同 E17） | 當事人（同 E17） | 不適用（唯讀，不掛 `@Idempotent`） |
+| E33 | POST | `/api/orders/{orderId}/modifications/{modificationId}/quote/preview` | SITTER | 第 13 步 `PLAN_REQUIRED`（同 E20） | `order.sitter == token` | 不適用（唯讀，不掛 `@Idempotent`） |
 | C1–C10 | POST | `/api/internal/cron/...`（§8.1） | `ROLE_INTERNAL`（`InternalSecretFilter`） | — | — | 不適用（以重驗保證可重跑） |
 
-共 **31 支使用者端點 + 10 支排程端點**。
+共 **33 支使用者端點 + 10 支排程端點**（E32 / E33 為 2026-11-22 新增的唯讀試算端點）。
 
 - 混合角色端點的歸屬檢查一律：非當事人 → `FORBIDDEN`；當事人但 `currentRole` 不是其當事人角色 → `ROLE_MISMATCH`（G4a）；當事人且角色正確但方向 / 操作方不符 → `FORBIDDEN`（G5）。
 
@@ -1678,6 +1686,60 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 - `questionnaire` 只在 token 為 OWNER 時回傳（熟客或無題目 → `required=false`）。
 - 錯誤：404 保母不存在。
 
+#### E32 `POST /api/orders/{orderId}/modifications/preview`、E33 `POST /api/orders/{orderId}/modifications/{modificationId}/quote/preview`（變更金額試算，唯讀）
+
+> 使用者 2026-11-22 決定：變更精靈（E17 前）與保母報價表單（E20 前）的新總額、差額一律由伺服器試算，前端不自行加總快照單價。兩支共用同一個 Service 方法與回應型別，差別只在輸入對應 E17 或 E20。
+
+**誰能呼叫**
+
+| 端點 | `@PreAuthorize` | 歸屬 | 對應的送出端點 |
+|------|----------------|------|---------------|
+| E32 | `hasAnyRole('OWNER','SITTER')` | 當事人；G4a 當事人錯角色 → 403 `ROLE_MISMATCH`；非當事人 → 403 `FORBIDDEN`（與 E17 相同） | E17（OWNER 試算 = 系統價；SITTER 試算含加減） |
+| E33 | `hasRole('SITTER')` | `order.sitter == token`，否則 403 `FORBIDDEN`；`modificationId` 不屬路徑訂單 → 404（與 E20 相同） | E20 |
+
+ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
+
+**Request**
+
+- E32：body 與 E17 完全相同（`type`、`reason`、`removeVisitIds[]`、`addItems[]`、`surchargeAmount`、`discountAmount`、`adjustmentReason`），以同一個 DTO `ModificationRequests.Initiate` 解析；OWNER 送加減欄位同 E17 一律忽略。
+- E33：body 與 E20 完全相同（`ModificationRequests.Quote`）；`type` 取自該變更列，`CANCEL_ALL` 忽略 `removeVisitIds`，減少目標固定為當下所有 `PENDING` 行程（同 E20）。
+- 不需要、也不讀 `Idempotency-Key`（帶了也忽略，不寫 `idempotency_records`）。
+- **不驗證的欄位**（只有這兩項與送出不同）：`reason`（E32）、`adjustmentReason`（E32 SITTER / E33）不參與計價，試算時不檢查必填與長度、也不回傳；送出時照 E17 / E20 規則檢查。理由與捨棄方案見 §11.4「試算端點的文字欄位」。
+
+**Response 200**
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `type` | `CHANGE` / `CANCEL_ALL` | E32 取 request；E33 取變更列 |
+| `removeVisitIds` | UUID[] | 實際減少目標（`CANCEL_ALL` = 當下所有 `PENDING` 行程，依 `serviceDate`、`visitId` 升冪） |
+| `breakdown.kept[]` | array | 變更後保留的有效行程，每列 `visitId`、`planId`、`serviceDate`、`status`（`PENDING` / `IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM`）、`unitPrice`（`order_plan_snapshots.unit_price`）；依 `serviceDate`、`visitId` 升冪 |
+| `breakdown.added[]` | array | 新增項目，每列 `index`（對應 request `addItems` 索引）、`date`、`planId`、`dailyCount`、`unitPrice`、`subtotal`（= `unitPrice × dailyCount`） |
+| `systemAmount` | int | Σ `kept[].unitPrice` + Σ `added[].subtotal`（由 `ModificationPlanner.price` 一次算出，明細與合計同源） |
+| `surchargeAmount` / `discountAmount` | int | SITTER 為 request 值（未帶 = 0）；OWNER 固定 0 |
+| `newTotalAmount` | int | `systemAmount + surchargeAmount − discountAmount`；OWNER 試算 = `systemAmount`（保母報價時 PRO / ULTIMATE 未鎖定可能再加減） |
+| `currentTotalAmount` | int | 試算當下 `orders.total_amount` |
+| `netPaid` | int | 試算當下已收淨額（baseline §4，與 E17 / E20 寫入 `quoted_net_paid` 同一個 `OrderAggregateSupport.netPaid`） |
+| `diff` | int | `newTotalAmount − netPaid`（> 0 應補款、< 0 應退款） |
+| `pricingMode` | `SYSTEM_ONLY` / `CUSTOM_ALLOWED` | 只在 SITTER 呼叫時回傳（`PlanPolicy.adjustmentAllowed`，鎖定 / 停權 = `SYSTEM_ONLY`）；OWNER 不回，避免揭露保母方案等級 |
+| `computedAt` | ISO-8601 | 注入 `Clock` 的試算時間 |
+
+- 不變式：同一份輸入、同一份資料狀態下，E32 回的 `systemAmount` / `newTotalAmount` / `netPaid` / `diff` 必須等於 E17（SITTER）回應與寫入 `modification_requests` 的 `system_amount` / `new_total_amount` / `quoted_net_paid` / `quoted_diff`；E33 對 E20 亦同；OWNER 的 E32 `systemAmount` 等於保母對該 `REQUESTED` 變更以相同內容、不加減呼叫 E20 的 `system_amount`。
+
+**判斷順序與錯誤**（與送出端點相同，但沒有 G2 冪等回放、G7 冪等認領、L 訂單鎖，因此**不會**回 `ORDER_BUSY`、`IDEMPOTENCY_*`）
+
+- E32：G1 → G3 → G4 → G4a → G5 → G6（`type`、`removeVisitIds` 格式與歸屬、`addItems` 欄位、毛孩範圍、同方案同日合計 > 3、日期總數 > 60；SITTER 另含加減範圍 0–999,999、新總額 > 999,999）→ 409 `ORDER_STATE_CONFLICT`（非 `CONFIRMED` / `IN_PROGRESS`，含 `DISPUTED`）→ 409 `MODIFICATION_IN_PROGRESS` → 409 `MODIFICATION_NOT_ALLOWED`（無 `PENDING` 行程）→ 409 `VISIT_ALREADY_STARTED`（`visitIds`）→ 422 `INVALID_VISIT_DATE`（`reason=DATE_OUT_OF_RANGE` / `PLAN_NOT_IN_RANGE`）/ `MODIFICATION_EMPTY` / `PLAN_NOT_IN_ORDER` /（SITTER）`INVALID_MODIFICATION_AMOUNT` →（SITTER 帶加減且 FREE / BASIC / 鎖定）403 `PLAN_REQUIRED`。
+- E33：G1 → G3 → G4（訂單、變更）→ G5 → G6（同 E20）→ 409 `ORDER_STATE_CONFLICT` → `MODIFICATION_STATE_CONFLICT`（非 `REQUESTED`）→ `DEADLINE_PASSED`（`MODIFICATION_EXPIRES_AT`）→ `VISIT_ALREADY_STARTED` → 422 `INVALID_VISIT_DATE` / `MODIFICATION_EMPTY` / `PLAN_NOT_IN_ORDER` / `INVALID_MODIFICATION_AMOUNT` → 403 `PLAN_REQUIRED`。
+- 拋出：全部為 `application/exception/OrderException`（`OrderErrorCode` 同 E17 / E20），由 `OrderExceptionHandler` 依 §6.5 對映；角色由 `@PreAuthorize` 拋 `AuthorizationDeniedException` → 全域 `GlobalExceptionHandler` 403 `ROLE_MISMATCH`。無新錯誤碼、無新例外類別。
+- 429 `RATE_LIMITED`：照 SD-GLOBAL-SPEC §2.8 一般限流（`U:{userId}` 每分鐘 300 次），不另設上限；前端依 §9.2 防抖。
+- 非冪等 body 上限依 SD-GLOBAL-SPEC §2.8（1 MB）。
+
+**交易、鎖與副作用**
+
+- 整支在一個 `@Transactional(readOnly = true)`（`OrderCommandSupport.readOnly`）內：讀訂單、`VisitQueryService.listVisits`、群組與毛孩、方案快照、方案區間（`ServicePlanQuery.findForBooking`）、未結束變更存在與否、已收淨額、`PlanPolicy.status`；固定查詢次數、不依行程數 N+1；每請求 1 條連線（Hikari ≤ 2）。
+- **不取訂單鎖**：結果只供畫面顯示，正確性由送出端點在鎖內重驗與重算保證；取鎖會與真正的寫入搶 `lock_timeout` 3 秒、使送出端點更容易 `ORDER_BUSY`，而精靈在內容變動時會反覆呼叫。READ COMMITTED 下多條查詢可能看到不同時間點的資料，可接受（同上理由）。
+- 無副作用：不寫 `modification_requests`、`order_logs`、`notifications`、`idempotency_records`，不改 `orders.version`；不呼叫 `VisitCommandService`。
+- 送出時若資料已變（例：行程剛被開始、付款剛確認），送出端點回的值為準（或回 409 / 422），前端以送出回應覆蓋試算值，不比對、不提示差異。
+
 #### C1–C10 排程端點
 
 | 項目 | 契約 |
@@ -1700,7 +1762,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `HttpMessageNotReadableException`、`MethodArgumentTypeMismatchException`、`MissingServletRequestPartException`、`MissingServletRequestParameterException`、`HttpMediaTypeNotSupportedException`、`MultipartException`、`MaxUploadSizeExceededException` | 400 `VALIDATION_FAILED`（§6.1 格式） |
 | 未處理例外（含 `OrderLockNotHeldException`、`PayoutAccountMissingException`） | 500 `INTERNAL_ERROR`（§6.1 格式，不含堆疊） |
 
-**訂單專屬 `OrderExceptionHandler`**（`@RestControllerAdvice(basePackageClasses = 訂單 controller 套件)` + `@Order(Ordered.HIGHEST_PRECEDENCE)`，只套 E1–E31；其他模組維持現行對映）：
+**訂單專屬 `OrderExceptionHandler`**（`@RestControllerAdvice(basePackageClasses = 訂單 controller 套件)` + `@Order(Ordered.HIGHEST_PRECEDENCE)`，只套 E1–E33；其他模組維持現行對映）：
 
 | 例外（`application/exception/`） | 帶的資料 | 對映 |
 |------|---------|------|
@@ -2046,8 +2108,8 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `/owner/orders/:orderId` | OWNER | E2、E10、E12、E13、E8、E11、E14、E25、E26 | 詳情骨架 | 尚無 payment 時不顯示付款區塊（PRD-007 AC-1.1） | 404「找不到此訂單」；`ORDER_BUSY` 自動重試一次後「系統忙碌，請稍後再試」 | 403「無權限操作此訂單」 | `owner-order-detail-quote-breakdown`（PRD-006）；`owner-order-detail-btn-withdraw`、`owner-order-withdraw-input-reason`、`owner-order-withdraw-btn-confirm`、`owner-order-detail-withdraw-blocked-message`（PRD-026）；`owner-order-detail-cancel-result`（PRD-027）；`payment-amount`、`payment-account-snapshot`、`payment-due-at`、`proof-disclaimer-checkbox`、`proof-last5-input`、`proof-file-input`、`proof-submit-btn`、`submission-history`、`btn-verify-payment`（退款確認）（PRD-007）；頁面不得出現 `order-total-amount` |
 | `/sitter/orders` | SITTER | E4 | 列表骨架 | 各分頁「尚無訂單」 | 重試 | 角色不符導向角色切換 | `sitter-orders-tab-evaluating`、`sitter-orders-tab-active`、`sitter-orders-tab-history`、`sitter-order-card-{orderId}`（§9.3） |
 | `/sitter/orders/:orderId`（新；`/sitter/eval/:orderId` 轉址至此；O2 報價成功後留在本頁，以 E6 回應立即重新渲染為「待付款」狀態，並使 E2 / E4 列表 query 失效重抓，不整頁 reload） | SITTER | E2、E5、E6、E7、E9、E10、E12–E15 | 詳情骨架 | 同上 | 同上 | 同上 | `sitter-order-eval-review-expires-at`、`sitter-order-eval-pet-{petId}`、`sitter-order-eval-pet-deleted-label-{petId}`、`sitter-order-eval-regular-badge`、`sitter-order-eval-questionnaire-answers`、`sitter-order-eval-questionnaire-exempt-label`、`sitter-order-eval-precheck-banner`、`sitter-order-eval-btn-quote-original`、`sitter-order-eval-btn-quote-adjust`、`sitter-order-eval-input-surcharge`、`sitter-order-eval-input-discount`、`sitter-order-eval-input-pricing-notes`、`sitter-order-eval-btn-quote-submit`（PRD-006）；`sitter-order-eval-btn-decline`、`sitter-order-decline-input-reason`、`sitter-order-decline-btn-quick-reason-{n}`、`sitter-order-decline-btn-confirm`、`sitter-order-decline-btn-referral`、`sitter-order-detail-btn-cancel`、`sitter-order-cancel-input-reason`、`sitter-order-cancel-btn-quick-reason-{n}`、`sitter-order-cancel-btn-confirm`、`sitter-order-cancel-blocked-message`（PRD-027）；`btn-verify-payment`、`btn-reject-payment`、`reject-reason-input`、`submission-history`、`payment-amount`，退款上傳用 `proof-disclaimer-checkbox`、`proof-last5-input`、`proof-file-input`、`proof-submit-btn`（PRD-007 AC-1.2） |
-| `/orders/:orderId/modify` | OWNER / SITTER | E2、E17 | 骨架 | 無 `PENDING` 行程時不顯示入口（PRD-016 §9） | 依 §6.5 對應 PRD-016 §7 文案 | 403 | `order-modify-type-{type}`、`order-modify-visit-checkbox-{visitId}`、`order-modify-add-item-{index}`、`order-modify-input-reason`、`order-modify-btn-submit`（PRD-016） |
-| `/orders/:orderId/modifications/:modificationId`（新；取代 `/sitter/orders/:orderId/quote`、`/owner/orders/:orderId/modification-confirm`） | OWNER / SITTER | E19、E20–E24、E10、E11、E14 | 骨架 | — | 逾期：隱藏動作、顯示「此變更請求已逾期」 | 403 | `modification-detail-diff`、`modification-detail-expires-at`、`modification-btn-quote`、`modification-btn-reject`、`modification-input-reject-reason`、`modification-btn-withdraw`（PRD-016）；`modification-btn-accept`（PRD-023）；`modification-btn-payment-dispute`、`payment-dispute-input-description`、`payment-dispute-btn-submit`、`payment-dispute-available-at`（PRD-024）；補款 / 退款區塊沿用 `payment-amount`、`payment-account-snapshot`、`payment-due-at`、`proof-disclaimer-checkbox`、`proof-last5-input`、`proof-file-input`、`proof-submit-btn`、`submission-history`、`btn-verify-payment`、`btn-reject-payment`、`reject-reason-input`（PRD-007、PRD-023 §9） |
+| `/orders/:orderId/modify` | OWNER / SITTER | E2、E32（試算）、E17 | 骨架；試算中金額區顯示「計算中…」並停用送出 | 無 `PENDING` 行程時不顯示入口（PRD-016 §9） | 依 §6.5 對應 PRD-016 §7 文案；E32 回 400 / 409 / 422 / 403 時金額區隱藏數字、顯示同一錯誤文案並停用送出 | 403 | `order-modify-type-{type}`、`order-modify-visit-checkbox-{visitId}`、`order-modify-add-item-{index}`、`order-modify-input-reason`、`order-modify-btn-submit`（PRD-016） |
+| `/orders/:orderId/modifications/:modificationId`（新；取代 `/sitter/orders/:orderId/quote`、`/owner/orders/:orderId/modification-confirm`） | OWNER / SITTER | E19、E33（SITTER 報價表單試算）、E20–E24、E10、E11、E14 | 骨架 | — | 逾期：隱藏動作、顯示「此變更請求已逾期」 | 403 | `modification-detail-diff`、`modification-detail-expires-at`、`modification-btn-quote`、`modification-btn-reject`、`modification-input-reject-reason`、`modification-btn-withdraw`（PRD-016）；`modification-btn-accept`（PRD-023）；`modification-btn-payment-dispute`、`payment-dispute-input-description`、`payment-dispute-btn-submit`、`payment-dispute-available-at`（PRD-024）；補款 / 退款區塊沿用 `payment-amount`、`payment-account-snapshot`、`payment-due-at`、`proof-disclaimer-checkbox`、`proof-last5-input`、`proof-file-input`、`proof-submit-btn`、`submission-history`、`btn-verify-payment`、`btn-reject-payment`、`reject-reason-input`（PRD-007、PRD-023 §9） |
 | 變更歷史（訂單詳情內區塊） | OWNER / SITTER | E18 | 骨架 | 「尚無變更紀錄」（PRD-016 §4.6） | 重試 | — | `modification-history-item-{modificationId}`、`modification-history-empty`（PRD-016） |
 | `/sitter/ledger`（保母「收款」分頁，PRD-009 BR-22） | SITTER | E30 | 骨架 | 總收入 $ 0 並顯示「本月沒有已結束的訂單」（`sitter-ledger-empty`） | 重試 | 角色不符 | `sitter-ledger-select-month`、`sitter-ledger-total-income`、`sitter-ledger-item-{orderId}`、`sitter-ledger-empty`（PRD-009） |
 | `/admin/tasks`（新） | ADMIN | E28 | 骨架 | 「目前沒有待辦」（文案待 PRD-020） | 重試 | 非 ADMIN 不顯示選單 | `admin-task-item-{taskId}`（§9.3）；其餘 PRD-020 改寫時定義 |
@@ -2065,6 +2127,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 - 「今天」、日期選擇器範圍、期限與預檢一律以後端回傳的 `serverTime`（E2 / E5 / E31）或 `serverMonth`（E30）為準。
 - 文字欄位去頭尾空白一律依 SD-GLOBAL-SPEC §2.7（等同 Java `String.strip()`，含 U+3000、U+00A0），前端計數與後端一致。
 - 回應中值為 null 的欄位不輸出（§6.1），前端型別以可選欄位表示。
+- **變更金額一律取伺服器試算**（使用者 2026-11-22 決定）：變更精靈（E17 前）呼叫 E32、協商頁保母報價表單（E20 前）呼叫 E33，畫面上的系統計價、新總額、差額與「新總額不可小於 0 / 超過上限」提示全部取自試算回應或其錯誤碼；前端**不得**以 E2 `visits[]` 加總快照單價（移除現行 `estimateSystemAmount`）。觸發時機：減少目標、新增項目、加減金額任一變動後防抖 400 ms 呼叫一次，只採用最後一次請求的回應（較早的回應晚到則丟棄）；`reason` / `adjustmentReason` 變動不觸發。試算回應前與試算失敗時送出鈕停用；送出成功後以 E17 / E20 回應的金額為準。OWNER 精靈的新總額旁標示為系統計價（文案見 §12 待釐清）。
 
 ### 9.3 本 SD 補定的 testid（PRD 未定義，TS 撰寫回饋，使用者 2026-11-22 同意）
 
@@ -2084,6 +2147,8 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 進行中變更入口 | `owner-order-detail-btn-open-modification`、`sitter-order-detail-btn-open-modification` | E2 `openModification` 非 null 時顯示，進協商頁 `/orders/:orderId/modifications/:modificationId` |
 | 變更歷史單筆 | 沿用 PRD-016 `modification-history-item-{modificationId}` | **可點**，進同一協商頁的唯讀明細（終態只顯示結果，PRD-016 §4.6） |
 | 變更精靈新增一列 | `order-modify-btn-add-item` | 新增一個 `order-modify-add-item-{index}` |
+| 變更精靈試算結果 | `order-modify-preview-system-amount`、`order-modify-preview-new-total`、`order-modify-preview-diff`、`order-modify-preview-loading`、`order-modify-preview-error` | 取自 E32；`-loading` 於請求中顯示，`-error` 顯示試算錯誤碼文案（使用者 2026-11-22 決定新增試算） |
+| 報價表單試算結果 | `modification-quote-preview-system-amount`、`modification-quote-preview-new-total`、`modification-quote-preview-diff`、`modification-quote-preview-loading`、`modification-quote-preview-error` | 取自 E33，位於協商頁 `modification-btn-quote` 所在表單 |
 | 報價明細三段 | `order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`、`order-detail-quote-current-total` | 位於 PRD-006 `owner-order-detail-quote-breakdown` 內（雙方頁面共用）；`SUPPLEMENT_EXPIRED` 列以來源變更的 `modificationId` 為鍵 |
 | 報價預檢升級入口 | `sitter-order-eval-precheck-upgrade-link` | `precheck.quotaReached` 時出現在 PRD-006 `sitter-order-eval-precheck-banner` 內（PRD-006 選 A） |
 | 飼主取消結果標題 | 沿用 PRD-027 `owner-order-detail-cancel-result` | O3 婉拒「保母已婉拒此預約」（PRD-027）；O4 / O7 標題文案見 §12 CQ-24 |
@@ -2139,6 +2204,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `ModificationQuoteIntegrationTest` | PRD-016 AC-2.1–2.5、AC-2.7、AC-2.8 | 計價範圍含 `DONE` / `CLOSED_BY_SYSTEM`；FREE / BASIC / 鎖定依系統計算；PRO 加減；`INVALID_VISIT_DATE` 先於 `PLAN_REQUIRED`；方案區間依報價當下等級 |
 | `ModificationLifecycleIntegrationTest` | PRD-016 AC-2.6、AC-3.1、AC-3.2、AC-3.4；PRD-023 AC-1.6 | 拒絕（雙方各自可拒絕的狀態）、撤回權限（SYSTEM 變更 403）、期限以時間判斷、`ended_at` |
 | `ModificationCronIntegrationTest` | PRD-016 AC-3.3 | C5：同批 3 筆其中 1 筆處理拋例外 → 該筆回滾計 `failed`、其他照常、下一輪重試（PRD-016 EX-20）；`REQUESTED` / `QUOTED` 到期轉 `EXPIRED`、`ended_at`、SYSTEM log 與雙方通知；鎖後已是終態則略過、不重複 log；訂單 `DISPUTED` 略過 |
+| `ModificationPreviewIntegrationTest` | PRD-016 AC-1.3、AC-2.1、AC-2.3、AC-2.4（試算支援，§6.3 E32 / E33） | (1) **試算 = 送出**：訂單 V1 `DONE`、V2 `CLOSED_BY_SYSTEM`、V3 `PENDING`（單價各 500），同一份輸入先打 E32（SITTER，`CHANGE`：減少 V3、新增 1 筆 2 次、PRO 加價 100）再打 E17，斷言 E32 的 `systemAmount` / `newTotalAmount` / `netPaid` / `diff` 等於 E17 回應與 DB `system_amount` / `new_total_amount` / `quoted_net_paid` / `quoted_diff`，且 `breakdown.kept` 含 V2（`CLOSED_BY_SYSTEM`）、Σ 明細 = `systemAmount`；(2) 同 (1) 換 E33 / E20，含 PRD-016 AC-2.4 資料（`CANCEL_ALL`、BASIC → 新總額 1000、差額 −500）與全 `PENDING` 的 `CANCEL_ALL`（新總額 0）；(3) OWNER 打 E32 → E17 建 `REQUESTED` → 保母以相同內容不加減打 E20，E32 `systemAmount` = DB `system_amount`，OWNER 回應無 `pricingMode`；(4) **錯誤一致**：參數化表逐列對 E32 與 E17（及 E33 與 E20）送相同非法輸入（每日次數 4、同日合計 4、日期 61 個、訂單外毛孩、不屬本訂單的行程、方案不在快照、新增日期 = 今天、空 `CHANGE`、減少 `DONE` 行程、FREE 帶加價、加減後 < 0、新總額 1,000,000、`DISPUTED` 訂單、已有未結束變更、E33 對 `QUOTED` / 已逾期變更），斷言 HTTP 狀態、`code`、`payload` 相同；(5) **無副作用**：E32 / E33 成功與失敗後 `modification_requests`、`order_logs`、`notifications`、`idempotency_records` 列數不變、`orders.version` 不變；不帶 `Idempotency-Key` → 200；(6) **不取鎖**：另一交易以 `FOR NO KEY UPDATE` 持有訂單列時呼叫 E32，1 秒內回 200（不回 `ORDER_BUSY`）；(7) 鎖定保母 E32 → `pricingMode=SYSTEM_ONLY`、帶加價 → 403 `PLAN_REQUIRED`；(8) `reason` / `adjustmentReason` 缺漏仍 200（§11.4）；(9) 身分案例併入 `OrderIdentitySecurityTest`（E32 G4a、E33 非本單保母 403、變更不屬訂單 404、ADMIN 403 `ROLE_MISMATCH`）；(10) AU：`OrderAggregateArchTest` 加規則：試算 Service 不得依賴 `OrderLockService`、`IdempotencyService`、`OrderLogWriter`、`OrderNotifier`、`VisitCommandService` 與任何 Repository 的寫入方法 |
 | `ModificationQueryIntegrationTest` | PRD-016 AC-3.5 | 歷史倒序、空清單、`allowedActions` 依 §4.6 表與逾期 |
 | `ModificationIntegrationTest` | PRD-016 AC-3.6；PRD-023 AC-1.5 | 撤回 vs 報價（撤回先 → 報價 409 `MODIFICATION_STATE_CONFLICT`；報價先 → 報價 200、之後撤回 `QUOTED` 照常 200；兩種順序最終皆 `WITHDRAWN`，PRD-016 AC-3.6 2026-11-22 小修）；保母開始行程 vs 送出含該行程為減少目標的變更（E17 / E20）兩執行緒：開始先 → 變更 409 `VISIT_ALREADY_STARTED`，變更先 → 開始照常（變更未同意前行程仍 `PENDING`）（PRD-016 EX-13 第二種）；同意 vs 開始行程（O9 不因變更取消觸發）；同意 vs 撤回 |
 | `ModificationIdempotencyIntegrationTest` | PRD-016 AC-3.7；PRD-023 AC-1.8 | §10.2；換 key 再同意不重建 payment（`ux_payments_per_modreq`） |
@@ -2167,7 +2233,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `E2eJourneyCleanupIntegrationTest` | 共用（§10.4） | 建好全套訂單資料（含 SYSTEM 變更、`ADMIN_ADJUSTMENT`、待辦、submission）後跑 cleanup，斷言不違反 FK 且資料清空 |
 | `LockFreshnessIntegrationTest` | 共用（§3.6.1） | 先載入 `Order`（經 `Visit.order`）再 `lockForTransition`，斷言回傳為鎖後的值；後續語句 55P03 / 40P01 對映 `ORDER_BUSY` 並刪除冪等紀錄 |
 
-共 **49 個測試類別**（其中 `OrderLockServiceTest`、`OrderLogWriterTest`、`OrphanProofSweepIntegrationTest`、`OrderAggregateArchTest`、`E2eJourneyCleanupIntegrationTest`、`LockFreshnessIntegrationTest`、`InternalTestDataIntegrationTest` 7 個驗證共用機制，不直接對應 AC）。C7 殭屍清理的測試歸 SD-FULFILL `CloseZombieVisitsIntegrationTest`。PRD-009 的 AC 本體在 SD-FULFILL §1.4，後端測試對應見本 SD §1.9。前端互動類 AC（PRD-005 AC-2.4、PRD-006 AC-2.7 畫面部分、PRD-007 AC-2.3 確認框、PRD-016 AC-3.5 畫面、PRD-027 AC-1.2 / AC-1.5）另由 TS-005 / 006 / 007 / 016 / 027 的 E2E 驗證。
+共 **50 個測試類別**（其中 `OrderLockServiceTest`、`OrderLogWriterTest`、`OrphanProofSweepIntegrationTest`、`OrderAggregateArchTest`、`E2eJourneyCleanupIntegrationTest`、`LockFreshnessIntegrationTest`、`InternalTestDataIntegrationTest` 7 個驗證共用機制，不直接對應 AC）。C7 殭屍清理的測試歸 SD-FULFILL `CloseZombieVisitsIntegrationTest`。PRD-009 的 AC 本體在 SD-FULFILL §1.4，後端測試對應見本 SD §1.9。前端互動類 AC（PRD-005 AC-2.4、PRD-006 AC-2.7 畫面部分、PRD-007 AC-2.3 確認框、PRD-016 AC-3.5 畫面、PRD-027 AC-1.2 / AC-1.5）另由 TS-005 / 006 / 007 / 016 / 027 的 E2E 驗證。
 
 - **`DISPUTED` 訂單**：E2 不回 `disputeWindowEndsAt`（只在 `IN_PROGRESS` 且條件成立時回傳），TS 需要爭議視窗時以 `inspect` 的 `completionBasisAt` + 48h 計算。
 
@@ -2264,6 +2330,9 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 遷移鎖等待 | 遷移第一行 `SET lock_timeout = '10s'`；失敗只能 forward fix | 不設：舊 revision 持有交易時 `TRUNCATE` / `ALTER` 無限等待，啟動逾時 |
 | 訂單軟刪除 | DROP `orders.is_deleted`、`modification_requests.is_deleted` | 保留恆為 false：語意不明，舊查詢的過濾條件會被誤以為有效 |
 | 發布範圍 | ORDER + FULFILL 同一次發布，未重建模組的呼叫點同次改寫（CQ-21 已決，§8.4） | 本 SD 先行實作 FULFILL 介面的最小版：等於先寫一份 SD-FULFILL 再被重寫 |
+| 變更金額試算的端點形態（2026-11-22，使用者決定新增試算） | 兩支唯讀端點 E32（對應 E17）/ E33（對應 E20），與送出端點共用 `ModificationEvaluator` 檢查序列與 `ModificationPlanner.price` | (a) E17 / E20 加 `?dryRun=true`：`@Idempotent` 攔截器會要求並認領 key、走 G7 / L，唯讀與寫入混在同一 handler，漏一個分支就會寫入或發通知；(b) 單一試算端點、`modificationId` 放 body：body UUID 在 G6 才驗證，但變更不屬訂單的 404 屬 G4，違反判斷順序；(c) 前端自行加總（現況）：與伺服器公式（每日次數、方案快照、鎖定依 FREE、已收淨額）會分歧，使用者已否決 |
+| 試算端點不取訂單鎖 | 唯讀交易、不鎖；送出端點鎖內重驗重算為準 | 取訂單鎖：精靈反覆呼叫會與真正寫入搶 `lock_timeout` 3 秒，送出端點更容易 `ORDER_BUSY`，且結果在放鎖後立即可能過時，鎖不帶來正確性；`REPEATABLE READ` 唯讀交易：可得一致快照，但結果本來就只是顯示用，多一個隔離等級設定不值得 |
+| 試算端點的文字欄位（待使用者確認，見 §12 CQ-51） | `reason`、`adjustmentReason` 不驗證、不回傳；其餘欄位與送出端點錯誤完全相同 | 連文字欄位一起驗證（字面上「錯誤與送出完全相同」）：使用者必須先填原因才能看到金額，精靈流程是先選內容、看金額、最後填原因；前端為了拿到試算只能送佔位字串，等於仍不一致 |
 
 
 ### 11.5 B 階段實作決定（使用者 2026-11-22 核准）
@@ -2303,6 +2372,8 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | CQ-24 | PRD-027 只定 O3 婉拒的飼主結果標題「保母已婉拒此預約」，O4（評估逾期）、O7（付款前保母取消）在 `owner-order-detail-cancel-result` 的標題未定（TS-027 §5 #10） | 建議：O7「保母已取消此訂單」、O4「保母未於期限內回覆，預約已自動取消」（與 §7.2 通知文案同語意）；確認後由主流程回寫 PRD-027 | 已決（使用者 2026-11-22，採建議；PRD-027 同步回寫） |
 | CQ-25 | E31 是否預先顯示「同時 `PENDING` 已達上限」（NFR-003 CQ-43） | 不在 E31 增加狀態；送單 422 時顯示 PRD-005 文案「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」並保留表單內容 | 已決（使用者 2026-11-22） |
 | CQ-42 | 新例外對映與錯誤格式的生效範圍 | `ROLE_MISMATCH`、401 `UNAUTHENTICATED`、§6.1 錯誤格式全域採用（受影響的其他模組測試列 §8.3 D7、§8.4.4）；`ORDER_BUSY`、`PROOF_FILE_TOO_LARGE`、`STORAGE_UNAVAILABLE`、約束名對映只套訂單 controller 的獨立 advice；5 MB 上限由 E11 自行檢查；寫入 §6.1、§6.4 | 已決（使用者 2026-11-22） |
+| CQ-50 | 變更精靈（OWNER）顯示 E32 試算的新總額時的標示文案：OWNER 的試算只有系統計價，PRO / ULTIMATE 未鎖定的保母報價時可能再加減；PRD-016 未定（編號跳過 43–49，避免與 NFR-003 / baseline 同號 CQ 混淆） | 「預估新總額 $ X（以保母報價為準）」；差額以同樣方式標「預估」；SITTER 精靈與報價表單不加「預估」 | Open |
+| CQ-51 | 試算端點是否連 `reason` / `adjustmentReason` 一併驗證（使用者指示「驗證錯誤與送出相同」） | 不驗證文字欄位，其餘完全相同（§11.4、§6.3 E32 / E33）；若要求字面一致，改為驗證並由前端在原因未填前不呼叫試算 | Open |
 
 依賴（同一次發布，§8.4.1）：SD-FULFILL（visit 介面、開始 / 結束行程經鎖、`IN_PROGRESS` 逾時出口、行程造資料端點）、SD-NOTIFY（`enqueue()`、投遞欄位遷移、C11）、SD-CARE / IDENTITY / TRUST 各一個查詢方法、SD-SUPPLY / BILLING 的過渡查詢方法。非同發布：SD-BILLING 重寫時移除 `subscriptions.monthly_order_count`；PRD-009（O11–O13 文案與畫面）與 PRD-020（ADMIN 待辦 / 調解畫面）改寫時對齊 §6.3 E25–E30；PRD-023 §3 / EX-2 依 CQ-41 回寫。
 
@@ -2312,6 +2383,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增唯讀變更金額試算端點 E32 `POST /api/orders/{orderId}/modifications/preview`（輸入同 E17，OWNER / SITTER 當事人）與 E33 `POST /api/orders/{orderId}/modifications/{modificationId}/quote/preview`（輸入同 E20，SITTER），與送出端點共用 `ModificationEvaluator` 檢查序列與 `ModificationPlanner.price` 計價（§3.3、§2.3.4、§6.1 G4a、§6.2、§6.3、§6.4 範圍 E1–E33）；不取鎖、不冪等、無副作用、一般限流；確認 PRD-016 BR-12 / AC-2.4 有效行程含 `CLOSED_BY_SYSTEM`（實作 `VisitView.effective()`），試算沿用；§9.1 / §9.2 變更精靈與報價表單改呼叫試算、前端不再自行加總，§9.3 新增試算 testid；§10.3 新增 `ModificationPreviewIntegrationTest`（50 類）；§11.4 三項技術決策；§12 新增 CQ-50、CQ-51（Open）。AC 數不變 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 同步 PRD-016 AC-3.6 核准後小修（狀態維持 Approved）：§10.3 撤回 vs 報價改為依鎖先後——撤回先 → 報價 409；報價先 → 撤回 `QUOTED` 照常成功；最終皆 `WITHDRAWN`（原「恰一方成功」有誤） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：CQ-43 待評估上限改為不加鎖（移除 advisory lock，§3.1 O1、§4.1、§6.3 E1、§6.5 #19、§11.4、§10.3），判斷位置在 `MONTHLY_QUOTA_REACHED` 之後；CQ-25 已決 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§3.6.6 / E13 憑證簽名 GET 加 `response-content-type`（= `proof_content_type`）與 `response-content-disposition=inline`（U-7）；§8.2、§2.3.2、§5.1.1 註解、§11.4 收款帳號快照 AES-GCM AAD = `payments:{id}:payee_account_snapshot`，payment UUID 加密前由 Service 產生，不需遷移（U-8、CQ-48）；同一飼主對同一保母同時 `PENDING` 上限 3 張：E1 判斷順序在 `SITTER_NOT_BOOKABLE` 後、`MONTHLY_QUOTA_REACHED` 前，新模組碼 422 `PENDING_ORDER_LIMIT_REACHED`（§6.5 #37，總表 38 項）、交易 B 以 `pg_advisory_xact_lock`（飼主 + 保母）序列化、設定 `owner-pending-per-sitter-max`、`BookingIntegrationTest` 補案例、新增 CQ-25（U-13、CQ-43；PRD-005 由另一流程回寫） | NFR-003 核准回寫，使用者 2026-11-22 同意 |

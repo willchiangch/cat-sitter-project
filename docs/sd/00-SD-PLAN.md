@@ -18,6 +18,7 @@ SD 改為依業務模組撰寫，一份涵蓋同一聚合 / 狀態機的多張 P
 
 - **SD-ORDER 擁有 O1–O17 全部訂單主狀態轉移的 API 與排程**（含 O11–O13 結案 / 爭議、O15 / O17 ADMIN 調解結案）；PRD-009（結案）與 PRD-020（ADMIN 後台）重寫後只負責畫面與操作流程，呼叫 SD-ORDER 的端點（使用者核准 2026-11-22）。
 - Table 名稱以重建時實際 schema 為準，本表只示意歸屬；同一 table 不得出現在兩列。
+- **SD-NOTIFY 待接手的過渡契約**（2026-11-22）：通知列表 `GET /api/notifications` 回傳 `type` 的過渡契約與 4 項待辦寫在 `SD-GLOBAL-SPEC.md` §4.4；SD-NOTIFY 撰寫時正式定義並刪除該節。
 - 重建順序理由：SD-ORDER 是所有交易資料的匯聚點，鎖、稽核、冪等、交易邊界的共通問題（`reports/rereview/00-sample-SD-007.md` #2–#6）在此一次解決，其餘模組沿用。
 - 以下 §1 之後為舊版規劃，**已被 `docs/sa/00-DOMAIN-BASELINE.md` 取代**（特別是 §3 不可變性與 §4 狀態機），僅供對照，衝突時以 baseline 為準。
 

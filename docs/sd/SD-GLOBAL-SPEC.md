@@ -214,6 +214,32 @@
 - **append-only（NFR-003 SEC-AUDIT-3）**：稽核實體（`order_logs` 與各稽核表）的 Repository 繼承共用 `AppendOnlyRepository<T, ID>`（只有 `insert` 與查詢方法，Spring Data `Repository` 標記介面），**不得**繼承 `CrudRepository` / `JpaRepository`（現況 `OrderLogRepository extends JpaRepository`，需改）。AU `AuditAppendOnlyArchTest`：稽核實體的 Repository 都不是 `CrudRepository` 子型別、沒有 `delete*` / `save*` 方法。沒有任何 API 可修改或刪除稽核。MVP 只做應用層防護，不加 DB trigger（CQ-33）；交易相關稽核保存 ≥ 5 年（NFR-008）。帳號註銷時稽核列保留，只存 userId。
 - **內容**：每列含操作者（userId；系統為 `SYSTEM`）、UTC 時間、動作碼、目標 id、變動摘要；收款帳號只存銀行代碼 + 帳號後五碼；不存密碼、token、完整帳號、戶名（SEC-AUDIT-2）。
 
+### 4.4 通知列表回應（過渡契約，2026-11-22；SD-NOTIFY 撰寫時接手）
+
+> SD-NOTIFY 尚未重建，舊 SD-014 §4.1 為現行實作的唯一描述。本節只補「列表必須回傳通知類型」這一項，供前端依類型顯示標籤與深連結（使用者 2026-11-22 決定）；其餘欄位照現況，不在此重新設計。
+
+`GET /api/notifications`（`NotificationController.getNotifications`，`@PreAuthorize("isAuthenticated()")`，只查 token 使用者自己的通知）
+
+- Query：`page`（預設 0）、`size`（預設 20，上限 100，超過 400，§2.8）、`isRead`（可選）、`role`（可選 `OWNER` / `SITTER`，回 `role_target` 為該角色或 `ALL` 的通知）；依 `createdAt` 倒序。
+- Response 200（現行舊包裝格式，未改為 §2.6 / SD-ORDER §6.1 樣式，隨 SD-NOTIFY 重建決定）：`{ "code": 200, "message": "OK", "data": { "content": [ ... ], "page", "size", "totalElements", "totalPages" } }`。
+- `content[]` 每列欄位：
+
+| 欄位 | 型別 | 來源 / 規則 |
+|------|------|------------|
+| `id` | UUID | `notifications.id` |
+| `type` | string，可缺 | **本次新增**：`notifications.type`，通知類型代碼（訂單類見 SD-ORDER §7.2，履約類見 SD-FULFILL §7.2，含 `VISIT_CLOSED_BY_SYSTEM_SITTER`、`VISIT_CLOSED_BY_SYSTEM_OWNER`、`VISIT_AUTO_COMPLETED`、`CARE_LOG_SUBMITTED`）。舊 `createNotification` 寫入的列為 null → 不輸出該欄位（組裝回應不得用不接受 null 的 `Map.of`）；前端缺欄位時退回依 `category` 顯示 |
+| `title` | string | `notifications.title` |
+| `content` | string | `notifications.content` |
+| `category` | string | `notifications.category`（例 `ORDER_AFFAIR`） |
+| `isRead` | boolean | `notifications.is_read` |
+| `createdAt` | ISO-8601 | `notifications.created_at` |
+| `linkUrl` | string | `notifications.link_url`；null 時回空字串（現況）；前端一律經 `safeRedirect` 後導向 |
+| `roleTarget` | string | `notifications.role_target`（`OWNER` / `SITTER` / `ALL`） |
+
+- 不回傳 outbox 投遞欄位（`email_status`、`email_attempts`、`email_last_error` 等）與 `related_order_id`、`mandatory`。
+- 驗證：IT `NotificationListTypeIntegrationTest`：以 `NotificationService.enqueue()` 寫入 `CARE_LOG_SUBMITTED` 一則、以舊 `createNotification` 寫入一則，列表前者 `type = "CARE_LOG_SUBMITTED"`、後者無 `type` 欄位且回應 200（不因 null 拋 NPE）。
+- **SD-NOTIFY 待辦**（撰寫時處理）：(1) 正式定義通知類型代碼清單（目前分散在 SD-ORDER §7.2、SD-FULFILL §7.2）與 `type` 是否改為非空；(2) 列表回應改為 SD-ORDER §6.1 / 本文件 §2.6 的格式並移除舊包裝；(3) `linkUrl` 空字串改為缺欄位；(4) 決定舊 `createNotification` 呼叫點全部改走 `enqueue()` 後補齊 `type`。本節在 SD-NOTIFY 核准後刪除、改為引用。
+
 ## 5. 開發工作流與 CI/CD (DevOps & Workflow)
 ### 5.1 版本控制 (Git Strategy)
 - 採用輕量化 **GitHub Flow**：`main` 分支保持 Production-ready，功能開發使用 `feature/*`。
@@ -248,6 +274,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §4.4 通知列表回應過渡契約：`GET /api/notifications` 的 `content[]` 新增 `type`（`notifications.type`，null 時不輸出），其餘欄位照現行實作記錄；列 SD-NOTIFY 待辦 4 項 | 使用者 2026-11-22 決定（前端通知類型標籤含 SD-FULFILL 四種類型） |
 | 2026-11-22 | 使用者決定：§2.8 表單格式缺口精確化為「無 `Content-Length` 的 form-urlencoded」，帶長度者仍受 1 MB 限制 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者決定（Phase S 實作回饋，同步實作細節，狀態不動）：§2.4 request hash 極端指數改科學記號；§2.6 未重建模組（帳號 / 毛孩 / 門禁）過渡例外 `LegacyBusinessException`；§2.8 限流 WARN 記完整 IP、§2.9 統一「安全事件與限流 log 完整記錄 IP」並寫理由（修正 §2.8 與 §2.9 矛盾）；§2.8 `application/x-www-form-urlencoded` 不受 1 MB filter 約束、上限 Tomcat `maxPostSize` 2 MB，接受；§3.5 local CORS 來源放主 `application.yml`、prod 必填且含 `*` 啟動失敗；§4.3 已知偏離：照護記事稽核暫維持 `REQUIRES_NEW`（延到 SD-CARE 重建）、`AdminSubscriptionController` controller 層 `@Transactional`（延到重建） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者確認：§2.8 `app.security.rate-limit.anonymous-enforce` 預設 false（只記不擋），部署後實測 XFF 再開，上線前必須 true；§2.9 CR/LF 跳脫採 logback `%replace` | 使用者 2026-11-22 決定 |
