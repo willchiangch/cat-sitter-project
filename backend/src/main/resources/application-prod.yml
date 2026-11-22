@@ -6,7 +6,10 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}   # 格式為 postgres.<project-ref>
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
+      # SD-ORDER §8.3 D8：pool 滿時 5 秒內失敗（D5 連線預算以此為前提）
       maximum-pool-size: 3
+      minimum-idle: 1
+      connection-timeout: 5000
   jpa:
     hibernate:
       ddl-auto: none
