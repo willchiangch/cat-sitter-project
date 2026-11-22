@@ -405,7 +405,7 @@ sequenceDiagram
 
 - **冪等**：F16 帶 `Idempotency-Key`，hash = 路由樣板 + 路徑變數 + 正規化 body（含 `file.sha256`）；同 key 同內容回放 F16 第一次結果（`uploadId`、`receivedAt`、`expiresAt`；回放 body 不含槽位目前狀態）；同 key 換檔案 → 422 `IDEMPOTENCY_KEY_REUSED`。F18 以 `uploadId` 天然冪等（§3.3 表）。F17 遇 `COMPLETED` 回 `alreadyCompleted=true`（先於逾期判斷），前端略過 PUT 直接 F18 取回既有結果，因此「同 key 同內容重送」在第一次完成後、甚至槽位逾時或日誌期限已過後，仍回 201 同一媒體且不重傳（PRD-022 AC-3.6 情境 1、3）；前提是冪等紀錄未過 `IDEMPOTENCY_KEY_TTL_HOURS`（24h，baseline §5）。
 - **期限**：寫入期限以 F16 的 `received_at` 判斷（PRD-022 BR-5「上傳耗時不影響」）；F18 自己的 `receivedAt ≥ received_at + 30 分` → 409 `CARE_LOG_UPLOAD_EXPIRED`（不用鎖後 now）。這是 baseline §5「以伺服器收到請求時間判斷」在兩段式上傳情境的解釋：「收到上傳請求」= 收到申請（F16），30 分鐘窗則以確認（F18）請求的收到時間比對（使用者 2026-11-22 決定，PRD-022 BR-5、BR-28 已同步）。訂單 / 行程 / 日誌狀態以交易 B 鎖後為準（AC-2.8 情境 3）。
-- **檔案檢驗**：F16 驗宣告值，F18 驗實際物件（不信任宣告與 GCS metadata），順序：SHA-256 與宣告不符 → 400（`reason=SHA256_MISMATCH`）→ magic bytes 不屬允許格式、與 `mediaType` 不符、或與宣告 `contentType` 不同（例宣告 JPEG 實為 PNG）→ 422 `CARE_LOG_MEDIA_TYPE_UNSUPPORTED` → 實際大小 → 422 `CARE_LOG_MEDIA_TOO_LARGE` → 時長（half-up 整數秒）→ 422 `CARE_LOG_VIDEO_DURATION_INVALID` → 額度。物件不存在 → 400（`reason=OBJECT_MISSING`），槽位維持 `PENDING`。同時以既有 `isPubliclyReadable` 檢查物件，若為公開（bucket 預設 ACL 設錯）則 `revokePublicRead` 並記 WARN log（DF7）。
+- **檔案檢驗**：F16 驗宣告值，F18 驗實際物件（不信任宣告與 GCS metadata），順序：SHA-256 與宣告不符 → 400（`reason=SHA256_MISMATCH`）→ magic bytes 不屬允許格式、與 `mediaType` 不符、或與宣告 `contentType` 不同（例宣告 JPEG 實為 PNG）→ 422 `CARE_LOG_MEDIA_TYPE_UNSUPPORTED`（**影片**：MP4 與 MOV 同為 ISO BMFF 容器、`ftyp` brand 與瀏覽器宣告常不一致，視為同一格式族，宣告 `video/mp4` 實為 MOV 或反之皆通過；物件鍵副檔名與讀取時 `response-content-type` 依 F16 宣告的 `contentType`。**照片**：判定格式須與宣告完全相同。使用者 2026-11-22 決定） → 實際大小 → 422 `CARE_LOG_MEDIA_TOO_LARGE` → 時長（half-up 整數秒）→ 422 `CARE_LOG_VIDEO_DURATION_INVALID` → 額度。物件不存在 → 400（`reason=OBJECT_MISSING`），槽位維持 `PENDING`。同時以既有 `isPubliclyReadable` 檢查物件，若為公開（bucket 預設 ACL 設錯）則 `revokePublicRead` 並記 WARN log（DF7）。
 - **與 PRD-022 原字面的差異**（使用者 2026-11-22 採用，PRD-022 已同步：CQ-19~22、BR-5、BR-28、EX-28~32；PRD「申請上傳」= F16 + F17）：實際內容檢驗發生在物件已寫入 GCS 之後，不符者在 F18 被拒並刪除，結果為「最終無物件」；瀏覽器 PUT 失敗不經後端，後端的 503 只來自 F17 簽名或 F18 讀取（§12 CQ-5）。
 - **EX-21 (1) 對應**：PRD-022「申請時無法取得傳檔位置 → 503，不記冪等結果」在本設計等價於「F16 已記錄槽位與冪等結果、F17 簽名失敗回 503 可同 key 重試」：同 key 重送回放同一槽位，無媒體紀錄、額度不變，外部可觀察結果相同；TS-022 以此斷言。
 - **連線**：預檢、GCS 串流期間不持有 DB 連線（`open-in-view: false`；只在短交易與交易 B 取連線），符合 Hikari 小池。
@@ -717,7 +717,7 @@ Response 200：`{ "orderId", "orderStatus", "visits": [ VisitRow ] }`（**物件
 `VisitRow`：`{ "visitId", "orderItemId", "planId", "serviceDate", "sequenceInDay", "slotsInDay", "name", "customName", "status", "startedAt", "completedAt", "completionSource", "closedAt", "cancelledAt", "zombieAt", "careLog": { "submitted", "status", "deadlineAt", "expired" }, "checklist": { "total", "completed", "items": [ { "itemId", "title", "sortOrder", "isCompleted", "checkedAt" } ] } }`
 
 - `name` = §4.3 組成的顯示名稱（報價前用 `booking_plan_title`）；`zombieAt` 只在 `PENDING` 時輸出。
-- `careLog`：SITTER 看到 `status`（`DRAFT` / `SUBMITTED` / 不輸出）、`deadlineAt`（`DONE` 時 = `completed_at + CARE_LOG_EDIT_HOURS`）、`expired`；OWNER / ADMIN 只看到 `submitted`（不洩漏草稿，baseline §1.2 CQ-81）。
+- `careLog`：SITTER 看到 `status`（`DRAFT` / `SUBMITTED` / 不輸出）、`deadlineAt`（`DONE` 時 = `completed_at + CARE_LOG_EDIT_HOURS`）、`expired`；OWNER / ADMIN 看到 `submitted` 與 `deadlineAt`（不輸出 `status` / `expired`，不洩漏草稿，baseline §1.2 CQ-81）；`deadlineAt` 只由行程 `completed_at` 推導，不透露草稿是否存在（使用者 2026-11-22 決定）。
 - 查詢：行程 + 日誌狀態 + 檢核項各一次查詢、`getOrderContexts` 一次，不 N+1。
 - 錯誤：G4（訂單不存在）→ G4a → G5。
 
@@ -841,7 +841,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 #### 排程與測試造資料
 
-**FC1 / FC2**：契約同 SD-ORDER C1–C10（`POST`、無 body、`X-Internal-Secret`；200 `{ "job", "processed", "skipped", "failed", "startedAt", "finishedAt" }`；驗證失敗 403 `FORBIDDEN`）。另接受可選 query `orderId`（使用者 2026-11-22 TS 回饋，與 SD-ORDER C1–C10 同規則）：有值時只處理該訂單（FC1 = 該訂單逾時行程；FC2 = `order_id` 相同的槽位），該訂單須屬 `@e2e-journey.test` 帳號，否則 404 `NOT_FOUND`（與 SD-ORDER C1–C10 一致）；計數以訂單為單位；無值（Cloud Scheduler 自動觸發）時候選查詢排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單 / 槽位（唯讀 JOIN `users`，排程候選例外），避免正式排程搶先處理測試資料。計數只含本次範圍。
+**FC1 / FC2**：契約同 SD-ORDER C1–C10（`POST`、無 body、`X-Internal-Secret`；200 `{ "job", "processed", "skipped", "failed", "startedAt", "finishedAt" }`；驗證失敗 403 `FORBIDDEN`）。另接受可選 query `orderId`（使用者 2026-11-22 TS 回饋，與 SD-ORDER C1–C10 同規則）：有值時只處理該訂單（FC1 = 該訂單逾時行程；FC2 = `order_id` 相同的槽位），該訂單須屬 `@e2e-journey.test` 帳號，否則 404 `NOT_FOUND`（與 SD-ORDER C1–C10 一致）；批次上限與計數單位（使用者 2026-11-22 決定）：**FC1 以訂單為單位**（候選 `DISTINCT order_id LIMIT cron.batch-size`，`processed` / `skipped` / `failed` 各計一張訂單）、**FC2 以上傳槽位為單位**（第 ① 步與第 ② 步各自 `LIMIT cron.batch-size` 列槽位，計數各計一個槽位）；無值（Cloud Scheduler 自動觸發）時候選查詢排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單 / 槽位（唯讀 JOIN `users`，排程候選例外），避免正式排程搶先處理測試資料。計數只含本次範圍。
 
 **FT1 `POST /api/internal/test-data/visits/{visitId}/force-status`**（SD-ORDER §10.4 改為引用本契約，§12 CQ-4）
 
@@ -853,9 +853,9 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `completionSource` | string | | `DONE` 時，預設 `SITTER` |
 | `closedAt` | timestamp | | `CLOSED_BY_SYSTEM` 時，預設 now |
 | `cancelledAt` | timestamp | | `CANCELLED` 時，預設 now |
-| `careLogSubmitted` | boolean | | `DONE` 時建立 `SUBMITTED` 日誌（固定測試文字） |
+| `careLogSubmitted` | boolean | | `DONE` 時建立 `SUBMITTED` 日誌；新建或既有內容為空白時寫入固定測試文字「E2E 測試照護日誌」，既有非空白內容保留 |
 
-允許的轉換（其餘 → 409 `VISIT_STATE_CONFLICT`）：`PENDING → IN_PROGRESS`、`PENDING → DONE`（一併寫 `started_at` ≤ `completed_at`）、`PENDING → CLOSED_BY_SYSTEM`、`PENDING → CANCELLED`、`IN_PROGRESS → DONE`。訂單狀態限制（其餘 → 409 `ORDER_STATE_CONFLICT`，不造出正式路徑不可能的狀態）：`IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` 需訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`；`CANCELLED` 另允許 `PENDING_PAYMENT`（等同取消路徑的行程取消，不改訂單主狀態、不觸發 O9 / O10，供造「有已取消行程的訂單」；`CANCELLED` 只走 `cancelVisits`，不呼叫 `onVisitLeftPending`，但呼叫 `onVisitFinished` 重算基準）。取訂單鎖後經本 SD 的 Service 改行程，並呼叫 `onVisitLeftPending` / `onVisitFinished`（與正式路徑一致）；寫 `order_logs` `TEST_VISIT_FORCED`（不列入業務 action）；不發通知。
+允許的轉換（其餘 → 409 `VISIT_STATE_CONFLICT`）：`PENDING → IN_PROGRESS`、`PENDING → DONE`（一併寫 `started_at` ≤ `completed_at`）、`PENDING → CLOSED_BY_SYSTEM`、`PENDING → CANCELLED`、`IN_PROGRESS → DONE`。訂單狀態限制（其餘 → 409 `ORDER_STATE_CONFLICT`，不造出正式路徑不可能的狀態）：`IN_PROGRESS` / `DONE` / `CLOSED_BY_SYSTEM` 需訂單 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`；`CANCELLED` 另允許 `PENDING_PAYMENT`（等同取消路徑的行程取消，不改訂單主狀態、不觸發 O9 / O10，供造「有已取消行程的訂單」；`CANCELLED` 只走 `cancelVisits`，不呼叫 `onVisitLeftPending`，但呼叫 `onVisitFinished` 重算基準）。取訂單鎖後經本 SD 的 Service 改行程，並呼叫 `onVisitLeftPending` / `onVisitFinished`（與正式路徑一致）；寫 `order_logs` `TEST_VISIT_FORCED`（不列入業務 action）；`onVisitLeftPending` 與 `order_logs` 的操作者一律記 `SYSTEM`（測試造資料無業務操作者，使用者 2026-11-22 決定；FT2 `TEST_TIME_SHIFTED` 同）；不發通知。以上細節只供測試，不屬正式行為。
 
 **FT2 `POST /api/internal/test-data/visits/{visitId}/shift-time`**：`target` = `STARTED_AT` / `COMPLETED_AT` / `CLOSED_AT`（`minutes`，負值 = 提前）/ `SERVICE_DATE`（`days`，**同 `order_item_id` 整群組一起平移**，避免撞 `ux_visits_slot`）；取訂單鎖；`COMPLETED_AT` / `CLOSED_AT` / `SERVICE_DATE` 變更後呼叫 `onVisitFinished` 重算基準；寫 `TEST_TIME_SHIFTED`。接受的訂單狀態：`PENDING_PAYMENT` / `CONFIRMED` / `IN_PROGRESS` / `DISPUTED`（`PENDING`、`COMPLETED`、`CANCELLED` → 409 `ORDER_STATE_CONFLICT`）；`PENDING_PAYMENT` 只允許 `SERVICE_DATE`（供造過去日期的殭屍不處理情境，PRD-008 AC-2.2 情境 3）。TS 呼叫順序：先 FT1 / FT2，再 SD-ORDER `shift-time COMPLETION_BASIS_AT`（後者會被前者的重算覆蓋）。
 
@@ -956,7 +956,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | 代號 | 端點 | 頻率（Asia/Taipei） | 候選查詢（唯讀） | 逐筆處理 | 冪等 / 重跑 | 索引 |
 |------|------|------|-----------------|---------|-----------|------|
 | FC1 | `/api/internal/cron/visits/in-progress-timeout` | `7-59/15 * * * *`（避開 SD-ORDER D5：C1 :00、C2 :01、C3 :02、C4 :03、C5 :05、C6 :06、C7 :08、C8 :10 起每 15 分，C11 `4-59/5`） | `visits.status='IN_PROGRESS' AND started_at <= :now − VISIT_IN_PROGRESS_TIMEOUT_HOURS`，唯讀 JOIN `orders.status IN ('IN_PROGRESS','DISPUTED')`（排程候選例外，SD-ORDER CQ-22），`DISTINCT order_id LIMIT 200` | §4.6 | 已 `DONE` 不再被查出；重驗擋已處理者 | `ix_visits_in_progress` |
-| FC2 | `/api/internal/cron/storage/care-log-orphans` | `27 * * * *`（`7-59/15` 已涵蓋 :37，避開 FC1 與 SD-ORDER D5 各分鐘） | ① `status='PENDING' AND expires_at <= :now − upload-delete-grace` → 條件式 UPDATE 為 `EXPIRED`（等過寬限才轉，不搶確認窗內已收到、仍在串流的 F18，主流程 2026-11-22）；② `status IN ('FAILED','EXPIRED','DISCARDED') AND object_deleted_at IS NULL AND expires_at <= :now − upload-delete-grace` | ② 每列：刪 GCS 物件（不存在視為成功）→ 短交易寫 `object_deleted_at`；失敗 `delete_attempts + 1`；不鎖訂單（不影響行程 / 日誌狀態） | 天然冪等 | `ix_uploads_cleanup` |
+| FC2 | `/api/internal/cron/storage/care-log-orphans` | `27 * * * *`（`7-59/15` 已涵蓋 :37，避開 FC1 與 SD-ORDER D5 各分鐘） | ① `status='PENDING' AND expires_at <= :now − upload-delete-grace` → 條件式 UPDATE 為 `EXPIRED`（等過寬限才轉，不搶確認窗內已收到、仍在串流的 F18，主流程 2026-11-22）；② `status IN ('FAILED','EXPIRED','DISCARDED') AND object_deleted_at IS NULL AND expires_at <= :now − upload-delete-grace`；①、② 各 `LIMIT 200` 列槽位（以槽位計，FC1 則以訂單計，§6.3） | ② 每列：刪 GCS 物件（不存在視為成功）→ 短交易寫 `object_deleted_at`；失敗 `delete_attempts + 1`；不鎖訂單（不影響行程 / 日誌狀態） | 天然冪等 | `ix_uploads_cleanup` |
 | C7 | SD-ORDER | `*/15`（SD-ORDER） | 本 SD 提供 `findOrderIdsWithZombieVisits` | SD-ORDER C7 呼叫 `closeZombieVisits` | — | `ix_visits_zombie` |
 
 - 範圍：FC1 / FC2 接受可選 `orderId`；自動觸發時候選排除 owner 或 sitter 為 `@e2e-journey.test` 的訂單 / 槽位（§6.3 FC1 / FC2；C7 經 `CronScope` 同規則）。
@@ -970,7 +970,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 服務 | 用途 | Mock 開關 | 失敗處理 | 設定 / Secret |
 |------|------|----------|---------|--------------|
-| GCS | 日誌媒體私有物件；V4 簽名 PUT（上傳）與 GET（讀取）；串流讀取檢驗；刪除 | `@Profile("local")` → `LocalMediaStorageServiceImpl`：簽名上傳網址為**相對路徑**，指向只在 local profile 註冊的 `PUT /local-storage/**`（`frontend/vite.config.ts` 新增 `/local-storage` 代理到後端，同源請求不需後端 CORS 放行 `x-goog-*` 標頭）（**不在 `/api/internal/` 下**，避開 `InternalSecretFilter`；`permitAll`），以網址內 HMAC 簽名 + 到期時間驗證，並模擬 `Content-Type`、`x-goog-content-length-range`、`if-generation-match=0`（物件已存在回 412）；整合測試以可程式化 fake（可注入失敗、預置物件）；mock E2E 以 `page.route('https://storage.googleapis.com/**')` 攔 PUT | 簽名 / 讀取失敗 503；刪除失敗交 FC2 | `gcp.storage.bucket-name`；Cloud Run attached SA 簽名；local HMAC 金鑰只在 `application-local.yml` |
+| GCS | 日誌媒體私有物件；V4 簽名 PUT（上傳）與 GET（讀取）；串流讀取檢驗；刪除 | `@Profile("local")` → `LocalMediaStorageServiceImpl`：簽名上傳網址為**相對路徑**，指向只在 local profile 註冊的 `PUT /local-storage/**`（`frontend/vite.config.ts` 新增 `/local-storage` 代理到後端，同源請求不需後端 CORS 放行 `x-goog-*` 標頭）（**不在 `/api/internal/` 下**，避開 `InternalSecretFilter`；`permitAll`），以網址內 HMAC 簽名 + 到期時間驗證，並模擬 `Content-Type`、`x-goog-content-length-range`、`if-generation-match=0`（物件已存在回 412）；整合測試以可程式化 fake（可注入失敗、預置物件）；mock E2E 以 `page.route('https://storage.googleapis.com/**')` 攔 PUT | 簽名 / 讀取失敗 503；刪除失敗交 FC2 | `gcp.storage.bucket-name`；Cloud Run attached SA 簽名；local HMAC 金鑰 `app.storage.local.hmac-key` 只在 `application-local.yml`，未設定時 `LocalSignedUploads` 每次啟動以 `SecureRandom` 產生 32 bytes 隨機金鑰（重啟後舊上傳網址失效）；該元件 `@Profile("local")`，非 local profile 不存在，正式站不受影響（使用者 2026-11-22 決定） |
 | Resend | 經 SD-NOTIFY | SD-NOTIFY | SD-NOTIFY 重試 | SD-NOTIFY |
 | Cloud Scheduler | 觸發 FC1、FC2 | `LocalCronSimulator` | 單次失敗由下一輪補 | `INTERNAL_CRON_SECRET`（沿用，prod 無預設值，SD-ORDER D2） |
 
@@ -1165,7 +1165,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `VisitCompleteIntegrationTest` | PRD-008 AC-1.4、AC-1.5 | `completion_basis_at = completed_at + 24h`（唯一有效行程時）；不看打勾與日誌 |
 | `VisitAuthorizationIntegrationTest` | PRD-008 AC-1.6 | 他人保母 403、OWNER / ADMIN 403 `ROLE_MISMATCH`、404 先於 400 |
 | `VisitIdempotencyIntegrationTest` | PRD-008 AC-1.7 | 回放不重複 log；409 被記錄回放；同 key 換行程 422；鎖定帳號 200；同 key 第一個請求處理中 → 409 `IDEMPOTENCY_IN_PROGRESS`（F3、F4；PRD-008 EX-16）。PRD-008 EX-18（Resend 失敗）歸 SD-NOTIFY C11 測試，本 SD 不測 |
-| `VisitConcurrencyIntegrationTest` | PRD-008 AC-1.8、AC-2.4 情境 2–3、AC-2.5；PRD-028 AC-2.2 情境 3 | 兩條執行緒真打：開始 vs E23 同意、開始 vs E29、開始 vs C7、結束 vs FC1、打勾 vs FC1（斷言 409 `VISIT_STATE_CONFLICT` 而非 `ORDER_BUSY`，驗證鎖前只用投影）；`ORDER_BUSY` + `Retry-After`；打勾 vs E23 同意變更取消目標行程（PRD-028 EX-9：同意先 → 打勾 409 `VISIT_STATE_CONFLICT` `CANCELLED`；打勾先 → 打勾 200、之後同意照常） |
+| `VisitConcurrencyIntegrationTest` | PRD-008 AC-1.8、AC-2.4 情境 2–3、AC-2.5；PRD-028 AC-2.2 情境 3 | 兩條執行緒真打：開始 vs E23 同意、開始 vs E29、開始 vs C7、結束 vs FC1、打勾 vs FC1（斷言 409 `VISIT_STATE_CONFLICT` 而非 `ORDER_BUSY`，驗證鎖前只用投影）；`ORDER_BUSY` + `Retry-After`；新增檢核項 vs E23 同意變更取消目標行程（PRD-028 EX-9，2026-11-22 修訂：同意先 → 新增 409 `VISIT_STATE_CONFLICT` `CANCELLED`；新增先 → 201、之後同意照常；打勾 vs 同意取消不會發生：只有 `PENDING` 行程可被取消，打勾須 `IN_PROGRESS`） |
 | `CloseZombieVisitsIntegrationTest` | PRD-008 AC-2.1、AC-2.2、AC-2.6 | 經 C7 端點：O9 另寫 SYSTEM 列、基準重算、計數；雙方各 1 則合併通知、Email 投遞欄位依偏好（非測試網域收件者；測試網域收件者為 `SUPPRESSED_TEST`）；`PENDING_PAYMENT` 不處理；本批為空不通知 |
 | `InProgressTimeoutCronIntegrationTest` | PRD-008 AC-2.3、AC-2.4、AC-2.6 | `started_at + 24h` 邊界；`DISPUTED` 照常；重驗略過；失敗隔離；重跑；403；`orderId` 參數只處理該訂單、非測試帳號訂單帶 `orderId` → 400；無 `orderId` 時跳過 `@e2e-journey.test` 訂單（C7 / FC2 同規則，分別在 `CloseZombieVisitsIntegrationTest`、`ServiceReportUploadOrphanCronIntegrationTest` 驗） |
 | `VisitDashboardIntegrationTest` | PRD-008 AC-3.1、AC-3.2、AC-3.4 | 分區、排序、預設名稱「第 n 次」、排除 `PENDING_PAYMENT` / `CANCELLED`、`zombieAt` |
@@ -1215,7 +1215,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 |---|------|------|---------------|
 | 1 | 日誌媒體上傳路徑（使用者 2026-11-22 採用，CQ-5） | 瀏覽器以 V4 簽名 PUT 直傳 GCS，三段式「F16 預檢建槽位 → 交易外直傳 → F18 串流檢驗 + 訂單鎖重驗」；期限以 F16 的 `received_at` 判斷；槽位 30 分鐘；F18 `ORDER_BUSY` 保留物件 | (a) 後端代收 multipart（PRD-022 §4.3 原字面）：Cloud Run HTTP/1 單一請求上限 32 MiB（官方文件），影片上限 50 MB 無法通過；改 HTTP/2 端到端則前端經 Firebase Hosting 轉發 Cloud Run，代理層限制**未查證**（推測可能同樣受限），且 50 MB 上傳佔住實例；SD-ORDER 全域 multipart 上限只有 20 MB。(b) 照片代收、影片直傳：兩套流程與錯誤處理。(c) 影片上限降到 < 32 MB：業務規格變更 |
 | 2 | 影片時長檢測 | 後端自行解析 ISO BMFF / QuickTime 的 `moov/mvhd`（`MediaInspector`，單次串流同時算 SHA-256） | ffprobe：Cloud Run 映像需另裝二進位檔、啟動子行程；mp4parser 類函式庫：為一個欄位引入整套解析器，且仍需自行處理 `moov` 在尾端時的串流 |
-| 3 | 媒體檔格式判定 | 檔頭 magic bytes，且須與宣告 `contentType` 相同（不同即 422，不改寫 metadata）；讀取時簽名 GET 加 `response-content-type`（等於判定格式）與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7），即使物件 metadata 異常，瀏覽器收到的型別仍是判定格式 | 信任 `Content-Type` / 副檔名：可偽造；改寫 metadata：多一條 GCS 寫入路徑，規則較複雜；讀取時不覆寫回應型別：物件 metadata 若被改動（例 bucket 權限設錯），瀏覽器會依 metadata 呈現 |
+| 3 | 媒體檔格式判定 | 檔頭 magic bytes，且須與宣告 `contentType` 相同（不同即 422，不改寫 metadata；影片 MP4 / MOV 視為同一格式族，使用者 2026-11-22 決定，§4.4）；讀取時簽名 GET 加 `response-content-type`（等於判定格式）與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7），即使物件 metadata 異常，瀏覽器收到的型別仍是判定格式 | 信任 `Content-Type` / 副檔名：可偽造；改寫 metadata：多一條 GCS 寫入路徑，規則較複雜；讀取時不覆寫回應型別：物件 metadata 若被改動（例 bucket 權限設錯），瀏覽器會依 metadata 呈現 |
 | 4 | `Visit` 與 `Order` 的 JPA 關係 | 只存 `orderId` UUID | `@ManyToOne(LAZY) Order`：讓本模組能經行程改訂單聚合；代理在鎖前被觸發時有鎖後新鮮度問題 |
 | 5 | 鎖前讀取 | 只用投影（`VisitRef` 等） | 鎖前載入實體、鎖後 `refresh`：每支端點都要記得 refresh，漏一處就以舊值通過狀態檢查 |
 | 6 | 行程預設名稱 | 讀取時組成（`custom_name` → O2 快照名稱 → `booking_plan_title`），不落地 | 建立時寫入完整名稱：O2 報價時須回頭改所有行程（SD-ORDER 需呼叫本 SD），且變更新增 / 改名規則要同步多處 |
@@ -1256,6 +1256,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者決定之核准後修訂（狀態維持 Approved，同步實作細節）：(1) §6.3 F1 OWNER / ADMIN 的 `careLog` 加 `deadlineAt`（由行程時間推導，不洩漏草稿）；(2) §4.4 影片 MP4 / MOV 視為同一格式族，照片實際格式須與宣告相同；(3) §6.3 FC1 / FC2 批次上限與計數：FC1 以訂單、FC2 以上傳槽位為單位（取代前一列「計數以訂單為單位」對 FC2 的描述）；(4) §10.1 PRD-028 EX-9 改為「新增檢核項 vs 同意取消」（打勾 vs 同意取消不會發生）；(5) §6.3 FT1 / FT2 操作者記 `SYSTEM`、`careLogSubmitted` 預設文字，僅供測試；(6) §8.2 local 上傳簽名金鑰未設定時每次啟動隨機產生（`@Profile("local")`） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§8.3 DF2 bucket CORS 移除 Cloud Run `*.run.app` origin（U-6）；§8.2 `generateSignedUrl` 加 `contentType` 參數、簽名 GET 帶 `response-content-type` 與 `response-content-disposition=inline`（型別由物件鍵副檔名對映），§6.3 `MediaItem.url` 與 §11 決策 3 同步（U-7） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | TS 更新回饋小修（狀態維持 Approved）：FC1 / FC2 帶非測試帳號 `orderId` 改 404 與 SD-ORDER 一致；計數以訂單為單位 | TS-008 §5 L-12 |
 | 2026-11-22 | 使用者核准（與 SD-ORDER 同批）：CQ-6 / 8 / 9 採建議；狀態 In Review → Approved | 使用者 2026-11-22 |

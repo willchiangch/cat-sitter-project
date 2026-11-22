@@ -165,7 +165,7 @@
 | EX-10 | 減少目標已非 `PENDING`（保母已開始、系統已關閉） | 拒絕 | 409 `VISIT_ALREADY_STARTED`（payload 帶行程 id） | 「部分行程已開始，無法取消」 |
 | EX-11 | 新增行程日期 < 明天（發起或報價時），或保母當下為 PRO / ULTIMATE 未鎖定且日期不在方案可預約區間 | 拒絕，不建立 / 不改變更 | 422 `INVALID_VISIT_DATE`（不在區間時 payload `reason=PLAN_NOT_IN_RANGE`） | 「新增日期需為明天以後，且在方案開放日期內」 |
 | EX-12 | 新總額 < 0 | 拒絕 | 422 `INVALID_MODIFICATION_AMOUNT`（模組碼） | 「新總額不可小於 0」 |
-| EX-13 | 跨角色併發（OWNER 撤回與 SITTER 報價同時；SITTER 開始行程與 SITTER / OWNER 送出含該行程的變更同時） | 鎖訂單列序列化；後到者依新狀態重驗 | 後到者 409 `MODIFICATION_STATE_CONFLICT` / `VISIT_ALREADY_STARTED` | 同 EX-8 / EX-10 |
+| EX-13 | 跨角色併發（OWNER 撤回與 SITTER 報價同時；SITTER 開始行程與 SITTER / OWNER 送出含該行程的變更同時） | 鎖訂單列序列化；後到者依新狀態重驗（撤回 vs 報價：撤回先 → 報價 409；報價先 → 撤回 `QUOTED` 仍合法、成功，見 AC-3.6） | 後到者依新狀態不合法時 409 `MODIFICATION_STATE_CONFLICT` / `VISIT_ALREADY_STARTED` | 同 EX-8 / EX-10 |
 | EX-14 | 鎖等待逾時 | 不改資料 | 409 `ORDER_BUSY` + `Retry-After: 1` | 「訂單處理中，請稍後再試」（前端自動重試一次） |
 | EX-15 | 重複送出（同 `Idempotency-Key`） | 回放第一次結果，不重複建立 | 同第一次（例 201） | 同第一次 |
 | EX-16 | 同 key 不同內容 / 同 key 處理中 | 拒絕 | 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` | 「請重新送出」 |
@@ -211,7 +211,7 @@
 - [ ] **AC-3.3 (逾時排程)**：Given `REQUESTED` 變更 `expires_at=2026-11-24T02:00:00Z`，When 排程於 2026-11-24 10:00 之後第一次執行（≤ 15 分鐘內），Then `status=EXPIRED`、結束時間 = 排程寫入時間、寫 `order_logs`（操作者 SYSTEM）、雙方收到通知「變更請求已逾期」；訂單狀態與行程不變。Given `QUOTED` 變更已過 `expires_at`，When 排程執行，Then 同上。Given 排程候選列在鎖住時已是 `EXPIRED`（重跑），When 處理該筆，Then 略過，`order_logs` 與通知不重複。對應：T6、BR-15、BR-16、EX-20
 - [ ] **AC-3.4 (期限以時間判斷)**：Given `REQUESTED` 變更已過 `expires_at=2026-11-24T02:00:00Z` 但排程尚未執行（狀態仍 `REQUESTED`），When SITTER 報價、SITTER 拒絕或 OWNER 撤回，Then 409 `DEADLINE_PASSED`（payload `deadline=MODIFICATION_EXPIRES_AT`、`deadlineAt=2026-11-24T02:00:00Z`），狀態不變。Given `QUOTED` 變更已過 `expires_at` 且排程未執行，When 發起者撤回，Then 同一 409 與 payload。兩種情況協商頁皆隱藏動作按鈕、顯示「此變更請求已逾期」。對應：BR-15、EX-9
 - [ ] **AC-3.5 (協商頁可執行動作與歷史)**：Given §4.6 每一列的狀態與發起者，When OWNER 與 SITTER 分別開啟協商頁，Then 只出現該列列出的按鈕（例：OWNER 發起的 `QUOTED`，SITTER 頁面沒有「送出報價」「拒絕變更」，只顯示報價金額與到期時間）；終態只顯示唯讀結果。Given 訂單有 3 筆已結束變更，When 開啟變更歷史，Then 依 `created_at` 倒序列出 3 筆；Given 訂單沒有任何變更，Then 顯示「尚無變更紀錄」。對應：§4.6
-- [ ] **AC-3.6 (跨角色併發)**：Given OWNER 發起的 `REQUESTED` 變更，When OWNER 撤回與 SITTER 報價同時送出，Then 恰有一個成功；另一個 409 `MODIFICATION_STATE_CONFLICT`，最終狀態為 `WITHDRAWN` 或 `QUOTED` 其一，`order_logs` 只有成功那一筆；鎖等待超過 3 秒的請求 → 409 `ORDER_BUSY` + `Retry-After: 1`。對應：EX-13、EX-14
+- [ ] **AC-3.6 (跨角色併發)**：Given OWNER 發起的 `REQUESTED` 變更，When OWNER 撤回與 SITTER 報價同時送出，Then 依取得訂單鎖的先後：撤回先 → 撤回 200、報價 409 `MODIFICATION_STATE_CONFLICT`，`order_logs` 只新增 `MODIFICATION_WITHDRAWN`；報價先 → 報價 200（`QUOTED`），之後撤回 `QUOTED` 變更仍合法（§4.4 步驟 1 撤回限 `REQUESTED` / `QUOTED`）→ 撤回 200，`order_logs` 依序新增 `MODIFICATION_QUOTED`、`MODIFICATION_WITHDRAWN`；兩種順序最終狀態皆為 `WITHDRAWN`；鎖等待超過 3 秒的請求 → 409 `ORDER_BUSY` + `Retry-After: 1`。對應：EX-13、EX-14
 - [ ] **AC-3.7 (發起與報價冪等)**：Given OWNER 以 `Idempotency-Key=K1` 發起成功（201），When 同 key 同內容重送，Then 201 與相同 `modificationId`、只有一筆變更；When 同 key 不同內容，Then 422 `IDEMPOTENCY_KEY_REUSED`；When 換 key 重送，Then 409 `MODIFICATION_IN_PROGRESS`。Given SITTER 以 K2 報價成功、變更 `QUOTED`，When 同 key 同內容重送，Then 回放 200 與相同 body；When 換 key 再報價，Then 409 `MODIFICATION_STATE_CONFLICT`、新總額不變。Given 呼叫發起端點未帶 key，Then 400 `VALIDATION_FAILED`（`field=Idempotency-Key`）。對應：BR-22、EX-15、EX-16
 - [ ] **AC-3.8 (寄信失敗不影響轉移)**：Given Resend 回 5xx，When OWNER 發起變更，Then 201、變更 `REQUESTED` 已提交、SITTER 站內通知已存在；Email 由排程重試，最多 5 次。對應：EX-17
 
@@ -266,6 +266,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後小修，使用者決定 2026-11-22：AC-3.6 與 EX-13 原寫「恰有一個成功、最終 `WITHDRAWN` 或 `QUOTED` 其一」有誤——報價先成功後，發起者撤回 `QUOTED` 變更本就合法（§3 權限表、§4.4 步驟 1），改為依鎖先後：撤回先 → 報價 409；報價先 → 兩者皆成功；兩種順序最終皆 `WITHDRAWN`。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22；實作 `ModificationIntegrationTest` PRD-016 AC-3.6 已依此斷言 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。(1) §9 畫面與 testid 表補變更結算後報價明細三段（PRD-006 BR-16）與 `order-detail-quote-original-total` / `-modification-{modificationId}` / `-current-total`；(2) §9 補 `owner-order-detail-btn-open-modification` / `sitter-order-detail-btn-open-modification`（有進行中變更時顯示，按鈕文案「查看進行中變更」，進協商頁）與 `order-modify-btn-add-item`；(3) §3 ADMIN 可讀範圍改「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）。AC 不變，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) 畫面金額改為 SD-FRONTEND-SPEC §6.4.1 格式（§4.3 差額文案「應補款 $ X」、AC-2.3、AC-2.4）；(2) BR-5「去前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）；(3) §9 testid 表補 SD-ORDER §9.3 補定的變更入口、新增行程子元件、變更報價調整輸入。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |

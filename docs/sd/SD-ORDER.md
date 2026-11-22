@@ -2140,7 +2140,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | `ModificationLifecycleIntegrationTest` | PRD-016 AC-2.6、AC-3.1、AC-3.2、AC-3.4；PRD-023 AC-1.6 | 拒絕（雙方各自可拒絕的狀態）、撤回權限（SYSTEM 變更 403）、期限以時間判斷、`ended_at` |
 | `ModificationCronIntegrationTest` | PRD-016 AC-3.3 | C5：同批 3 筆其中 1 筆處理拋例外 → 該筆回滾計 `failed`、其他照常、下一輪重試（PRD-016 EX-20）；`REQUESTED` / `QUOTED` 到期轉 `EXPIRED`、`ended_at`、SYSTEM log 與雙方通知；鎖後已是終態則略過、不重複 log；訂單 `DISPUTED` 略過 |
 | `ModificationQueryIntegrationTest` | PRD-016 AC-3.5 | 歷史倒序、空清單、`allowedActions` 依 §4.6 表與逾期 |
-| `ModificationConcurrencyIntegrationTest` | PRD-016 AC-3.6；PRD-023 AC-1.5 | 撤回 vs 報價；保母開始行程 vs 送出含該行程為減少目標的變更（E17 / E20）兩執行緒：開始先 → 變更 409 `VISIT_ALREADY_STARTED`，變更先 → 開始照常（變更未同意前行程仍 `PENDING`）（PRD-016 EX-13 第二種）；同意 vs 開始行程（O9 不因變更取消觸發）；同意 vs 撤回 |
+| `ModificationConcurrencyIntegrationTest` | PRD-016 AC-3.6；PRD-023 AC-1.5 | 撤回 vs 報價（撤回先 → 報價 409 `MODIFICATION_STATE_CONFLICT`；報價先 → 報價 200、之後撤回 `QUOTED` 照常 200；兩種順序最終皆 `WITHDRAWN`，PRD-016 AC-3.6 2026-11-22 小修）；保母開始行程 vs 送出含該行程為減少目標的變更（E17 / E20）兩執行緒：開始先 → 變更 409 `VISIT_ALREADY_STARTED`，變更先 → 開始照常（變更未同意前行程仍 `PENDING`）（PRD-016 EX-13 第二種）；同意 vs 開始行程（O9 不因變更取消觸發）；同意 vs 撤回 |
 | `ModificationIdempotencyIntegrationTest` | PRD-016 AC-3.7；PRD-023 AC-1.8 | §10.2；換 key 再同意不重建 payment（`ux_payments_per_modreq`） |
 | `ModificationSettlementIntegrationTest` | PRD-023 AC-1.1–1.4、AC-1.7、AC-2.1–2.3、AC-3.1–3.5 | 三分支；同意時重算已收淨額；`VISIT_ALREADY_STARTED` 整筆回滾；新增日期已過仍建立；O10 與其獨立 log；`IN_PROGRESS` 整筆取消不轉 `CANCELLED`；`completion_basis_at` 重算 |
 | `SupplementExpiryIntegrationTest` | PRD-023 AC-2.4–2.8、AC-3.6 | C6 vs 保母確認補款兩執行緒：確認先 → C6 鎖後重驗 payment 非 `UNPAID` 略過；C6 先 → 確認得 409 `PAYMENT_STATE_CONFLICT`（PRD-023 EX-9）；重算與下限 0；只扣本次取消；T9 系統退款列欄位逐一斷言（`type=CHANGE`、`reason`、`new_total_amount`、`system_amount`、`quoted_*` / `agreed_*`、`initiated_by_user_id=NULL`、`source_modification_id`）；flush 順序不撞 partial unique；`SUBMITTED` 不逾時；駁回後下一輪逾時；單筆失敗整筆回滾 |
@@ -2312,6 +2312,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 同步 PRD-016 AC-3.6 核准後小修（狀態維持 Approved）：§10.3 撤回 vs 報價改為依鎖先後——撤回先 → 報價 409；報價先 → 撤回 `QUOTED` 照常成功；最終皆 `WITHDRAWN`（原「恰一方成功」有誤） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：CQ-43 待評估上限改為不加鎖（移除 advisory lock，§3.1 O1、§4.1、§6.3 E1、§6.5 #19、§11.4、§10.3），判斷位置在 `MONTHLY_QUOTA_REACHED` 之後；CQ-25 已決 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§3.6.6 / E13 憑證簽名 GET 加 `response-content-type`（= `proof_content_type`）與 `response-content-disposition=inline`（U-7）；§8.2、§2.3.2、§5.1.1 註解、§11.4 收款帳號快照 AES-GCM AAD = `payments:{id}:payee_account_snapshot`，payment UUID 加密前由 Service 產生，不需遷移（U-8、CQ-48）；同一飼主對同一保母同時 `PENDING` 上限 3 張：E1 判斷順序在 `SITTER_NOT_BOOKABLE` 後、`MONTHLY_QUOTA_REACHED` 前，新模組碼 422 `PENDING_ORDER_LIMIT_REACHED`（§6.5 #37，總表 38 項）、交易 B 以 `pg_advisory_xact_lock`（飼主 + 保母）序列化、設定 `owner-pending-per-sitter-max`、`BookingIntegrationTest` 補案例、新增 CQ-25（U-13、CQ-43；PRD-005 由另一流程回寫） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §11.5 B 階段實作決定（JSONB 寫法、55P03 轉換、`tab` 必填、E2 不列取消行程、sitter-setup / provision-account 細節、M16 不改 plan_tier） | B 階段實作回饋，使用者 2026-11-22 核准 |

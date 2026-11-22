@@ -191,7 +191,7 @@
 | AC-1.1-3（變更 `SETTLED` 新增的行程取當下預設任務） | 需完整新增變更 + 補款 + 核對流程；E2E 以 K-08（之後 O1 建立的行程取當下預設）替代驗證同一快照規則 | `ChecklistSeedIntegrationTest`；TS-023 旅程可加斷言 |
 | CQ-7 其餘情況（方案已刪除 / 下架 → 空清單；非字串元素略過） | 正式站造不出非字串元素；方案下架後無法建單 | `ChecklistSeedIntegrationTest` |
 | AC-2.2-3 真併發（打勾 vs FC1 同時取鎖）；AC-2.2-4、EX-10（`ORDER_BUSY` + `Retry-After: 1`） | 需兩條執行緒同時取鎖或持鎖 3 秒；E2E 只做循序版（K-42–K-44） | `VisitConcurrencyIntegrationTest`、`ChecklistCheckIntegrationTest` |
-| EX-9 後半（打勾 vs 變更同意取消目標行程） | 同上 | `VisitConcurrencyIntegrationTest` |
+| EX-9 後半（新增檢核項 vs 變更同意取消目標行程；同意先 → 新增 409 `VISIT_STATE_CONFLICT` `CANCELLED`，新增先 → 201、之後同意照常。打勾 vs 同意取消不會發生，不測） | 需兩條執行緒同時取鎖 | `VisitConcurrencyIntegrationTest` |
 | EX-11 處理中（409 `IDEMPOTENCY_IN_PROGRESS`） | 正式站無法讓第一個請求停在處理中 | `ChecklistEditIntegrationTest` |
 | EX-13（Resend / GCS） | 本卡不適用 | — |
 | EX-15（帶入寫入失敗 → 行程建立整筆回滾 500） | 正式站無法注入故障 | `ChecklistSeedIntegrationTest` |
@@ -206,7 +206,7 @@
 | L-3 | 修改既有方案預設任務的入口 | 已解決：`sitter-setup` upsert，以 `key` 對應方案（K-07） |
 | L-4 | 打勾時間顯示位置與 testid | 已解決：PRD-028 §4.3 / §9、SD-FULFILL §9.1 `sitter-visit-panel-checklist-checked-at-{itemId}`（K-37、K-38、K-41） |
 | L-5 | 打勾遇已結束行程的文案 | 已解決：PRD-028 EX-8「此行程已結束，無法修改」（K-27、K-44） |
-| L-6 | SD-FULFILL §10.1 未列 EX-15、EX-11 處理中、EX-9 vs E23、BR-11 | 已解決：已補進 `ChecklistSeedIntegrationTest`、`ChecklistEditIntegrationTest`、`VisitConcurrencyIntegrationTest`；BR-11 另由 [INS] 在 E2E 驗（K-01、K-10、K-17、K-19、K-37） |
+| L-6 | SD-FULFILL §10.1 未列 EX-15、EX-11 處理中、EX-9 vs E23（2026-11-22 起為新增檢核項 vs E23）、BR-11 | 已解決：已補進 `ChecklistSeedIntegrationTest`、`ChecklistEditIntegrationTest`、`VisitConcurrencyIntegrationTest`；BR-11 另由 [INS] 在 E2E 驗（K-01、K-10、K-17、K-19、K-37） |
 | L-7 | 正式排程競爭 | 已解決：FC1 帶 `orderId`，自動觸發跳過測試帳號訂單（K-43 斷言精確計數） |
 | L-8 | 訂單 Dm 的 `DISPUTED` 只能經變更待退款 + E24 完整流程造出（FT1 只造行程狀態），耗時且任一環節失敗會連帶失敗 | 已解決（判定可接受，協調者 2026-11-22 確認，同 TS-008 §5 L-9）：維持完整流程；`CANCELLED` 行程已改用 FT1（K-27） |
 
@@ -219,6 +219,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 依 PRD-028 EX-9 核准後小修（使用者決定 2026-11-22）：§4 EX-9 後半改為「新增檢核項 vs 同意取消」（打勾 vs 同意取消不會發生）。K-44 引用的 EX-9 前半（打勾 vs 系統逾時）不變。狀態維持 Approved | PRD-028 EX-9 核准後小修 |
 | 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：K-E06 前置改為「從未有任何 ADMIN 待辦」（ADMIN 可讀範圍改為 `DISPUTED` 或曾有任何待辦，PRD-028 AC-2.4 情境 3）。狀態維持 Approved | SD-ORDER §6.3、PRD-028 核准後修訂 |
 | 2026-11-22 | §5 L-8 標已解決（`DISPUTED` 維持完整流程，判定可接受）；K-43 FC1 計數以訂單為單位（SD-ORDER 已釐清，斷言不變） | 協調者回覆 §5 |
 | 2026-11-22 | 依 commit 477c75d 核准後修訂更新：`created_by` / `updated_by` / `updated_at`、無 `order_logs` / 通知改以 inspect 在 E2E 斷言（K-01、K-02、K-10、K-11、K-17、K-19、K-37）；打勾時間改用 `sitter-visit-panel-checklist-checked-at-{itemId}`（K-37、K-38、K-41）；已結束文案依 PRD-028 EX-8；新增 K-27（FT1 造 `CANCELLED`、編輯文案），訂單 Dm 改為直接造好 `DISPUTED`、刪除原以變更造 `CANCELLED` 的檢查步驟；方案預設任務改以 `sitter-setup` upsert；FC1 帶 `orderId` 並斷言精確計數；K-25 加全形空白；ADMIN 改用 `provision-account roles[]`；步驟重新編號（K-01–K-47）；§5 已解決項標註 | SD-ORDER §10.4、SD-FULFILL §6.3 / §9.1 / §10.1 / §10.2、PRD-028 核准後修訂 |

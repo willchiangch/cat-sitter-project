@@ -105,7 +105,7 @@ BR §5.2 要求訂單進行中時，保母可為每一次到府服務編輯「�
 | EX-6 | 新增第 21 項 | 拒絕，不改資料 | 400 `VALIDATION_FAILED`（`field=items`、`max=20`） | 「每個行程最多 20 項」 |
 | EX-7 | 訂單狀態不允許（`PENDING_PAYMENT`、`COMPLETED`、`CANCELLED`；打勾時 `CONFIRMED`） | 拒絕 | 409 `ORDER_STATE_CONFLICT`（`currentStatus`） | 「訂單狀態已變更，請重新整理」 |
 | EX-8 | 行程狀態不允許（編輯時 `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`；打勾時非 `IN_PROGRESS`） | 拒絕 | 409 `VISIT_STATE_CONFLICT`（`currentVisitStatus`） | `currentVisitStatus` 為 `DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`（編輯或打勾皆同）→「此行程已結束，無法修改」；打勾時為 `PENDING` →「開始行程後才能打勾」 |
-| EX-9 | 跨角色 / 系統併發：保母打勾時系統逾時結束行程（PRD-008 T4），或變更同意取消目標行程（PRD-023） | 鎖序列化；系統 / 飼主先 → 保母得 EX-8；保母先 → 打勾成立，之後行程照常轉移 | 409 `VISIT_STATE_CONFLICT` | 依先後 |
+| EX-9 | 跨角色 / 系統併發：保母打勾時系統逾時結束行程（PRD-008 T4），或保母新增檢核項時變更同意取消目標行程（PRD-023）。（打勾 vs 同意取消不會發生：只有未開始的 `PENDING` 行程可被取消，打勾須行程 `IN_PROGRESS`） | 鎖序列化；系統 / 飼主先 → 保母得 EX-8（新增遇已取消 → `currentVisitStatus=CANCELLED`）；保母先 → 打勾 / 新增成立，之後行程照常轉移（新增的項目隨行程一起變為已取消行程的項目） | 409 `VISIT_STATE_CONFLICT` | 依先後 |
 | EX-10 | 鎖等待逾時 | 不改資料 | 409 `ORDER_BUSY` + `Retry-After: 1` | 「系統忙碌，請稍後再試」 |
 | EX-11 | 新增重送（同 key 同內容 / 不同內容 / 處理中） | 回放 / 拒絕 / 拒絕 | 同第一次 / 422 `IDEMPOTENCY_KEY_REUSED` / 409 `IDEMPOTENCY_IN_PROGRESS` | 同第一次 / 「請重新操作」 |
 | EX-12 | 方案不足 / 訂閱鎖定 | 不適用：不分方案、鎖定不擋 | 200 | 同正常流程 |
@@ -158,6 +158,7 @@ BR §5.2 要求訂單進行中時，保母可為每一次到府服務編輯「�
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後小修，使用者決定 2026-11-22：EX-9 原列「打勾 vs 變更同意取消目標行程」不可能發生（只有 `PENDING` 行程可被取消，打勾須 `IN_PROGRESS`），改為「新增檢核項 vs 同意取消」：同意先 → 新增 409 `VISIT_STATE_CONFLICT`（`CANCELLED`）；新增先 → 201、之後同意照常。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22；`VisitConcurrencyIntegrationTest` 已依此實作 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。§3 與 AC-2.4 情境 3 的 ADMIN 唯讀範圍改「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) 打勾時間顯示在保母服務面板：§4.3 步驟 1、BR-14、AC-2.1 情境 1、§9 補 `sitter-visit-panel-checklist-checked-at-{itemId}`（位於 `sitter-visit-panel-checklist-item-{itemId}` 內，Asia/Taipei `YYYY-MM-DD HH:mm`，未打勾不顯示；名稱依 SD-FULFILL）；(2) 打勾遇已結束行程（`DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`）文案定為「此行程已結束，無法修改」（§4.3 步驟 2、EX-8、AC-2.1 情境 3）；(3) BR-6「去前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。本卡無金額。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：§9 畫面 testid 補飼主檢核單項 `owner-order-detail-visit-checklist-item-{itemId}`（供 TS 定位 AC-2.3 單項，`data-checked` 不變）。僅補 testid，不改 AC 與規則；狀態維持 Approved | `docs/reviews/SD-FULFILL.api.review.md` 第 2 輪 S20；SD-FULFILL CQ-14 |

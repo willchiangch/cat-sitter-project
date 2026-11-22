@@ -131,7 +131,7 @@
 | MW-14 | AC-3.5 | owner、sitter | sitter 發起的 `QUOTED`：雙方開協商頁 | 飼主：`modification-btn-accept`、`modification-btn-reject`（無撤回）；保母：只有 `modification-btn-withdraw` | owner `[ACCEPT, REJECT]`、sitter `[WITHDRAW]` | 截圖 + API JSON |
 | MW-15 | AC-3.5 | owner、sitter | 對 MW-06 的四筆終態變更，雙方各開協商頁 | 無任何動作按鈕；顯示狀態、結束時間、金額（有報價者，`$ 1,500` 格式）、原因 | 皆 `allowedActions=[]` | 截圖 + API JSON |
 | MW-16 | AC-3.5 | owner | 以 MI-15 流程的訂單（5 筆變更）開 `/owner/orders/{order}` 變更歷史；另開一張無變更的 `CONFIRMED` 單 | 前者 `modification-history-item-{id}` 共 5 個，DOM 順序與 E18 一致（`createdAt` 倒序）；後者 `modification-history-empty`「尚無變更紀錄」；點前者的 `EXPIRED` 那列 → 落地 `/orders/{order}/modifications/{該 id}` 唯讀明細，狀態文字「已逾期」、無任何動作按鈕 | E18 前者 5 列倒序、後者 `[]` | 截圖 + API JSON |
-| MW-17 | AC-3.6 | owner、sitter | owner E17（`REQUESTED`）；記下 `inspect.orderLogs` 列數 n；以 `Promise.all` 同時送 owner E22 與 sitter E20（不帶加減） | — | 恰一個 200；另一個 409 `MODIFICATION_STATE_CONFLICT`；E19 最終狀態 = 成功者的結果（`WITHDRAWN` 或 `QUOTED`）；`inspect.orderLogs` 恰新增 1 筆，`actionType` 為成功者那種（`MODIFICATION_WITHDRAWN` 或 `MODIFICATION_QUOTED`）；`inspect.notifications` 只有成功那一種 | API JSON |
+| MW-17 | AC-3.6 | owner、sitter | owner E17（`REQUESTED`）；記下 `inspect.orderLogs` 列數 n；以 `Promise.all` 同時送 owner E22 與 sitter E20（不帶加減） | — | E22 一律 200；E19 最終狀態一律 `WITHDRAWN`。依 E20 結果分兩種（`Promise.all` 無法控制先後，兩種都算通過）：(a) E20 409 `MODIFICATION_STATE_CONFLICT`（撤回先）→ `inspect.orderLogs` 恰新增 1 筆 `MODIFICATION_WITHDRAWN`，`inspect.notifications` 只有撤回那一種；(b) E20 200（報價先）→ `inspect.orderLogs` 恰新增 2 筆，依序 `MODIFICATION_QUOTED`、`MODIFICATION_WITHDRAWN`，兩種通知各 1 則 | API JSON |
 | MW-18 | AC-3.7 | owner | 另一張單：owner E17 帶 `Idempotency-Key=K1`；同 key 同 body 重送；同 key 改 `reason`；換新 key 同 body | — | 201；回放 201 且 `modificationId` 相同、E18 長度 1、`MODIFICATION_REQUESTED` 的 `order_logs` 與通知各仍 1 筆；422 `IDEMPOTENCY_KEY_REUSED`；409 `MODIFICATION_IN_PROGRESS` | API JSON |
 | MW-19 | AC-3.7 | sitter | sitter E20 帶 `K2`；同 key 同 body 重送；換新 key 同 body | — | 200；回放 200、body 與第一次相同；409 `MODIFICATION_STATE_CONFLICT`，E19 `newTotalAmount` 不變 | API JSON |
 | MW-20 | AC-3.7 | owner | 另一張單 E17 不帶 `Idempotency-Key` header | — | 400 `VALIDATION_FAILED`、`payload.field=Idempotency-Key`；E18 長度 0 | API JSON |
@@ -195,6 +195,7 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | MW-17 依 PRD-016 AC-3.6 核准後小修（使用者決定 2026-11-22）改寫：撤回 vs 報價不是「恰一方成功」，撤回先 → 報價 409；報價先 → 兩者皆 200；兩種順序最終皆 `WITHDRAWN`。狀態不動 | PRD-016 AC-3.6 核准後小修 |
 | 2026-11-22 | 依新範本全文重寫：對應拆卡後的 PRD-016（發起、報價、拒絕、撤回、逾時）與 SD-ORDER；補款 / 退款 / 結清移至 TS-023、款項爭議移至 TS-024；舊版 Scenario（`MODIFYING`、`REFUND_VERIFY`、`previous_status`）全部廢止 | PRD-016、SD-ORDER Approved 2026-11-22 |
 | 2026-11-22 | 依 SD 核准後修訂（commit 477c75d）更新：`order_logs` / 通知改以 `inspect` 在 E2E 斷言（MI-03、MI-04、MI-07、MI-08、MQ-02、MQ-18、MW-01、MW-03、MW-07~MW-09、MW-17、MW-18；§4 移除 `order_logs` 列）；目前總額改用 E2 `quote.totalAmount`；C5 / C6 帶 `orderId` 並斷言精確計數（MI-15、MW-05、MW-07~MW-09）；帳號改用 `roles[]`（`sitter` 雙角色、`admin`）與 setup upsert / key 對應；補 SD-ORDER §9.3 testid（`owner-order-detail-btn-modify`、`sitter-order-detail-btn-modify`、`modification-input-*`、`order-modify-add-item-{index}-*`）；畫面金額改 `$ 1,800` 格式；新增 ME-15（EX-17 站內通知）；§4 EX-13、EX-20 標明後端已列；§5 已解決項移除 | SD-ORDER / SD-FULFILL 核准後修訂（commit 477c75d） |
 | 2026-11-22 | 使用者核准：狀態 Draft → Approved | 使用者 2026-11-22 |
