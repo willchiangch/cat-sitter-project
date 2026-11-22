@@ -6,6 +6,21 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.petsitter.application.common.idempotency.IdempotencyService;
+import com.petsitter.application.service.fulfill.VisitCommandService;
+import com.petsitter.application.service.order.ModificationEvaluator;
+import com.petsitter.application.service.order.ModificationPlanner;
+import com.petsitter.application.service.order.ModificationPreviewService;
+import com.petsitter.application.service.order.OrderCommandSupport;
+import com.petsitter.application.service.order.OrderLockService;
+import com.petsitter.application.service.order.OrderLogWriter;
+import com.petsitter.application.service.order.OrderNotifier;
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
+import org.springframework.data.repository.Repository;
+
+import java.util.Set;
+
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -56,5 +71,34 @@ class OrderAggregateArchTest {
         noClasses().that().resideInAPackage("com.petsitter.domain.model.fulfill..")
                 .should().dependOnClassesThat().haveFullyQualifiedName("com.petsitter.domain.model.order.Order")
                 .check(MAIN);
+    }
+
+    private static final Set<String> PREVIEW_PATH = Set.of(ModificationPreviewService.class.getName(),
+            ModificationEvaluator.class.getName(), ModificationPlanner.class.getName());
+
+    @Test
+    @DisplayName("SD-ORDER §10.3 ModificationPreview (10)：試算路徑不依賴 OrderLockService / IdempotencyService / OrderLogWriter / OrderNotifier / VisitCommandService")
+    void previewPathHasNoWriteCollaborators() {
+        noClasses().that().haveNameMatching(regex(PREVIEW_PATH))
+                .should().dependOnClassesThat().belongToAnyOf(OrderLockService.class, IdempotencyService.class, OrderLogWriter.class,
+                        OrderNotifier.class, VisitCommandService.class)
+                .check(MAIN);
+    }
+
+    @Test
+    @DisplayName("SD-ORDER §10.3 ModificationPreview (10)：試算路徑不呼叫 Repository 寫入方法（save / delete / insert / update / flush），不呼叫冪等認領與取鎖")
+    void previewPathCallsNoWrites() {
+        DescribedPredicate<JavaMethodCall> repoWrite = DescribedPredicate.describe("Repository 寫入方法",
+                c -> c.getTargetOwner().isAssignableTo(Repository.class)
+                        && c.getName().matches("(save|delete|insert|update|flush|persist|merge).*"));
+        DescribedPredicate<JavaMethodCall> lockOrClaim = DescribedPredicate.describe("OrderCommandSupport 認領 / 取鎖 / 完成",
+                c -> c.getTargetOwner().isEquivalentTo(OrderCommandSupport.class)
+                        && Set.of("claim", "inLockedTx", "complete").contains(c.getName()));
+        noClasses().that().haveNameMatching(regex(PREVIEW_PATH)).should().callMethodWhere(repoWrite).check(MAIN);
+        noClasses().that().haveNameMatching(regex(PREVIEW_PATH)).should().callMethodWhere(lockOrClaim).check(MAIN);
+    }
+
+    private static String regex(Set<String> names) {
+        return "(" + String.join("|", names.stream().map(n -> n.replace(".", "\\.").replace("$", "\\$")).toList()) + ")(\\$.*)?";
     }
 }

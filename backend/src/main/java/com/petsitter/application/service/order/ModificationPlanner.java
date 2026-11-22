@@ -249,19 +249,50 @@ public class ModificationPlanner {
         }
     }
 
-    /** {@code system_amount = Σ(變更後有效行程的快照單價)}（含 DONE / CLOSED_BY_SYSTEM，PRD-016 AC-2.4）。 */
-    public int systemAmount(ModificationContent c, Context ctx) {
+    /** 保留的有效行程逐列單價（依 serviceDate、visitId 升冪）。 */
+    public record KeptLine(VisitView visit, int unitPrice) {
+    }
+
+    /** 新增項目逐列（{@code index} 對應 request addItems 索引）：小計 = 單價 × 每日次數。 */
+    public record AddedLine(int index, ModificationContent.AddItem item, int unitPrice, int subtotal) {
+    }
+
+    /** 計價明細與合計（同源）：{@code systemAmount = Σ kept.unitPrice + Σ added.subtotal}。 */
+    public record Pricing(List<KeptLine> kept, List<AddedLine> added, int systemAmount) {
+    }
+
+    /**
+     * 計價單一來源（SD-ORDER §3.3「計價與檢查單一來源」）：{@code system_amount = Σ(變更後有效行程的快照單價)}；
+     * 有效行程 = 非 CANCELLED 且不在減少目標內（含 DONE / CLOSED_BY_SYSTEM，PRD-016 BR-12 / AC-2.4）+ 新增項目（單價 × 每日次數）。
+     * E17 / E20 / E32 / E33 皆經此方法。
+     */
+    public Pricing price(ModificationContent c, Context ctx) {
         Set<UUID> removed = new HashSet<>(c.removeVisitIds());
+        List<KeptLine> kept = new ArrayList<>();
         long sum = 0;
         for (VisitView v : ctx.effective()) {
             if (!removed.contains(v.visitId())) {
-                sum += unitPrice(ctx, v.planId());
+                int price = unitPrice(ctx, v.planId());
+                kept.add(new KeptLine(v, price));
+                sum += price;
             }
         }
-        for (ModificationContent.AddItem a : c.addItems()) {
-            sum += (long) unitPrice(ctx, a.planId()) * a.dailyCount();
+        kept.sort(java.util.Comparator.comparing((KeptLine k) -> k.visit().serviceDate())
+                .thenComparing(k -> k.visit().visitId()));
+        List<AddedLine> added = new ArrayList<>();
+        for (int i = 0; i < c.addItems().size(); i++) {
+            ModificationContent.AddItem a = c.addItems().get(i);
+            int price = unitPrice(ctx, a.planId());
+            long subtotal = (long) price * a.dailyCount();
+            added.add(new AddedLine(i, a, price, (int) Math.min(subtotal, Integer.MAX_VALUE)));
+            sum += subtotal;
         }
-        return (int) Math.min(sum, Integer.MAX_VALUE);
+        return new Pricing(List.copyOf(kept), List.copyOf(added), (int) Math.min(sum, Integer.MAX_VALUE));
+    }
+
+    /** {@link #price} 的合計。 */
+    public int systemAmount(ModificationContent c, Context ctx) {
+        return price(c, ctx).systemAmount();
     }
 
     /** 本變更減少目標的快照單價合計（C6 補款逾時重算，CQ-53）。 */

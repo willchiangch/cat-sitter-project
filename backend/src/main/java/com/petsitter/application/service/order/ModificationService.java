@@ -4,11 +4,9 @@ import com.petsitter.application.common.idempotency.IdempotencyClaim;
 import com.petsitter.application.common.idempotency.IdempotencyContext;
 import com.petsitter.application.dto.order.ModificationRequests;
 import com.petsitter.application.dto.order.ModificationResponses;
-import com.petsitter.application.exception.OrderErrorCode;
 import com.petsitter.application.exception.OrderException;
 import com.petsitter.application.exception.PayoutAccountMissingException;
 import com.petsitter.application.port.PayoutAccountQuery;
-import com.petsitter.application.port.SubscriptionQuery.SubscriptionStatus;
 import com.petsitter.application.service.fulfill.VisitCommandService;
 import com.petsitter.domain.model.order.ActorRole;
 import com.petsitter.domain.model.order.InitiatedBy;
@@ -47,6 +45,7 @@ public class ModificationService {
     private final OrderCommandSupport support;
     private final OrderRequestValidator validator;
     private final ModificationPlanner planner;
+    private final ModificationEvaluator evaluator;
     private final ModificationRequestRepository modificationRequestRepository;
     private final PaymentRepository paymentRepository;
     private final VisitCommandService visitCommandService;
@@ -54,7 +53,6 @@ public class ModificationService {
     private final OrderAggregateSupport aggregateSupport;
     private final PayoutAccountQuery payoutAccountQuery;
     private final PayoutSnapshotCipher cipher;
-    private final PlanPolicy planPolicy;
     private final OrderLogWriter orderLogWriter;
     private final OrderNotifier notifier;
     private final OrderSettings settings;
@@ -84,22 +82,9 @@ public class ModificationService {
         return support.inLockedTx(orderId, locked -> {
             Order o = locked.entity();
             OffsetDateTime now = clock.now();
-            requireModifiable(o);
-            ModificationPlanner.Context c = planner.context(o);
-            ModificationContent content = planner.content(draft, c);
-            planner.validateServerData(draft, content, c, sitter);
-            if (modificationRequestRepository.existsByOrderIdAndStatusIn(o.getId(), ModificationRequest.OPEN_STATUSES)) {
-                throw new OrderException(OrderErrorCode.MODIFICATION_IN_PROGRESS);
-            }
-            if (c.pendingIds().isEmpty()) {
-                throw new OrderException(OrderErrorCode.MODIFICATION_NOT_ALLOWED);
-            }
-            planner.requireRemovablePending(content, c);
-            SubscriptionStatus sub = planPolicy.status(o.getSitterId());
-            planner.validateBusiness(draft, content, c, sub, sitter);
-            if (sitter && draft.surcharge() + draft.discount() > 0 && !planPolicy.adjustmentAllowed(sub)) {
-                throw new OrderException(OrderErrorCode.PLAN_REQUIRED);
-            }
+            // 檢查序列與計價與 E32 共用（SD-ORDER §3.3）
+            ModificationEvaluator.Evaluation ev = evaluator.evaluateInitiate(o, draft, sitter);
+            ModificationContent content = ev.content();
             ModificationRequest.ModificationRequestBuilder<?, ?> b = ModificationRequest.builder()
                     .orderId(o.getId())
                     .type(type)
@@ -110,9 +95,9 @@ public class ModificationService {
             Map<String, Object> payload = new LinkedHashMap<>();
             ModificationResponses.Initiated resp;
             if (sitter) {
-                int system = planner.systemAmount(content, c);
-                int newTotal = system + draft.surcharge() - draft.discount();
-                int net = aggregateSupport.netPaid(o);
+                int system = ev.systemAmount();
+                int newTotal = ev.newTotalAmount();
+                int net = ev.netPaid();
                 ModificationRequest m = modificationRequestRepository.save(b.status(ModificationStatus.QUOTED)
                         .quotedContent(content).systemAmount(system).surchargeAmount(draft.surcharge())
                         .discountAmount(draft.discount()).adjustmentReason(draft.adjustmentReason()).newTotalAmount(newTotal)
@@ -121,7 +106,7 @@ public class ModificationService {
                 payload.put("type", type.name());
                 payload.put("reason", reason);
                 payload.put("quotedContent", ModificationApplier.describe(content));
-                putQuote(payload, m, planPolicy.adjustmentAllowed(sub));
+                putQuote(payload, m, ev.adjustmentAllowed());
                 payload.put("transitions", List.of(OrderLogWriter.transition("MODIFICATION", m.getId(), null, ModificationStatus.QUOTED)));
                 orderLogWriter.write(locked, "MODIFICATION_PROPOSED", Actor.sitter(actor.userId()), payload);
                 notifier.modification(o, "OWNER", m.getId(), "MODIFICATION_PROPOSED", Map.of());
@@ -147,9 +132,7 @@ public class ModificationService {
     }
 
     private static void requireModifiable(Order o) {
-        if (o.getStatus() != OrderStatus.CONFIRMED && o.getStatus() != OrderStatus.IN_PROGRESS) {
-            throw OrderException.stateConflict(o.getStatus());
-        }
+        ModificationEvaluator.requireModifiable(o);
     }
 
     private static void putQuote(Map<String, Object> payload, ModificationRequest m, boolean custom) {
@@ -184,24 +167,13 @@ public class ModificationService {
         return support.inLockedTx(orderId, locked -> {
             Order o = locked.entity();
             OffsetDateTime now = clock.now();
-            ModificationPlanner.Context c = planner.context(o);
-            ModificationContent content = planner.content(draft, c);
-            planner.validateServerData(draft, content, c, true);
-            requireModifiable(o);
             ModificationRequest m = support.loadModification(o, modificationId);
-            if (m.getStatus() != ModificationStatus.REQUESTED) {
-                throw OrderException.modificationConflict(m.getStatus());
-            }
-            requireNotExpired(m, now);
-            planner.requireRemovablePending(content, c);
-            SubscriptionStatus sub = planPolicy.status(o.getSitterId());
-            planner.validateBusiness(draft, content, c, sub, true);
-            if (draft.surcharge() + draft.discount() > 0 && !planPolicy.adjustmentAllowed(sub)) {
-                throw new OrderException(OrderErrorCode.PLAN_REQUIRED);
-            }
-            int system = planner.systemAmount(content, c);
-            int newTotal = system + draft.surcharge() - draft.discount();
-            int net = aggregateSupport.netPaid(o);
+            // 檢查序列與計價與 E33 共用（SD-ORDER §3.3）
+            ModificationEvaluator.Evaluation ev = evaluator.evaluateQuote(o, m, draft, now);
+            ModificationContent content = ev.content();
+            int system = ev.systemAmount();
+            int newTotal = ev.newTotalAmount();
+            int net = ev.netPaid();
             m.setStatus(ModificationStatus.QUOTED);
             m.setQuotedContent(content);
             m.setSystemAmount(system);
@@ -217,7 +189,7 @@ public class ModificationService {
             payload.put("modificationId", m.getId().toString());
             payload.put("type", m.getType().name());
             payload.put("quotedContent", ModificationApplier.describe(content));
-            putQuote(payload, m, planPolicy.adjustmentAllowed(sub));
+            putQuote(payload, m, ev.adjustmentAllowed());
             payload.put("transitions", List.of(OrderLogWriter.transition("MODIFICATION", m.getId(),
                     ModificationStatus.REQUESTED, ModificationStatus.QUOTED)));
             orderLogWriter.write(locked, "MODIFICATION_QUOTED", Actor.sitter(actor.userId()), payload);
@@ -230,9 +202,7 @@ public class ModificationService {
     }
 
     private static void requireNotExpired(ModificationRequest m, OffsetDateTime now) {
-        if (m.getExpiresAt() != null && !now.isBefore(m.getExpiresAt())) {
-            throw OrderException.deadline("MODIFICATION_EXPIRES_AT", m.getExpiresAt());
-        }
+        ModificationEvaluator.requireNotExpired(m, now);
     }
 
     // ------------------------------------------------------------------ E21

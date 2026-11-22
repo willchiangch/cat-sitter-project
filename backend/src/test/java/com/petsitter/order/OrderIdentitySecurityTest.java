@@ -86,6 +86,44 @@ class OrderIdentitySecurityTest extends OrderIntegrationTestBase {
     }
 
     @Test
+    @DisplayName("PRD-016 AC-1.7 / SD-ORDER §10.3 (9)：E32 / E33 試算越權矩陣（未登入 401、G4a、他人 403、ADMIN ROLE_MISMATCH、變更不屬訂單 404、本人 200）")
+    void modificationPreviewEndpoints() throws Exception {
+        java.time.LocalDate d = today().plusDays(5);
+        UUID orderId = confirmedOrder(d, d.plusDays(1));
+        UUID otherOrder = confirmedOrder(d.plusDays(10));
+        Map<String, Object> e32 = Map.of("type", "CANCEL_ALL", "reason", "x");
+        String e32Url = "/api/orders/{o}/modifications/preview";
+        mvc.perform(postJson(e32Url, null, null, e32, orderId)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mvc.perform(postJson(e32Url, bearer(admin, "ADMIN"), null, e32, orderId)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));
+        mvc.perform(postJson(e32Url, bearer(stranger, "OWNER"), null, e32, orderId)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mvc.perform(postJson(e32Url, bearer(sitter, "OWNER"), null, e32, orderId)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));
+        mvc.perform(postJson(e32Url, ownerToken(), null, e32, UUID.randomUUID())).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(postJson(e32Url, ownerToken(), null, e32, orderId)).andExpect(status().isOk());
+        mvc.perform(postJson(e32Url, sitterToken(), null, e32, orderId)).andExpect(status().isOk());
+
+        UUID modId = modificationId(modify(orderId, ownerToken(), e32));
+        String e33Url = "/api/orders/{o}/modifications/{m}/quote/preview";
+        UUID otherSitter = fx.user("x-" + UUID.randomUUID() + "@t.test", "SITTER");
+        mvc.perform(postJson(e33Url, null, null, Map.of(), orderId, modId)).andExpect(status().isUnauthorized());
+        mvc.perform(postJson(e33Url, bearer(admin, "ADMIN"), null, Map.of(), orderId, modId)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));
+        mvc.perform(postJson(e33Url, ownerToken(), null, Map.of(), orderId, modId)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));
+        mvc.perform(postJson(e33Url, bearer(otherSitter, "SITTER"), null, Map.of(), orderId, modId)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mvc.perform(postJson(e33Url, sitterToken(), null, Map.of(), otherOrder, modId)).andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(postJson(e33Url, sitterToken(), null, Map.of(), orderId, UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(postJson(e33Url, sitterToken(), null, Map.of(), orderId, modId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.pricingMode").value("CUSTOM_ALLOWED"));
+    }
+
+    @Test
     @DisplayName("PRD-005 AC-1.8：E1 body 夾帶 ownerId 等身分欄位被忽略（身分取自 token）")
     void identityFieldsIgnored() throws Exception {
         Map<String, Object> body = new java.util.HashMap<>(bookingBody(sitter, List.of(today().plusDays(3)), 1, 500, petA));

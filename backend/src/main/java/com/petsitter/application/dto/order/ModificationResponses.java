@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
-/** E17–E30 response（SD-ORDER §6.3）。 */
+/** E17–E33 response（SD-ORDER §6.3）。 */
 public final class ModificationResponses {
 
     private ModificationResponses() {
@@ -17,6 +17,21 @@ public final class ModificationResponses {
 
     public record Quoted(UUID modificationId, String status, int systemAmount, int newTotalAmount, int netPaid, int diff,
                          OffsetDateTime expiresAt) {
+    }
+
+    /** E32 / E33 變更金額試算（唯讀；{@code pricingMode} 只在 SITTER 呼叫時輸出，null 不輸出）。 */
+    public record Preview(String type, List<UUID> removeVisitIds, PreviewBreakdown breakdown, int systemAmount,
+                          int surchargeAmount, int discountAmount, int newTotalAmount, int currentTotalAmount, int netPaid,
+                          int diff, String pricingMode, OffsetDateTime computedAt) {
+    }
+
+    public record PreviewBreakdown(List<PreviewKept> kept, List<PreviewAdded> added) {
+    }
+
+    public record PreviewKept(UUID visitId, UUID planId, LocalDate serviceDate, String status, int unitPrice) {
+    }
+
+    public record PreviewAdded(int index, String date, UUID planId, int dailyCount, int unitPrice, int subtotal) {
     }
 
     public record Ended(UUID modificationId, String status, OffsetDateTime endedAt) {

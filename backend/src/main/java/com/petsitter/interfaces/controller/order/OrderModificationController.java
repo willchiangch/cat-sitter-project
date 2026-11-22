@@ -4,6 +4,7 @@ import com.petsitter.application.common.idempotency.Idempotent;
 import com.petsitter.application.dto.order.ModificationRequests;
 import com.petsitter.application.dto.order.ModificationResponses;
 import com.petsitter.application.dto.order.ModificationSummary;
+import com.petsitter.application.service.order.ModificationPreviewService;
 import com.petsitter.application.service.order.ModificationQueryService;
 import com.petsitter.application.service.order.ModificationService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-/** 變更端點 E17–E23（SD-ORDER §6.2 / §6.3）。 */
+/** 變更端點 E17–E23、E32 / E33 試算（SD-ORDER §6.2 / §6.3）。 */
 @RestController
 @RequestMapping("/api/orders/{orderId}/modifications")
 @RequiredArgsConstructor
@@ -29,6 +30,7 @@ public class OrderModificationController {
 
     private final ModificationService modificationService;
     private final ModificationQueryService modificationQueryService;
+    private final ModificationPreviewService modificationPreviewService;
 
     /** E17 發起變更（OWNER → REQUESTED；SITTER → QUOTED）。 */
     @PostMapping
@@ -38,6 +40,22 @@ public class OrderModificationController {
                                                                     @RequestHeader(value = OrderController.KEY, required = false) String key,
                                                                     @RequestBody(required = false) ModificationRequests.Initiate body) {
         return ResponseEntity.status(HttpStatus.CREATED).body(modificationService.initiate(orderId, body));
+    }
+
+    /** E32 發起變更前的金額試算（唯讀；輸入同 E17；不冪等、不取鎖）。 */
+    @PostMapping("/preview")
+    @PreAuthorize("hasAnyRole('OWNER','SITTER')")
+    public ModificationResponses.Preview previewInitiate(@PathVariable UUID orderId,
+                                                         @RequestBody(required = false) ModificationRequests.Initiate body) {
+        return modificationPreviewService.previewInitiate(orderId, body);
+    }
+
+    /** E33 保母報價前的金額試算（唯讀；輸入同 E20；不冪等、不取鎖）。 */
+    @PostMapping("/{modificationId}/quote/preview")
+    @PreAuthorize("hasRole('SITTER')")
+    public ModificationResponses.Preview previewQuote(@PathVariable UUID orderId, @PathVariable UUID modificationId,
+                                                      @RequestBody(required = false) ModificationRequests.Quote body) {
+        return modificationPreviewService.previewQuote(orderId, modificationId, body);
     }
 
     /** E18 變更歷史（created_at 倒序）。 */

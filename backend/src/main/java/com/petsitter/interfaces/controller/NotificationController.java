@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,28 +43,35 @@ public class NotificationController {
         PageRequest pageable = PageRequest.of(pp.page(), pp.size(), Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Notification> notifications = notificationService.getNotifications(userId, role, isRead, pageable);
 
+        // SD-GLOBAL-SPEC §4.4：不用 Map.of（不接受 null）；type 為 null（舊 createNotification 寫入）時不輸出
         List<Map<String, Object>> content = notifications.getContent().stream()
-                .map(n -> Map.<String, Object>of(
-                        "id", n.getId(),
-                        "title", n.getTitle(),
-                        "content", n.getContent(),
-                        "category", n.getCategory(),
-                        "isRead", n.isRead(),
-                        "createdAt", n.getCreatedAt(),
-                        "linkUrl", n.getLinkUrl() != null ? n.getLinkUrl() : "",
-                        "roleTarget", n.getRoleTarget()
-                ))
+                .map(NotificationController::toItem)
                 .collect(Collectors.toList());
 
-        Map<String, Object> data = Map.of(
-                "content", content,
-                "page", notifications.getNumber(),
-                "size", notifications.getSize(),
-                "totalElements", notifications.getTotalElements(),
-                "totalPages", notifications.getTotalPages()
-        );
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("content", content);
+        data.put("page", notifications.getNumber());
+        data.put("size", notifications.getSize());
+        data.put("totalElements", notifications.getTotalElements());
+        data.put("totalPages", notifications.getTotalPages());
 
         return successResponse("OK", data);
+    }
+
+    static Map<String, Object> toItem(Notification n) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", n.getId());
+        if (n.getType() != null) {
+            item.put("type", n.getType());
+        }
+        item.put("title", n.getTitle());
+        item.put("content", n.getContent());
+        item.put("category", n.getCategory());
+        item.put("isRead", n.isRead());
+        item.put("createdAt", n.getCreatedAt());
+        item.put("linkUrl", n.getLinkUrl() != null ? n.getLinkUrl() : "");
+        item.put("roleTarget", n.getRoleTarget());
+        return item;
     }
 
     @GetMapping("/unread-count")
