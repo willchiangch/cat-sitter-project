@@ -128,8 +128,10 @@ public class PaymentReviewService {
         Order order = support.loadOrder(orderId);
         Payment payment = support.loadPayment(order, paymentId);
         ActorRole role = OrderAccess.partyRole(order, actor);
-        // REFUND 不可駁回、非 CHARGE 收款方 → 403（先於凍結，PRD-007 AC-2.4）
-        if (payment.getDirection() != PaymentDirection.CHARGE || role != ActorRole.SITTER) {
+        // REFUND 不可駁回、非 CHARGE 收款方 → 403（先於凍結，PRD-007 AC-2.4）；
+        // ADMIN_ADJUSTMENT 跳過方向檢查，鎖內 currentSubmission 回 409（PRD-007 §3 權限表、SD-ORDER §3.2）
+        if (!OrderCommandSupport.isAdminAdjustment(payment)
+                && (payment.getDirection() != PaymentDirection.CHARGE || role != ActorRole.SITTER)) {
             throw OrderException.forbidden();
         }
         IdempotencyContext ctx = validator.requireIdempotencyKey();

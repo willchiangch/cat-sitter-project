@@ -1575,7 +1575,7 @@ Request：`submissionId` UUID 必填。Response 200：`{ "paymentId", "paymentSt
 
 Request：`submissionId` 必填；`reason` 必填 1–200 字。Response 200：`{ "paymentId", "paymentStatus": "UNPAID", "submissionId", "submissionStatus": "REJECTED" }`
 
-錯誤：G4a → G5（REFUND 不可駁回、非收款方；先於凍結檢查）→ G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `PAYMENT_STATE_CONFLICT`。
+錯誤：G4a → G5（REFUND 不可駁回、非收款方；先於凍結檢查）→ G6 → G7 → L → 409 `ORDER_STATE_CONFLICT` → 409 `PAYMENT_STATE_CONFLICT`（非 `SUBMITTED`、`submissionId` 非目前那筆、`ADMIN_ADJUSTMENT`）。例外：`ADMIN_ADJUSTMENT`（方向為 REFUND）跳過 G5 方向檢查，G6、G7 照常後回 409 `PAYMENT_STATE_CONFLICT`（PRD-007 §3 權限表、本文件 §3.2「對任何當事人寫入一律 409」）；PRD-007 AC-2.4「403 先於 409」只適用 `MODIFICATION_REFUND`。
 
 #### E16 `POST /api/admin/orders/{orderId}/payments/{paymentId}/void`（O16）
 
@@ -2407,3 +2407,4 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 | 2026-11-22 | TS 更新回饋小修（狀態維持 Approved）：inspect `emailStatus` 列舉定義 | TS-009 / TS-022 §5 |
 | 2026-11-22 | 使用者同意之核准後修訂：journey TS 回饋（狀態維持 Approved）。E2 報價明細三段（`quote.original`、`quote.adjustments[]`、`quote.totalAmount`）與 testid；ADMIN 唯讀範圍放寬為「`DISPUTED` 或曾有任何待辦」（`AdminOrderAccessPolicy`、`adminReadable`、E27、`ix_admin_tasks_order` 改全索引），寫入仍限 OPEN 待辦 / `DISPUTED`；§9.3 補進行中變更入口、`order-modify-btn-add-item`、變更歷史可點；E2 列出 `cancellation.reasonCode` 列舉、`groups[].bookableFrom` / `bookableTo`、SITTER 限定 `sitterTier` / `modificationPricingMode`；§9.1 O2 後就地重新渲染；inspect `payments[]` 補 `direction` / `purpose` / `amount`、`fulfill.visits` 含 `serviceDate` / `planId`、`emailStatus` 加 `SUPPRESSED_TEST`（C11 對測試收件者不呼叫 Resend）；§10 註明 `DISPUTED` 時以 inspect 計算爭議視窗 | TS-JOURNEY-02 / 03 / 04 §5；使用者 2026-11-22 決定 A、B |
 | 2026-11-22 | TS 同步回饋小修（狀態維持 Approved）：報價明細 `amountChange = 0` 的事件不列；`groups[].bookableFrom/To` 雙方都回（等級欄位仍只回 SITTER） | TS-016 MQ-14、TS-023 SS-06 |
+| 2026-11-22 | 實作審查回饋（狀態維持 Approved）：E15 註明 `ADMIN_ADJUSTMENT` 跳過 G5 方向檢查、回 409 `PAYMENT_STATE_CONFLICT`，PRD-007 AC-2.4「403 先於 409」範圍限 `MODIFICATION_REFUND` | `docs/reviews/IMPL-ORDER-FULFILL.review.md` #2 |

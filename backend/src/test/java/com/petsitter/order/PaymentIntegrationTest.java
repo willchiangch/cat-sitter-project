@@ -350,6 +350,27 @@ class PaymentIntegrationTest extends OrderIntegrationTestBase {
         }
 
         @Test
+        @DisplayName("PRD-007 AC-1.2 / §3 權限表 E15 駁回 ADMIN_ADJUSTMENT：飼主 / 保母皆 409 PAYMENT_STATE_CONFLICT（跳過方向檢查，非 403）")
+        void rejectAdminAdjustmentConflict() throws Exception {
+            UUID orderId = quotedOrder();
+            UUID paymentId = initialPayment(orderId);
+            jdbc.update("UPDATE payments SET status = 'VOID', voided_at = now() WHERE id = ?", paymentId);
+            UUID adj = UUID.randomUUID();
+            jdbc.update("INSERT INTO payments (id, order_id, direction, purpose, method, amount, status, adjustment_basis, verified_at) "
+                    + "VALUES (?, ?, 'REFUND', 'ADMIN_ADJUSTMENT', 'ADMIN_ADJUSTMENT', 100, 'VERIFIED', '依據', now())", adj, orderId);
+            reject(orderId, adj, UUID.randomUUID(), sitterToken(), "x").andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("PAYMENT_STATE_CONFLICT"));
+            reject(orderId, adj, UUID.randomUUID(), ownerToken(), "x").andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("PAYMENT_STATE_CONFLICT"));
+            verify(orderId, adj, UUID.randomUUID(), sitterToken()).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("PAYMENT_STATE_CONFLICT"));
+            // 當事人錯角色仍先得 G4a 403
+            reject(orderId, adj, UUID.randomUUID(), bearer(sitter, "OWNER"), "x").andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ROLE_MISMATCH"));
+            assertThat(count("SELECT count(*) FROM order_logs WHERE order_id = ? AND action_type = 'PAYMENT_REJECTED'", orderId)).isZero();
+        }
+
+        @Test
         @DisplayName("PRD-007 AC-2.6 狀態不允許與過期畫面：submissionId 非目前那筆 → 409 PAYMENT_STATE_CONFLICT；已確認再確認 → 409；同 key 回放")
         void staleAndReplay() throws Exception {
             UUID orderId = quotedOrder();
