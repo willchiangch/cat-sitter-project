@@ -9,6 +9,8 @@ import {
 } from '../../hooks/useNotifications';
 import type { NotificationDto } from '../../api/notificationApi';
 import { resolveNotificationLink } from '../../components/notifications/resolveNotificationLink';
+import { notificationTypeLabel } from '../../components/notifications/notificationTypes';
+import { formatDateTime } from '../../utils/datetime';
 
 export const NotificationsPage: React.FC = () => {
   const { currentRole } = useRole();
@@ -207,8 +209,20 @@ export const NotificationsPage: React.FC = () => {
                     >
                       {getCategoryLabel(noti.category)}
                     </span>
+                    {notificationTypeLabel(noti.type) && (
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--color-primary)'
+                        }}
+                        data-testid={`${currentRole}-notifications-type-${noti.id}`}
+                      >
+                        {notificationTypeLabel(noti.type)}
+                      </span>
+                    )}
                     <span style={{ fontSize: '0.75rem', color: 'var(--color-on-surface-variant)' }}>
-                      {new Date(noti.createdAt).toLocaleString()}
+                      {formatDateTime(noti.createdAt)}
                     </span>
                   </div>
 

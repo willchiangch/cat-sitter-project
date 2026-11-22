@@ -1,18 +1,20 @@
+import { isSafeRedirect } from '../../utils/safeRedirect';
+
 /**
- * 通知 linkUrl → 前端路由 (SD-014 §前端點擊行為，Backlog 第 3 批 D1)。
+ * 通知 linkUrl → 前端路由（SD-014 §前端點擊行為；SD-FRONTEND-SPEC §2.5 由 API 回應決定的導頁目標）。
  *
- * 後端現在只會寫入 routes.tsx 真的存在的路徑（NotificationListenerLinkTest 把關），這裡原樣導覽，
- * 不再像過去只認得 /sitter/orders、/client/orders、/sitter/kyc 三個寫死字串（推薦通知的
- * /booking/{id}、影像到期提醒點了都沒反應）。
+ * 後端只寫入 routes.tsx 存在的路徑（含 SD-ORDER 的 `/orders/{id}/modifications/{mid}`、SD-FULFILL 新增的
+ * `/sitter/orders/{id}/visits/{vid}` 與 `/orders/{id}/visits/{vid}/care-log`），這裡原樣導覽。
  *
- * 舊通知相容：2026-10 前寫入 DB 的通知仍是不存在的路徑，資料不做 migration，於此轉換：
+ * 舊通知相容（資料不做 migration）：
  * - /client/orders[/...] → /owner/orders[/...]
  * - /visits/report?orderId={id} → /owner/orders/{id}
+ * - /sitter/eval/{id}、/admin/resolve/{id}、/visit-reports/* 由 routes.tsx 轉址 / 提示頁處理
  *
- * 只接受同源相對路徑（單一 / 開頭），避免 linkUrl 變成開放重導向；其他值回傳 null（不導覽）。
+ * 一律經 safeRedirect 判斷（擋 `//`、`/\`、控制字元、跨來源）；不合格回傳 null（不導覽）。
  */
 export const resolveNotificationLink = (linkUrl: string | null | undefined): string | null => {
-  if (!linkUrl || !/^\/(?!\/)/.test(linkUrl)) return null;
+  if (!isSafeRedirect(linkUrl)) return null;
 
   if (linkUrl === '/client/orders' || linkUrl.startsWith('/client/orders/')) {
     return linkUrl.replace(/^\/client\/orders/, '/owner/orders');
