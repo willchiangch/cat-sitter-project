@@ -1,5 +1,7 @@
 # TS-022: 行程照護日誌與多媒體回報 (Visit Report & Media)
 
+> 本檔已被 `docs/test-scenario/TS-022-care-log.md` 取代（2026-11-22，依 Approved PRD-022 / SD-FULFILL 重寫）；狀態改 `Superseded` 待使用者設定。
+
 | 項目 | 內容 |
 | :--- | :--- |
 | **對應需求** | SD-022 / PRD-022 |
