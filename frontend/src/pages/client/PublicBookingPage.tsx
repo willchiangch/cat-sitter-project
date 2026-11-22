@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/ui/Button';
@@ -16,6 +16,7 @@ import { useBookingContextQuery } from '../../hooks/useOrders';
 import { usePetsQuery } from '../../hooks/usePets';
 import { useIdempotentAction } from '../../hooks/useIdempotentAction';
 import { useRole } from '../../contexts/RoleContext';
+import { useHasSession } from '../../hooks/useHasSession';
 import { createOrder } from '../../api/orderApi';
 import type {
   BookingContext,
@@ -27,6 +28,8 @@ import { getApiError } from '../../api/apiError';
 import { formatMoney } from '../../utils/money';
 import { addDays, formatDateTime, toTaipeiDate } from '../../utils/datetime';
 import { codePointLength, stripText, truncateCodePoints } from '../../utils/text';
+import { getSafeRedirectTarget } from '../../utils/safeRedirect';
+import { clearBookingDraft, loadBookingDraft, saveBookingDraft } from '../../utils/bookingDraft';
 
 const URGENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 const AMOUNT_MAX = 999_999;
@@ -37,7 +40,8 @@ interface GroupDraft {
   planId: string;
   dates: string[];
   dailyCount: number;
-  petIds: string[];
+  /** null = 尚未手動調整，採預設「全部毛孩」（BR-17）；登入後還原的草稿與新增群組都從 null 開始 */
+  petIds: string[] | null;
 }
 
 /** E31 不可預約時的提示文字（PRD-005 §4.1、BR-23） */
@@ -61,27 +65,43 @@ const answerLimit = (q: BookingQuestion) => (q.type === 'TEXTAREA' ? 1000 : 200)
 /**
  * 公開預約頁（SD-ORDER §9.1 `/booking/:sitterId`，E31 + E1；PRD-005）。
  * 「今天」、日期範圍與評估期限試算一律以 E31 `serverTime` 為準；送出帶 Idempotency-Key，同一次送出的重試沿用同一把。
+ * 匿名 / 非飼主角色可瀏覽方案、選日期與試算；毛孩與問卷只對登入飼主顯示。匿名按送出 → 暫存已選內容
+ * （utils/bookingDraft）並導向登入，登入後回本頁還原（PRD-005 §4.2-3、EX-1、AC-1.1）。
  */
 const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { currentRole } = useRole();
+  const hasSession = useHasSession();
+  const isOwner = hasSession && currentRole === 'client';
   const ctxQuery = useBookingContextQuery(sitterId);
-  const { data: pets = [] } = usePetsQuery();
-  const [groups, setGroups] = useState<GroupDraft[]>([]);
+  const { data: pets = [] } = usePetsQuery(isOwner);
+  const [restoredDraft] = useState(() => (sitterId ? loadBookingDraft(sitterId) : null));
+  const [groups, setGroups] = useState<GroupDraft[]>(() =>
+    (restoredDraft ?? []).map((g) => ({ ...g, petIds: null }))
+  );
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [questionsOverride, setQuestionsOverride] = useState<BookingQuestion[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const action = useIdempotentAction();
 
+  // 草稿只還原一次：讀進 state 後即清除，之後重開頁面不再帶入舊選擇
+  useEffect(() => {
+    if (sitterId && restoredDraft) clearBookingDraft(sitterId);
+  }, [sitterId, restoredDraft]);
+
   const ctx = ctxQuery.data;
   const plans = useMemo(() => ctx?.plans ?? [], [ctx]);
   const planById = useMemo(() => new Map(plans.map((p) => [p.planId, p])), [plans]);
-  const ownerPets = pets.filter((p) => !!p.id) as ((typeof pets)[number] & { id: string })[];
+  const ownerPets = (isOwner ? pets : []).filter((p) => !!p.id) as ((typeof pets)[number] & {
+    id: string;
+  })[];
+  const petIdsOf = (g: GroupDraft): string[] => g.petIds ?? ownerPets.map((p) => p.id);
   const questions = (questionsOverride ?? ctx?.questionnaire?.questions ?? [])
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  const questionnaireRequired = !!ctx?.questionnaire?.required;
+  // 問卷只在登入飼主時顯示（PRD-005 §3：匿名「登入後才顯示」）
+  const questionnaireRequired = isOwner && !!ctx?.questionnaire?.required;
 
   if (!sitterId)
     return (
@@ -120,10 +140,7 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
 
   const addGroup = (planId: string) => {
     if (groups.length >= MAX_GROUPS) return;
-    setGroups([
-      ...groups,
-      { planId, dates: [], dailyCount: 1, petIds: ownerPets.map((p) => p.id) }
-    ]);
+    setGroups([...groups, { planId, dates: [], dailyCount: 1, petIds: null }]);
   };
   const updateGroup = (idx: number, patch: Partial<GroupDraft>) =>
     setGroups(groups.map((g, i) => (i === idx ? { ...g, ...patch } : g)));
@@ -159,20 +176,36 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
     firstDayMs !== null ? Math.max(firstDayMs, serverNow + URGENT_WINDOW_MS) : null;
   const urgent = firstDayMs !== null && firstDayMs < serverNow + URGENT_WINDOW_MS;
 
-  const canSubmit =
+  // 方案 / 日期 / 金額的共同條件；匿名只檢查這些（按下後導向登入），登入飼主另需毛孩與問卷
+  const selectionValid =
     ctx.bookability === 'BOOKABLE' &&
-    currentRole === 'client' &&
-    ownerPets.length > 0 &&
     groups.length > 0 &&
-    groups.every((g) => g.dates.length > 0 && g.petIds.length > 0 && planById.has(g.planId)) &&
+    groups.every((g) => g.dates.length > 0 && planById.has(g.planId)) &&
     totalDates <= MAX_TOTAL_DATES &&
     !duplicate &&
     !outOfRange &&
     estimate <= AMOUNT_MAX &&
-    !missingRequired &&
     !action.pending;
+  const canSubmit = !hasSession
+    ? selectionValid
+    : isOwner &&
+      selectionValid &&
+      ownerPets.length > 0 &&
+      groups.every((g) => petIdsOf(g).length > 0) &&
+      !missingRequired;
+
+  /** 匿名送出（EX-1）：不呼叫 E1，暫存已選內容後導向登入，登入後回本頁（redirect 經 safeRedirect） */
+  const goLogin = () => {
+    saveBookingDraft(sitterId, groups);
+    const back = getSafeRedirectTarget(`/booking/${encodeURIComponent(sitterId)}`, '/demo');
+    navigate(`/login?redirect=${encodeURIComponent(back)}`);
+  };
 
   const submit = async () => {
+    if (!hasSession) {
+      goLogin();
+      return;
+    }
     setNotice(null);
     const answerList: CreateOrderAnswer[] | undefined = questionnaireRequired
       ? questions.flatMap((q): CreateOrderAnswer[] => {
@@ -187,7 +220,12 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
         return await createOrder(
           {
             sitterId,
-            groups: groups.map((g) => ({ ...g, dates: [...g.dates].sort() })),
+            groups: groups.map((g) => ({
+              planId: g.planId,
+              dates: [...g.dates].sort(),
+              dailyCount: g.dailyCount,
+              petIds: petIdsOf(g)
+            })),
             ...(answerList ? { answers: answerList } : {}),
             expectedAmount: estimate
           },
@@ -225,7 +263,7 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
 
   return (
     <PageContainer testId="public-booking-page">
-      <BookingSitterCard sitterId={sitterId} canFavorite={currentRole === 'client'} />
+      <BookingSitterCard sitterId={sitterId} canFavorite={isOwner} />
 
       {unavailable && (
         <div
@@ -284,7 +322,8 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
           const plan = planById.get(g.planId);
           const range = planRange(plan);
           const types = plan?.petTypes ?? [];
-          const selectedPets = ownerPets.filter((p) => g.petIds.includes(p.id));
+          const groupPetIds = petIdsOf(g);
+          const selectedPets = ownerPets.filter((p) => groupPetIds.includes(p.id));
           const typeMismatch =
             types.length > 0 &&
             selectedPets.length > 0 &&
@@ -365,42 +404,44 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
                   ))}
                 </select>
               </div>
-              <div className="stack" style={{ gap: '0.375rem' }}>
-                <span className="field-label" style={{ margin: 0 }}>
-                  照顧的毛孩
-                </span>
-                {ownerPets.length === 0 ? (
-                  <p className="field-error" data-testid="public-booking-no-pet-message">
-                    您尚未新增毛孩，請先至個人檔案新增
-                  </p>
-                ) : (
-                  <div className="btn-row">
-                    {ownerPets.map((pet) => (
-                      <label
-                        key={pet.id}
-                        style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={g.petIds.includes(pet.id)}
-                          onChange={() =>
-                            updateGroup(idx, {
-                              petIds: g.petIds.includes(pet.id)
-                                ? g.petIds.filter((x) => x !== pet.id)
-                                : [...g.petIds, pet.id]
-                            })
-                          }
-                          data-testid={`public-booking-group-${idx}-pet-checkbox-${pet.id}`}
-                        />
-                        {pet.name}
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {ownerPets.length > 0 && g.petIds.length === 0 && (
-                  <p className="field-error">每個日期群組至少選擇 1 隻毛孩</p>
-                )}
-              </div>
+              {isOwner && (
+                <div className="stack" style={{ gap: '0.375rem' }}>
+                  <span className="field-label" style={{ margin: 0 }}>
+                    照顧的毛孩
+                  </span>
+                  {ownerPets.length === 0 ? (
+                    <p className="field-error" data-testid="public-booking-no-pet-message">
+                      您尚未新增毛孩，請先至個人檔案新增
+                    </p>
+                  ) : (
+                    <div className="btn-row">
+                      {ownerPets.map((pet) => (
+                        <label
+                          key={pet.id}
+                          style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={groupPetIds.includes(pet.id)}
+                            onChange={() =>
+                              updateGroup(idx, {
+                                petIds: groupPetIds.includes(pet.id)
+                                  ? groupPetIds.filter((x) => x !== pet.id)
+                                  : [...groupPetIds, pet.id]
+                              })
+                            }
+                            data-testid={`public-booking-group-${idx}-pet-checkbox-${pet.id}`}
+                          />
+                          {pet.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {ownerPets.length > 0 && groupPetIds.length === 0 && (
+                    <p className="field-error">每個日期群組至少選擇 1 隻毛孩</p>
+                  )}
+                </div>
+              )}
               <div className="btn-row">
                 <Button
                   variant="secondary"
@@ -553,7 +594,14 @@ const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
               距服務日很近，保母可能來不及回覆
             </p>
           )}
-          {currentRole !== 'client' && <p className="field-error">請切換為飼主身分後再預約</p>}
+          {!hasSession && (
+            <p className="muted" style={{ margin: 0 }} data-testid="public-booking-login-hint">
+              送出前需先登入，登入後會回到此頁並保留已選內容
+            </p>
+          )}
+          {hasSession && currentRole !== 'client' && (
+            <p className="field-error">請切換為飼主身分後再預約</p>
+          )}
           {notice && <p className="field-error">{notice}</p>}
           <ErrorText error={action.error} context="booking" />
           <div className="btn-row">

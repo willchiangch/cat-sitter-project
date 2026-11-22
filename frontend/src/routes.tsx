@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import App from './App';
 import RequireAuth from './components/auth/RequireAuth';
 import RequireRole from './components/auth/RequireRole';
+import PublicPageShell from './components/layout/PublicPageShell';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -49,7 +50,8 @@ import AccountSettings from './pages/shared/AccountSettings';
 
 function BookingRoute() {
   const { sitterId } = useParams<{ sitterId: string }>();
-  return <PublicBookingPage sitterId={sitterId} />;
+  // key：換保母時重新掛載，暫存草稿依 sitterId 還原（PRD-005 EX-1）
+  return <PublicBookingPage key={sitterId} sitterId={sitterId} />;
 }
 
 function CareNoteManagerRoute() {
@@ -129,6 +131,12 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/sitter/:sitterId/profile" element={<PublicSitterProfilePage />} />
 
+      {/* 公開預約頁：匿名 / 任一角色可瀏覽，送出才要求登入且為飼主（PRD-005 AC-1.1、EX-1；SD-ORDER §9.1） */}
+      <Route element={<PublicPageShell />}>
+        <Route path="/booking" element={<BookingRoute />} />
+        <Route path="/booking/:sitterId" element={<BookingRoute />} />
+      </Route>
+
       <Route element={<RequireAuth />}>
         <Route element={<App />}>
           <Route path="/" element={<Navigate to="/demo" replace />} />
@@ -164,8 +172,6 @@ function AppRoutes() {
           </Route>
 
           <Route element={<RequireRole roles={['client']} />}>
-            <Route path="/booking" element={<BookingRoute />} />
-            <Route path="/booking/:sitterId" element={<BookingRoute />} />
             <Route path="/pets" element={<PetManager />} />
             <Route path="/owner/orders" element={<OwnerOrders />} />
             <Route path="/owner/favorites" element={<FavoriteSitters />} />
