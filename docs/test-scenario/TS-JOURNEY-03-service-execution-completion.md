@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-008（行程生命週期）、PRD-028（單日 SOP 檢核項）、PRD-022（照護日誌與媒體）、PRD-009（結案、服務爭議、自動結案），皆 Approved 2026-11-22；PRD-005 / 006 / 007（建單、報價、付款）只用於造 `CONFIRMED` 訂單，不在本 TS 驗收 |
 | 對應 SD | SD-FULFILL（F1–F4、F6–F8、F12–F16、F17、F18、FC1、FT2、§6.5 錯誤碼、§7.1 `order_logs`、§7.2 通知、§9.1 / §9.2 路由與 testid、§9.3 直傳三段式、§10.2 inspect `fulfill` 區塊）；SD-ORDER（E1、E2 `serverTime` / `completionHint` / `disputeWindowEndsAt`、E3、E6、E11、E14、E25、E26、E28、C7、C8（`?orderId=`）、§10.4 provision-account / sitter-setup / owner-setup / inspect / shift-time / cleanup） |
 | 類型 | 旅程（打真後端、正式站、真 GCS 直傳） |
@@ -213,5 +213,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 子流程狀態文字依 SD-FRONTEND-SPEC §6.4 定稿；狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意），狀態維持 Draft：`[EMAIL]` 收斂為 `SUPPRESSED_TEST`（影響 J3-13、J3-23、J3-32、J3-46、J3-52）；J3-18 改用 `sitter-order-visit-label-{visitId}` / `-status-{visitId}` / `-date-{visitId}`；J3-50 VD1 改斷言 `sitter-dashboard-visit-deadline-passed-{VD1}` 與 F6 `zombieDeadlinePassed`；J3-52 補 inspect `fulfill.visits[].serviceDate`；J3-24 補報價明細三段（無變更時不顯示 `order-detail-quote-modification-*`）與無「查看進行中變更」按鈕；J3-E5 依 ADMIN 唯讀範圍放寬（`DISPUTED` 或曾有任何待辦）改寫前提並加 E27；§5 #1、#3、#4、#5 標已解決 | 協調者 TS 更新第 2 批；SD-ORDER §6.3 / §10.4、SD-FULFILL §7.2 / §9.1 / §10.2 |
 | 2026-11-22 | 依 PRD-008 / 028 / 022 / 009（Approved）、SD-FULFILL、SD-ORDER、SD-FRONTEND-SPEC 全文重寫為新範本，狀態 Draft。主線改為正式端點走完「開始 → SOP 打勾 → 結束 → 直傳照片 → 送出日誌 → 飼主查看 → 第二行程 → O11」；新增分支 O13（`JB`）、無人操作 O12（`JC`）、系統出口 C7 + FC1（`JD`）；斷言改以 inspect；排程帶 `orderId`；步驟前綴 `J3-`（J3-01–J3-60、J3-E1–J3-E6）；自動化路徑改為 `service-execution-completion.spec.ts`。舊版（Check-in / Check-out、`/api/visits/{visitId}/start`、`/visit-reports/*` 路由、`trackOrderActionCalls`）作廢；舊版「本測試發現並修復的真實 bug」屬舊實作（`StatusBadge` 英文狀態、`isServiceStage` 遺漏），保留於 git 歷史 | 全面重建 2026-11；上游 PRD / SD 核准 |

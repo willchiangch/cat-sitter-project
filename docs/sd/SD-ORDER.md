@@ -1525,7 +1525,7 @@ Request：`reason` 必填，`String.strip()` 後以 code point 計 1–200 字�
 
 Response 200：`[ { "paymentId", "direction", "purpose", "method", "amount", "status", "dueAt", "escalateAt", "accountSnapshot": { "bankCode", "branch", "accountNumber", "accountName" } | null, "currentSubmissionId", "createdAt", "verifiedAt", "voidedAt", "allowedActions": [ "UPLOAD", "VERIFY", "REJECT" ] } ]`，`created_at` 由舊到新。
 
-- `accountSnapshot` 只在 CHARGE 且呼叫者為付款方、收款方或可讀範圍 ADMIN 時解密回傳；REFUND 一律 null，畫面顯示「退款帳號請與飼主自行聯繫」。
+- `accountSnapshot` 只在 CHARGE 且呼叫者為付款方、收款方或可讀範圍 ADMIN 時解密回傳（ADMIN 在待辦結案後仍可讀，供事後查核，使用者 2026-11-22 確認不遮蔽）；REFUND 一律 null，畫面顯示「退款帳號請與飼主自行聯繫」。
 - 錯誤：G1、G3、G4、G5（ADMIN 不在可讀範圍 → 403）。
 
 #### E11 `POST /api/orders/{orderId}/payments/{paymentId}/submissions`（P1，multipart）
@@ -2285,6 +2285,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：E10 註明 ADMIN 在待辦結案後仍可讀 `accountSnapshot`，不遮蔽 | 使用者 2026-11-22 確認 |
 | 2026-11-22 | 狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 建立第一階段：§1 AC 對應（156 條）、§2 模組邊界、§3 狀態機與共用機制、§5 資料模型、§8 排程與外部服務、§11 技術決策、§12 待釐清 | 全面重建第 2 步（baseline 第 2 版與 8 張訂單 PRD 核准後） |
 | 2026-11-22 | 第二階段：§2.4 跨模組介面簽名、§4 序列圖、§6 API 契約（31 + 10 端點、錯誤碼總表 36 項）、§7 副作用、§8.3 部署清單、§9 前端、§10 測試設計；遷移合併為單一 `V20261122_01__order_rebuild.sql`（破壞性，不做雙階段）；CQ-1~9 已決、技術決策 1–5 已採用；新增 CQ-10；狀態改 In Review | 使用者 2026-11-22 決定（全部採建議、遷移併成一支） |

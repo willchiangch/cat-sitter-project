@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-016（發起、報價、逾時）、PRD-023（同意、補款、退款、結清）、PRD-024（款項爭議、`DISPUTED` 凍結、調解結果）——主線；PRD-007（補款 / 退款憑證上傳與確認）、PRD-008（行程狀態列）、PRD-028（變更新增行程的檢核項快照）——沿途觀察。全部 Approved 2026-11-22 |
 | 對應 SD | SD-ORDER（§3.2、§3.3、§4.3、§6.3 E2、E10–E14、E17–E24、E27–E29、C5、§6.5、§7.1、§7.2、§8.1、§9.1、§9.3、§10.4）——訂單、payment、變更、稽核、通知步驟；SD-FULFILL（§2.3.3、§6.3 F1、§10.2 `inspect.fulfill`；`createVisits` / `cancelVisits`）——行程步驟（SD-ORDER M33 分工）；SD-FRONTEND-SPEC §4、§6.4、§6.4.1 |
 | 類型 | 旅程（打真後端）：跨 PRD 端到端主線，不重複模組 TS 細項；每步標出 PRD AC 與對應模組 TS 步驟 |
@@ -46,7 +46,7 @@
 
 - 訂單：E2 `GET /api/orders/{order}`（`status`、`quote.original.totalAmount` = 原報價總額、`quote.adjustments[]` = 每筆改變總額的事件、`quote.totalAmount` = 目前生效總額、`netPaid`、`openModification`、`allowedActions`、`cancellation`）；目前總額另與 `INSPECT.totalAmount` 核對。`sitterTier`、`modificationPricingMode` 只在 SITTER token 時輸出。
 - 報價明細畫面（雙方共用，位於 `owner-order-detail-quote-breakdown` 內，SD-ORDER §9.3）：`order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`（每筆 `adjustments` 一列；無列時整段不顯示）、`order-detail-quote-current-total`。
-- 子流程狀態文字（變更：待保母報價 / 待飼主回應 / 待補款 / 待退款 / 已生效 / 已拒絕 / 已撤回 / 已逾期；付款：待付款 / 待核對 / 已確認 / 已作廢）依 SD-FRONTEND-SPEC §6.4（該表使用者尚未確認，文案變動時同步修訂本 TS）。
+- 子流程狀態文字（變更：待保母報價 / 待飼主回應 / 待補款 / 待退款 / 已生效 / 已拒絕 / 已撤回 / 已逾期；付款：待付款 / 待核對 / 已確認 / 已作廢）依 SD-FRONTEND-SPEC §6.4（使用者 2026-11-22 確認；文案變動時同步修訂本 TS）。
 - 變更：E19 `GET /api/orders/{order}/modifications/{mod}`（`status`、`newTotalAmount`、`netPaid`、`diff`、`expiresAt`、`endedAt`、`allowedActions`、`payment`）；列表 E18（`createdAt` 倒序）。
 - payment：E10 `GET /api/orders/{order}/payments`（`purpose`、`direction`、`amount`、`status`、`dueAt`、`accountSnapshot`、`verifiedAt`、`voidedAt`，`created_at` 由舊到新）；submission：E12。
 - payment 金額與方向另可由 `INSPECT.payments`（`amount`、`direction`、`purpose`、`status`）核對。
@@ -160,7 +160,7 @@
 
 1. **時間敏感**（未解決）：D+n 由執行當下 Asia/Taipei 日期計算，避免在 23:55–00:05 執行（spec 偵測到時 `test.skip` 並註記）。
 2. **依賴未重寫的 PRD-020**（未解決）：J4-32 的 E29 契約與副作用取自 SD-ORDER（Approved）與 PRD-024 §4.5；`ORDER_MEDIATED` 通知範本與調解畫面待 PRD-020 改寫，屆時同步修訂。
-3. **子流程狀態文字待使用者確認**（未解決）：J4-07、J4-11、J4-21、J4-24 的「待補款」「已生效」「已逾期」「待付款」「已確認」取自 SD-FRONTEND-SPEC §6.4，文案定案後同步修訂。
+3. **子流程狀態文字**（已解決，使用者 2026-11-22 確認）：J4-07、J4-11、J4-21、J4-24 的「待補款」「已生效」「已逾期」「待付款」「已確認」取自 SD-FRONTEND-SPEC §6.4，文案定案後同步修訂。
 4. 已解決（2026-11-22 核准後修訂，使用者同意）：
    - 協商頁入口：SD-ORDER §9.3 新增 `owner-order-detail-btn-open-modification` / `sitter-order-detail-btn-open-modification`（J4-04、J4-06），`modification-history-item-*` 可點進唯讀明細（J4-21）。
    - 訂單總額畫面：E2 `quote` 改為 `original` / `adjustments[]` / `totalAmount`，畫面報價明細三段 `order-detail-quote-original-total` / `-modification-{modificationId}` / `-current-total`（J4-01、J4-12、J4-13、J4-17、J4-21、J4-24、J4-32、J4-33）。
@@ -178,5 +178,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 子流程狀態文字依 SD-FRONTEND-SPEC §6.4 定稿；狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 依新範本全文重寫：主線改為「增加行程 + 加價 → 補款 → SETTLED」並接續「保母減少行程 → 退款 → SETTLED」，新增逾時分支（shift-time + C5 `orderId`）與款項爭議分支（E24 → `DISPUTED` 凍結 → E29 調解）；斷言改用 E2 / E10 / E19 / F1 與 `inspect`（`order_logs`、通知、`totalAmount`、待辦、檢核項）；每步標 PRD AC 與 TS-016 / 023 / 024 / 007 / 008 / 028 對應步驟。舊版 `MODIFYING` / `REFUND_VERIFY` / `previous_status` 流程、舊端點與舊頁面全部作廢 | PRD-016 / 023 / 024、SD-ORDER、SD-FULFILL Approved 2026-11-22；baseline §3.4（CQ-1） |
 | 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：J4-04 / J4-06 改由 `*-order-detail-btn-open-modification` 進協商頁；J4-02 用 `order-modify-btn-add-item`；J4-01 / J4-12 / J4-13 / J4-17 / J4-21 / J4-24 / J4-32 / J4-33 補 E2 `quote.original` / `adjustments[]` 與報價明細三段；J4-04 補 SITTER 專屬欄位、J4-01 補 OWNER 不輸出；J4-13 / J4-17 補保母行程列 `sitter-order-visit-*`；J4-21 歷史列點入唯讀明細；J4-03 / J4-12 與 §4 Email 斷言收斂為 `SUPPRESSED_TEST`；J4-07 / J4-12 補 `inspect.payments` / `fulfill.visits` 核對；J4-28 補 `DISPUTED` 不回 `disputeWindowEndsAt`；J4-32 調解後 E27 由 403 改 200、補 `reasonCode=ADMIN_MEDIATED`；新增 J4-E10；子流程狀態文字引用 SD-FRONTEND-SPEC §6.4；§5 已解決項移入第 4 項。狀態維持 Draft | SD-ORDER / SD-FULFILL / SD-FRONTEND-SPEC 核准後修訂 |

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 狀態 | Draft |
+| 狀態 | Approved |
 | 對應 PRD | PRD-005（送出預約）、PRD-006（評估與報價）、PRD-007（線下付款上傳與核對）、PRD-025（保母收款帳號）、PRD-026（飼主撤回）、PRD-027（保母婉拒 / 付款前取消）；皆 Approved 2026-11-22。共用定義依 `docs/sa/00-DOMAIN-BASELINE.md` §3.2 O1、O2、O3、O5、O6、O7，§3.3，§3.6，§5 |
 | 對應 SD | SD-ORDER（§6.3 E1–E15、E31；§7.1 `order_logs`、§7.2 通知；§9.1 路由與 testid、§9.3 補定 testid；§10.4 測試支援：`provision-account` `roles[]`、`sitter-setup` / `owner-setup` upsert、`inspect`、排程 `?orderId=`、cleanup）；SD-FRONTEND-SPEC §4（testid 命名）、§6.4（`order-status-badge` 狀態文字）、§6.4.1（金額格式）。PRD-025 收款帳號 API / 畫面屬 SD-SUPPLY（**尚未撰寫**，§5-1） |
 | 類型 | 旅程（打真後端）：跨 PRD 主線 + 少數跨角色關鍵分支；細項邊界由模組 TS 承擔 |
@@ -32,7 +32,7 @@
 | 時間顯示 | 畫面期限一律 Asia/Taipei `YYYY-MM-DD HH:mm`；預約頁確認區依 PRD-005 §4.4 為 `YYYY/MM/DD HH:mm` |
 | inspect | `GET /api/internal/test-data/orders/{orderId}/inspect`（`X-Internal-Secret`，SD-ORDER §10.4）：`status`、`totalAmount`、`orderLogs[]`（`actionType`、`operatorRole`、`operatorUserId`、`payload`、`createdAt`）、`notifications[]`（`type`、`recipientUserId`、`recipientRole`、`mandatory`、`emailStatus`）、`payments[]`（`paymentId`、`direction`、`purpose`、`amount`、`status`、`remindAt`、`remindedAt`、`escalateAt`、`verifiedAt`、`voidedAt`）、`fulfill.visits[]`（`visitId`、`serviceDate`、`planId`、`status`）。計數時排除 `TEST_TIME_SHIFTED` / `TEST_VISIT_FORCED` |
 | 「Email 應寄」 | 先呼叫 C11 `POST /api/internal/cron/notifications/email-dispatch?orderId={O}`（`X-Internal-Secret`），再讀 inspect：該則 `emailStatus=SUPPRESSED_TEST`（收件者為 `@e2e-journey.test`、依偏好本應寄出，C11 不呼叫 Resend；SD-ORDER §10.4）。值域 `PENDING` / `SENT` / `SKIPPED_PREFERENCE` / `FAILED` / `NOT_APPLICABLE` / `SUPPRESSED_TEST`；本旅程所有收件者偏好皆開，Email 斷言一律收斂為 `SUPPRESSED_TEST` |
-| 狀態文字 | 訂單徽章依 SD-FRONTEND-SPEC §6.4；付款（待付款 / 待核對 / 已確認 / 已作廢）、憑證（待核對 / 已確認 / 已駁回）等子流程狀態文字「依 SD-FRONTEND-SPEC §6.4」（使用者尚未確認，§5-7） |
+| 狀態文字 | 訂單徽章依 SD-FRONTEND-SPEC §6.4；付款（待付款 / 待核對 / 已確認 / 已作廢）、憑證（待核對 / 已確認 / 已駁回）等子流程狀態文字「依 SD-FRONTEND-SPEC §6.4」（使用者 2026-11-22 確認） |
 | 站內通知文案 | type / `mandatory` / `emailStatus` 以 inspect 斷言；標題、內文、連結由收件者以自己的 token 呼叫站內通知列表 `GET /api/notifications?role={OWNER|SITTER}` 核對（SD-NOTIFY 未重建，沿用現行端點，§5-2） |
 | 「僅產生單筆」查法 | 訂單數：飼主 E3 `GET /api/orders/owner?tab=EVALUATING` 與保母 E4 `GET /api/orders/sitter?tab=EVALUATING` 的 `totalElements`；payment 數：E10 陣列長度；submission 數：E12 陣列長度；log / 通知數：inspect `orderLogs` / `notifications` 依 `actionType` / `type` 計數 |
 | 頁面請求攔截 | 「頁面發出的 Ex 恰 1 次」= spec 以 `page.on('request')` 記錄該路由樣板的請求數，並斷言帶 `Idempotency-Key` 標頭、body 不含 `ownerId` / `sitterId`（呼叫者身分取自 token，SD-ORDER §6.1；E1 的 `sitterId` 為操作對象例外） |
@@ -212,7 +212,7 @@
 4. **登入頁 testid 與回跳機制未在本範圍 SD 定義**：J2-02 依 PRD-005 §4.1-3 / SD-ORDER §9.1「未登入送單導向登入並保留內容」，登入頁欄位以畫面業務名稱（Email、密碼、登入按鈕）定位；登入頁屬 PRD-000 / SD-IDENTITY，未重建前由 e2e-author 依現行畫面對應。
 5. **我的最愛清單 API**：J2-05 以 PRD-019 現行清單 API 核對（同 TS-005 PB-92）；SD-SUPPLY 重建後改用新契約。
 6. **報價成功後的頁面行為（已解決，2026-11-22 依 SD-ORDER §9.1 核准後修訂）**：O2 成功後留在原頁、以 E6 回應就地重新渲染為「待付款」，並使 E2 / E4 列表 query 失效重抓，不整頁 reload。J2-07 斷言原頁重渲染，J2-09 以 `page.goBack()` 驗證列表不 reload 即顯示「待付款」（舊 bug 迴歸，§6），不得改用 `page.goto`。
-7. **子流程狀態文字待確認**：付款 / 憑證狀態文字依 SD-FRONTEND-SPEC §6.4（使用者尚未確認）；若定稿文字不同，e2e-author 依 §6.4 定稿值調整 J2-10、J2-11、J2-14、J2-21、J2-31 的斷言。
+7. **子流程狀態文字**（已解決，使用者 2026-11-22 確認 SD-FRONTEND-SPEC §6.4）：若定稿文字不同，e2e-author 依 §6.4 定稿值調整 J2-10、J2-11、J2-14、J2-21、J2-31 的斷言。
 8. **`cancellation.reasonCode` 列舉（已解決，2026-11-22）**：SD-ORDER E2 已列 8 個值；J2-32 斷言 `OWNER_WITHDRAWN`、J2-43 斷言 `SITTER_DECLINED`。
 
 ## 6. 本測試發現並修復的真實 bug
@@ -229,5 +229,6 @@
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 子流程狀態文字依 SD-FRONTEND-SPEC §6.4 定稿；狀態改 Approved | 使用者核准 |
 | 2026-11-22 | 依核准後修訂同步（使用者 2026-11-22 同意）：§0.2 inspect 補 `payments[]` `direction` / `purpose` / `amount`、`fulfill.visits[]` `serviceDate` / `planId`，「Email 應寄」改為觸發 C11 `?orderId=` 後斷言 `SUPPRESSED_TEST`，新增子流程狀態文字約定；J2-05 / J2-08 / J2-15 / J2-22 對應斷言；J2-07 報價後留在原頁就地重渲染；J2-09 / J2-10 報價明細改三段 testid 與 E2 `quote.original` / `adjustments[]` / `totalAmount`，SITTER 限定欄位（`sitterTier`、`modificationPricingMode`、`bookableFrom/To`）雙向斷言；J2-11 / J2-14 / J2-21 / J2-31 子流程狀態文字；J2-16 `owner-order-detail-btn-open-modification` 不出現；§5-3、§5-6、§5-8 標已解決，新增 §5-7；狀態維持 Draft | SD-ORDER §6.3 E2、§9.1、§9.3、§10.4 與 SD-FRONTEND-SPEC §6.4 核准後修訂 |
 | 2026-11-22 | 依 PRD-005 / 006 / 007 / 025 / 026 / 027（Approved 2026-11-22）、DOMAIN-BASELINE、SD-ORDER（§6.3、§7、§9.1、§9.3、§10.4）、SD-FRONTEND-SPEC 全文重寫：改用新範本與 `J2-` 步驟前綴；主線改為匿名瀏覽 → 登入送單（含問卷）→ PRO 調價報價 → 上傳 → 核對 `CONFIRMED`；新增分支 R（駁回重傳）、W（付款前撤回）、D（婉拒）、A（收款帳號未設定，待 SD-SUPPLY）；斷言改用 inspect 驗 `order_logs` 與通知；越權改以真實帳號打 API（舊「不對正式站探測」規則作廢）；每步標 PRD AC 與模組 TS 步驟 ID；移除舊 API 路徑、寵物建立、照護記事本與 `bootstrap*` helper 依賴；狀態 Draft | 全面重建（使用者指示） |

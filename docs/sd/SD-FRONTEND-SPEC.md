@@ -203,7 +203,7 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 | 保母認證 `profiles.kyc_status` | `UNVERIFIED` 未認證、`PENDING_REVIEW` 審核中、`VERIFIED` 已認證、`REJECTED` 被駁回、`SUSPENDED` 已停權 |
 | KYC 申請 `kyc_records.status`（管理端） | `PENDING` 待審核、`APPROVED` 已通過、`REJECTED` 被駁回 |
 
-2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。子流程狀態的顯示文字為本表建議值，PRD 畫面另有字面時以 PRD 為準並回寫本表。迴歸：`e2e/order-status-labels.spec.ts`（原 10 種訂單狀態逐一比對，2026-11-22 起改為 7 種主狀態、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
+2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。子流程狀態（付款、憑證、變更、照護日誌）的顯示文字經使用者 2026-11-22 確認；PRD 畫面另有字面時以 PRD 為準並回寫本表。迴歸：`e2e/order-status-labels.spec.ts`（原 10 種訂單狀態逐一比對，2026-11-22 起改為 7 種主狀態、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
 
 ### 6.4.1 金額顯示（2026-10-24，驗收 N15）
 PRD 文字中的「NT$ 2,900」等寫法一律以本節 `formatMoney` 格式（`$ 2,900`）呈現，不另加 `NT` 前綴（使用者 2026-11-22 決定，PRD-009 帳務 / 歷史畫面適用；SD-FULFILL §9.2）。
