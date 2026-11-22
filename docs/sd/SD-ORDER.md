@@ -1704,7 +1704,7 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 - E32：body 與 E17 完全相同（`type`、`reason`、`removeVisitIds[]`、`addItems[]`、`surchargeAmount`、`discountAmount`、`adjustmentReason`），以同一個 DTO `ModificationRequests.Initiate` 解析；OWNER 送加減欄位同 E17 一律忽略。
 - E33：body 與 E20 完全相同（`ModificationRequests.Quote`）；`type` 取自該變更列，`CANCEL_ALL` 忽略 `removeVisitIds`，減少目標固定為當下所有 `PENDING` 行程（同 E20）。
 - 不需要、也不讀 `Idempotency-Key`（帶了也忽略，不寫 `idempotency_records`）。
-- **不驗證的欄位**（只有這兩項與送出不同）：`reason`（E32）、`adjustmentReason`（E32 SITTER / E33）不參與計價，試算時不檢查必填與長度、也不回傳；送出時照 E17 / E20 規則檢查。理由與捨棄方案見 §11.4「試算端點的文字欄位」。
+- **不驗證的欄位**（唯一與送出不同處，使用者 2026-11-22 決定 CQ-51）：只有 **OWNER 呼叫 E32（飼主改單）** 時 `reason` 不檢查必填與長度、也不回傳；SITTER 呼叫 E32 / E33 時 `reason`、`adjustmentReason` 照 E17 / E20 規則檢查（錯誤碼與欄位相同）。理由見 §11.4「試算端點的文字欄位」。
 
 **Response 200**
 
@@ -2127,7 +2127,7 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 - 「今天」、日期選擇器範圍、期限與預檢一律以後端回傳的 `serverTime`（E2 / E5 / E31）或 `serverMonth`（E30）為準。
 - 文字欄位去頭尾空白一律依 SD-GLOBAL-SPEC §2.7（等同 Java `String.strip()`，含 U+3000、U+00A0），前端計數與後端一致。
 - 回應中值為 null 的欄位不輸出（§6.1），前端型別以可選欄位表示。
-- **變更金額一律取伺服器試算**（使用者 2026-11-22 決定）：變更精靈（E17 前）呼叫 E32、協商頁保母報價表單（E20 前）呼叫 E33，畫面上的系統計價、新總額、差額與「新總額不可小於 0 / 超過上限」提示全部取自試算回應或其錯誤碼；前端**不得**以 E2 `visits[]` 加總快照單價（移除現行 `estimateSystemAmount`）。觸發時機：減少目標、新增項目、加減金額任一變動後防抖 400 ms 呼叫一次，只採用最後一次請求的回應（較早的回應晚到則丟棄）；`reason` / `adjustmentReason` 變動不觸發。試算回應前與試算失敗時送出鈕停用；送出成功後以 E17 / E20 回應的金額為準。OWNER 精靈的新總額旁標示為系統計價（文案見 §12 待釐清）。
+- **變更金額一律取伺服器試算**（使用者 2026-11-22 決定）：變更精靈（E17 前）呼叫 E32、協商頁保母報價表單（E20 前）呼叫 E33，畫面上的系統計價、新總額、差額與「新總額不可小於 0 / 超過上限」提示全部取自試算回應或其錯誤碼；前端**不得**以 E2 `visits[]` 加總快照單價（移除現行 `estimateSystemAmount`）。觸發時機：減少目標、新增項目、加減金額任一變動後防抖 400 ms 呼叫一次，只採用最後一次請求的回應（較早的回應晚到則丟棄）；OWNER 的 `reason` 變動不觸發；SITTER 的 `reason` / `adjustmentReason` 變動也要觸發（保母試算會驗證文字欄位，未填時金額區顯示該欄錯誤）。CQ-50：OWNER 精靈金額標「預估新總額 $ X（以保母報價為準）」，差額同樣標「預估」；SITTER 不加「預估」。試算回應前與試算失敗時送出鈕停用；送出成功後以 E17 / E20 回應的金額為準。OWNER 精靈的新總額旁標示為系統計價（文案見 §12 待釐清）。
 
 ### 9.3 本 SD 補定的 testid（PRD 未定義，TS 撰寫回饋，使用者 2026-11-22 同意）
 
@@ -2332,7 +2332,7 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 | 發布範圍 | ORDER + FULFILL 同一次發布，未重建模組的呼叫點同次改寫（CQ-21 已決，§8.4） | 本 SD 先行實作 FULFILL 介面的最小版：等於先寫一份 SD-FULFILL 再被重寫 |
 | 變更金額試算的端點形態（2026-11-22，使用者決定新增試算） | 兩支唯讀端點 E32（對應 E17）/ E33（對應 E20），與送出端點共用 `ModificationEvaluator` 檢查序列與 `ModificationPlanner.price` | (a) E17 / E20 加 `?dryRun=true`：`@Idempotent` 攔截器會要求並認領 key、走 G7 / L，唯讀與寫入混在同一 handler，漏一個分支就會寫入或發通知；(b) 單一試算端點、`modificationId` 放 body：body UUID 在 G6 才驗證，但變更不屬訂單的 404 屬 G4，違反判斷順序；(c) 前端自行加總（現況）：與伺服器公式（每日次數、方案快照、鎖定依 FREE、已收淨額）會分歧，使用者已否決 |
 | 試算端點不取訂單鎖 | 唯讀交易、不鎖；送出端點鎖內重驗重算為準 | 取訂單鎖：精靈反覆呼叫會與真正寫入搶 `lock_timeout` 3 秒，送出端點更容易 `ORDER_BUSY`，且結果在放鎖後立即可能過時，鎖不帶來正確性；`REPEATABLE READ` 唯讀交易：可得一致快照，但結果本來就只是顯示用，多一個隔離等級設定不值得 |
-| 試算端點的文字欄位（待使用者確認，見 §12 CQ-51） | `reason`、`adjustmentReason` 不驗證、不回傳；其餘欄位與送出端點錯誤完全相同 | 連文字欄位一起驗證（字面上「錯誤與送出完全相同」）：使用者必須先填原因才能看到金額，精靈流程是先選內容、看金額、最後填原因；前端為了拿到試算只能送佔位字串，等於仍不一致 |
+| 試算端點的文字欄位（使用者 2026-11-22 決定，§12 CQ-51） | OWNER 呼叫 E32（飼主改單）時 `reason` 不驗證、不回傳；SITTER 呼叫 E32 / E33 時 `reason`、`adjustmentReason` 與送出端點同樣驗證（保母表單原因與金額同畫面填寫）；其餘欄位所有角色皆與送出端點錯誤完全相同 | 全部不驗證；或全部驗證（飼主得先填原因才看到金額） |
 
 
 ### 11.5 B 階段實作決定（使用者 2026-11-22 核准）
@@ -2372,8 +2372,8 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 | CQ-24 | PRD-027 只定 O3 婉拒的飼主結果標題「保母已婉拒此預約」，O4（評估逾期）、O7（付款前保母取消）在 `owner-order-detail-cancel-result` 的標題未定（TS-027 §5 #10） | 建議：O7「保母已取消此訂單」、O4「保母未於期限內回覆，預約已自動取消」（與 §7.2 通知文案同語意）；確認後由主流程回寫 PRD-027 | 已決（使用者 2026-11-22，採建議；PRD-027 同步回寫） |
 | CQ-25 | E31 是否預先顯示「同時 `PENDING` 已達上限」（NFR-003 CQ-43） | 不在 E31 增加狀態；送單 422 時顯示 PRD-005 文案「您已有 3 筆預約等待此保母回覆，請待保母回覆後再送出」並保留表單內容 | 已決（使用者 2026-11-22） |
 | CQ-42 | 新例外對映與錯誤格式的生效範圍 | `ROLE_MISMATCH`、401 `UNAUTHENTICATED`、§6.1 錯誤格式全域採用（受影響的其他模組測試列 §8.3 D7、§8.4.4）；`ORDER_BUSY`、`PROOF_FILE_TOO_LARGE`、`STORAGE_UNAVAILABLE`、約束名對映只套訂單 controller 的獨立 advice；5 MB 上限由 E11 自行檢查；寫入 §6.1、§6.4 | 已決（使用者 2026-11-22） |
-| CQ-50 | 變更精靈（OWNER）顯示 E32 試算的新總額時的標示文案：OWNER 的試算只有系統計價，PRO / ULTIMATE 未鎖定的保母報價時可能再加減；PRD-016 未定（編號跳過 43–49，避免與 NFR-003 / baseline 同號 CQ 混淆） | 「預估新總額 $ X（以保母報價為準）」；差額以同樣方式標「預估」；SITTER 精靈與報價表單不加「預估」 | Open |
-| CQ-51 | 試算端點是否連 `reason` / `adjustmentReason` 一併驗證（使用者指示「驗證錯誤與送出相同」） | 不驗證文字欄位，其餘完全相同（§11.4、§6.3 E32 / E33）；若要求字面一致，改為驗證並由前端在原因未填前不呼叫試算 | Open |
+| CQ-50 | 變更精靈（OWNER）顯示 E32 試算的新總額時的標示文案：OWNER 的試算只有系統計價，PRO / ULTIMATE 未鎖定的保母報價時可能再加減；PRD-016 未定（編號跳過 43–49，避免與 NFR-003 / baseline 同號 CQ 混淆） | 「預估新總額 $ X（以保母報價為準）」；差額以同樣方式標「預估」；SITTER 精靈與報價表單不加「預估」 | 已決（使用者 2026-11-22 同意建議值） |
+| CQ-51 | 試算端點是否連 `reason` / `adjustmentReason` 一併驗證（使用者指示「驗證錯誤與送出相同」） | 不驗證文字欄位，其餘完全相同（§11.4、§6.3 E32 / E33）；若要求字面一致，改為驗證並由前端在原因未填前不呼叫試算 | 已決（使用者 2026-11-22）：飼主改單（OWNER 呼叫 E32）不驗證 `reason`；SITTER 呼叫 E32 / E33 照送出端點驗證 `reason` / `adjustmentReason` |
 
 依賴（同一次發布，§8.4.1）：SD-FULFILL（visit 介面、開始 / 結束行程經鎖、`IN_PROGRESS` 逾時出口、行程造資料端點）、SD-NOTIFY（`enqueue()`、投遞欄位遷移、C11）、SD-CARE / IDENTITY / TRUST 各一個查詢方法、SD-SUPPLY / BILLING 的過渡查詢方法。非同發布：SD-BILLING 重寫時移除 `subscriptions.monthly_order_count`；PRD-009（O11–O13 文案與畫面）與 PRD-020（ADMIN 待辦 / 調解畫面）改寫時對齊 §6.3 E25–E30；PRD-023 §3 / EX-2 依 CQ-41 回寫。
 
@@ -2383,6 +2383,7 @@ ADMIN 不可呼叫（G3 → 403 `ROLE_MISMATCH`）。
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者決定（狀態維持 Approved）：CQ-50 採建議文案；CQ-51 飼主改單試算不驗證 `reason`，保母試算照送出端點驗證文字欄位（§11.4） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增唯讀變更金額試算端點 E32 `POST /api/orders/{orderId}/modifications/preview`（輸入同 E17，OWNER / SITTER 當事人）與 E33 `POST /api/orders/{orderId}/modifications/{modificationId}/quote/preview`（輸入同 E20，SITTER），與送出端點共用 `ModificationEvaluator` 檢查序列與 `ModificationPlanner.price` 計價（§3.3、§2.3.4、§6.1 G4a、§6.2、§6.3、§6.4 範圍 E1–E33）；不取鎖、不冪等、無副作用、一般限流；確認 PRD-016 BR-12 / AC-2.4 有效行程含 `CLOSED_BY_SYSTEM`（實作 `VisitView.effective()`），試算沿用；§9.1 / §9.2 變更精靈與報價表單改呼叫試算、前端不再自行加總，§9.3 新增試算 testid；§10.3 新增 `ModificationPreviewIntegrationTest`（50 類）；§11.4 三項技術決策；§12 新增 CQ-50、CQ-51（Open）。AC 數不變 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 同步 PRD-016 AC-3.6 核准後小修（狀態維持 Approved）：§10.3 撤回 vs 報價改為依鎖先後——撤回先 → 報價 409；報價先 → 撤回 `QUOTED` 照常成功；最終皆 `WITHDRAWN`（原「恰一方成功」有誤） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：CQ-43 待評估上限改為不加鎖（移除 advisory lock，§3.1 O1、§4.1、§6.3 E1、§6.5 #19、§11.4、§10.3），判斷位置在 `MONTHLY_QUOTA_REACHED` 之後；CQ-25 已決 | 使用者 2026-11-22 決定 |
