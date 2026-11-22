@@ -158,7 +158,7 @@ BR §5.2 要求訂單進行中時，保母可為每一次到府服務編輯「�
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
-| 2026-11-22 | 核准後回寫，待使用者同意 2026-11-22：§9 畫面 testid 補飼主檢核單項 `owner-order-detail-visit-checklist-item-{itemId}`（供 TS 定位 AC-2.3 單項，`data-checked` 不變）。僅補 testid，不改 AC 與規則；狀態維持 Approved | `docs/reviews/SD-FULFILL.api.review.md` 第 2 輪 S20；SD-FULFILL CQ-14 |
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：§9 畫面 testid 補飼主檢核單項 `owner-order-detail-visit-checklist-item-{itemId}`（供 TS 定位 AC-2.3 單項，`data-checked` 不變）。僅補 testid，不改 AC 與規則；狀態維持 Approved | `docs/reviews/SD-FULFILL.api.review.md` 第 2 輪 S20；SD-FULFILL CQ-14 |
 | 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |
 | 2026-11-22 | CQ-7 定案（帶入超出上限的處理、方案已刪除 / 下架、「方案當下」解讀） | 主流程 |
 | 2026-11-22 | CQ-1~6 已決並寫回正文。CQ-1 改採方案預設任務帶入：新增 4.1 初始帶入、BR-2 改寫、EX-14 / EX-15、AC-1.1，相依 PRD 註明依賴 PRD-003 與 PRD-005 / PRD-023。CQ-5 改採不提供套用：刪除 US-2 套用、4.1 套用步驟、原 BR-12 套用規則（改為「不提供」）、BR-6 / BR-10 / EX-6 / EX-8 / EX-11 的套用部分、原 AC-1.3 與 AC-1.4 / 1.5 / 1.6 的套用情境、套用 testid 與 API。CQ-2 / 3 / 4 / 6 採建議值（BR-3、BR-4、BR-6、BR-13、新增 BR-15）。BR-8 `VISIT_STATE_CONFLICT` 改標 baseline §3.7 跨模組碼（第 9 步，CQ-80）。新增 CQ-7（帶入超出上限的處理）。主流程章節改為 4.1 初始帶入 / 4.2 編輯 / 4.3 打勾 / 4.4 飼主檢視；子模組 1 AC 重新編號。子模組 6 / 4 = 10 條 AC，狀態維持 `In Review` | 使用者決定 2026-11-22；baseline 第 3 版修訂 CQ-80 |

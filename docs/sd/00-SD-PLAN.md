@@ -6,8 +6,8 @@ SD 改為依業務模組撰寫，一份涵蓋同一聚合 / 狀態機的多張 P
 
 | 模組 SD | 檔案 | 涵蓋 PRD | 擁有的主要 Table | 取代舊 SD | 重建順序 | 狀態 |
 |---------|------|---------|-----------------|----------|---------|------|
-| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016、023、024、026、027（全部 Approved 2026-11-22） | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`（`idempotency_records` 改由 SD-GLOBAL-SPEC §2.4 擁有；舊 `idempotency_keys` 暫留給尚未重建的模組）；保母帳務總覽 API（由 payments 加總） | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | Approved 2026-11-22（未實作；與 SD-FULFILL 同一次實作發布，CQ-21） |
-| SD-FULFILL 服務履約 | `SD-FULFILL.md` | PRD-008、009（畫面；API 屬 SD-ORDER）、022、028（全部 Approved 2026-11-22） | `visits`、`visit_checklist_items`、`visit_service_reports`、`service_report_media`、`care_log_media_uploads`（爭議 / 結案資料屬 SD-ORDER） | SD-008、009、022 | 2 | Draft 2026-11-22（與 SD-ORDER 同一次實作發布；待 SD-ORDER 配合修訂見 SD-FULFILL §12 CQ-1~4） |
+| SD-ORDER 訂單交易 | `SD-ORDER.md` | PRD-005、006、007、016、023、024、026、027（全部 Approved 2026-11-22） | `orders`、`order_items`、`order_item_pets`、`order_answers`、`order_plan_snapshots`、`order_snapshots`、`payments`、`payment_submissions`、`modification_requests`、`order_logs`、`admin_tasks`（`idempotency_records` 改由 SD-GLOBAL-SPEC §2.4 擁有；舊 `idempotency_keys` 暫留給尚未重建的模組）；保母帳務總覽 API（由 payments 加總） | SD-005、006、007（付款憑證與訂單詳情）、016 | 1 | Approved 2026-11-22（再核准，與 SD-FULFILL 同批；未實作，同一次實作發布，CQ-21） |
+| SD-FULFILL 服務履約 | `SD-FULFILL.md` | PRD-008、009（畫面；API 屬 SD-ORDER）、022、028（全部 Approved 2026-11-22） | `visits`、`visit_checklist_items`、`visit_service_reports`、`service_report_media`、`care_log_media_uploads`（爭議 / 結案資料屬 SD-ORDER） | SD-008、009、022 | 2 | Approved 2026-11-22（未實作；與 SD-ORDER 同一次實作發布） |
 | SD-IDENTITY 帳號身分 | `SD-IDENTITY.md` | PRD-000、001 | `users`、`refresh_tokens`、WebAuthn、OTP | SD-000、001 | 3 | 未開始 |
 | SD-TRUST 信任風控 | `SD-TRUST.md` | PRD-010、017、020 | 信任圈、轉介、KYC、信用分數 | SD-010、017、020 | 4 | 未開始 |
 | SD-CARE 照護資料 | `SD-CARE.md` | PRD-002、021、013 | `pets`、照護記事、照護媒體、媒體保存 | SD-002、021、013 | 5 | 未開始 |
