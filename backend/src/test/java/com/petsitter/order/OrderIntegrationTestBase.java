@@ -293,6 +293,55 @@ public abstract class OrderIntegrationTestBase {
         }
     }
 
+    // ------------------------------------------------------------------ 行程（SD-FULFILL 過渡端點）
+
+    protected List<UUID> visitIds(UUID orderId, String status) {
+        return jdbc.queryForList("SELECT id FROM visits WHERE order_id = ? AND status = ? ORDER BY service_date, sequence_in_day",
+                UUID.class, orderId, status);
+    }
+
+    protected void startVisit(UUID visitId) throws Exception {
+        mvc.perform(post("/api/visits/{id}/start", visitId).header("Authorization", sitterToken()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+    }
+
+    protected void endVisit(UUID visitId) throws Exception {
+        mvc.perform(post("/api/visits/{id}/end", visitId).header("Authorization", sitterToken()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+    }
+
+    protected void submitCareLog(UUID visitId) throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/visits/{id}/report", visitId)
+                        .header("Authorization", sitterToken()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"ok\",\"version\":0}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        mvc.perform(post("/api/visits/{id}/report/submit", visitId).header("Authorization", sitterToken())
+                        .header("Idempotency-Key", key()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+    }
+
+    /** 開始並結束（DONE）行程；{@code withLog} 時送出日誌。 */
+    protected void finishVisit(UUID visitId, boolean withLog) throws Exception {
+        startVisit(visitId);
+        endVisit(visitId);
+        if (withLog) {
+            submitCareLog(visitId);
+        }
+    }
+
+    protected org.springframework.test.web.servlet.ResultActions modify(UUID orderId, String token, Map<String, Object> body) throws Exception {
+        return mvc.perform(postJson("/api/orders/{o}/modifications", token, key(), body, orderId));
+    }
+
+    protected Map<String, Object> addItem(LocalDate date, UUID plan, int daily, UUID... pets) {
+        return Map.of("date", date.toString(), "planId", plan.toString(), "dailyCount", daily,
+                "petIds", java.util.Arrays.stream(pets).map(UUID::toString).toList());
+    }
+
+    protected UUID modificationId(org.springframework.test.web.servlet.ResultActions r) throws Exception {
+        return UUID.fromString(body(r).get("modificationId").asString());
+    }
+
     protected UUID initialPayment(UUID orderId) {
         return jdbc.queryForObject("SELECT id FROM payments WHERE order_id = ? AND purpose = 'INITIAL'", UUID.class, orderId);
     }

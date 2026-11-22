@@ -13,6 +13,10 @@ import com.petsitter.application.service.order.BookingOrchestrator;
 import com.petsitter.application.service.order.OrderCancelService;
 import com.petsitter.application.service.order.OrderDetailService;
 import com.petsitter.application.service.order.QuoteService;
+import com.petsitter.application.dto.order.ModificationRequests;
+import com.petsitter.application.dto.order.ModificationResponses;
+import com.petsitter.application.service.order.OrderCompletionService;
+import com.petsitter.application.service.order.SitterLedgerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,6 +47,44 @@ public class OrderController {
     private final OrderDetailService orderDetailService;
     private final QuoteService quoteService;
     private final OrderCancelService orderCancelService;
+    private final OrderCompletionService orderCompletionService;
+    private final SitterLedgerService sitterLedgerService;
+
+    /** E30 保母帳務總覽。 */
+    @GetMapping("/sitter/ledger")
+    @PreAuthorize("hasRole('SITTER')")
+    public ModificationResponses.Ledger ledger(@RequestParam(required = false) String month) {
+        return sitterLedgerService.ledger(month);
+    }
+
+    /** E24 O14 款項爭議。 */
+    @PostMapping("/{orderId}/payment-disputes")
+    @Idempotent
+    @PreAuthorize("hasAnyRole('OWNER','SITTER')")
+    public ModificationResponses.Disputed paymentDispute(@PathVariable UUID orderId,
+                                                         @RequestHeader(value = KEY, required = false) String key,
+                                                         @RequestBody(required = false) ModificationRequests.Description body) {
+        return orderCompletionService.paymentDispute(orderId, body);
+    }
+
+    /** E25 O11 確認結案。 */
+    @PostMapping("/{orderId}/complete")
+    @Idempotent
+    @PreAuthorize("hasRole('OWNER')")
+    public ModificationResponses.Completed complete(@PathVariable UUID orderId,
+                                                    @RequestHeader(value = KEY, required = false) String key) {
+        return orderCompletionService.complete(orderId);
+    }
+
+    /** E26 O13 回報服務問題。 */
+    @PostMapping("/{orderId}/service-disputes")
+    @Idempotent
+    @PreAuthorize("hasRole('OWNER')")
+    public ModificationResponses.Disputed serviceDispute(@PathVariable UUID orderId,
+                                                         @RequestHeader(value = KEY, required = false) String key,
+                                                         @RequestBody(required = false) ModificationRequests.Description body) {
+        return orderCompletionService.serviceDispute(orderId, body);
+    }
 
     /** E1 O1 送出預約。 */
     @PostMapping

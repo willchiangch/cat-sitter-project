@@ -10,8 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import jakarta.persistence.Convert;
+import org.hibernate.annotations.ColumnTransformer;
 
 import java.time.OffsetDateTime;
 import java.util.EnumSet;
@@ -52,11 +52,13 @@ public class ModificationRequest extends VersionedEntity {
     @Column(nullable = false, updatable = false, length = 200)
     private String reason;
 
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Convert(converter = JsonbConverters.ModificationContentConverter.class)
+    @ColumnTransformer(read = "requested_content::text", write = "?::jsonb")
     @Column(name = "requested_content", columnDefinition = "jsonb")
     private ModificationContent requestedContent;
 
-    @JdbcTypeCode(SqlTypes.JSON)
+    @Convert(converter = JsonbConverters.ModificationContentConverter.class)
+    @ColumnTransformer(read = "quoted_content::text", write = "?::jsonb")
     @Column(name = "quoted_content", columnDefinition = "jsonb")
     private ModificationContent quotedContent;
 

@@ -12,8 +12,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import jakarta.persistence.Convert;
+import org.hibernate.annotations.ColumnTransformer;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -45,8 +45,9 @@ public class OrderLog {
     @Column(name = "operator_user_id", updatable = false)
     private UUID operatorUserId;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb", updatable = false)
+    @Convert(converter = JsonbConverters.PayloadConverter.class)
+    @ColumnTransformer(read = "payload::text", write = "?::jsonb")
+    @Column(name = "payload", columnDefinition = "jsonb", updatable = false)
     private Map<String, Object> payload;
 
     @Column(name = "created_at", nullable = false, updatable = false)
