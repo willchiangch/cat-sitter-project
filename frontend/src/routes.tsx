@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import App from './App';
 import RequireAuth from './components/auth/RequireAuth';
 import RequireRole from './components/auth/RequireRole';
@@ -112,9 +112,14 @@ function ModificationDetailRoute() {
   );
 }
 
+/** 婉拒後轉介帶 `?orderId=`（PRD-027 BR-3，SitterOrderDetail 婉拒對話框）；無 orderId 為非訂單關聯轉介 */
 function SitterReferralRoute() {
   const { ownerId } = useParams<{ ownerId: string }>();
-  return <SitterReferral ownerId={ownerId!} />;
+  const [searchParams] = useSearchParams();
+  const orderId = searchParams.get('orderId') || undefined;
+  return (
+    <SitterReferral key={`${ownerId}|${orderId ?? ''}`} ownerId={ownerId!} orderId={orderId} />
+  );
 }
 
 function AdminKycDetailRoute() {
