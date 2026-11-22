@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import {
   useUnreadCountQuery,
   useNotificationsQuery,

@@ -32,29 +32,46 @@ export function isWebAuthnSupported(): boolean {
 // 格式已經是 { publicKey: {...} }，正好對應 navigator.credentials.create()/get() 的參數形狀，
 // 這裡只需要把裡面 base64url 字串欄位轉回 ArrayBuffer。
 
-function optionsToCreationOptions(json: any): CredentialCreationOptions {
-  const publicKey = json.publicKey;
-  publicKey.challenge = base64UrlToArrayBuffer(publicKey.challenge);
-  publicKey.user.id = base64UrlToArrayBuffer(publicKey.user.id);
-  if (Array.isArray(publicKey.excludeCredentials)) {
-    publicKey.excludeCredentials = publicKey.excludeCredentials.map((cred: any) => ({
-      ...cred,
-      id: base64UrlToArrayBuffer(cred.id)
-    }));
-  }
-  return json as CredentialCreationOptions;
+/** 後端 options JSON 的形狀；base64url 字串欄位會被就地轉成 ArrayBuffer */
+type Base64UrlOrBuffer = string | ArrayBuffer;
+interface CredentialDescriptorJson {
+  id: Base64UrlOrBuffer;
+  [key: string]: unknown;
+}
+interface PublicKeyOptionsJson {
+  challenge: Base64UrlOrBuffer;
+  user?: { id: Base64UrlOrBuffer; [key: string]: unknown };
+  excludeCredentials?: CredentialDescriptorJson[];
+  allowCredentials?: CredentialDescriptorJson[];
+  [key: string]: unknown;
+}
+interface WebAuthnOptionsJson {
+  publicKey: PublicKeyOptionsJson;
 }
 
-function optionsToRequestOptions(json: any): CredentialRequestOptions {
+const toBuffer = (v: Base64UrlOrBuffer): ArrayBuffer =>
+  typeof v === 'string' ? base64UrlToArrayBuffer(v) : v;
+
+const descriptorsToBuffers = (list: CredentialDescriptorJson[]) =>
+  list.map((cred) => ({ ...cred, id: toBuffer(cred.id) }));
+
+function optionsToCreationOptions(json: WebAuthnOptionsJson): CredentialCreationOptions {
   const publicKey = json.publicKey;
-  publicKey.challenge = base64UrlToArrayBuffer(publicKey.challenge);
-  if (Array.isArray(publicKey.allowCredentials)) {
-    publicKey.allowCredentials = publicKey.allowCredentials.map((cred: any) => ({
-      ...cred,
-      id: base64UrlToArrayBuffer(cred.id)
-    }));
+  publicKey.challenge = toBuffer(publicKey.challenge);
+  if (publicKey.user) publicKey.user.id = toBuffer(publicKey.user.id);
+  if (Array.isArray(publicKey.excludeCredentials)) {
+    publicKey.excludeCredentials = descriptorsToBuffers(publicKey.excludeCredentials);
   }
-  return json as CredentialRequestOptions;
+  return json as unknown as CredentialCreationOptions;
+}
+
+function optionsToRequestOptions(json: WebAuthnOptionsJson): CredentialRequestOptions {
+  const publicKey = json.publicKey;
+  publicKey.challenge = toBuffer(publicKey.challenge);
+  if (Array.isArray(publicKey.allowCredentials)) {
+    publicKey.allowCredentials = descriptorsToBuffers(publicKey.allowCredentials);
+  }
+  return json as unknown as CredentialRequestOptions;
 }
 
 function registrationCredentialToJson(credential: PublicKeyCredential): string {
@@ -88,10 +105,14 @@ function assertionCredentialToJson(credential: PublicKeyCredential): string {
 }
 
 export async function registerBiometricCredential(): Promise<void> {
-  const { data: optionsJson } = await axiosClient.post('/auth/webauthn/register/options');
+  const { data: optionsJson } = await axiosClient.post<WebAuthnOptionsJson>(
+    '/auth/webauthn/register/options'
+  );
   const creationOptions = optionsToCreationOptions(optionsJson);
 
-  const credential = (await navigator.credentials.create(creationOptions)) as PublicKeyCredential | null;
+  const credential = (await navigator.credentials.create(
+    creationOptions
+  )) as PublicKeyCredential | null;
   if (!credential) {
     throw new Error('生物辨識裝置註冊已取消');
   }
@@ -126,10 +147,15 @@ export interface WebAuthnLoginResult {
 }
 
 export async function loginWithBiometricCredential(email: string): Promise<WebAuthnLoginResult> {
-  const { data: optionsJson } = await axiosClient.post('/auth/webauthn/login/options', { email });
+  const { data: optionsJson } = await axiosClient.post<WebAuthnOptionsJson>(
+    '/auth/webauthn/login/options',
+    { email }
+  );
   const requestOptions = optionsToRequestOptions(optionsJson);
 
-  const credential = (await navigator.credentials.get(requestOptions)) as PublicKeyCredential | null;
+  const credential = (await navigator.credentials.get(
+    requestOptions
+  )) as PublicKeyCredential | null;
   if (!credential) {
     throw new Error('生物辨識登入已取消');
   }

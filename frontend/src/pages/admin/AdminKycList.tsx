@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import { getPendingKycList, suspendSitter, unsuspendSitter } from '../../api/kycApi';
 import type { PendingKycRecordDto } from '../../api/kycApi';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const AdminKycList: React.FC = () => {
   const { currentRole } = useRole();
@@ -24,24 +25,26 @@ const AdminKycList: React.FC = () => {
   const suspendKeyRef = useRef<string | null>(null);
   const unsuspendKeyRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    fetchPendingList();
-  }, [page]);
-
-  const fetchPendingList = async () => {
+  const fetchPendingList = useCallback(async () => {
     setLoading(true);
     setErrorMsg('');
     try {
       const data = await getPendingKycList(page, 10);
       setRecords(data.content);
       setTotalPages(data.totalPages);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setErrorMsg('取得待審核清單失敗，請確認是否具備管理員權限');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
+    fetchPendingList();
+  }, [page, fetchPendingList]);
 
   const handleSuspend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +70,8 @@ const AdminKycList: React.FC = () => {
         text: `保母 ${targetSitterId} 已成功停權且強制關閉接單狀態。`
       });
       setSuspendReason('');
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       suspendKeyRef.current = null;
       const msg = err.response?.data?.message || '停權操作失敗';
@@ -95,7 +99,8 @@ const AdminKycList: React.FC = () => {
         type: 'success',
         text: `已成功解除保母 ${targetSitterId} 停權狀態，接單資格已恢復。`
       });
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       unsuspendKeyRef.current = null;
       const msg = err.response?.data?.message || '解除停權失敗';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { usePreferencesQuery, useUpdatePreferenceMutation } from '../../hooks/useNotifications';
 
 export const PreferencesPage: React.FC = () => {
@@ -56,14 +56,24 @@ export const PreferencesPage: React.FC = () => {
     <div style={{ padding: '1.5rem 0', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* 標題區 */}
       <div>
-        <h2 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--color-on-surface)' }}>通知偏好設定</h2>
-        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
+        <h2 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--color-on-surface)' }}>
+          通知偏好設定
+        </h2>
+        <p
+          style={{
+            margin: '0.25rem 0 0 0',
+            fontSize: '0.875rem',
+            color: 'var(--color-on-surface-variant)'
+          }}
+        >
           個人化配置您的訊息中心（In-App）與電子郵件（Email）通知開關。
         </p>
       </div>
 
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-on-surface-variant)' }}>
+        <div
+          style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-on-surface-variant)' }}
+        >
           載入偏好設定中...
         </div>
       ) : isError ? (
@@ -84,7 +94,9 @@ export const PreferencesPage: React.FC = () => {
                   flexDirection: 'column',
                   gap: '1rem',
                   padding: '1.5rem',
-                  border: isAccountAuth ? '1px dashed var(--color-primary)' : '1px solid var(--color-outline-variant)'
+                  border: isAccountAuth
+                    ? '1px dashed var(--color-primary)'
+                    : '1px solid var(--color-outline-variant)'
                 }}
               >
                 {/* 說明區 */}
@@ -92,13 +104,22 @@ export const PreferencesPage: React.FC = () => {
                   <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--color-on-surface)' }}>
                     {getCategoryLabel(pref.category)}
                   </h4>
-                  <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--color-on-surface-variant)', lineHeight: 1.4 }}>
+                  <p
+                    style={{
+                      margin: '0.25rem 0 0 0',
+                      fontSize: '0.875rem',
+                      color: 'var(--color-on-surface-variant)',
+                      lineHeight: 1.4
+                    }}
+                  >
                     {getCategoryDesc(pref.category)}
                   </p>
                 </div>
 
                 {/* 切換開關區 */}
-                <div style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                <div
+                  style={{ display: 'flex', gap: '2rem', marginTop: '0.5rem', flexWrap: 'wrap' }}
+                >
                   {/* In-App 開關 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <label style={{ fontSize: '0.9rem', color: 'var(--color-on-surface)' }}>
@@ -108,7 +129,9 @@ export const PreferencesPage: React.FC = () => {
                       type="checkbox"
                       checked={pref.enableInApp}
                       disabled={isAccountAuth || updatePreferenceMutation.isPending}
-                      onChange={(e) => handleToggle(pref.category, e.target.checked, pref.enableEmail)}
+                      onChange={(e) =>
+                        handleToggle(pref.category, e.target.checked, pref.enableEmail)
+                      }
                       data-testid={`${currentRole}-preferences-toggle-${pref.category.toLowerCase()}-inapp`}
                       style={{
                         width: '40px',
@@ -127,7 +150,9 @@ export const PreferencesPage: React.FC = () => {
                       type="checkbox"
                       checked={pref.enableEmail}
                       disabled={isAccountAuth || updatePreferenceMutation.isPending}
-                      onChange={(e) => handleToggle(pref.category, pref.enableInApp, e.target.checked)}
+                      onChange={(e) =>
+                        handleToggle(pref.category, pref.enableInApp, e.target.checked)
+                      }
                       data-testid={`${currentRole}-preferences-toggle-${pref.category.toLowerCase()}-email`}
                       style={{
                         width: '40px',

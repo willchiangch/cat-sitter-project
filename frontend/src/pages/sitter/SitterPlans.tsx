@@ -11,6 +11,7 @@ import { ArrowUp, ArrowDown, Plus, Trash2, Upload, Edit2, X, AlertCircle } from 
 import axios from 'axios';
 import { defaultTasksFor } from '../../components/plans/defaultTasks';
 import { formatMoney } from '../../utils/money';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const PET_TYPE_LABELS: Record<string, string> = {
   CAT: '🐱 貓咪',
@@ -96,7 +97,7 @@ const SitterPlans: React.FC = () => {
     ) {
       try {
         await setPlanActiveMutation.mutateAsync({ planId, isActive: false });
-      } catch (err) {
+      } catch {
         alert('下架失敗，請稍後再試。');
       }
     }
@@ -106,7 +107,7 @@ const SitterPlans: React.FC = () => {
   const handleActivate = async (planId: string) => {
     try {
       await setPlanActiveMutation.mutateAsync({ planId, isActive: true });
-    } catch (err) {
+    } catch {
       alert('上架失敗，請稍後再試。');
     }
   };
@@ -124,7 +125,7 @@ const SitterPlans: React.FC = () => {
     const planIds = newPlans.map((p) => p.id!).filter(Boolean);
     try {
       await sortPlansMutation.mutateAsync({ planIds });
-    } catch (err) {
+    } catch {
       alert('排序調整失敗，請重試。');
     }
   };
@@ -172,7 +173,8 @@ const SitterPlans: React.FC = () => {
         await createPlanMutation.mutateAsync(payload);
       }
       closeModal();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       if (axios.isAxiosError(err)) {
         const responseData = err.response?.data;
         const status = err.response?.status;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { SESSION_EXPIRED_EVENT } from '../../api/axiosClient';
 
 const RequireAuth = () => {

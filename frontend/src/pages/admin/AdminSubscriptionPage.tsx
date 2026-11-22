@@ -3,6 +3,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import axiosClient from '../../api/axiosClient';
 import { AlertCircle, CheckCircle2, Search } from 'lucide-react';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const PLAN_TIERS = ['FREE', 'BASIC', 'PRO', 'ULTIMATE'] as const;
 type PlanTier = (typeof PLAN_TIERS)[number];
@@ -47,7 +48,8 @@ const AdminSubscriptionPage: React.FC = () => {
       } else {
         setExpiredAt('');
       }
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       const msg =
         err.response?.data?.message || err.response?.status === 404
           ? '找不到該保母 ID'
@@ -81,7 +83,8 @@ const AdminSubscriptionPage: React.FC = () => {
         type: 'success',
         text: `已成功將方案更新為 ${PLAN_LABELS[res.data.planTier]}，審計日誌已寫入。`
       });
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       const msg = err.response?.data?.message || '更新失敗';
       setMessage({ type: 'error', text: msg });
     } finally {
@@ -189,7 +192,7 @@ const AdminSubscriptionPage: React.FC = () => {
             </strong>
             {currentSub.expiredAt && (
               <>
-                　到期日：
+                {'\u3000'}到期日：
                 <strong style={{ color: 'var(--color-on-surface)' }}>
                   {new Date(currentSub.expiredAt).toLocaleDateString()}
                 </strong>

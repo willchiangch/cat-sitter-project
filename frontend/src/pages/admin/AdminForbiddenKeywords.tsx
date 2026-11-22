@@ -7,6 +7,7 @@ import {
   useDeleteForbiddenKeywordMutation
 } from '../../hooks/usePublicProfile';
 import { Trash2, Search, Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const KEYWORD_TH_STYLE: React.CSSProperties = {
   padding: '0.75rem 0.5rem',
@@ -41,7 +42,8 @@ const AdminForbiddenKeywords: React.FC = () => {
       setMessage({ type: 'success', text: `成功新增敏感詞: "${cleanWord}"` });
       setNewKeyword('');
       refetch();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       const errMsg = err.response?.data?.message || '新增敏感詞失敗，可能已存在';
       setMessage({ type: 'error', text: errMsg });
@@ -56,7 +58,8 @@ const AdminForbiddenKeywords: React.FC = () => {
       await deleteMutation.mutateAsync(id);
       setMessage({ type: 'success', text: `敏感詞 "${keyword}" 已成功刪除` });
       refetch();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setMessage({ type: 'error', text: '刪除敏感詞失敗' });
     }

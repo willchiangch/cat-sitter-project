@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../hooks/usePublicProfile';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { Camera, Plus, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import type { LegacyHttpError } from '../../api/apiError';
 
 /** 標籤 / 區域「新增」鈕：不換行、不被輸入框壓縮（fix-batch14 N5） */
 const ADD_BUTTON_STYLE: React.CSSProperties = {
@@ -42,7 +43,10 @@ const SitterProfileSettings: React.FC = () => {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // profile（查詢結果）換新時於 render 期間同步表單（React「依 props 調整 state」寫法，取代 effect 內 setState）
+  const [syncedProfile, setSyncedProfile] = useState<typeof profile>(undefined);
+  if (profile !== syncedProfile) {
+    setSyncedProfile(profile);
     if (profile) {
       setDisplayName(profile.displayName || '');
       setBio(profile.bio || '');
@@ -51,7 +55,7 @@ const SitterProfileSettings: React.FC = () => {
       setServiceAreas(profile.serviceAreas || []);
       setAvatarPreview(profile.avatarUrl || '');
     }
-  }, [profile]);
+  }
 
   const handleAddTag = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +123,8 @@ const SitterProfileSettings: React.FC = () => {
       setAvatarPreview(newAvatarUrl);
       setUploadMessage({ type: 'success', text: '頭像上傳成功！' });
       refetch();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setUploadMessage({ type: 'error', text: err.response?.data?.message || '頭像上傳失敗' });
     }
@@ -145,7 +150,8 @@ const SitterProfileSettings: React.FC = () => {
       });
       setMessage({ type: 'success', text: '公開檔案儲存成功！' });
       refetch();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       const errMsg = err.response?.data?.message || '更新失敗，請檢查輸入欄位格式';
       setMessage({ type: 'error', text: errMsg });

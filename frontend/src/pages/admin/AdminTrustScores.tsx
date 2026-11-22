@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import Card from '../../components/ui/Card';
 import { listSitterTrustScores, adjustTrustScore } from '../../api/kycApi';
 import type { SitterTrustScoreDto } from '../../api/kycApi';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const AdminTrustScores: React.FC = () => {
   const { currentRole } = useRole();
@@ -34,8 +35,8 @@ const AdminTrustScores: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     fetchList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAdjust = async (e: React.FormEvent) => {
@@ -65,7 +66,8 @@ const AdminTrustScores: React.FC = () => {
       setDelta(0);
       setReason('');
       await fetchList();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       adjustKeyRef.current = null;
       const msg = err.response?.data?.message || '異動失敗';

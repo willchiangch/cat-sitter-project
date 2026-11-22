@@ -15,7 +15,7 @@ import { INFO_BANNER_STYLE } from '../../components/ui/statusTone';
 import { useBookingContextQuery } from '../../hooks/useOrders';
 import { usePetsQuery } from '../../hooks/usePets';
 import { useIdempotentAction } from '../../hooks/useIdempotentAction';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { useHasSession } from '../../hooks/useHasSession';
 import { createOrder } from '../../api/orderApi';
 import type {

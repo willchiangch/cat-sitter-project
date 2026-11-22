@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { getKycDetail, getAdminMediaUrl, reviewKyc } from '../../api/kycApi';
 import type { KycRecordDetailDto } from '../../api/kycApi';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { kycRecordStatusLabel } from '../../components/ui/statusLabels';
 import { PAGE_PADDING } from '../../components/layout/pageLayout';
 import { STATUS_TONE_STYLE, SUCCESS_TEXT_COLOR } from '../../components/ui/statusTone';
+import type { LegacyHttpError } from '../../api/apiError';
 
 interface AdminKycDetailProps {
   kycRecordId: string;
@@ -30,12 +31,7 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
   // 審核送出成功後到導回清單前的 1.5 秒：徽章立即反映結果、按鈕鎖住 (Backlog 第 3 批 U2)
   const [reviewed, setReviewed] = useState(false);
 
-  useEffect(() => {
-    setIdempotencyKey('review-' + kycRecordId + '-' + Date.now());
-    fetchDetail();
-  }, [kycRecordId]);
-
-  const fetchDetail = async () => {
+  const fetchDetail = useCallback(async () => {
     setLoading(true);
     setErrorMsg('');
     try {
@@ -48,13 +44,20 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
       ]);
       setIdCardFrontUrl(frontUrl);
       setSelfieUrl(backUrl);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setErrorMsg('取得認證紀錄詳情失敗');
     } finally {
       setLoading(false);
     }
-  };
+  }, [kycRecordId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
+    setIdempotencyKey('review-' + kycRecordId + '-' + Date.now());
+    fetchDetail();
+  }, [kycRecordId, fetchDetail]);
 
   const handleReview = async (action: 'APPROVE' | 'REJECT') => {
     setErrorMsg('');
@@ -81,7 +84,8 @@ const AdminKycDetail: React.FC<AdminKycDetailProps> = ({ kycRecordId }) => {
       setTimeout(() => {
         navigate('/admin/kyc');
       }, 1500);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       const msg = err.response?.data?.message || '審核提交失敗';
       setErrorMsg(msg);

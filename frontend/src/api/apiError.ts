@@ -92,3 +92,12 @@ export const payloadNumber = (err: ApiError, key: string): number | undefined =>
   const v = err.payload[key];
   return typeof v === 'number' ? v : undefined;
 };
+
+/**
+ * 尚未重建模組的過渡型別：舊頁面 catch 區塊讀 `err.response?.status`、`err.response?.data?.message`、
+ * `err.message` 的形狀（取代 `catch (err: any)`，行為不變）。新頁面一律用 `getApiError` + errorMessages。
+ */
+export interface LegacyHttpError {
+  message?: string;
+  response?: { status?: number; data?: { message?: string } };
+}

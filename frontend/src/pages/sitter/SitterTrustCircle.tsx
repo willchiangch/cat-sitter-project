@@ -10,6 +10,7 @@ import {
   removeTrustRelationship
 } from '../../api/trustCircleApi';
 import type { TrustRelationship, SitterSearchResult } from '../../api/trustCircleApi';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const SitterTrustCircle: React.FC = () => {
   const [circle, setCircle] = useState<TrustRelationship[]>([]);
@@ -46,6 +47,7 @@ const SitterTrustCircle: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     fetchAll();
   }, []);
 
@@ -64,7 +66,8 @@ const SitterTrustCircle: React.FC = () => {
     try {
       const result = await searchSitterForTrustCircle(searchQuery.trim());
       setSearchResult(result);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setSearchError(err.response?.data?.message || '查無此保母，請確認 ID 是否正確');
     } finally {
       setSearching(false);
@@ -78,7 +81,8 @@ const SitterTrustCircle: React.FC = () => {
       await sendTrustRequest(searchResult.sitterId);
       setIsSearchOpen(false);
       await fetchAll();
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       setSearchError(err.response?.data?.message || '送出邀請失敗');
     } finally {
       setSending(false);

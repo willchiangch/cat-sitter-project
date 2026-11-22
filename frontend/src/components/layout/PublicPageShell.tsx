@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import AppShell from './AppShell';
 import AppHeader from './AppHeader';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { useHasSession } from '../../hooks/useHasSession';
 
 /**

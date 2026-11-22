@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import { PageContainer } from '../../components/orders/common';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 
 /**
  * 舊日誌連結 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 的提示頁（SD-FULFILL §9.1，

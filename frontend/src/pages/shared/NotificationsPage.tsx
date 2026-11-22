@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PAGE_PADDING } from '../../components/layout/pageLayout';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import {
   useNotificationsQuery,
   useMarkAsReadMutation,

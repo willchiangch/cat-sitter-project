@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Lock, Trash2, Plus, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import type { LegacyHttpError } from '../../api/apiError';
 
 interface GatekeeperRule {
   id: string;
@@ -77,7 +78,8 @@ export const GatekeeperSettings: React.FC = () => {
         const plansRes = await axiosClient.get('/sitter/plans');
         setPlans(plansRes.data.data || []);
       }
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       setErrorMessage('讀取門禁設定失敗，請確認網路連線');
     } finally {
@@ -86,6 +88,7 @@ export const GatekeeperSettings: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     fetchSubscriptionAndData();
   }, []);
 
@@ -121,7 +124,8 @@ export const GatekeeperSettings: React.FC = () => {
       // Refresh
       const rulesRes = await axiosClient.get('/sitter/gatekeeper');
       setRules(rulesRes.data);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       const msg =
         err.response?.data?.message || '新增門禁規則失敗，請檢查 Email 是否存在且未重複設定';
       setErrorMessage(msg);
@@ -142,7 +146,7 @@ export const GatekeeperSettings: React.FC = () => {
       // Refresh
       const rulesRes = await axiosClient.get('/sitter/gatekeeper');
       setRules(rulesRes.data);
-    } catch (err: any) {
+    } catch {
       setErrorMessage('刪除門禁規則失敗');
     } finally {
       setActionLoading(false);

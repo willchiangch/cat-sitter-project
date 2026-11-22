@@ -25,6 +25,7 @@ import {
   Loader2,
   X
 } from 'lucide-react';
+import type { LegacyHttpError } from '../../api/apiError';
 
 const PetManager: React.FC = () => {
   const { data: pets = [], isLoading: isLoadingPets } = usePetsQuery();
@@ -193,7 +194,8 @@ const PetManager: React.FC = () => {
         showToast('success', '成功更新基本資料');
         handleSelectPet(updated);
       }
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       showToast('error', err.response?.data?.message || '操作失敗，請稍後再試');
     }
@@ -230,7 +232,8 @@ const PetManager: React.FC = () => {
       const photoUrl = await uploadAvatarMutation.mutateAsync({ petId: selectedPetId, file });
       showToast('success', '大頭照上傳成功');
       setPetForm((prev) => ({ ...prev, photoUrl }));
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       showToast('error', err.response?.data?.message || '上傳失敗');
     }
@@ -246,7 +249,8 @@ const PetManager: React.FC = () => {
       showToast('success', '毛孩資料已成功刪除');
       setSelectedPetId(null);
       setIsEditingNotes(false);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       const errMsg = err.response?.data?.message || err.message || '';
       if (errMsg.includes('進行中的服務') || err.response?.status === 400) {
@@ -274,7 +278,8 @@ const PetManager: React.FC = () => {
       showToast('success', '注意事項已成功儲存');
       setIsEditingNotes(false);
       handleSelectPet(updated);
-    } catch (err: any) {
+    } catch (caught) {
+      const err = caught as LegacyHttpError;
       console.error(err);
       if (
         err.response?.status === 409 ||
@@ -302,7 +307,7 @@ const PetManager: React.FC = () => {
         setOptimisticLockError(null);
         showToast('success', '已載入最新內容');
       }
-    } catch (err) {
+    } catch {
       showToast('error', '載入最新資料失敗');
     }
   };

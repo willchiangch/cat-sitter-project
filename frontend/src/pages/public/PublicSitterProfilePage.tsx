@@ -18,6 +18,7 @@ const PublicSitterProfilePage: React.FC = () => {
   useEffect(() => {
     if (!sitterId) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 舊模組掛載 / 參數變更時抓資料（loader 同步設 loading），待模組重建改 React Query
     setLoading(true);
     setError(null);
     getPublicProfile(sitterId)
@@ -62,10 +63,19 @@ const PublicSitterProfilePage: React.FC = () => {
   const bookingPath = `/booking/${sitterId}`;
 
   return (
-    <div style={{ minHeight: '100vh', padding: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+    <div
+      style={{ minHeight: '100vh', padding: '1.5rem', display: 'flex', justifyContent: 'center' }}
+    >
       <div
         className="card-layered"
-        style={{ width: '100%', maxWidth: '640px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+        style={{
+          width: '100%',
+          maxWidth: '640px',
+          padding: '2rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.25rem'
+        }}
       >
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
           {profile.avatarUrl && (
@@ -78,12 +88,19 @@ const PublicSitterProfilePage: React.FC = () => {
           <div>
             <h1
               data-testid="public-profile-display-name"
-              style={{ margin: 0, fontSize: '1.5rem', fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+              style={{
+                margin: 0,
+                fontSize: '1.5rem',
+                fontFamily: 'var(--font-display)',
+                color: 'var(--color-primary)'
+              }}
             >
               {profile.displayName}
             </h1>
             {profile.tags.length > 0 && (
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+              <div
+                style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.4rem' }}
+              >
                 {profile.tags.map((tag) => (
                   <span
                     key={tag}
@@ -104,23 +121,31 @@ const PublicSitterProfilePage: React.FC = () => {
         </div>
 
         {profile.gated ? (
-          <div data-testid="public-profile-gated-banner" style={{ color: 'var(--color-on-surface-variant)' }}>
+          <div
+            data-testid="public-profile-gated-banner"
+            style={{ color: 'var(--color-on-surface-variant)' }}
+          >
             {profile.bio || '保母休息中，暫不開放預約'}
           </div>
         ) : (
           <>
-            {profile.bio && <p style={{ margin: 0, color: 'var(--color-on-surface)' }}>{profile.bio}</p>}
+            {profile.bio && (
+              <p style={{ margin: 0, color: 'var(--color-on-surface)' }}>{profile.bio}</p>
+            )}
 
             {profile.serviceAreas.length > 0 && (
               <div style={{ fontSize: '0.875rem', color: 'var(--color-on-surface-variant)' }}>
-                服務區域：{profile.serviceAreas.map((area) => `${area.city}${area.district}`).join('、')}
+                服務區域：
+                {profile.serviceAreas.map((area) => `${area.city}${area.district}`).join('、')}
               </div>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <h2 style={{ margin: 0, fontSize: '1.1rem' }}>服務方案</h2>
               {plans.length === 0 ? (
-                <div style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.875rem' }}>目前暫無上架方案</div>
+                <div style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.875rem' }}>
+                  目前暫無上架方案
+                </div>
               ) : (
                 plans.map((plan) => (
                   <div
@@ -155,7 +180,11 @@ const PublicSitterProfilePage: React.FC = () => {
                 <a
                   href={`/login?redirect=${encodeURIComponent(bookingPath)}`}
                   data-testid="public-profile-login-link"
-                  style={{ fontSize: '0.8rem', textAlign: 'center', color: 'var(--color-on-surface-variant)' }}
+                  style={{
+                    fontSize: '0.8rem',
+                    textAlign: 'center',
+                    color: 'var(--color-on-surface-variant)'
+                  }}
                 >
                   已有帳號？直接登入
                 </a>

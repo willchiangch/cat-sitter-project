@@ -10,7 +10,7 @@ import {
 } from '../../components/orders/common';
 import MediaView from '../../components/visits/MediaView';
 import { useCareLogQuery, visitKeys } from '../../hooks/useVisits';
-import { useRole } from '../../contexts/RoleContext';
+import { useRole } from '../../contexts/useRole';
 import { getApiError } from '../../api/apiError';
 import { formatDateTime } from '../../utils/datetime';
 
