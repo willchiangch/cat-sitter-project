@@ -981,7 +981,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 | `createSignedUploadUrl(objectKey, contentType, exactBytes, ttl)` | V4 簽名 PUT，綁定 `Content-Type`、`x-goog-content-length-range: {exactBytes},{exactBytes}`（宣告大小；GCS 在 PUT 階段就拒絕大小不符）、`x-goog-if-generation-match: 0`；不帶 `x-goog-acl`（套 bucket 預設，DF7 確認非公開） |
 | `openPrivateObject(objectKey)` | 串流讀取並回傳 `generation`；不存在回空 |
 | `deletePrivateObject(objectKey, Long generation)` | 刪除；`generation` 非 null 時帶前置條件；不存在視為成功 |
-| `generateSignedUrl(objectKey, ttl, contentType)`（既有，擴充參數） | V4 簽名 GET；簽入 query 參數 `response-content-type={contentType}` 與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7、SEC-FILE-3），讓 GCS 回應的 `Content-Type` 固定為伺服器判定的格式、不以下載或 metadata 值呈現；兩個參數屬簽名的一部分，改動即簽章失效。`contentType` 由物件鍵副檔名對映（`jpg` → `image/jpeg`、`png` → `image/png`、`webp` → `image/webp`、`mp4` → `video/mp4`、`mov` → `video/quicktime`；副檔名由 F18 判定格式決定，不需新欄位），對映不到 → 不簽發、記 ERROR、該媒體不輸出 `url` |
+| `generateSignedUrl(objectKey, ttl, contentType)`（既有，擴充參數） | V4 簽名 GET；簽入 query 參數 `response-content-type={contentType}` 與 `response-content-disposition=inline`（2026-11-22，NFR-003 U-7、SEC-FILE-3），讓 GCS 回應的 `Content-Type` 固定為伺服器判定的格式、不以下載或 metadata 值呈現；兩個參數屬簽名的一部分，改動即簽章失效。`contentType` 由物件鍵副檔名對映（`jpg` → `image/jpeg`、`png` → `image/png`、`webp` → `image/webp`、`mp4` → `video/mp4`、`mov` → `video/quicktime`；副檔名於 F16 依宣告 `contentType` 決定；F18 已確保實際格式與宣告相同，唯影片 MP4 / MOV 視為同一格式族，宣告 MP4 實為 MOV（或反之）時仍以宣告的副檔名存放並以宣告型別回應，兩者瀏覽器皆可播放，使用者 2026-11-22 決定；不需新欄位），對映不到 → 不簽發、記 ERROR、該媒體不輸出 `url` |
 | `isPubliclyReadable` / `revokePublicRead`（既有） | F18 防線檢查 |
 
 **物件鍵**：`{plan_tier 小寫}/{上傳日 UTC yyyy-MM-dd}/{orderId}/{uploadId}.{ext}`（沿用 SD-GLOBAL-SPEC §4.1 `/{plan_tier}/{date}/{order_id}/{file_uuid}` 格式，`plan_tier` 取 O2 快照；`ext` 由 `contentType` 決定：`jpg` / `png` / `webp` / `mp4` / `mov`）。**私有物件**（修正現況以 `uploadPublic` 上傳的問題）。
@@ -1256,6 +1256,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者決定（核准後小修，狀態維持 Approved）：§8.2 物件鍵副檔名改為 F16 依宣告 `contentType` 決定（對齊實作），影片 MP4 / MOV 同族時以宣告型別存放與回應 | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者決定之核准後修訂（狀態維持 Approved，同步實作細節）：(1) §6.3 F1 OWNER / ADMIN 的 `careLog` 加 `deadlineAt`（由行程時間推導，不洩漏草稿）；(2) §4.4 影片 MP4 / MOV 視為同一格式族，照片實際格式須與宣告相同；(3) §6.3 FC1 / FC2 批次上限與計數：FC1 以訂單、FC2 以上傳槽位為單位（取代前一列「計數以訂單為單位」對 FC2 的描述）；(4) §10.1 PRD-028 EX-9 改為「新增檢核項 vs 同意取消」（打勾 vs 同意取消不會發生）；(5) §6.3 FT1 / FT2 操作者記 `SYSTEM`、`careLogSubmitted` 預設文字，僅供測試；(6) §8.2 local 上傳簽名金鑰未設定時每次啟動隨機產生（`@Profile("local")`） | 使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§8.3 DF2 bucket CORS 移除 Cloud Run `*.run.app` origin（U-6）；§8.2 `generateSignedUrl` 加 `contentType` 參數、簽名 GET 帶 `response-content-type` 與 `response-content-disposition=inline`（型別由物件鍵副檔名對映），§6.3 `MediaItem.url` 與 §11 決策 3 同步（U-7） | NFR-003 核准回寫，使用者 2026-11-22 同意 |
 | 2026-11-22 | TS 更新回饋小修（狀態維持 Approved）：FC1 / FC2 帶非測試帳號 `orderId` 改 404 與 SD-ORDER 一致；計數以訂單為單位 | TS-008 §5 L-12 |
