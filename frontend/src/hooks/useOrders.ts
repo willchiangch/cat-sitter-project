@@ -1,100 +1,140 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import {
-  getMyOrdersAsOwner,
-  getMyOrdersAsSitter,
-  getOrderVisits,
+  getAdminOrder,
+  getBookingContext,
+  getEvaluation,
+  getModification,
+  getOrderDetail,
   getSitterLedger,
-  verifyPayment,
-  rejectPayment,
-  getPaymentProofSignedUrl,
-  getRefundProofSignedUrl
+  listAdminTasks,
+  listModifications,
+  listOwnerOrders,
+  listPayments,
+  listSitterOrders,
+  listSubmissions
 } from '../api/orderApi';
-import type {
-  OrderSummaryDto,
-  PaymentProofSignedUrl,
-  SitterLedgerResponse,
-  VisitSummaryDto
-} from '../api/orderApi';
+import type { OrderListParams } from '../api/orderApi';
 
-export const useOwnerOrdersQuery = () => {
-  return useQuery<OrderSummaryDto[], Error>({
-    queryKey: ['orders', 'owner'],
-    queryFn: getMyOrdersAsOwner,
-    staleTime: 60 * 1000
-  });
+/**
+ * 訂單 React Query hooks（SD-ORDER §9）。queryKey 一律以 ['order', orderId, ...] 為前綴，
+ * 寫入成功後以 invalidateOrder() 讓該訂單所有子查詢與列表一起重抓（不整頁 reload）。
+ */
+export const orderKeys = {
+  detail: (orderId: string) => ['order', orderId] as const,
+  evaluation: (orderId: string) => ['order', orderId, 'evaluation'] as const,
+  payments: (orderId: string) => ['order', orderId, 'payments'] as const,
+  submissions: (orderId: string, paymentId: string) =>
+    ['order', orderId, 'payments', paymentId, 'submissions'] as const,
+  modifications: (orderId: string) => ['order', orderId, 'modifications'] as const,
+  modification: (orderId: string, modificationId: string) =>
+    ['order', orderId, 'modification', modificationId] as const,
+  visits: (orderId: string) => ['order', orderId, 'visits'] as const,
+  admin: (orderId: string) => ['order', orderId, 'admin'] as const,
+  lists: ['orders'] as const
 };
 
-export const useSitterOrdersQuery = () => {
-  return useQuery<OrderSummaryDto[], Error>({
-    queryKey: ['orders', 'sitter'],
-    queryFn: getMyOrdersAsSitter,
-    staleTime: 60 * 1000
-  });
+export const invalidateOrder = (qc: QueryClient, orderId: string) =>
+  Promise.all([
+    qc.invalidateQueries({ queryKey: ['order', orderId] }),
+    qc.invalidateQueries({ queryKey: orderKeys.lists }),
+    qc.invalidateQueries({ queryKey: ['visits'] })
+  ]);
+
+export const useInvalidateOrder = () => {
+  const qc = useQueryClient();
+  return (orderId: string) => invalidateOrder(qc, orderId);
 };
 
-// 訂單底下的行程清單，供 CONFIRMED/IN_PROGRESS 訂單串接打卡/日誌回報頁面 (SD-008)
-export const useOrderVisitsQuery = (orderId: string, enabled: boolean) => {
-  return useQuery<VisitSummaryDto[], Error>({
-    queryKey: ['orders', orderId, 'visits'],
-    queryFn: () => getOrderVisits(orderId),
-    enabled,
+export const useBookingContextQuery = (sitterId: string | undefined) =>
+  useQuery({
+    queryKey: ['booking-context', sitterId],
+    queryFn: () => getBookingContext(sitterId!),
+    enabled: !!sitterId,
+    staleTime: 0
+  });
+
+export const useOrderListQuery = (
+  role: 'owner' | 'sitter',
+  params: Omit<OrderListParams, 'page' | 'size'>
+) =>
+  useInfiniteQuery({
+    queryKey: [...orderKeys.lists, role, params],
+    queryFn: ({ pageParam }) =>
+      (role === 'owner' ? listOwnerOrders : listSitterOrders)({
+        ...params,
+        page: pageParam,
+        size: 20
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (last) =>
+      (last.page + 1) * last.size < last.totalElements ? last.page + 1 : undefined,
     staleTime: 30 * 1000
   });
-};
 
-// 付款憑證簽名網址 (SD-007 §4.7)。簽名 10 分鐘過期且補款時憑證會換一張，不保留快取：
-// 每次掛載都重拿，避免先閃出上一張憑證或拿到過期網址
-export const usePaymentProofSignedUrlQuery = (orderId: string, enabled: boolean) => {
-  return useQuery<PaymentProofSignedUrl, Error>({
-    queryKey: ['orders', orderId, 'payment-proof-signed-url'],
-    queryFn: () => getPaymentProofSignedUrl(orderId),
-    enabled,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: false
+export const useOrderDetailQuery = (orderId: string) =>
+  useQuery({
+    queryKey: orderKeys.detail(orderId),
+    queryFn: () => getOrderDetail(orderId),
+    staleTime: 0
   });
-};
 
-// 退款憑證簽名網址：同付款憑證不快取，避免用到過期網址 (SD-016 §2.5)
-export const useRefundProofSignedUrlQuery = (orderId: string, enabled: boolean) => {
-  return useQuery<PaymentProofSignedUrl, Error>({
-    queryKey: ['orders', orderId, 'refund-proof-signed-url'],
-    queryFn: () => getRefundProofSignedUrl(orderId),
+export const useEvaluationQuery = (orderId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: orderKeys.evaluation(orderId),
+    queryFn: () => getEvaluation(orderId),
     enabled,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: false
+    staleTime: 0
   });
-};
 
-export const useSitterLedgerQuery = (month: string) => {
-  return useQuery<SitterLedgerResponse, Error>({
-    queryKey: ['orders', 'sitter', 'ledger', month],
+export const usePaymentsQuery = (orderId: string, enabled = true) =>
+  useQuery({
+    queryKey: orderKeys.payments(orderId),
+    queryFn: () => listPayments(orderId),
+    enabled,
+    staleTime: 0
+  });
+
+export const useSubmissionsQuery = (orderId: string, paymentId: string, enabled = true) =>
+  useQuery({
+    queryKey: orderKeys.submissions(orderId, paymentId),
+    queryFn: () => listSubmissions(orderId, paymentId),
+    enabled,
+    staleTime: 0
+  });
+
+export const useModificationsQuery = (orderId: string, enabled = true) =>
+  useQuery({
+    queryKey: orderKeys.modifications(orderId),
+    queryFn: () => listModifications(orderId),
+    enabled,
+    staleTime: 0
+  });
+
+export const useModificationQuery = (orderId: string, modificationId: string) =>
+  useQuery({
+    queryKey: orderKeys.modification(orderId, modificationId),
+    queryFn: () => getModification(orderId, modificationId),
+    staleTime: 0
+  });
+
+export const useSitterLedgerQuery = (month: string) =>
+  useQuery({
+    queryKey: [...orderKeys.lists, 'ledger', month],
     queryFn: () => getSitterLedger(month),
-    staleTime: 60 * 1000
+    staleTime: 30 * 1000
   });
-};
 
-export const useVerifyPaymentMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation<{ status: string; message: string }, Error, string>({
-    mutationFn: verifyPayment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders', 'sitter'] });
-    }
+export const useAdminOrderQuery = (orderId: string) =>
+  useQuery({
+    queryKey: orderKeys.admin(orderId),
+    queryFn: () => getAdminOrder(orderId),
+    staleTime: 0
   });
-};
 
-export const useRejectPaymentMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation<
-    { status: string; message: string },
-    Error,
-    { orderId: string; rejectReason: string }
-  >({
-    mutationFn: ({ orderId, rejectReason }) => rejectPayment(orderId, rejectReason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders', 'sitter'] });
-    }
+export const useAdminTasksQuery = (status: string, page: number) =>
+  useQuery({
+    queryKey: ['admin-tasks', status, page],
+    queryFn: () => listAdminTasks({ status, page, size: 20 }),
+    staleTime: 0
   });
-};

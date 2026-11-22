@@ -171,42 +171,35 @@ const mainEntries: DemoEntry[] = [
 ];
 
 const quickEntries: DemoEntry[] = [
-  // 訂單詳情頁後端為 hasAnyRole('OWNER','SITTER')，飼主/保母皆可查看，非飼主獨有
   {
     key: 'order-detail',
     label: '直接進入訂單詳情 (飼主端)',
-    roles: ['client', 'sitter'],
+    roles: ['client'],
     to: `/owner/orders/${mockParams.orderId}`
   },
   {
-    key: 'admin-resolve',
-    label: '直接進入爭議調解 (管理端)',
+    key: 'sitter-order-detail',
+    label: '直接進入訂單詳情 (保母端)',
+    roles: ['sitter'],
+    to: `/sitter/orders/${mockParams.orderId}`
+  },
+  {
+    key: 'admin-order',
+    label: '直接進入訂單 (管理端)',
     roles: ['admin'],
-    to: `/admin/resolve/${mockParams.orderId}`
+    to: `/admin/orders/${mockParams.orderId}`
+  },
+  {
+    key: 'admin-tasks',
+    label: '進入平台待辦 (管理端)',
+    roles: ['admin'],
+    to: '/admin/tasks'
   },
   {
     key: 'order-modify',
     label: '直接進入變更精靈 (飼主/保母)',
     roles: ['client', 'sitter'],
     to: `/orders/${mockParams.orderId}/modify`
-  },
-  {
-    key: 'sitter-quote',
-    label: '直接進入變更報價 (保母端)',
-    roles: ['sitter'],
-    to: `/sitter/orders/${mockParams.orderId}/quote`
-  },
-  {
-    key: 'sitter-eval',
-    label: '直接進入報價評估 (保母端)',
-    roles: ['sitter'],
-    to: `/sitter/eval/${mockParams.orderId}`
-  },
-  {
-    key: 'owner-modify-confirm',
-    label: '直接進入變更確認 (飼主端)',
-    roles: ['client'],
-    to: `/owner/orders/${mockParams.orderId}/modification-confirm`
   },
   {
     key: 'admin-kyc-detail',

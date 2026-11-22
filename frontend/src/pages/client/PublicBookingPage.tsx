@@ -1,1898 +1,629 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card from '../../components/ui/Card';
+import { useQueryClient } from '@tanstack/react-query';
 import Button from '../../components/ui/Button';
+import DateMultiPicker from '../../components/orders/DateMultiPicker';
 import {
-  CheckCircle2,
-  ArrowRight,
-  Plus,
-  Trash2,
-  CalendarDays,
-  Minus,
-  ChevronLeft,
-  ChevronRight,
-  Heart
-} from 'lucide-react';
-import type { BookingState } from '../../types/booking';
-import { useSitterActivePlansQuery } from '../../hooks/useServicePlans';
+  ErrorText,
+  LoadingBlock,
+  PageContainer,
+  QueryErrorBlock,
+  SectionCard
+} from '../../components/orders/common';
+import { INFO_BANNER_STYLE } from '../../components/ui/statusTone';
+import { useBookingContextQuery } from '../../hooks/useOrders';
 import { usePetsQuery } from '../../hooks/usePets';
-import { createBooking } from '../../api/orderApi';
 import { usePublicProfileQuery } from '../../hooks/usePublicProfile';
-import { useActiveQuestionsQuery } from '../../hooks/useQuestions';
-import { getMyFavorites, addFavoriteSitter, removeFavoriteSitter } from '../../api/favoriteApi';
+import { useIdempotentAction } from '../../hooks/useIdempotentAction';
+import { useRole } from '../../contexts/RoleContext';
+import { createOrder } from '../../api/orderApi';
+import type {
+  BookingContext,
+  BookingPlan,
+  BookingQuestion,
+  CreateOrderAnswer
+} from '../../api/orderApi';
+import { getApiError } from '../../api/apiError';
 import { formatMoney } from '../../utils/money';
+import { addDays, formatDateTime, toTaipeiDate } from '../../utils/datetime';
+import { codePointLength, stripText, truncateCodePoints } from '../../utils/text';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const URGENT_WINDOW_MS = 2 * 60 * 60 * 1000;
+const AMOUNT_MAX = 999_999;
+const MAX_GROUPS = 10;
+const MAX_TOTAL_DATES = 60;
 
-const formatDatesGroupedByYear = (dates: string[]) => {
-  if (!dates || dates.length === 0) return null;
-  const grouped: Record<string, string[]> = {};
-  dates.forEach((d) => {
-    const [year, month, day] = d.split('-');
-    if (!grouped[year]) grouped[year] = [];
-    grouped[year].push(`${parseInt(month)}/${parseInt(day)}`);
-  });
-  return grouped;
-};
-
-interface PublicBookingPageProps {
-  sitterId?: string;
+interface GroupDraft {
+  planId: string;
+  dates: string[];
+  dailyCount: number;
+  petIds: string[];
 }
 
-const PublicBookingPage: React.FC<PublicBookingPageProps> = ({
-  sitterId = '3d498178-14c0-4376-b81e-7fb02e615dda'
-}) => {
-  const { data: plans = [], isLoading, error } = useSitterActivePlansQuery(sitterId);
-  const {
-    data: profile,
-    isLoading: isProfileLoading,
-    error: profileError
-  } = usePublicProfileQuery(sitterId);
-  const { data: questions = [] } = useActiveQuestionsQuery(sitterId);
-  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string[]>>({});
+/** E31 不可預約時的提示文字（PRD-005 §4.1、BR-23） */
+const bookabilityMessage = (b: BookingContext['bookability']): string | null => {
+  switch (b) {
+    case 'SELF':
+      return '這是您自己的預約頁，無法預約';
+    case 'NOT_VERIFIED':
+      return '此保母尚未完成實名認證，暫不開放預約';
+    case 'UNAVAILABLE':
+      return '保母目前不開放預約';
+    case 'PAUSED':
+      return '保母目前暫停接受新預約';
+    default:
+      return null;
+  }
+};
 
-  // PRD-019: 公開頁面的收藏愛心圖示
-  const [isFavorited, setIsFavorited] = useState(false);
-  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
+const answerLimit = (q: BookingQuestion) => (q.type === 'TEXTAREA' ? 1000 : 200);
 
-  useEffect(() => {
-    if (!sitterId) return;
-    getMyFavorites()
-      .then((favorites) => setIsFavorited(favorites.some((f) => f.sitterId === sitterId)))
-      .catch(() => {
-        /* 未登入飼主或非飼主角色時查詢會失敗，忽略即可，愛心維持未收藏樣式 */
-      });
-  }, [sitterId]);
-
-  const handleToggleFavorite = async () => {
-    if (isFavoriteLoading) return;
-    setIsFavoriteLoading(true);
-    try {
-      if (isFavorited) {
-        await removeFavoriteSitter(sitterId);
-        setIsFavorited(false);
-      } else {
-        await addFavoriteSitter(sitterId);
-        setIsFavorited(true);
-      }
-    } catch (err) {
-      console.error('收藏操作失敗：', err);
-    } finally {
-      setIsFavoriteLoading(false);
-    }
-  };
-
-  const setSingleAnswer = (questionId: string, value: string) => {
-    setQuestionAnswers((prev) => ({ ...prev, [questionId]: [value] }));
-  };
-
-  const toggleCheckboxAnswer = (questionId: string, option: string) => {
-    setQuestionAnswers((prev) => {
-      const current = prev[questionId] || [];
-      const next = current.includes(option)
-        ? current.filter((v) => v !== option)
-        : [...current, option];
-      return { ...prev, [questionId]: next };
-    });
-  };
-
-  // 偵測自我介紹文字是否超過 5 行 (被 line-clamp 裁切)，只有真的被裁切時才顯示「顯示更多」按鈕
-  useEffect(() => {
-    if (bioRef.current) {
-      setIsBioOverflowing(bioRef.current.scrollHeight > bioRef.current.clientHeight + 1);
-    }
-  }, [profile?.bio]);
+/**
+ * 公開預約頁（SD-ORDER §9.1 `/booking/:sitterId`，E31 + E1；PRD-005）。
+ * 「今天」、日期範圍與評估期限試算一律以 E31 `serverTime` 為準；送出帶 Idempotency-Key，同一次送出的重試沿用同一把。
+ */
+const PublicBookingPage: React.FC<{ sitterId?: string }> = ({ sitterId }) => {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { currentRole } = useRole();
+  const ctxQuery = useBookingContextQuery(sitterId);
+  const { data: profile } = usePublicProfileQuery(sitterId ?? '');
   const { data: pets = [] } = usePetsQuery();
-  const [step, setStep] = useState(1);
-  const [isBioExpanded, setIsBioExpanded] = useState(false);
-  const [isBioOverflowing, setIsBioOverflowing] = useState(false);
-  const bioRef = useRef<HTMLParagraphElement>(null);
-  const [booking, setBooking] = useState<BookingState>({
-    sitterId: sitterId,
-    planConfigs: [],
-    notes: '',
-    totalAmount: 0
+  const [groups, setGroups] = useState<GroupDraft[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [questionsOverride, setQuestionsOverride] = useState<BookingQuestion[] | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const action = useIdempotentAction();
+
+  const ctx = ctxQuery.data;
+  const plans = useMemo(() => ctx?.plans ?? [], [ctx]);
+  const planById = useMemo(() => new Map(plans.map((p) => [p.planId, p])), [plans]);
+  const ownerPets = pets.filter((p) => !!p.id) as ((typeof pets)[number] & { id: string })[];
+  const questions = (questionsOverride ?? ctx?.questionnaire?.questions ?? [])
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const questionnaireRequired = !!ctx?.questionnaire?.required;
+
+  if (!sitterId)
+    return (
+      <PageContainer>
+        <p className="muted">找不到此保母</p>
+      </PageContainer>
+    );
+  if (ctxQuery.isLoading)
+    return (
+      <PageContainer>
+        <LoadingBlock />
+      </PageContainer>
+    );
+  if (ctxQuery.error || !ctx)
+    return (
+      <PageContainer>
+        <QueryErrorBlock
+          error={ctxQuery.error}
+          context="booking"
+          onRetry={() => ctxQuery.refetch()}
+        />
+      </PageContainer>
+    );
+
+  // 以後端 serverTime 為準（SD-ORDER §9.2），不讀瀏覽器時間
+  const serverNow = new Date(ctx.serverTime).getTime();
+  const today = toTaipeiDate(ctx.serverTime);
+  const maxDate = addDays(today, 365);
+  const unavailable = bookabilityMessage(ctx.bookability);
+  const showPlans = ctx.bookability !== 'NOT_VERIFIED' && ctx.bookability !== 'UNAVAILABLE';
+
+  const planRange = (plan?: BookingPlan) => ({
+    min: plan?.bookableFrom && plan.bookableFrom > today ? plan.bookableFrom : today,
+    max: plan?.bookableTo && plan.bookableTo < maxDate ? plan.bookableTo : maxDate
   });
 
-  useEffect(() => {
-    setBooking((prev) => ({ ...prev, sitterId }));
-  }, [sitterId]);
-
-  const navigate = useNavigate();
-  const submitKeyRef = useRef<string | null>(null);
-  const [isAddingPlan, setIsAddingPlan] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeCalendar, _setActiveCalendar] = useState<{
-    planIndex: number;
-    scheduleIndex: number;
-  } | null>(null);
-
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-
-  if (isLoading || isProfileLoading) {
-    return (
-      <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-primary)' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>讀取保母公開檔案與方案中...</div>
-      </div>
-    );
-  }
-
-  if (error || profileError) {
-    return (
-      <div style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--color-error)' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>找不到該保母資料或帳號已刪除</div>
-      </div>
-    );
-  }
-
-  if (plans.length === 0) {
-    return (
-      <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>
-        <h2
-          style={{
-            fontSize: '1.5rem',
-            fontWeight: '800',
-            marginBottom: '1rem',
-            color: 'var(--color-on-surface)'
-          }}
-        >
-          尚無服務方案
-        </h2>
-        <p style={{ color: 'var(--color-on-surface-variant)' }}>
-          此保母目前尚未設定任何服務方案，請稍後再試或與保母聯繫。
-        </p>
-      </div>
-    );
-  }
-
-  const setActiveCalendar = (val: { planIndex: number; scheduleIndex: number } | null) => {
-    _setActiveCalendar(val);
-    if (val) {
-      const today = new Date();
-      setCurrentYear(today.getFullYear());
-      setCurrentMonth(today.getMonth());
-    }
+  const addGroup = (planId: string) => {
+    if (groups.length >= MAX_GROUPS) return;
+    setGroups([
+      ...groups,
+      { planId, dates: [], dailyCount: 1, petIds: ownerPets.map((p) => p.id) }
+    ]);
   };
+  const updateGroup = (idx: number, patch: Partial<GroupDraft>) =>
+    setGroups(groups.map((g, i) => (i === idx ? { ...g, ...patch } : g)));
 
-  const handlePrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((prev) => prev - 1);
-    } else {
-      setCurrentMonth((prev) => prev - 1);
+  // 試算與驗證（BR-3、BR-18）
+  const estimate = groups.reduce(
+    (sum, g) => sum + g.dates.length * g.dailyCount * (planById.get(g.planId)?.unitPrice ?? 0),
+    0
+  );
+  const totalDates = groups.reduce((n, g) => n + g.dates.length, 0);
+  const dupKeys = new Set<string>();
+  let duplicate = false;
+  for (const g of groups)
+    for (const d of g.dates) {
+      const k = `${g.planId}|${d}`;
+      if (dupKeys.has(k)) duplicate = true;
+      dupKeys.add(k);
     }
-  };
+  const outOfRange = groups.some((g) => {
+    const r = planRange(planById.get(g.planId));
+    return g.dates.some((d) => d < r.min || d > r.max);
+  });
+  const missingRequired = questionnaireRequired
+    ? questions.some((q) => {
+        if (!q.required) return false;
+        const a = answers[q.questionId];
+        return Array.isArray(a) ? a.length === 0 : !a || codePointLength(stripText(a)) === 0;
+      })
+    : false;
+  const firstDate = groups.flatMap((g) => g.dates).sort()[0];
+  const firstDayMs = firstDate ? Date.parse(`${firstDate}T00:00:00+08:00`) : null;
+  const reviewExpiresMs =
+    firstDayMs !== null ? Math.max(firstDayMs, serverNow + URGENT_WINDOW_MS) : null;
+  const urgent = firstDayMs !== null && firstDayMs < serverNow + URGENT_WINDOW_MS;
 
-  const handleNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((prev) => prev + 1);
-    } else {
-      setCurrentMonth((prev) => prev + 1);
-    }
-  };
+  const canSubmit =
+    ctx.bookability === 'BOOKABLE' &&
+    currentRole === 'client' &&
+    ownerPets.length > 0 &&
+    groups.length > 0 &&
+    groups.every((g) => g.dates.length > 0 && g.petIds.length > 0 && planById.has(g.planId)) &&
+    totalDates <= MAX_TOTAL_DATES &&
+    !duplicate &&
+    !outOfRange &&
+    estimate <= AMOUNT_MAX &&
+    !missingRequired &&
+    !action.pending;
 
-  const allSelectedDates = booking.planConfigs.flatMap((p) => p.schedules.flatMap((s) => s.dates));
-
-  const togglePetInSchedule = (planIndex: number, scheduleIndex: number, petId: string) => {
-    setBooking((prev) => {
-      const newConfigs = [...prev.planConfigs];
-      const plan = { ...newConfigs[planIndex] };
-      const schedules = [...plan.schedules];
-      const schedule = { ...schedules[scheduleIndex] };
-      const currentPetIds = schedule.petIds || [];
-      if (currentPetIds.includes(petId)) {
-        schedule.petIds = currentPetIds.filter((id) => id !== petId);
-      } else {
-        schedule.petIds = [...currentPetIds, petId];
+  const submit = async () => {
+    setNotice(null);
+    const answerList: CreateOrderAnswer[] | undefined = questionnaireRequired
+      ? questions.flatMap((q): CreateOrderAnswer[] => {
+          const a = answers[q.questionId];
+          if (Array.isArray(a)) return a.length ? [{ questionId: q.questionId, value: a }] : [];
+          const v = a ? stripText(a) : '';
+          return v ? [{ questionId: q.questionId, value: v }] : [];
+        })
+      : undefined;
+    const res = await action.run(async (key) => {
+      try {
+        return await createOrder(
+          {
+            sitterId,
+            groups: groups.map((g) => ({ ...g, dates: [...g.dates].sort() })),
+            ...(answerList ? { answers: answerList } : {}),
+            expectedAmount: estimate
+          },
+          key
+        );
+      } catch (e) {
+        const err = getApiError(e);
+        if (err.code === 'QUESTIONNAIRE_CHANGED' && Array.isArray(err.payload.questions)) {
+          // BR-24：重新載入問卷並保留仍有效的答案
+          const next = err.payload.questions as BookingQuestion[];
+          setQuestionsOverride(next);
+          setAnswers((prev) => {
+            const kept: Record<string, string | string[]> = {};
+            for (const q of next) {
+              const a = prev[q.questionId];
+              if (a === undefined) continue;
+              if (q.type === 'RADIO') {
+                if (typeof a === 'string' && (q.options ?? []).includes(a)) kept[q.questionId] = a;
+              } else if (q.type === 'CHECKBOX') {
+                if (Array.isArray(a))
+                  kept[q.questionId] = a.filter((x) => (q.options ?? []).includes(x));
+              } else if (typeof a === 'string') kept[q.questionId] = a;
+            }
+            return kept;
+          });
+        }
+        if (err.code === 'PRICE_CHANGED') {
+          qc.invalidateQueries({ queryKey: ['booking-context', sitterId] });
+        }
+        throw e;
       }
-      schedules[scheduleIndex] = schedule;
-      plan.schedules = schedules;
-      newConfigs[planIndex] = plan;
-      return { ...prev, planConfigs: newConfigs };
     });
-  };
-
-  const handleSubmitBooking = async () => {
-    if (isSubmitting) return;
-    if (booking.planConfigs.length === 0) return;
-    // 飼主身分由後端從 token 取得，送單不帶 ownerId（fix-batch11 I2）；這裡只檢查是否已有毛孩
-    if (!pets || pets.length === 0) {
-      alert('請先去新增毛孩資料以建立預約！');
-      return;
-    }
-
-    // 檢查是否每個排程都有選寵物
-    const hasMissingPets = booking.planConfigs.some((pc) =>
-      pc.schedules.some((s) => !s.petIds || s.petIds.length === 0)
-    );
-    if (hasMissingPets) {
-      alert('請為每個排程選擇至少一隻毛孩！');
-      return;
-    }
-
-    // PRD-004 AC-4：必填問卷題目需在送出前強制驗證
-    const missingRequiredQuestion = questions.find((q) => {
-      if (!q.required) return false;
-      const values = questionAnswers[q.id!] || [];
-      return !values.some((v) => v.trim().length > 0);
-    });
-    if (missingRequiredQuestion) {
-      alert(`請填寫必填問題：「${missingRequiredQuestion.questionText}」`);
-      return;
-    }
-
-    const expectedTotalAmount = booking.planConfigs.reduce((acc, planConfig) => {
-      const plan = plans.find((p) => p.id === planConfig.planId);
-      const planTotal = planConfig.schedules.reduce((sAcc, schedule) => {
-        return sAcc + (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay;
-      }, 0);
-      return acc + planTotal;
-    }, 0);
-
-    const requestBody = {
-      sitterId: booking.sitterId,
-      items: booking.planConfigs.flatMap((planConfig) =>
-        planConfig.schedules.map((schedule) => ({
-          planId: planConfig.planId,
-          dates: schedule.dates,
-          timesPerDay: schedule.timesPerDay,
-          petIds: schedule.petIds || []
-        }))
-      ),
-      answers: questions.map((q) => ({
-        questionId: q.id,
-        answerValues: questionAnswers[q.id!] || []
-      })),
-      expectedTotalAmount
-    };
-
-    try {
-      setIsSubmitting(true);
-      if (!submitKeyRef.current) {
-        submitKeyRef.current = crypto.randomUUID();
-      }
-      const res = await createBooking(requestBody, submitKeyRef.current);
-      submitKeyRef.current = null;
-      // 後端契約：201 { orderId: <uuid> }（OrderController.createBooking）。過去寫成 `res.orderId || res`，
-      // 格式不符時把整個物件塞進網址，導去 /owner/orders/[object Object]。此時訂單其實已建立，
-      // 不能當成送出失敗讓使用者重送（會重複下單），改明確提示並導去訂單列表
-      const orderId = res?.orderId;
-      if (typeof orderId !== 'string' || !UUID_PATTERN.test(orderId)) {
-        console.error('POST /orders/booking 回應格式不符，預期 { orderId: <uuid> }：', res);
-        alert('預約已送出，但無法取得訂單編號，請到「我的訂單」確認預約狀態');
-        navigate('/owner/orders');
-        return;
-      }
-      navigate(`/owner/orders/${orderId}`);
-    } catch (err: any) {
-      console.error('送出預約失敗：', err);
-      alert('送出預約失敗：' + (err.response?.data?.message || err.message));
-      submitKeyRef.current = null;
-      setIsSubmitting(false);
-    }
-  };
-
-  // 預設全選該方案適用的寵物，避免飼主每次都要手動一隻一隻點選
-  const getDefaultPetIds = (planId: string) => {
-    const plan = plans.find((p) => p.id === planId);
-    const allowedTypes = plan?.applicablePetTypes || [];
-    return pets
-      .filter((p) => allowedTypes.length === 0 || allowedTypes.includes(p.species))
-      .map((p) => p.id!);
-  };
-
-  const addPlanConfig = (planId: string) => {
-    setBooking((prev) => {
-      const newConfigs = [
-        ...prev.planConfigs,
-        { planId, schedules: [{ dates: [], timesPerDay: 1, petIds: getDefaultPetIds(planId) }] }
-      ];
-      setActiveCalendar({ planIndex: prev.planConfigs.length, scheduleIndex: 0 });
-      return {
-        ...prev,
-        planConfigs: newConfigs
-      };
-    });
-    setIsAddingPlan(false);
-  };
-
-  const addScheduleToPlan = (planIndex: number) => {
-    setBooking((prev) => {
-      const newConfigs = [...prev.planConfigs];
-      const plan = { ...newConfigs[planIndex] };
-      plan.schedules = [
-        ...plan.schedules,
-        { dates: [], timesPerDay: 1, petIds: getDefaultPetIds(plan.planId) }
-      ];
-      newConfigs[planIndex] = plan;
-      setActiveCalendar({ planIndex, scheduleIndex: plan.schedules.length - 1 });
-      return { ...prev, planConfigs: newConfigs };
-    });
-  };
-
-  const removeScheduleFromPlan = (planIndex: number, scheduleIndex: number) => {
-    setBooking((prev) => {
-      const newConfigs = [...prev.planConfigs];
-      const plan = { ...newConfigs[planIndex] };
-      const schedules = [...plan.schedules];
-      schedules.splice(scheduleIndex, 1);
-
-      if (schedules.length === 0) {
-        newConfigs.splice(planIndex, 1);
-        if (newConfigs.length === 0) setIsAddingPlan(true);
-      } else {
-        plan.schedules = schedules;
-        newConfigs[planIndex] = plan;
-      }
-      return { ...prev, planConfigs: newConfigs };
-    });
-  };
-
-  const toggleDateInSchedule = (planIndex: number, scheduleIndex: number, date: string) => {
-    setBooking((prev) => {
-      const newConfigs = [...prev.planConfigs];
-      const plan = { ...newConfigs[planIndex] };
-      const schedules = [...plan.schedules];
-      const schedule = { ...schedules[scheduleIndex] };
-
-      if (schedule.dates.includes(date)) {
-        schedule.dates = schedule.dates.filter((d) => d !== date);
-      } else {
-        schedule.dates = [...schedule.dates, date].sort();
-      }
-
-      schedules[scheduleIndex] = schedule;
-      plan.schedules = schedules;
-      newConfigs[planIndex] = plan;
-
-      return { ...prev, planConfigs: newConfigs };
-    });
-  };
-
-  const updateTimesPerDay = (planIndex: number, scheduleIndex: number, times: number) => {
-    setBooking((prev) => {
-      const newConfigs = [...prev.planConfigs];
-      const plan = { ...newConfigs[planIndex] };
-      const schedules = [...plan.schedules];
-      schedules[scheduleIndex] = { ...schedules[scheduleIndex], timesPerDay: times };
-      plan.schedules = schedules;
-      newConfigs[planIndex] = plan;
-      return { ...prev, planConfigs: newConfigs };
-    });
-  };
-
-  const handleNextToStep2 = () => {
-    setStep(2);
-  };
-
-  const renderStep1 = () => {
-    const isNextDisabled =
-      profile?.gated ||
-      !profile?.isOpen ||
-      booking.planConfigs.length === 0 ||
-      booking.planConfigs.some((pc) =>
-        pc.schedules.some((s) => s.dates.length === 0 || !s.petIds || s.petIds.length === 0)
-      );
-
-    if (isAddingPlan) {
-      return (
-        <div className="fade-in" style={{ padding: '0 0 2rem 0' }}>
-          <div style={{ marginBottom: '2rem' }}>
-            <h2
-              style={{
-                fontSize: '1.75rem',
-                fontWeight: '800',
-                marginBottom: '0.5rem',
-                fontFamily: 'var(--font-display)',
-                letterSpacing: '-0.03em'
-              }}
-            >
-              選擇服務方案
-            </h2>
-            <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.95rem' }}>
-              為您的愛貓挑選最貼心的陪伴方式
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {plans
-              .map((plan, globalIdx) => ({ plan, globalIdx }))
-              .filter(({ plan }) => !booking.planConfigs.some((pc) => pc.planId === plan.id))
-              .map(({ plan, globalIdx }) => (
-                <div
-                  key={plan.id}
-                  onClick={() => addPlanConfig(plan.id!)}
-                  style={{
-                    cursor: 'pointer',
-                    padding: '24px',
-                    backgroundColor: 'var(--color-surface)',
-                    borderRadius: '16px',
-                    border: '1px solid var(--color-outline-variant)',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: 'var(--shadow-ambient)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-primary)';
-                    e.currentTarget.style.transform = 'translateY(-4px)';
-                    e.currentTarget.style.boxShadow = 'var(--shadow-float)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-outline-variant)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'var(--shadow-ambient)';
-                  }}
-                  data-testid={`client-booking-plan-card-${globalIdx}`}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    <h3
-                      style={{
-                        fontWeight: '800',
-                        margin: 0,
-                        fontSize: '1.25rem',
-                        color: 'var(--color-on-surface)'
-                      }}
-                    >
-                      {plan.name}
-                    </h3>
-                    <span
-                      style={{
-                        color: 'var(--color-primary)',
-                        fontWeight: '900',
-                        fontSize: '1.1rem'
-                      }}
-                    >
-                      {formatMoney(plan.price)} / {plan.durationMinutes ?? 60} 分鐘
-                    </span>
-                  </div>
-                  <p
-                    style={{
-                      fontSize: '0.9rem',
-                      color: 'var(--color-on-surface-variant)',
-                      margin: 0,
-                      lineHeight: 1.5
-                    }}
-                  >
-                    {plan.description}
-                  </p>
-                </div>
-              ))}
-          </div>
-
-          {booking.planConfigs.length > 0 && (
-            <div style={{ marginTop: '3rem', textAlign: 'center' }}>
-              <Button
-                variant="secondary"
-                onClick={() => setIsAddingPlan(false)}
-                fullWidth
-                data-testid="client-booking-btn-cancel-add-plan"
-                style={{
-                  border: 'none',
-                  backgroundColor: 'rgba(0,0,0,0.04)',
-                  borderRadius: '100px'
-                }}
-              >
-                <ArrowRight size={18} style={{ transform: 'rotate(180deg)', marginRight: '8px' }} />{' '}
-                返回上頁
-              </Button>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="fade-in">
-        <div style={{ marginBottom: '2rem' }}>
-          <h2
-            style={{
-              fontSize: '1.75rem',
-              fontWeight: '800',
-              marginBottom: '0.5rem',
-              fontFamily: 'var(--font-display)',
-              letterSpacing: '-0.03em'
-            }}
-          >
-            排程配置
-          </h2>
-          <p style={{ color: 'var(--color-on-surface-variant)', fontSize: '0.95rem' }}>
-            請設定您的預約日期與次數
-          </p>
-        </div>
-
-        {booking.planConfigs.map((planConfig, pIdx) => {
-          const plan = plans.find((p) => p.id === planConfig.planId);
-          return (
-            <div
-              key={planConfig.planId}
-              style={{
-                marginBottom: '2rem',
-                padding: '24px',
-                backgroundColor: 'var(--color-surface)',
-                borderRadius: '24px',
-                boxShadow: 'var(--shadow-ambient)'
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: '1.25rem',
-                  fontWeight: '800',
-                  marginBottom: '24px',
-                  color: 'var(--color-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px'
-                }}
-              >
-                <span
-                  style={{
-                    width: '4px',
-                    height: '24px',
-                    backgroundColor: 'var(--color-primary)',
-                    borderRadius: '2px'
-                  }}
-                ></span>
-                {plan?.name}
-              </h3>
-
-              {planConfig.schedules.map((schedule, sIdx) => {
-                const isCalendarOpen =
-                  activeCalendar?.planIndex === pIdx && activeCalendar?.scheduleIndex === sIdx;
-                const groupedDates = formatDatesGroupedByYear(schedule.dates);
-
-                return (
-                  <div
-                    key={sIdx}
-                    style={{
-                      backgroundColor: 'var(--color-surface-low)',
-                      borderRadius: '16px',
-                      padding: '20px',
-                      marginBottom: '20px'
-                    }}
-                  >
-                    {!isCalendarOpen && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '12px',
-                          marginBottom: '20px'
-                        }}
-                      >
-                        <button
-                          onClick={() =>
-                            setActiveCalendar({ planIndex: pIdx, scheduleIndex: sIdx })
-                          }
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--color-on-primary)',
-                            background: 'var(--color-primary)',
-                            border: 'none',
-                            width: '44px',
-                            height: '44px',
-                            borderRadius: '50%',
-                            cursor: 'pointer',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            boxShadow: '0 4px 12px rgba(118, 86, 0, 0.2)',
-                            flexShrink: 0
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
-                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(118, 86, 0, 0.3)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(118, 86, 0, 0.2)';
-                          }}
-                          data-testid={`client-booking-open-calendar-${pIdx}-${sIdx}`}
-                          title="選擇日期"
-                        >
-                          <CalendarDays size={20} />
-                        </button>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: 'var(--color-surface)',
-                            padding: '6px 12px',
-                            borderRadius: '16px',
-                            border: '1px solid var(--color-outline-variant)',
-                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)',
-                            flexShrink: 0,
-                            gap: '4px'
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: '800',
-                              color: 'var(--color-on-surface-variant)',
-                              whiteSpace: 'nowrap',
-                              opacity: 0.8
-                            }}
-                          >
-                            每日次數
-                          </div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              flexShrink: 0
-                            }}
-                          >
-                            <button
-                              onClick={() =>
-                                updateTimesPerDay(pIdx, sIdx, Math.max(1, schedule.timesPerDay - 1))
-                              }
-                              data-testid={`client-booking-times-minus-${pIdx}-${sIdx}`}
-                              style={{
-                                background: 'var(--color-surface-low)',
-                                border: 'none',
-                                color: 'var(--color-on-surface)',
-                                width: '24px',
-                                height: '24px',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                                e.currentTarget.style.color = 'white';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-surface-low)';
-                                e.currentTarget.style.color = 'var(--color-on-surface)';
-                              }}
-                            >
-                              <Minus size={10} />
-                            </button>
-                            <div
-                              data-testid={`client-booking-times-val-${pIdx}-${sIdx}`}
-                              style={{
-                                fontWeight: '800',
-                                fontSize: '1rem',
-                                width: '20px',
-                                textAlign: 'center',
-                                color: 'var(--color-primary)'
-                              }}
-                            >
-                              {schedule.timesPerDay}
-                            </div>
-                            <button
-                              onClick={() =>
-                                updateTimesPerDay(pIdx, sIdx, Math.min(9, schedule.timesPerDay + 1))
-                              }
-                              data-testid={`client-booking-times-plus-${pIdx}-${sIdx}`}
-                              style={{
-                                background: 'var(--color-surface-low)',
-                                border: 'none',
-                                color: 'var(--color-on-surface)',
-                                width: '24px',
-                                height: '24px',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                                e.currentTarget.style.color = 'white';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-surface-low)';
-                                e.currentTarget.style.color = 'var(--color-on-surface)';
-                              }}
-                            >
-                              <Plus size={10} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {isCalendarOpen ? (
-                      <div
-                        className="fade-in"
-                        style={{
-                          backgroundColor: 'var(--color-surface)',
-                          padding: '20px',
-                          borderRadius: '24px',
-                          marginTop: '16px',
-                          boxShadow: 'var(--shadow-float)',
-                          border: '1px solid var(--color-outline-variant)'
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '20px'
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={handlePrevMonth}
-                            data-testid="client-booking-calendar-prev-month"
-                            style={{
-                              flexShrink: 0,
-                              background: 'var(--color-surface-low)',
-                              border: '1px solid var(--color-outline-variant)',
-                              color: 'var(--color-on-surface)',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                              e.currentTarget.style.color = 'white';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'var(--color-surface-low)';
-                              e.currentTarget.style.color = 'var(--color-on-surface)';
-                            }}
-                          >
-                            <ChevronLeft size={16} />
-                          </button>
-                          {/* fix-batch13 K8（驗收 B-04 09）：日曆卡在 390px 下只有約 200px 寬，月份標題被斷成
-                              「2026年10 / 月」。標題不換行，左右切換鈕不被壓縮 */}
-                          <span
-                            data-testid="client-booking-calendar-month-label"
-                            style={{
-                              fontWeight: '800',
-                              fontSize: '1.05rem',
-                              color: 'var(--color-on-surface)',
-                              fontFamily: 'var(--font-display)',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {currentYear} 年 {currentMonth + 1} 月
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleNextMonth}
-                            data-testid="client-booking-calendar-next-month"
-                            style={{
-                              flexShrink: 0,
-                              background: 'var(--color-surface-low)',
-                              border: '1px solid var(--color-outline-variant)',
-                              color: 'var(--color-on-surface)',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'var(--color-primary)';
-                              e.currentTarget.style.color = 'white';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'var(--color-surface-low)';
-                              e.currentTarget.style.color = 'var(--color-on-surface)';
-                            }}
-                          >
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(7, 1fr)',
-                            gap: '8px',
-                            marginBottom: '10px'
-                          }}
-                        >
-                          {['日', '一', '二', '三', '四', '五', '六'].map((d) => (
-                            <div
-                              key={d}
-                              style={{
-                                textAlign: 'center',
-                                fontSize: '0.75rem',
-                                fontWeight: '800',
-                                color: 'var(--color-on-surface-variant)'
-                              }}
-                            >
-                              {d}
-                            </div>
-                          ))}
-                        </div>
-
-                        <div
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(7, 1fr)',
-                            gap: '8px',
-                            marginBottom: '1.5rem',
-                            justifyItems: 'center',
-                            alignItems: 'center'
-                          }}
-                        >
-                          {(() => {
-                            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-                            const daysNum = new Date(currentYear, currentMonth + 1, 0).getDate();
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-
-                            const gridItems = [];
-
-                            for (let i = 0; i < firstDay; i++) {
-                              gridItems.push(
-                                <div
-                                  key={`empty-${i}`}
-                                  style={{ width: '100%', maxWidth: '36px', aspectRatio: '1/1' }}
-                                />
-                              );
-                            }
-
-                            for (let day = 1; day <= daysNum; day++) {
-                              const dateObj = new Date(currentYear, currentMonth, day);
-                              const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                              const isPast = dateObj < today;
-                              const isAllowed = !isPast;
-
-                              const isSelectedHere = schedule.dates.includes(dateStr);
-                              const isSelectedElsewhere =
-                                !isSelectedHere && allSelectedDates.includes(dateStr);
-
-                              gridItems.push(
-                                <button
-                                  key={dateStr}
-                                  type="button"
-                                  disabled={!isAllowed || isSelectedElsewhere}
-                                  onClick={() =>
-                                    isAllowed &&
-                                    !isSelectedElsewhere &&
-                                    toggleDateInSchedule(pIdx, sIdx, dateStr)
-                                  }
-                                  data-testid={`client-booking-date-${pIdx}-${sIdx}-${dateStr}`}
-                                  style={{
-                                    width: '100%',
-                                    maxWidth: '36px',
-                                    aspectRatio: '1/1',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderRadius: '50%',
-                                    padding: '0',
-                                    boxSizing: 'border-box',
-                                    cursor:
-                                      !isAllowed || isSelectedElsewhere ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.875rem',
-                                    fontWeight: isSelectedHere ? '800' : '600',
-                                    backgroundColor: isSelectedHere
-                                      ? 'var(--color-primary)'
-                                      : isSelectedElsewhere
-                                        ? 'var(--color-surface-lowest)'
-                                        : 'transparent',
-                                    color: isSelectedHere
-                                      ? 'var(--color-on-primary)'
-                                      : isPast
-                                        ? 'var(--color-outline-variant)'
-                                        : isSelectedElsewhere
-                                          ? 'var(--color-outline-variant)'
-                                          : 'var(--color-on-surface)',
-                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    border: isSelectedHere ? 'none' : '1px solid transparent',
-                                    opacity: isPast ? 0.35 : 1,
-                                    textDecoration: isSelectedElsewhere ? 'line-through' : 'none',
-                                    boxShadow: isSelectedHere
-                                      ? '0 4px 12px rgba(118, 86, 0, 0.25)'
-                                      : 'none'
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (isAllowed && !isSelectedHere && !isSelectedElsewhere) {
-                                      e.currentTarget.style.backgroundColor =
-                                        'var(--color-surface-high)';
-                                      e.currentTarget.style.borderColor =
-                                        'var(--color-outline-variant)';
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSelectedHere) {
-                                      e.currentTarget.style.backgroundColor = 'transparent';
-                                      e.currentTarget.style.borderColor = 'transparent';
-                                    }
-                                  }}
-                                >
-                                  {day}
-                                </button>
-                              );
-                            }
-                            return gridItems;
-                          })()}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setActiveCalendar(null)}
-                            style={{
-                              padding: '10px 24px',
-                              fontSize: '0.875rem',
-                              fontWeight: '800',
-                              backgroundColor: 'var(--color-primary)',
-                              color: 'var(--color-on-primary)',
-                              border: 'none',
-                              borderRadius: '100px',
-                              cursor: 'pointer',
-                              boxShadow: '0 4px 12px rgba(118, 86, 0, 0.25)',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 6px 16px rgba(118, 86, 0, 0.35)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(118, 86, 0, 0.25)';
-                            }}
-                            data-testid={`client-booking-btn-confirm-date-${pIdx}-${sIdx}`}
-                          >
-                            確定日期
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="fade-in"
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          // 驗收 N14：下方「照護對象」區塊是 width 100% 的第三個子元素，過去沒換行，
-                          // 跟日期欄擠同一列，日期被壓成「2026 / 年 / 10/25」。wrap 後它獨佔下一列
-                          flexWrap: 'wrap',
-                          marginTop: '0',
-                          gap: '16px',
-                          paddingTop: '20px',
-                          borderTop: '1px solid rgba(0,0,0,0.05)'
-                        }}
-                      >
-                        <div
-                          data-testid={`client-booking-schedule-dates-${pIdx}-${sIdx}`}
-                          style={{ flex: 1, minWidth: 0, paddingTop: '0' }}
-                        >
-                          {!groupedDates ? (
-                            <div
-                              style={{
-                                color: 'var(--color-text-variant)',
-                                fontSize: '0.875rem',
-                                marginTop: '0',
-                                fontStyle: 'italic',
-                                opacity: 0.5
-                              }}
-                            >
-                              點擊上方按鈕開始規劃行程...
-                            </div>
-                          ) : (
-                            Object.entries(groupedDates).map(([year, datesList]) => (
-                              <div key={year}>
-                                <div
-                                  style={{
-                                    fontSize: '0.75rem',
-                                    fontWeight: '800',
-                                    color: 'var(--color-on-surface-variant)',
-                                    marginTop: '0',
-                                    marginBottom: '4px',
-                                    letterSpacing: '0.05em'
-                                  }}
-                                >
-                                  {year}年
-                                </div>
-                                <div
-                                  style={{
-                                    color: 'var(--color-primary)',
-                                    fontWeight: '700',
-                                    fontSize: '1rem',
-                                    lineHeight: '1.4'
-                                  }}
-                                >
-                                  {datesList.join(', ')}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-end',
-                            gap: '12px',
-                            flexShrink: 0
-                          }}
-                        >
-                          <button
-                            onClick={() => removeScheduleFromPlan(pIdx, sIdx)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--color-on-surface-variant)',
-                              cursor: 'pointer',
-                              padding: '8px',
-                              borderRadius: '10px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.3s',
-                              opacity: 0.6
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'rgba(186, 26, 26, 0.08)';
-                              e.currentTarget.style.color = 'var(--color-error)';
-                              e.currentTarget.style.opacity = '1';
-                              e.currentTarget.style.transform = 'rotate(8deg)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                              e.currentTarget.style.color = 'var(--color-on-surface-variant)';
-                              e.currentTarget.style.opacity = '0.6';
-                              e.currentTarget.style.transform = 'rotate(0)';
-                            }}
-                            data-testid={`client-booking-remove-schedule-${pIdx}-${sIdx}`}
-                            title="移除此日期排程"
-                          >
-                            <Trash2 size={20} />
-                          </button>
-                        </div>
-
-                        {/* 選擇毛孩區域 */}
-                        <div
-                          data-testid={`client-booking-pet-section-${pIdx}-${sIdx}`}
-                          style={{
-                            marginTop: '0',
-                            paddingTop: '16px',
-                            borderTop: '1px solid rgba(0,0,0,0.05)',
-                            flexBasis: '100%'
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: '850',
-                              color: 'var(--color-on-surface-variant)',
-                              marginBottom: '8px',
-                              letterSpacing: '0.05em',
-                              textTransform: 'uppercase'
-                            }}
-                          >
-                            照護對象 (毛孩)
-                          </div>
-                          {(() => {
-                            const allowedTypes = plan?.applicablePetTypes || [];
-                            const eligiblePets = pets.filter(
-                              (p) => allowedTypes.length === 0 || allowedTypes.includes(p.species)
-                            );
-
-                            if (pets.length === 0) {
-                              return (
-                                <div
-                                  style={{
-                                    fontSize: '0.85rem',
-                                    color: 'var(--color-error)',
-                                    fontStyle: 'italic'
-                                  }}
-                                >
-                                  您名下尚無毛孩資料，請先至個人檔案新增毛孩。
-                                </div>
-                              );
-                            }
-
-                            if (eligiblePets.length === 0) {
-                              return (
-                                <div
-                                  style={{
-                                    fontSize: '0.85rem',
-                                    color: 'var(--color-error)',
-                                    fontStyle: 'italic'
-                                  }}
-                                  data-testid={`client-booking-no-eligible-pet-warning-${pIdx}-${sIdx}`}
-                                >
-                                  您沒有適合此方案 ({allowedTypes.join('/')})
-                                  的寵物，請先至個人檔案新增。
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                {eligiblePets.map((pet) => {
-                                  const isChecked = (schedule.petIds || []).includes(pet.id!);
-                                  return (
-                                    <label
-                                      key={pet.id}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        padding: '6px 12px',
-                                        backgroundColor: isChecked
-                                          ? 'var(--color-primary)'
-                                          : 'var(--color-surface)',
-                                        color: isChecked
-                                          ? 'var(--color-on-primary)'
-                                          : 'var(--color-on-surface)',
-                                        border: '1px solid var(--color-outline-variant)',
-                                        borderRadius: '12px',
-                                        fontSize: '0.875rem',
-                                        fontWeight: '700',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        boxShadow: isChecked
-                                          ? '0 2px 6px rgba(118, 86, 0, 0.2)'
-                                          : 'none'
-                                      }}
-                                      data-testid={`client-booking-pet-label-${pIdx}-${sIdx}-${pet.name}`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={() => togglePetInSchedule(pIdx, sIdx, pet.id!)}
-                                        style={{ display: 'none' }}
-                                        data-testid={`client-booking-pet-checkbox-${pIdx}-${sIdx}-${pet.name}`}
-                                      />
-                                      {pet.photoUrl ? (
-                                        <img
-                                          src={pet.photoUrl}
-                                          alt={pet.name}
-                                          style={{
-                                            width: '20px',
-                                            height: '20px',
-                                            borderRadius: '50%',
-                                            objectFit: 'cover'
-                                          }}
-                                        />
-                                      ) : (
-                                        <div
-                                          style={{
-                                            width: '20px',
-                                            height: '20px',
-                                            borderRadius: '50%',
-                                            backgroundColor: 'var(--color-surface-high)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '0.65rem'
-                                          }}
-                                        >
-                                          {pet.name.charAt(0)}
-                                        </div>
-                                      )}
-                                      {pet.name} (
-                                      {pet.species === 'CAT'
-                                        ? '貓咪'
-                                        : pet.species === 'DOG'
-                                          ? '狗狗'
-                                          : pet.species}
-                                      )
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* 新增其他日期按鈕放置於白色方案區域底部 */}
-              <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '12px' }}>
-                <button
-                  onClick={() => addScheduleToPlan(pIdx)}
-                  style={{
-                    background: 'var(--color-surface-low)',
-                    border: '1px dashed var(--color-outline-variant)',
-                    color: 'var(--color-primary)',
-                    fontWeight: '800',
-                    cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '12px 24px',
-                    borderRadius: '16px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-high)';
-                    e.currentTarget.style.borderColor = 'var(--color-primary)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(118, 86, 0, 0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-surface-low)';
-                    e.currentTarget.style.borderColor = 'var(--color-outline-variant)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.02)';
-                  }}
-                  data-testid={`client-booking-btn-add-schedule-${pIdx}`}
-                >
-                  <Plus size={16} /> 新增其他日期
-                </button>
-              </div>
-            </div>
-          );
-        })}
-
-        <button
-          onClick={() => setIsAddingPlan(true)}
-          style={{
-            width: '100%',
-            padding: '20px',
-            background: 'var(--color-surface)',
-            border: '2px dashed var(--color-outline-variant)',
-            color: 'var(--color-primary)',
-            borderRadius: '24px',
-            fontWeight: '800',
-            fontSize: '1rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            transition: 'all 0.3s',
-            marginBottom: '2rem'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = 'var(--color-primary)';
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = 'var(--shadow-ambient)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = 'var(--color-outline-variant)';
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
-          data-testid="client-booking-btn-add-plan"
-        >
-          <Plus size={20} /> 新增其他方案
-        </button>
-
-        <div style={{ marginTop: '2rem' }}>
-          <Button
-            className="btn-primary"
-            fullWidth
-            disabled={isNextDisabled}
-            onClick={handleNextToStep2}
-            data-testid="client-booking-btn-step1-next"
-            style={{
-              padding: '16px 32px',
-              borderRadius: '100px',
-              fontSize: '1.1rem',
-              fontWeight: '800',
-              boxShadow: '0 8px 24px rgba(118, 86, 0, 0.2)'
-            }}
-          >
-            最後確認 <ArrowRight size={20} style={{ marginLeft: '8px' }} />
-          </Button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderStep2 = () => {
-    const total = booking.planConfigs.reduce((acc, planConfig) => {
-      const plan = plans.find((p) => p.id === planConfig.planId);
-      const planTotal = planConfig.schedules.reduce((sAcc, schedule) => {
-        return sAcc + (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay;
-      }, 0);
-      return acc + planTotal;
-    }, 0);
-
-    return (
-      <div className="fade-in">
-        <h2
-          style={{
-            fontSize: '1.5rem',
-            fontWeight: '800',
-            marginBottom: '0.5rem',
-            fontFamily: 'var(--font-display)',
-            letterSpacing: '-0.025em'
-          }}
-        >
-          預約摘要
-        </h2>
-        <p
-          style={{
-            color: 'var(--color-on-surface-variant)',
-            marginBottom: '2rem',
-            fontSize: '0.875rem'
-          }}
-        >
-          請確認複合方案資訊無誤
-        </p>
-
-        <Card style={{ marginBottom: '2rem' }}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                color: 'var(--color-on-surface-variant)',
-                textTransform: 'uppercase'
-              }}
-            >
-              排程明細
-            </label>
-            <div
-              style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}
-            >
-              {booking.planConfigs.map((planConfig, pIdx) => {
-                const plan = plans.find((p) => p.id === planConfig.planId);
-                return planConfig.schedules.map((schedule, sIdx) => {
-                  const groupedDates = formatDatesGroupedByYear(schedule.dates);
-                  return (
-                    <div
-                      key={`${pIdx}-${sIdx}`}
-                      style={{
-                        padding: '12px',
-                        backgroundColor: 'var(--color-surface-low)',
-                        borderRadius: '8px',
-                        borderLeft: '4px solid var(--color-primary)'
-                      }}
-                    >
-                      <div style={{ fontWeight: '800', fontSize: '0.875rem', marginBottom: '4px' }}>
-                        {plan?.name} (每次 {plan?.durationMinutes ?? 60} 分鐘 / 每天{' '}
-                        {schedule.timesPerDay} 次)
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '0.75rem',
-                          color: 'var(--color-on-surface-variant)',
-                          lineHeight: '1.4'
-                        }}
-                      >
-                        日期：
-                        {groupedDates
-                          ? Object.entries(groupedDates)
-                              .map(([y, ds]) => `${y}年 ${ds.join(', ')}`)
-                              .join(' | ')
-                          : '無'}
-                      </div>
-                      <div
-                        style={{
-                          textAlign: 'right',
-                          fontWeight: '800',
-                          fontSize: '0.875rem',
-                          marginTop: '8px',
-                          color: 'var(--color-primary)'
-                        }}
-                      >
-                        小計:{' '}
-                        {formatMoney(
-                          (plan?.price || 0) * schedule.dates.length * schedule.timesPerDay
-                        )}
-                      </div>
-                    </div>
-                  );
-                });
-              })}
-            </div>
-          </div>
-
-          <div
-            style={{
-              backgroundColor: 'var(--color-surface-low)',
-              margin: '1.5rem -1.5rem -1.5rem -1.5rem',
-              padding: '1.5rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderBottomLeftRadius: 'var(--radius-lg)',
-              borderBottomRightRadius: 'var(--radius-lg)'
-            }}
-          >
-            <span style={{ fontWeight: '800', fontSize: '1.125rem' }}>預計總額</span>
-            <span
-              data-testid="client-booking-total"
-              style={{ fontWeight: '800', fontSize: '1.5rem', color: 'var(--color-primary)' }}
-            >
-              {formatMoney(total)}
-            </span>
-          </div>
-        </Card>
-
-        {questions.length > 0 && (
-          <Card style={{ marginBottom: '2rem' }} data-testid="client-booking-questionnaire">
-            <label
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                color: 'var(--color-on-surface-variant)',
-                textTransform: 'uppercase'
-              }}
-            >
-              保母的事前問卷
-            </label>
-            <div
-              style={{
-                marginTop: '0.75rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem'
-              }}
-            >
-              {questions.map((q) => (
-                <div key={q.id} data-testid={`booking-question-${q.id}`}>
-                  <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                    {q.questionText}
-                    {q.required && <span style={{ color: 'var(--color-error)' }}> *</span>}
-                  </div>
-
-                  {q.answerType === 'RADIO' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      {q.options.map((option) => (
-                        <label
-                          key={option}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '0.85rem'
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name={`question-${q.id}`}
-                            checked={(questionAnswers[q.id!] || [])[0] === option}
-                            onChange={() => setSingleAnswer(q.id!, option)}
-                            data-testid={`booking-question-${q.id}-option-${option}`}
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  {q.answerType === 'CHECKBOX' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      {q.options.map((option) => (
-                        <label
-                          key={option}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '0.85rem'
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={(questionAnswers[q.id!] || []).includes(option)}
-                            onChange={() => toggleCheckboxAnswer(q.id!, option)}
-                            data-testid={`booking-question-${q.id}-option-${option}`}
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-
-                  {q.answerType === 'INPUT' && (
-                    <input
-                      type="text"
-                      value={(questionAnswers[q.id!] || [])[0] || ''}
-                      onChange={(e) => setSingleAnswer(q.id!, e.target.value)}
-                      data-testid={`booking-question-${q.id}-input`}
-                      style={{
-                        width: '100%',
-                        padding: '0.6rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--color-outline-variant)',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  )}
-
-                  {q.answerType === 'TEXTAREA' && (
-                    <textarea
-                      value={(questionAnswers[q.id!] || [])[0] || ''}
-                      onChange={(e) => setSingleAnswer(q.id!, e.target.value)}
-                      rows={3}
-                      data-testid={`booking-question-${q.id}-textarea`}
-                      style={{
-                        width: '100%',
-                        padding: '0.6rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--color-outline-variant)',
-                        resize: 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        <textarea
-          placeholder="有什麼特別需要注意的地方嗎？"
-          value={booking.notes}
-          onChange={(e) => setBooking((prev) => ({ ...prev, notes: e.target.value }))}
-          data-testid="client-booking-input-notes"
-          style={{
-            width: '100%',
-            height: '100px',
-            padding: '1rem',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-outline-variant)',
-            backgroundColor: 'var(--color-surface-lowest)',
-            fontFamily: 'var(--font-body)',
-            marginBottom: '2rem',
-            resize: 'none',
-            boxSizing: 'border-box'
-          }}
-        />
-
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Button
-            variant="secondary"
-            onClick={() => setStep(1)}
-            style={{ flex: 1 }}
-            data-testid="client-booking-btn-step2-back"
-          >
-            上一步
-          </Button>
-          <Button
-            className="btn-primary"
-            style={{ flex: 2, padding: '12px', fontSize: '1rem' }}
-            onClick={handleSubmitBooking}
-            disabled={profile?.gated || !profile?.isOpen || isSubmitting}
-            data-testid="client-booking-btn-submit"
-          >
-            {isSubmitting ? (
-              '送出中...'
-            ) : (
-              <>
-                確認並送出 <CheckCircle2 size={18} style={{ marginLeft: '8px' }} />
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    );
+    if (res) navigate(`/owner/orders/${res.orderId}`);
   };
 
   return (
-    <div style={{ padding: '2rem 1.5rem' }}>
-      {/* 送出預約中的全螢幕載入遮罩，避免使用者以為沒反應而重複點擊 */}
-      {isSubmitting && (
-        <div
-          data-testid="client-booking-submitting-overlay"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem',
-            zIndex: 1000
-          }}
-        >
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              border: '4px solid rgba(255, 255, 255, 0.3)',
-              borderTopColor: '#fff',
-              animation: 'spin 0.8s linear infinite'
-            }}
-          />
-          <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>
-            預約送出中，請稍候...
-          </span>
-        </div>
-      )}
-
-      {/* 警示 Banner */}
-      {profile?.gated && (
-        <div
-          style={{
-            backgroundColor: '#fee2e2',
-            border: '1px solid #fca5a5',
-            padding: '1rem',
-            borderRadius: '8px',
-            color: '#b91c1c',
-            marginBottom: '1.5rem',
-            fontWeight: 'bold',
-            fontSize: '0.875rem'
-          }}
-        >
-          此保母目前暫停服務或處於休息狀態，暫時無法接受預約。
-        </div>
-      )}
-      {!profile?.gated && !profile?.isOpen && (
-        <div
-          style={{
-            backgroundColor: '#fef3c7',
-            border: '1px solid #fcd34d',
-            padding: '1rem',
-            borderRadius: '8px',
-            color: '#b45309',
-            marginBottom: '1.5rem',
-            fontWeight: 'bold',
-            fontSize: '0.875rem'
-          }}
-        >
-          此保母目前不開放預約，您仍可瀏覽其公開檔案。
-        </div>
-      )}
-
-      {/* 保母基本公開檔案 */}
-      <Card
-        style={{ marginBottom: '2rem', padding: '1.5rem' }}
+    <PageContainer testId="public-booking-page">
+      <section
+        className="card-layered stack"
+        style={{ padding: '1.25rem' }}
         data-testid="client-booking-sitter-card"
       >
-        {/* 驗收 N14：過去頭像 80px + 名稱 + 愛心擠同一列，名稱欄只剩約 100px，長顯示名稱被擠成 6 行。
-            改成上列「頭像 + 愛心」、下列名稱與介紹佔滿卡片寬度 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem'
-            }}
-          >
-            {profile?.avatarUrl ? (
-              <img
-                src={profile.avatarUrl}
-                alt="Sitter Avatar"
-                data-testid="client-booking-sitter-avatar"
-                style={{
-                  flexShrink: 0,
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid var(--color-primary-light)'
-                }}
-              />
-            ) : (
-              // 沒有頭像時用名稱首字佔位：過去指向外部 via.placeholder.com，載不到就是一塊寫著「150 x 150」的灰圓
-              <div
-                data-testid="client-booking-sitter-avatar"
-                aria-hidden="true"
-                style={{
-                  flexShrink: 0,
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: 'var(--color-primary-container)',
-                  color: 'var(--color-on-primary-container)',
-                  fontSize: '1.5rem',
-                  fontWeight: '800'
-                }}
-              >
-                {(profile?.displayName || '保')[0]}
-              </div>
-            )}
-            <button
-              onClick={handleToggleFavorite}
-              disabled={isFavoriteLoading}
-              data-testid="client-booking-favorite-toggle"
-              aria-label={isFavorited ? '移除收藏' : '加入收藏'}
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {profile?.avatarUrl ? (
+            <img
+              src={profile.avatarUrl}
+              alt=""
               style={{
-                flexShrink: 0,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'inline-flex'
-              }}
-            >
-              <Heart
-                size={22}
-                fill={isFavorited ? '#dc2626' : 'none'}
-                color={isFavorited ? '#dc2626' : 'var(--color-on-surface-variant)'}
-              />
-            </button>
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <h2
-              data-testid="client-booking-sitter-name"
-              style={{
-                margin: 0,
-                overflowWrap: 'anywhere',
-                fontSize: '1.375rem',
-                fontWeight: '800',
-                lineHeight: '1.3',
-                color: 'var(--color-on-surface)'
-              }}
-            >
-              {profile?.displayName || '保母'}
-            </h2>
-            <p
-              ref={bioRef}
-              data-testid="client-booking-sitter-bio"
-              style={{
-                margin: '8px 0',
-                fontSize: '0.875rem',
-                color: 'var(--color-on-surface-variant)',
-                lineHeight: '1.5',
-                ...(isBioExpanded
-                  ? {}
-                  : {
-                      display: '-webkit-box',
-                      WebkitLineClamp: 5,
-                      WebkitBoxOrient: 'vertical' as const,
-                      overflow: 'hidden'
-                    })
-              }}
-            >
-              {profile?.bio || '尚無自我介紹'}
-            </p>
-            {isBioOverflowing && (
-              <button
-                onClick={() => setIsBioExpanded((prev) => !prev)}
-                data-testid="client-booking-sitter-bio-toggle"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-primary)',
-                  fontSize: '0.8125rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: 0,
-                  marginBottom: '8px'
-                }}
-              >
-                {isBioExpanded ? '收合' : '顯示更多'}
-              </button>
-            )}
-
-            {/* 標籤 */}
-            {profile?.tags && profile.tags.length > 0 && (
-              <div
-                data-testid="client-booking-sitter-tags"
-                style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}
-              >
-                {profile.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '0.75rem',
-                      backgroundColor: 'var(--color-primary-lowest)',
-                      color: 'var(--color-primary)',
-                      border: '1px solid var(--color-primary-light)'
-                    }}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* 服務區域 */}
-            {profile?.serviceAreas && profile.serviceAreas.length > 0 && (
-              <div
-                data-testid="client-booking-sitter-areas"
-                style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}
-              >
-                {profile.serviceAreas.map((area, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem',
-                      backgroundColor: 'var(--color-surface-high)',
-                      color: 'var(--color-on-surface)',
-                      border: '1px solid var(--color-surface-higher)'
-                    }}
-                  >
-                    {area.city} {area.district}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '3rem'
-        }}
-      >
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {[1, 2].map((s) => (
-            <div
-              key={s}
-              data-testid={`client-booking-step-indicator-${s}`}
-              style={{
-                width: '48px',
-                height: '4px',
-                backgroundColor: step >= s ? 'var(--color-primary)' : 'var(--color-surface-high)',
-                borderRadius: '2px',
-                transition: 'all 0.3s ease'
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                flexShrink: 0
               }}
             />
-          ))}
+          ) : (
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                flexShrink: 0,
+                background: 'var(--color-primary-container)',
+                color: 'var(--color-on-primary-container)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700
+              }}
+            >
+              {(profile?.displayName ?? '保').slice(0, 1)}
+            </div>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <h2
+              style={{ margin: 0, overflowWrap: 'anywhere' }}
+              data-testid="client-booking-sitter-name"
+            >
+              {profile?.displayName ?? '保母'}
+            </h2>
+          </div>
         </div>
-        <span
-          style={{
-            fontSize: '0.75rem',
-            fontWeight: '800',
-            color: 'var(--color-on-surface-variant)',
-            letterSpacing: '0.05em'
-          }}
-        >
-          STEP {step} / 2
-        </span>
-      </div>
+        {profile?.bio && (
+          <p
+            className="muted"
+            style={{ margin: 0, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}
+          >
+            {profile.bio}
+          </p>
+        )}
+      </section>
 
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-    </div>
+      {unavailable && (
+        <div
+          role="status"
+          style={INFO_BANNER_STYLE}
+          data-testid="public-booking-unavailable-message"
+        >
+          {unavailable}
+        </div>
+      )}
+
+      {showPlans && (
+        <SectionCard title="服務方案">
+          {plans.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>
+              目前沒有可預約的方案
+            </p>
+          ) : (
+            plans.map((p) => (
+              <div
+                key={p.planId}
+                className="surface-block stack"
+                style={{ gap: '0.375rem' }}
+                data-testid={`public-booking-plan-card-${p.planId}`}
+              >
+                <div className="kv-row">
+                  <span style={{ color: 'var(--color-on-surface)', fontWeight: 600 }}>
+                    {p.title}
+                  </span>
+                  <span>{formatMoney(p.unitPrice)} / 次</span>
+                </div>
+                {(p.bookableFrom || p.bookableTo) && (
+                  <span className="muted">
+                    可預約 {p.bookableFrom ?? today} ~ {p.bookableTo ?? maxDate}
+                  </span>
+                )}
+                <div className="btn-row">
+                  <Button
+                    variant="secondary"
+                    style={{ padding: '0.375rem 0.875rem' }}
+                    disabled={groups.length >= MAX_GROUPS}
+                    onClick={() => addGroup(p.planId)}
+                    data-testid={`public-booking-plan-card-${p.planId}-btn-add`}
+                  >
+                    加入日期群組
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </SectionCard>
+      )}
+
+      {showPlans &&
+        groups.map((g, idx) => {
+          const plan = planById.get(g.planId);
+          const range = planRange(plan);
+          const types = plan?.petTypes ?? [];
+          const selectedPets = ownerPets.filter((p) => g.petIds.includes(p.id));
+          const typeMismatch =
+            types.length > 0 &&
+            selectedPets.length > 0 &&
+            !selectedPets.some((p) => types.includes(p.species));
+          return (
+            <SectionCard
+              key={idx}
+              title={`日期群組 ${idx + 1}`}
+              testId={`public-booking-group-${idx}`}
+            >
+              <div>
+                <label className="field-label" htmlFor={`group-${idx}-plan`}>
+                  方案
+                </label>
+                <select
+                  id={`group-${idx}-plan`}
+                  className="form-input"
+                  value={g.planId}
+                  onChange={(e) => updateGroup(idx, { planId: e.target.value })}
+                  data-testid={`public-booking-group-${idx}-plan`}
+                >
+                  {plans.map((p) => {
+                    const r = planRange(p);
+                    const fits = g.dates.every((d) => d >= r.min && d <= r.max);
+                    return (
+                      <option
+                        key={p.planId}
+                        value={p.planId}
+                        disabled={!fits && p.planId !== g.planId}
+                      >
+                        {p.title}
+                        {!fits ? '（所選日期不在可預約區間）' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              {typeMismatch && (
+                <p
+                  role="status"
+                  className="field-error"
+                  data-testid="public-booking-pet-type-warning"
+                >
+                  您沒有適合此方案的寵物，請先至個人檔案新增或選擇其他方案
+                </p>
+              )}
+              <DateMultiPicker
+                selected={g.dates}
+                min={range.min}
+                max={range.max}
+                testIdPrefix={`public-booking-group-${idx}-date-`}
+                onToggle={(d) =>
+                  updateGroup(idx, {
+                    dates: g.dates.includes(d)
+                      ? g.dates.filter((x) => x !== d)
+                      : [...g.dates, d].sort()
+                  })
+                }
+              />
+              <span className="muted" style={{ overflowWrap: 'anywhere' }}>
+                已選 {g.dates.length} 天{g.dates.length ? `：${g.dates.join('、')}` : ''}
+              </span>
+              <div>
+                <label className="field-label" htmlFor={`group-${idx}-count`}>
+                  每日服務次數
+                </label>
+                <select
+                  id={`group-${idx}-count`}
+                  className="form-input"
+                  value={g.dailyCount}
+                  onChange={(e) => updateGroup(idx, { dailyCount: Number(e.target.value) })}
+                  data-testid={`public-booking-group-${idx}-daily-count`}
+                >
+                  {[1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="stack" style={{ gap: '0.375rem' }}>
+                <span className="field-label" style={{ margin: 0 }}>
+                  照顧的毛孩
+                </span>
+                {ownerPets.length === 0 ? (
+                  <p className="field-error" data-testid="public-booking-no-pet-message">
+                    您尚未新增毛孩，請先至個人檔案新增
+                  </p>
+                ) : (
+                  <div className="btn-row">
+                    {ownerPets.map((pet) => (
+                      <label
+                        key={pet.id}
+                        style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={g.petIds.includes(pet.id)}
+                          onChange={() =>
+                            updateGroup(idx, {
+                              petIds: g.petIds.includes(pet.id)
+                                ? g.petIds.filter((x) => x !== pet.id)
+                                : [...g.petIds, pet.id]
+                            })
+                          }
+                          data-testid={`public-booking-group-${idx}-pet-checkbox-${pet.id}`}
+                        />
+                        {pet.name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {ownerPets.length > 0 && g.petIds.length === 0 && (
+                  <p className="field-error">每個日期群組至少選擇 1 隻毛孩</p>
+                )}
+              </div>
+              <div className="btn-row">
+                <Button
+                  variant="secondary"
+                  style={{ padding: '0.375rem 0.875rem' }}
+                  onClick={() => setGroups(groups.filter((_, i) => i !== idx))}
+                  data-testid={`public-booking-group-${idx}-btn-remove`}
+                >
+                  刪除此群組
+                </Button>
+              </div>
+            </SectionCard>
+          );
+        })}
+
+      {showPlans && plans.length > 0 && (
+        <div className="btn-row">
+          <Button
+            variant="secondary"
+            disabled={groups.length >= MAX_GROUPS}
+            onClick={() => addGroup(plans[0].planId)}
+            data-testid="public-booking-btn-add-group"
+          >
+            新增日期群組
+          </Button>
+        </div>
+      )}
+
+      {questionnaireRequired && questions.length > 0 && (
+        <SectionCard title="事前問卷">
+          {questions.map((q) => {
+            const a = answers[q.questionId];
+            const id = `q-${q.questionId}`;
+            return (
+              <div
+                key={q.questionId}
+                className="stack"
+                style={{ gap: '0.375rem' }}
+                data-testid={`public-booking-question-${q.questionId}`}
+              >
+                <span className="field-label" style={{ margin: 0 }}>
+                  {q.text}
+                  {q.required && <span style={{ color: 'var(--color-error)' }}>（必填）</span>}
+                </span>
+                {q.type === 'RADIO' &&
+                  (q.options ?? []).map((o) => (
+                    <label
+                      key={o}
+                      style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}
+                    >
+                      <input
+                        type="radio"
+                        name={id}
+                        checked={a === o}
+                        onChange={() => setAnswers({ ...answers, [q.questionId]: o })}
+                      />
+                      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{o}</span>
+                    </label>
+                  ))}
+                {q.type === 'CHECKBOX' &&
+                  (q.options ?? []).map((o) => {
+                    const list = Array.isArray(a) ? a : [];
+                    return (
+                      <label
+                        key={o}
+                        style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={list.includes(o)}
+                          onChange={() =>
+                            setAnswers({
+                              ...answers,
+                              [q.questionId]: list.includes(o)
+                                ? list.filter((x) => x !== o)
+                                : [...list, o]
+                            })
+                          }
+                        />
+                        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{o}</span>
+                      </label>
+                    );
+                  })}
+                {(q.type === 'INPUT' || q.type === 'TEXTAREA') && (
+                  <>
+                    {q.type === 'INPUT' ? (
+                      <input
+                        id={id}
+                        aria-label={q.text}
+                        className="form-input"
+                        value={typeof a === 'string' ? a : ''}
+                        onChange={(e) =>
+                          setAnswers({
+                            ...answers,
+                            [q.questionId]: truncateCodePoints(e.target.value, answerLimit(q))
+                          })
+                        }
+                      />
+                    ) : (
+                      <textarea
+                        id={id}
+                        aria-label={q.text}
+                        className="form-input"
+                        rows={4}
+                        value={typeof a === 'string' ? a : ''}
+                        onChange={(e) =>
+                          setAnswers({
+                            ...answers,
+                            [q.questionId]: truncateCodePoints(e.target.value, answerLimit(q))
+                          })
+                        }
+                      />
+                    )}
+                    <span className="muted" style={{ textAlign: 'right', fontSize: '0.75rem' }}>
+                      {codePointLength(typeof a === 'string' ? a : '')} / {answerLimit(q)}
+                    </span>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </SectionCard>
+      )}
+
+      {showPlans && (
+        <SectionCard title="確認送出">
+          <div className="kv-row" style={{ fontSize: '1rem' }}>
+            <span>試算金額</span>
+            <span data-testid="public-booking-estimate-amount">{formatMoney(estimate)}</span>
+          </div>
+          <p className="muted" style={{ margin: 0 }}>
+            最終總額由保母評估後確認
+          </p>
+          {estimate > AMOUNT_MAX && (
+            <p className="field-error" data-testid="public-booking-amount-limit-message">
+              單筆預約金額不可超過 $ 999,999，請拆成多筆預約
+            </p>
+          )}
+          {totalDates > MAX_TOTAL_DATES && (
+            <p className="field-error">單筆預約日期總數不可超過 60 天</p>
+          )}
+          {duplicate && <p className="field-error">同一方案的同一天只能出現在一個日期群組</p>}
+          {reviewExpiresMs !== null && (
+            <p style={{ margin: 0 }} data-testid="public-booking-review-expires-at">
+              保母需於 {formatDateTime(new Date(reviewExpiresMs).toISOString()).replace(/-/g, '/')}{' '}
+              前回覆，逾時將自動取消
+            </p>
+          )}
+          {urgent && (
+            <p className="field-error" data-testid="public-booking-urgent-hint">
+              距服務日很近，保母可能來不及回覆
+            </p>
+          )}
+          {currentRole !== 'client' && <p className="field-error">請切換為飼主身分後再預約</p>}
+          {notice && <p className="field-error">{notice}</p>}
+          <ErrorText error={action.error} context="booking" />
+          <div className="btn-row">
+            <Button
+              className="btn-primary"
+              fullWidth
+              disabled={!canSubmit}
+              onClick={submit}
+              data-testid="public-booking-btn-submit"
+            >
+              {action.pending ? '送出中…' : '送出預約'}
+            </Button>
+          </div>
+        </SectionCard>
+      )}
+    </PageContainer>
   );
 };
 

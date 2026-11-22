@@ -1,443 +1,715 @@
 import axiosClient from './axiosClient';
+import { postIdempotent } from './idempotency';
 
-export interface BookingItem {
+/**
+ * 訂單交易 API（SD-ORDER §6.3，E1–E31）。型別對照後端 DTO（backend application/dto/order）。
+ * 回應中值為 null 的欄位不輸出（§6.1），以可選欄位表示。所有寫入端點皆為冪等（`Idempotency-Key`），
+ * key 由呼叫端在使用者按下送出時產生並傳入，同一次送出的重試沿用同一把。
+ */
+
+export type OrderStatus =
+  | 'PENDING'
+  | 'PENDING_PAYMENT'
+  | 'CONFIRMED'
+  | 'IN_PROGRESS'
+  | 'DISPUTED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export type Party = 'OWNER' | 'SITTER' | 'ADMIN' | 'SYSTEM';
+
+export interface Page<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+}
+
+// ---------- E31 booking-context ----------
+export type Bookability = 'BOOKABLE' | 'SELF' | 'NOT_VERIFIED' | 'UNAVAILABLE' | 'PAUSED';
+
+export interface BookingPlan {
   planId: string;
-  dates: string[];
-  timesPerDay: number;
-  petIds?: string[];
-}
-
-export interface BookingQuestionnaireAnswer {
-  questionId?: string;
-  answerValues: string[];
-}
-
-// 不帶 ownerId：飼主身分由後端從 JWT 取得（fix-batch11 I2，BOLA）
-export interface BookingRequest {
-  sitterId: string;
-  items: BookingItem[];
-  answers?: BookingQuestionnaireAnswer[];
-  expectedTotalAmount?: number;
-  idempotencyKey?: string;
-}
-
-// 對齊後端 OrderItem 欄位，發起變更時的 items 必須是完整的 OrderItem 形狀，
-// 否則後端 Jackson 反序列化會靜默丟棄未知欄位，訂單內容會被清空
-export interface OrderItemDto {
-  category: string;
-  serviceName: string;
+  title: string;
   unitPrice: number;
-  quantity: number;
+  petTypes?: string[];
+  bookableFrom?: string;
+  bookableTo?: string;
+}
+
+export interface BookingQuestion {
+  questionId: string;
+  text: string;
+  type: string;
+  options?: string[];
+  required: boolean;
+  sortOrder: number;
+}
+
+export interface BookingQuestionnaire {
+  required: boolean;
+  exemptReason?: string;
+  questions?: BookingQuestion[];
+}
+
+export interface BookingContext {
+  sitterId: string;
+  bookability: Bookability;
+  plans?: BookingPlan[];
+  questionnaire?: BookingQuestionnaire;
+  serverTime: string;
+}
+
+// ---------- E1 ----------
+export interface CreateOrderGroup {
   planId: string;
   dates: string[];
-  timesPerDay: number;
-  petIds?: string[];
+  dailyCount: number;
+  petIds: string[];
 }
 
-/** 訂單所用方案的可預訂日期區間 (PRD-003 B)；startDate/endDate 皆 null = 常態開放 */
-export interface PlanDateRangeDto {
-  planId: string;
-  planName: string;
-  startDate: string | null; // YYYY-MM-DD
-  endDate: string | null;
+export interface CreateOrderAnswer {
+  questionId: string;
+  value: string | string[];
 }
 
-export interface ModificationPayloadDto {
-  items: OrderItemDto[];
-  totalDays: number;
-  dates: string[]; // YYYY-MM-DD
+export interface CreateOrderRequest {
+  sitterId: string;
+  groups: CreateOrderGroup[];
+  answers?: CreateOrderAnswer[];
+  expectedAmount: number;
 }
 
-export interface ModificationRequestDetailDto {
-  id: string;
+export interface CreateOrderResponse {
   orderId: string;
-  status: string; // PENDING_REVIEW / QUOTED / M_DONE / REJECTED
-  orderStatus: string; // 訂單目前狀態，搭配 status 與 diffAmount 正負決定可執行動作 (SD-016 §2.2)
-  requestedBy: string;
-  diffAmount: number;
-  newTotalAmount: number;
-  currentOrderTotalAmount: number;
-  orderVersion: number;
+  status: OrderStatus;
+  baseAmount: number;
+  reviewExpiresAt: string;
+  questionnaireStatus: string;
+}
+
+// ---------- E2 ----------
+export interface QuoteOriginal {
+  baseAmount: number;
+  surchargeAmount?: number;
+  discountAmount?: number;
+  pricingNotes?: string;
+  totalAmount?: number;
+  quotedAt?: string;
+}
+
+export interface QuoteAdjustment {
+  modificationId: string;
+  kind: 'SETTLED' | 'SUPPLEMENT_EXPIRED' | string;
+  type?: string;
+  effectiveAt?: string;
+  removedVisitDates?: string[];
+  addedItems?: { date: string; planTitle: string; dailyCount: number }[];
+  totalBefore: number;
+  totalAfter: number;
+  amountChange: number;
+}
+
+export interface OrderQuote {
+  original: QuoteOriginal;
+  adjustments?: QuoteAdjustment[];
+  totalAmount?: number;
+  quotedAt?: string;
+}
+
+export interface OrderPet {
+  petId: string;
+  name: string;
+  type?: string;
+  deleted: boolean;
+}
+
+export interface OrderGroup {
+  orderItemId: string;
+  source?: string;
+  planId: string;
+  planTitle: string;
+  unitPrice?: number;
+  bookableFrom?: string;
+  bookableTo?: string;
   dates: string[];
-  // 保母是否已上傳退款憑證。憑證是私有物件，圖片網址要另外呼叫 getRefundProofSignedUrl 取 (SD-016 §2.5)
-  hasRefundProof: boolean;
+  dailyCount: number;
+  pets: OrderPet[];
 }
 
-export interface ModificationQuoteRequest {
-  newTotalAmount: number;
-  version: number;
+export interface OrderVisitItem {
+  visitId: string;
+  serviceDate: string;
+  planId: string;
+  status: string;
+  completedAt?: string;
+  careLogSubmitted: boolean;
 }
 
-export interface AdminResolveRequest {
-  finalAmount: number;
-  receiptUrl?: string;
-  reason: string;
-  adminPassword: string;
-}
+export type OrderAllowedAction =
+  | 'WITHDRAW'
+  | 'DECLINE'
+  | 'QUOTE'
+  | 'SITTER_CANCEL'
+  | 'REQUEST_MODIFICATION'
+  | 'COMPLETE'
+  | 'REPORT_SERVICE_ISSUE'
+  | 'PAYMENT_DISPUTE'
+  | 'VOID_INITIAL_PAYMENT'
+  | 'MEDIATE';
 
-// 1. 飼主送出預約申請
-export const createBooking = async (
-  request: BookingRequest,
-  idempotencyKey: string
-): Promise<{ orderId: string }> => {
-  const response = await axiosClient.post('/orders/booking', request, {
-    headers: { 'Idempotency-Key': idempotencyKey }
-  });
-  return response.data;
-};
-
-// 2. 發起變更請求 (SD-016)
-export const modifyOrder = async (
-  orderId: string,
-  requestedBy: 'OWNER' | 'SITTER',
-  request: ModificationPayloadDto,
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/modify`, request, {
-    params: { requestedBy },
-    headers: { 'Idempotency-Key': idempotencyKey }
-  });
-  return response.data;
-};
-
-// 3. 確認同意變更 (SD-016)
-export const confirmModification = async (
-  orderId: string,
-  modRequestId: string,
-  request: { agreedDiffAmount: number; version: number },
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/modification/confirm`, request, {
-    params: { modRequestId },
-    headers: { 'Idempotency-Key': idempotencyKey }
-  });
-  return response.data;
-};
-
-// 3b. 查詢訂單目前進行中的變更請求 (PRD-016)。沒有進行中的協商時後端回 204 → null（正常空狀態，驗收 N8）
-export const getActiveModificationRequest = async (
-  orderId: string
-): Promise<ModificationRequestDetailDto | null> => {
-  const response = await axiosClient.get(`/orders/${orderId}/modification`);
-  return response.status === 204 || !response.data ? null : response.data;
-};
-
-// 3c. 保母審核變更並提供差額報價 (PRD-016 主流程 B)
-export const quoteModification = async (
-  orderId: string,
-  modRequestId: string,
-  request: ModificationQuoteRequest,
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/modification/quote`, request, {
-    params: { modRequestId },
-    headers: { 'Idempotency-Key': idempotencyKey }
-  });
-  return response.data;
-};
-
-// 3d. 保母拒絕變更請求 (PRD-016 主流程 B.3)
-export const rejectModification = async (
-  orderId: string,
-  modRequestId: string,
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(
-    `/orders/${orderId}/modification/reject`,
-    {},
-    { params: { modRequestId }, headers: { 'Idempotency-Key': idempotencyKey } }
-  );
-  return response.data;
-};
-
-// 4. 保母確認接單。身分由後端從 JWT 取得，不帶 sitterId（fix-batch11 I1，BOLA）
-export const confirmOrder = async (
-  orderId: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/confirm`, null);
-  return response.data;
-};
-
-// 5-1. 保母報價評估頁 (OrderEvalView) 用的真實請求格式，對應後端 QuoteRequest DTO
-export interface SendQuoteRequest {
-  adjustmentAmount: number;
-  expectedTotalAmount: number;
-  adjustmentReason?: string;
-  version: number;
-}
-
-// 身分由後端從 JWT 取得，不帶 sitterId（fix-batch11 I1）
-export const sendOrderQuote = async (
-  orderId: string,
-  request: SendQuoteRequest,
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/quote`, request, {
-    headers: { 'Idempotency-Key': idempotencyKey }
-  });
-  return response.data;
-};
-
-// 5-2. 保母拒絕接單 (PRD-006 AC-4 / SD-006 §2.3)
-export interface RejectOrderRequest {
-  rejectReason?: string;
-  version: number;
-}
-
-// 身分由後端從 JWT 取得，不帶 sitterId（fix-batch11 I1）
-export const rejectOrder = async (
-  orderId: string,
-  request: RejectOrderRequest,
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/reject`, request, {
-    headers: { 'Idempotency-Key': idempotencyKey }
-  });
-  return response.data;
-};
-
-// 6. 飼主手動結案 (SD-009)。身分由後端從 JWT 取得，不帶 ownerId（fix-batch11 I1）
-export const completeOrder = async (
-  orderId: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/complete`, null);
-  return response.data;
-};
-
-// 飼主付款前撤單（PRD-006 例外處理 / SD-006 §2.5）。version 是畫面上的訂單版本，保母已接單 / 報價時回 409
-export const cancelOrderByOwner = async (
-  orderId: string,
-  version: number
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/cancel`, { version });
-  return response.data;
-};
-
-// 7. 飼主回報爭議 (SD-009)。身分由後端從 JWT 取得，不帶 ownerId（fix-batch11 I1）
-export const disputeOrder = async (
-  orderId: string,
-  category: string,
-  description: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/dispute`, { category, description });
-  return response.data;
-};
-
-// 8. 管理員強制結案 (Admin Resolve - SD-009)
-export const resolveDisputedOrder = async (
-  orderId: string,
-  request: AdminResolveRequest
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/admin-resolve`, request);
-  return response.data;
-};
-
-// 9. 保母上傳退款憑證 (SD-016 §2.5)
-// 身份改由後端從 JWT (TokenContext) 取得，不再由前端傳 sitterId (BOLA 修復)。
-// 2026-10 起改為上傳圖片（私有物件），不再送保母手填的網址字串
-export const uploadRefundProof = async (
-  orderId: string,
-  file: File
-): Promise<{ status: string; message: string }> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  const response = await axiosClient.post(
-    `/orders/${orderId}/modification/refund-proof`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
-  );
-  return response.data;
-};
-
-// 退款憑證短效簽名網址，僅訂單飼主/保母可取 (SD-016 §2.5)
-export const getRefundProofSignedUrl = async (orderId: string): Promise<PaymentProofSignedUrl> => {
-  const response = await axiosClient.get(`/orders/${orderId}/modification/refund-proof/signed-url`);
-  return response.data;
-};
-
-// 10. 飼主確認收到退款 (SD-016)
-// 身份改由後端從 JWT (TokenContext) 取得，不再由前端傳 ownerId (BOLA 修復)
-export const confirmRefund = async (
-  orderId: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/modification/refund-confirm`, null);
-  return response.data;
-};
-
-// --- SD-007 Offline Payment Types & APIs ---
-
-export interface BankAccountInfo {
+export interface AccountSnapshot {
   bankCode?: string;
-  bankBranch?: string;
-  bankAccount?: string;
-  bankPayeeName?: string;
+  branch?: string;
+  accountNumber?: string;
+  accountName?: string;
 }
 
-export interface OrderDetailResponseDto {
-  id: string;
-  ownerId: string;
-  ownerName?: string;
-  sitterId: string;
+export type PaymentAllowedAction = 'UPLOAD' | 'VERIFY' | 'REJECT';
+
+export interface PaymentView {
+  paymentId: string;
+  direction: 'CHARGE' | 'REFUND';
+  purpose: string;
+  method?: string;
+  amount: number;
+  status: 'UNPAID' | 'SUBMITTED' | 'VERIFIED' | 'VOID' | string;
+  dueAt?: string;
+  escalateAt?: string;
+  accountSnapshot?: AccountSnapshot;
+  currentSubmissionId?: string;
+  createdAt?: string;
+  verifiedAt?: string;
+  voidedAt?: string;
+  allowedActions?: PaymentAllowedAction[];
+}
+
+export interface OpenModification {
+  modificationId: string;
   status: string;
-  totalAmount: number;
-  // 本次應付金額：首次付款 = totalAmount；訂單變更補款 = 差額 (SD-007 §4.6 / SD-016 §4.1)。
-  // 後端舊版沒有這個欄位，使用端一律 fallback 回 totalAmount
-  amountDue?: number;
-  version?: number;
-  adjustmentAmount: number;
-  adjustmentReason?: string;
-  // 是否有可檢視的付款憑證。憑證是私有物件，圖片網址要另外呼叫 getPaymentProofSignedUrl 取 (SD-007 §4.7)
-  hasPaymentProof?: boolean;
-  paymentProofLastFive?: string;
-  disclaimerAgreed: boolean;
-  disclaimerAgreedAt?: string;
-  paidAt?: string;
-  completedAt?: string;
-  payoutAt?: string;
-  items: OrderItemDto[];
-  // 訂單方案的可預訂日期區間，變更精靈前端防呆用 (SD-016 §2.1)；舊後端沒有此欄位
-  planDateRanges?: PlanDateRangeDto[];
-  sitterPaymentInfo?: BankAccountInfo;
-  // 取消者：'OWNER' = 飼主付款前撤單（fix-batch10 H5）；'SITTER' = 保母婉拒（fix-batch13 K1）；
-  // 訂單變更取消等為 undefined
-  cancelledBy?: string;
-  // 保母婉拒原因（cancelledBy = 'SITTER' 時才有值，保母未填為空字串）
-  sitterRejectReason?: string | null;
-  // 目前是否可由飼主撤單（後端 OwnerCancellationService 判斷：PENDING，或未上傳憑證且非補款的 PENDING_PAYMENT）
-  cancellableByOwner?: boolean;
+  initiatedBy: Party;
 }
 
-// 取得訂單詳情 (SD-007)
-export const getOrderDetail = async (orderId: string): Promise<OrderDetailResponseDto> => {
-  const response = await axiosClient.get(`/orders/${orderId}`);
-  return response.data;
-};
-
-export interface PaymentProofSignedUrl {
-  signedUrl: string;
-  expiresInSeconds: number;
+export interface Cancellation {
+  cancelledBy?: Party;
+  reasonCode?: string;
+  reason?: string;
+  cancelledAt?: string;
 }
 
-// 取得付款憑證的短效簽名網址 (SD-007 §4.7)，僅訂單飼主/保母可取得
-export const getPaymentProofSignedUrl = async (orderId: string): Promise<PaymentProofSignedUrl> => {
-  const response = await axiosClient.get(`/orders/${orderId}/payment-proof/signed-url`);
-  return response.data;
-};
-
-export interface VisitSummaryDto {
-  id: string;
-  status: string; // PENDING, IN_PROGRESS, DONE, CLOSED_BY_SYSTEM
-  scheduledAt: string;
-  finishedAt?: string;
-  /** 照護日誌已正式送出（fix-batch12 U5）；飼主端只在 true 時顯示「查看日誌」 */
-  reportSubmitted?: boolean;
+export interface CompletionHint {
+  code:
+    | 'MODIFICATION_IN_PROGRESS'
+    | 'VISITS_NOT_FINISHED'
+    | 'CARE_LOG_EXPIRED'
+    | 'CARE_LOG_PENDING';
+  autoCompleteAt?: string;
 }
 
-// 查詢訂單底下的行程清單，用來串接打卡/日誌回報頁面 (SD-008)
-export const getOrderVisits = async (orderId: string): Promise<VisitSummaryDto[]> => {
-  const response = await axiosClient.get(`/orders/${orderId}/visits`);
-  return response.data;
-};
-
-export interface OrderSummaryDto {
-  id: string;
-  ownerId: string;
-  ownerName: string;
-  sitterId: string;
-  sitterName: string;
+export interface ModificationSummary {
+  modificationId: string;
+  type: string;
   status: string;
-  totalAmount: number;
-  amountDue?: number; // 定義同 OrderDetailResponseDto.amountDue
-  hasPaymentProof?: boolean; // 定義同 OrderDetailResponseDto.hasPaymentProof
-  paymentProofLastFive?: string;
-  scheduledDatesLabel: string;
-  cancelledBy?: string; // 定義同 OrderDetailResponseDto.cancelledBy
+  initiatedBy: Party;
+  reason?: string;
+  newTotalAmount?: number;
+  createdAt: string;
+  endedAt?: string;
 }
 
-// 飼主查詢自己的訂單清單
-export const getMyOrdersAsOwner = async (): Promise<OrderSummaryDto[]> => {
-  const response = await axiosClient.get('/orders/owner');
-  return response.data;
-};
+export interface AdminTaskRef {
+  taskId: string;
+  type: string;
+  status: string;
+  resolution?: string;
+  createdAt: string;
+}
 
-// 保母查詢自己的訂單清單
-export const getMyOrdersAsSitter = async (): Promise<OrderSummaryDto[]> => {
-  const response = await axiosClient.get('/orders/sitter');
-  return response.data;
-};
+export interface OrderLogItem {
+  actionType: string;
+  operatorRole?: string;
+  operatorUserId?: string;
+  payload?: unknown;
+  createdAt: string;
+}
 
-export interface OrderLedgerEntryDto {
+export interface OrderDetail {
   orderId: string;
-  ownerName: string;
-  totalAmount: number;
-  paidAt?: string;
+  status: OrderStatus;
+  role: 'OWNER' | 'SITTER' | 'ADMIN';
+  counterpart?: { userId: string; displayName: string };
+  firstServiceDate?: string;
+  lastServiceDate?: string;
+  reviewExpiresAt?: string;
+  baseAmount: number;
+  quote?: OrderQuote;
+  sitterTier?: string;
+  modificationPricingMode?: 'SYSTEM_ONLY' | 'CUSTOM_ALLOWED';
+  groups?: OrderGroup[];
+  visits?: OrderVisitItem[];
+  questionnaireStatus?: string;
+  questionnaireExemptReason?: string;
+  payments?: PaymentView[];
+  openModification?: OpenModification;
+  cancellation?: Cancellation;
   completedAt?: string;
-  payoutAt?: string;
+  disputeWindowEndsAt?: string;
+  netPaid?: number;
+  serverTime: string;
+  completionHint?: CompletionHint;
+  allowedActions?: OrderAllowedAction[];
+  // E27 only
+  modifications?: ModificationSummary[];
+  adminTasks?: AdminTaskRef[];
+  logs?: OrderLogItem[];
 }
 
-export interface SitterLedgerResponse {
-  yearMonth: string;
-  totalRevenue: number;
-  entries: OrderLedgerEntryDto[];
+// ---------- E3 / E4 ----------
+export type OrderTab = 'EVALUATING' | 'ACTIVE' | 'HISTORY';
+
+export interface OrderCardDto {
+  orderId: string;
+  status: OrderStatus;
+  counterpartName?: string;
+  firstServiceDate?: string;
+  lastServiceDate?: string;
+  baseAmount: number;
+  totalAmount?: number;
+  hasOpenModification: boolean;
+  initialPaymentStatus?: string;
+  createdAt: string;
+  terminalAt?: string;
+  netPaid?: number;
 }
 
-// 保母帳務總覽 (PRD-009 主流程 C)，month 格式為 YYYY-MM，不帶則預設當月
-export const getSitterLedger = async (month?: string): Promise<SitterLedgerResponse> => {
-  const response = await axiosClient.get('/orders/sitter/ledger', {
-    params: month ? { month } : {}
-  });
-  return response.data;
-};
+export interface OrderListParams {
+  tab: OrderTab;
+  status?: 'COMPLETED' | 'CANCELLED';
+  month?: string;
+  page?: number;
+  size?: number;
+}
 
-// 提交付款憑證 (SD-007)
-export const submitPaymentProof = async (
+// ---------- E5 ----------
+export interface EvaluationAnswer {
+  questionId: string;
+  questionText: string;
+  questionType: string;
+  answer?: string | string[] | null;
+}
+
+export interface EvaluationPrecheck {
+  subscriptionLocked: boolean;
+  quotaReached: boolean;
+  payoutAccountMissing: boolean;
+  reviewExpired: boolean;
+  planAllowsAdjustment: boolean;
+}
+
+export interface Evaluation {
+  orderId: string;
+  status: OrderStatus;
+  reviewExpiresAt?: string;
+  baseAmount: number;
+  owner?: { displayName?: string };
+  isRegularOwner: boolean;
+  groups?: OrderGroup[];
+  questionnaire?: { status?: string; exemptReason?: string; answers?: EvaluationAnswer[] };
+  precheck: EvaluationPrecheck;
+  serverTime: string;
+}
+
+// ---------- E6–E9 ----------
+export interface QuoteRequest {
+  expectedAmount: number;
+  surchargeAmount?: number;
+  discountAmount?: number;
+  pricingNotes?: string;
+}
+
+export interface QuoteResponse {
+  orderId: string;
+  status: OrderStatus;
+  baseAmount: number;
+  surchargeAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  quotedAt: string;
+  payment?: { paymentId: string; amount: number; dueAt?: string; escalateAt?: string };
+}
+
+export interface CancelledResponse {
+  orderId: string;
+  status: OrderStatus;
+  cancelledBy: Party;
+}
+
+// ---------- E11–E15 ----------
+export interface SubmissionItem {
+  submissionId: string;
+  status: 'SUBMITTED' | 'ACCEPTED' | 'REJECTED' | string;
+  lastFive: string;
+  submittedAt: string;
+  disclaimerAgreedAt?: string;
+  reviewedAt?: string;
+  verifiedAt?: string;
+  rejectReason?: string;
+  voided: boolean;
+}
+
+export interface SubmittedResponse {
+  submissionId: string;
+  paymentId: string;
+  paymentStatus: string;
+  submittedAt: string;
+}
+
+export interface ProofUrl {
+  url: string;
+  expiresAt: string;
+}
+
+export interface VerifiedResponse {
+  paymentId: string;
+  paymentStatus: string;
+  orderStatus: OrderStatus;
+  modification?: { modificationId: string; status: string };
+}
+
+export interface RejectedResponse {
+  paymentId: string;
+  paymentStatus: string;
+  submissionId: string;
+  submissionStatus: string;
+}
+
+// ---------- E17–E24 ----------
+export interface ModificationAddItem {
+  date: string;
+  planId: string;
+  dailyCount: number;
+  petIds: string[];
+}
+
+export interface InitiateModificationRequest {
+  type: 'CHANGE' | 'CANCEL_ALL';
+  reason: string;
+  removeVisitIds?: string[];
+  addItems?: ModificationAddItem[];
+  surchargeAmount?: number;
+  discountAmount?: number;
+  adjustmentReason?: string;
+}
+
+export interface InitiatedModification {
+  modificationId: string;
+  status: string;
+  initiatedBy: Party;
+  expiresAt?: string;
+  systemAmount?: number;
+  newTotalAmount?: number;
+  netPaid?: number;
+  diff?: number;
+}
+
+export interface QuoteModificationRequest {
+  removeVisitIds?: string[];
+  addItems?: ModificationAddItem[];
+  surchargeAmount?: number;
+  discountAmount?: number;
+  adjustmentReason?: string;
+}
+
+export interface ModificationContent {
+  removeVisitIds?: string[];
+  addItems?: ModificationAddItem[];
+}
+
+export type ModificationAllowedAction =
+  | 'QUOTE'
+  | 'REJECT'
+  | 'WITHDRAW'
+  | 'ACCEPT'
+  | 'PAYMENT_DISPUTE';
+
+export interface ModificationPaymentRef {
+  paymentId: string;
+  direction: 'CHARGE' | 'REFUND';
+  purpose: string;
+  amount: number;
+  status?: string;
+  dueAt?: string;
+}
+
+export interface ModificationDetail {
+  modificationId: string;
+  type: 'CHANGE' | 'CANCEL_ALL' | string;
+  status: string;
+  initiatedBy: Party;
+  reason?: string;
+  requestedContent?: ModificationContent;
+  quotedContent?: ModificationContent;
+  systemAmount?: number;
+  surchargeAmount?: number;
+  discountAmount?: number;
+  adjustmentReason?: string;
+  newTotalAmount?: number;
+  netPaid?: number;
+  diff?: number;
+  expiresAt?: string;
+  endedAt?: string;
+  rejectReason?: string;
+  sourceModificationId?: string;
+  payment?: ModificationPaymentRef;
+  disputeAvailableAt?: string;
+  allowedActions?: ModificationAllowedAction[];
+}
+
+export interface EndedModification {
+  modificationId: string;
+  status: string;
+  endedAt: string;
+}
+
+export interface AcceptedModification {
+  modificationId: string;
+  status: string;
+  netPaid: number;
+  diff: number;
+  payment?: ModificationPaymentRef;
+  orderStatus: OrderStatus;
+  totalAmount?: number;
+}
+
+export interface DisputedResponse {
+  orderId: string;
+  status: OrderStatus;
+  adminTaskId: string;
+}
+
+export interface CompletedResponse {
+  orderId: string;
+  status: OrderStatus;
+  completedAt: string;
+}
+
+// ---------- E30 ----------
+export interface LedgerOrder {
+  orderId: string;
+  status: OrderStatus;
+  ownerDisplayName?: string;
+  firstServiceDate?: string;
+  lastServiceDate?: string;
+  terminalAt?: string;
+  netPaid: number;
+}
+
+export interface Ledger {
+  month: string;
+  serverMonth: string;
+  totalIncome: number;
+  orders: LedgerOrder[];
+}
+
+// ---------- E16 / E27–E29 ----------
+export interface AdminTaskItem {
+  taskId: string;
+  type: string;
+  orderId: string;
+  paymentId?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface MediationRequest {
+  refundDecisions?: { paymentId: string; exported: boolean }[];
+  adjustment?: { amount: number; basis: string };
+}
+
+// ======================= 呼叫 =======================
+const o = (orderId: string) => `/orders/${encodeURIComponent(orderId)}`;
+
+export const getBookingContext = async (sitterId: string): Promise<BookingContext> =>
+  (await axiosClient.get(`/sitters/${encodeURIComponent(sitterId)}/booking-context`)).data;
+
+export const createOrder = (body: CreateOrderRequest, key: string) =>
+  postIdempotent<CreateOrderResponse>('/orders', key, body);
+
+export const getOrderDetail = async (orderId: string): Promise<OrderDetail> =>
+  (await axiosClient.get(o(orderId))).data;
+
+export const listOwnerOrders = async (params: OrderListParams): Promise<Page<OrderCardDto>> =>
+  (await axiosClient.get('/orders/owner', { params })).data;
+
+export const listSitterOrders = async (params: OrderListParams): Promise<Page<OrderCardDto>> =>
+  (await axiosClient.get('/orders/sitter', { params })).data;
+
+export const getEvaluation = async (orderId: string): Promise<Evaluation> =>
+  (await axiosClient.get(`${o(orderId)}/evaluation`)).data;
+
+export const quoteOrder = (orderId: string, body: QuoteRequest, key: string) =>
+  postIdempotent<QuoteResponse>(`${o(orderId)}/quote`, key, body);
+
+export const declineOrder = (orderId: string, reason: string, key: string) =>
+  postIdempotent<CancelledResponse>(`${o(orderId)}/decline`, key, { reason });
+
+export const withdrawOrder = (
   orderId: string,
-  lastFive: string,
-  disclaimerAgreed: boolean,
-  file: File,
-  idempotencyKey: string
-): Promise<{ status: string; message: string }> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('lastFive', lastFive);
-  formData.append('disclaimerAgreed', String(disclaimerAgreed));
+  body: { expectedStatus: OrderStatus; reason?: string },
+  key: string
+) => postIdempotent<CancelledResponse>(`${o(orderId)}/withdraw`, key, body);
 
-  const response = await axiosClient.post(`/orders/${orderId}/payment-proof`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-      'Idempotency-Key': idempotencyKey
-    }
-  });
-  return response.data;
-};
+export const sitterCancelOrder = (orderId: string, reason: string, key: string) =>
+  postIdempotent<CancelledResponse>(`${o(orderId)}/sitter-cancel`, key, { reason });
 
-// 保母確認入帳 (SD-007)
-export const verifyPayment = async (
-  orderId: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/verify-payment`);
-  return response.data;
-};
+// 付款
+export const listPayments = async (orderId: string): Promise<PaymentView[]> =>
+  (await axiosClient.get(`${o(orderId)}/payments`)).data;
 
-// 保母駁回付款憑證 (SD-007)
-export const rejectPayment = async (
+export const submitPaymentProof = (
   orderId: string,
-  rejectReason: string
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.post(`/orders/${orderId}/reject-payment`, { rejectReason });
-  return response.data;
+  paymentId: string,
+  body: { lastFive: string; file: Blob; fileName: string },
+  key: string
+) => {
+  const form = new FormData();
+  form.append('disclaimerAgreed', 'true');
+  form.append('lastFive', body.lastFive);
+  form.append('file', body.file, body.fileName);
+  return postIdempotent<SubmittedResponse>(
+    `${o(orderId)}/payments/${encodeURIComponent(paymentId)}/submissions`,
+    key,
+    form
+  );
 };
 
-// 保母取得個人收款資訊 (SD-007)
-export const getSitterPaymentInfo = async (): Promise<BankAccountInfo> => {
-  const response = await axiosClient.get('/sitter/payment-info');
-  return response.data;
-};
+export const listSubmissions = async (
+  orderId: string,
+  paymentId: string
+): Promise<SubmissionItem[]> =>
+  (await axiosClient.get(`${o(orderId)}/payments/${encodeURIComponent(paymentId)}/submissions`))
+    .data;
 
-// 保母更新個人收款資訊 (SD-007)
-export const updateSitterPaymentInfo = async (
-  info: BankAccountInfo
-): Promise<{ status: string; message: string }> => {
-  const response = await axiosClient.put('/sitter/payment-info', info);
-  return response.data;
-};
+export const getProofUrl = async (
+  orderId: string,
+  paymentId: string,
+  submissionId: string
+): Promise<ProofUrl> =>
+  (
+    await axiosClient.get(
+      `${o(orderId)}/payments/${encodeURIComponent(paymentId)}/submissions/${encodeURIComponent(
+        submissionId
+      )}/proof-url`
+    )
+  ).data;
+
+export const verifyPayment = (
+  orderId: string,
+  paymentId: string,
+  submissionId: string,
+  key: string
+) =>
+  postIdempotent<VerifiedResponse>(
+    `${o(orderId)}/payments/${encodeURIComponent(paymentId)}/verify`,
+    key,
+    { submissionId }
+  );
+
+export const rejectPayment = (
+  orderId: string,
+  paymentId: string,
+  body: { submissionId: string; reason: string },
+  key: string
+) =>
+  postIdempotent<RejectedResponse>(
+    `${o(orderId)}/payments/${encodeURIComponent(paymentId)}/reject`,
+    key,
+    body
+  );
+
+// 變更
+const m = (orderId: string, modificationId: string) =>
+  `${o(orderId)}/modifications/${encodeURIComponent(modificationId)}`;
+
+export const initiateModification = (
+  orderId: string,
+  body: InitiateModificationRequest,
+  key: string
+) => postIdempotent<InitiatedModification>(`${o(orderId)}/modifications`, key, body);
+
+export const listModifications = async (orderId: string): Promise<ModificationSummary[]> =>
+  (await axiosClient.get(`${o(orderId)}/modifications`)).data;
+
+export const getModification = async (
+  orderId: string,
+  modificationId: string
+): Promise<ModificationDetail> => (await axiosClient.get(m(orderId, modificationId))).data;
+
+export const quoteModification = (
+  orderId: string,
+  modificationId: string,
+  body: QuoteModificationRequest,
+  key: string
+) => postIdempotent<InitiatedModification>(`${m(orderId, modificationId)}/quote`, key, body);
+
+export const rejectModification = (
+  orderId: string,
+  modificationId: string,
+  reason: string | undefined,
+  key: string
+) =>
+  postIdempotent<EndedModification>(
+    `${m(orderId, modificationId)}/reject`,
+    key,
+    reason === undefined ? {} : { reason }
+  );
+
+export const withdrawModification = (orderId: string, modificationId: string, key: string) =>
+  postIdempotent<EndedModification>(`${m(orderId, modificationId)}/withdraw`, key);
+
+export const acceptModification = (orderId: string, modificationId: string, key: string) =>
+  postIdempotent<AcceptedModification>(`${m(orderId, modificationId)}/accept`, key);
+
+// 爭議 / 結案
+export const openPaymentDispute = (orderId: string, description: string, key: string) =>
+  postIdempotent<DisputedResponse>(`${o(orderId)}/payment-disputes`, key, { description });
+
+export const completeOrder = (orderId: string, key: string) =>
+  postIdempotent<CompletedResponse>(`${o(orderId)}/complete`, key);
+
+export const openServiceDispute = (orderId: string, description: string, key: string) =>
+  postIdempotent<DisputedResponse>(`${o(orderId)}/service-disputes`, key, { description });
+
+// 帳務
+export const getSitterLedger = async (month: string): Promise<Ledger> =>
+  (await axiosClient.get('/orders/sitter/ledger', { params: { month } })).data;
+
+// ADMIN
+export const getAdminOrder = async (orderId: string): Promise<OrderDetail> =>
+  (await axiosClient.get(`/admin/orders/${encodeURIComponent(orderId)}`)).data;
+
+export const listAdminTasks = async (params: {
+  status?: string;
+  type?: string;
+  page?: number;
+  size?: number;
+}): Promise<Page<AdminTaskItem>> => (await axiosClient.get('/admin/tasks', { params })).data;
+
+export const adminVoidPayment = (orderId: string, paymentId: string, reason: string, key: string) =>
+  postIdempotent<{
+    orderId: string;
+    status: OrderStatus;
+    cancelledBy: Party;
+    paymentStatus: string;
+  }>(
+    `/admin/orders/${encodeURIComponent(orderId)}/payments/${encodeURIComponent(paymentId)}/void`,
+    key,
+    { reason }
+  );
+
+export const adminMediate = (orderId: string, body: MediationRequest, key: string) =>
+  postIdempotent<{ orderId: string; status: OrderStatus; adjustmentPaymentIds: string[] }>(
+    `/admin/orders/${encodeURIComponent(orderId)}/mediation`,
+    key,
+    body
+  );

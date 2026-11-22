@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/ui/Card';
-import { getSitterPaymentInfo, updateSitterPaymentInfo } from '../../api/orderApi';
-import type { BankAccountInfo } from '../../api/orderApi';
+import { getSitterPaymentInfo, updateSitterPaymentInfo } from '../../api/payoutApi';
+import type { BankAccountInfo } from '../../api/payoutApi';
+import { getApiError } from '../../api/apiError';
 
 const SitterPaymentInfoSettings: React.FC = () => {
   const [bankCode, setBankCode] = useState('');
@@ -62,9 +63,10 @@ const SitterPaymentInfoSettings: React.FC = () => {
       };
       await updateSitterPaymentInfo(payload);
       setMessage({ type: 'success', text: '銀行轉帳帳戶資訊更新成功！' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      const errMsg = err.response?.data?.message || '更新失敗，請檢查輸入欄位格式';
+      // 收款帳號模組尚未重建（SD-SUPPLY），沿用舊端點的業務訊息
+      const errMsg = getApiError(err).serverMessage || '更新失敗，請檢查輸入欄位格式';
       setMessage({ type: 'error', text: errMsg });
     } finally {
       setLoading(false);
