@@ -76,7 +76,7 @@ class VisitCareLogReadIntegrationTest extends VisitCareLogTestBase {
     }
 
     @Test
-    @DisplayName("PRD-022 AC-3.4 ADMIN 唯讀：DISPUTED 訂單讀已送出 200、DRAFT 404；從未有待辦的 IN_PROGRESS 訂單 403")
+    @DisplayName("PRD-022 AC-3.4 ADMIN 唯讀：DISPUTED 訂單讀已送出 200、DRAFT 404；從未有待辦的 IN_PROGRESS 訂單已送出 / 草稿皆 404（SD-FULFILL §6.3 F13）")
     void adminRead() throws Exception {
         UUID orderId = runningOrder("PRO", 2);
         List<UUID> vs = visits(orderId);
@@ -85,7 +85,8 @@ class VisitCareLogReadIntegrationTest extends VisitCareLogTestBase {
         submit(orderId, vs.get(0), sitterToken(), key(), "ok").andExpect(status().isOk());
         forceVisit(vs.get(1), "IN_PROGRESS", completed, null, null);
         draft(orderId, vs.get(1), sitterToken(), "草稿").andExpect(status().isOk());
-        readLog(orderId, vs.get(0), adminToken()).andExpect(status().isForbidden());
+        readLog(orderId, vs.get(0), adminToken()).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        readLog(orderId, vs.get(1), adminToken()).andExpect(status().isNotFound());
         setOrderStatus(orderId, "DISPUTED");
         readLog(orderId, vs.get(0), adminToken()).andExpect(status().isOk()).andExpect(jsonPath("$.editable").doesNotExist());
         readLog(orderId, vs.get(1), adminToken()).andExpect(status().isNotFound());

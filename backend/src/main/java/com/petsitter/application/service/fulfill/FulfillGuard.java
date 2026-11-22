@@ -51,17 +51,29 @@ public class FulfillGuard {
      * ROLE_MISMATCH（G4a）；非當事人 → FORBIDDEN。回傳讀取者角色。
      */
     public ActorRole readerRole(UUID orderId, UUID ownerId, UUID sitterId, CurrentActor actor) {
+        return readerRole(orderId, ownerId, sitterId, actor, false);
+    }
+
+    /**
+     * F13 照護日誌讀取（SD-FULFILL §6.3 F13）：非當事人、或 ADMIN 不在可讀範圍 → 一律 404（不論日誌是否送出），
+     * 不以 403 / 404 洩漏日誌送出狀態；當事人錯角色仍 ROLE_MISMATCH。
+     */
+    public ActorRole careLogReaderRole(UUID orderId, UUID ownerId, UUID sitterId, CurrentActor actor) {
+        return readerRole(orderId, ownerId, sitterId, actor, true);
+    }
+
+    private ActorRole readerRole(UUID orderId, UUID ownerId, UUID sitterId, CurrentActor actor, boolean outsiderNotFound) {
         if (actor.isAdminRole()) {
             OrderQueryService.OrderContextView ctx = orderQueryService.getOrderContexts(Set.of(orderId)).get(orderId);
             if (ctx == null || !ctx.adminReadable()) {
-                throw FulfillException.forbidden();
+                throw outsiderNotFound ? FulfillException.notFound() : FulfillException.forbidden();
             }
             return ActorRole.ADMIN;
         }
         boolean isOwner = ownerId.equals(actor.userId());
         boolean isSitter = sitterId.equals(actor.userId());
         if (!isOwner && !isSitter) {
-            throw FulfillException.forbidden();
+            throw outsiderNotFound ? FulfillException.notFound() : FulfillException.forbidden();
         }
         if (isOwner && actor.isOwnerRole()) {
             return ActorRole.OWNER;

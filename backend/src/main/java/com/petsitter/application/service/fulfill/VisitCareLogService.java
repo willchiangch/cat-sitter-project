@@ -67,14 +67,15 @@ public class VisitCareLogService {
     public VisitCareLogResponses.VisitCareLogView read(UUID orderId, UUID visitId) {
         CurrentActor actor = CurrentActor.fromToken();
         VisitRef ref = guard.visit(orderId, visitId);
-        if (!actor.isSitterRole()) {
-            // OWNER / ADMIN 讀取時日誌不存在或非 SUBMITTED → 404（G4，依 token 角色判斷；§6.3 F13 已知邊界）
+        // 非當事人 / ADMIN 不在可讀範圍 → 404；當事人錯角色 → ROLE_MISMATCH（§6.3 F13，不洩漏日誌是否送出）
+        ActorRole role = guard.careLogReaderRole(orderId, ref.ownerId(), ref.sitterId(), actor);
+        if (role != ActorRole.SITTER) {
+            // OWNER / ADMIN 讀取時日誌不存在或非 SUBMITTED → 404
             String status = reportRepository.findStatusByVisitId(visitId).orElse(null);
             if (!VisitServiceReport.SUBMITTED.equals(status)) {
                 throw FulfillException.notFound();
             }
         }
-        ActorRole role = guard.readerRole(orderId, ref.ownerId(), ref.sitterId(), actor);
         OffsetDateTime now = clock.now();
         ReadData data = tx.readOnly(() -> {
             Visit v = visitRepository.findById(visitId).orElseThrow(FulfillException::notFound);
