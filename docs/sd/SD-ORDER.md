@@ -2256,6 +2256,19 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 | 訂單軟刪除 | DROP `orders.is_deleted`、`modification_requests.is_deleted` | 保留恆為 false：語意不明，舊查詢的過濾條件會被誤以為有效 |
 | 發布範圍 | ORDER + FULFILL 同一次發布，未重建模組的呼叫點同次改寫（CQ-21 已決，§8.4） | 本 SD 先行實作 FULFILL 介面的最小版：等於先寫一份 SD-FULFILL 再被重寫 |
 
+
+### 11.5 B 階段實作決定（使用者 2026-11-22 核准）
+
+| 項目 | 決定 | 理由 |
+|------|------|------|
+| JSONB 欄位寫入 | `order_answers.answer`、`modification_requests` 兩個內容欄、`order_logs.payload` 以專案 Jackson 3 序列化成文字，寫入 `?::jsonb`、讀出 `::text`；未答存 JSON null | Hibernate 7.2 內建 JSON mapper 只支援 Jackson 2，且 record 讀回失敗 |
+| 鎖逾時轉換 | 55P03 若被 Spring 包成 `UncategorizedSQLException`，依 SQLSTATE 轉 `OrderBusyException` | 確保 GLOBAL §2.6 的 `ORDER_BUSY` 對映不漏 |
+| E3 / E4 `tab` | 必填，缺少或不合法 → 400 `VALIDATION_FAILED` | SD 未定預設值 |
+| E2 `visits[]` | 只列有效行程，不含 `CANCELLED`；被變更取消的行程從變更歷史（E18）查看 | 詳情頁聚焦待執行內容 |
+| `sitter-setup` 細節 | gatekeeper 為 `globalBlacklist` / `globalWhitelist` / `plans[{planKey, blacklist, whitelist}]` 整組覆寫；清除收款帳號用 `clearPayoutAccount=true`；陣列項目 id 由 (userId, key) 推導固定 UUID | record 無法區分 JSON null 與未帶欄位；upsert 需穩定 id |
+| `provision-account` 角色 | `users.role` 單欄：`roles[]` 含 ADMIN 存 ADMIN，否則存第一個；雙角色待 SD-IDENTITY | 現行 schema 限制 |
+| M16 方案升級展延 | 只改保留天數，不改訂單快照的 `plan_tier` | 快照保持下單當時的值 |
+
 ---
 
 ## 12. 待釐清事項
@@ -2289,6 +2302,7 @@ Response 200：`{ "sitterId", "bookability": "BOOKABLE|SELF|NOT_VERIFIED|UNAVAIL
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §11.5 B 階段實作決定（JSONB 寫法、55P03 轉換、`tab` 必填、E2 不列取消行程、sitter-setup / provision-account 細節、M16 不改 plan_tier） | B 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：新增 §5.1.1a 通知外寄過渡遷移 `V20261122_02`；D1 / D2 測試設定改放 `src/test/resources/config/application.yml`；`INVALID_VISIT_DATE` 補 `reason=DATE_OUT_OF_RANGE`；未答問卷存 JSON null 註明；O1 對新訂單自取鎖以取得 `LockedOrder` | B 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§5.1 遷移第 0 行改 `SET LOCAL lock_timeout` | A 階段實作回饋，使用者 2026-11-22 核准 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：E10 註明 ADMIN 在待辦結案後仍可讀 `accountSnapshot`，不遮蔽 | 使用者 2026-11-22 確認 |
