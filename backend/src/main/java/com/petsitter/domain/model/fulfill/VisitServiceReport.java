@@ -21,6 +21,9 @@ import java.util.UUID;
 @NoArgsConstructor
 public class VisitServiceReport extends VersionedEntity {
 
+    public static final String DRAFT = "DRAFT";
+    public static final String SUBMITTED = "SUBMITTED";
+
     @Column(name = "visit_id", nullable = false, unique = true, updatable = false)
     private UUID visitId;
 

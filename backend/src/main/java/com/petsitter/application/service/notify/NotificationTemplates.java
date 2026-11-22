@@ -61,6 +61,15 @@ public final class NotificationTemplates {
             case "SUPPLEMENT_VOIDED_BY_ADMIN" -> r("補款已作廢", "此筆補款由雙方自行處理");
             case "ORDER_COMPLETED_BY_OWNER" -> r("飼主已確認結案", "飼主已確認結案");
             case "ORDER_AUTO_COMPLETED" -> r("訂單已自動結案", "訂單已自動結案");
+            // SD-FULFILL §7.2（PRD-008 4.3 / 4.4、PRD-022 BR-17 字面）
+            case "VISIT_CLOSED_BY_SYSTEM_SITTER" -> r("行程已由系統關閉",
+                    visitLines(p, v -> v.get("serviceDate") + " " + v.get("name") + " 未於期限內開始，已由系統關閉"));
+            case "VISIT_CLOSED_BY_SYSTEM_OWNER" -> r("行程已由系統關閉",
+                    visitLines(p, v -> "保母未於期限內開始 " + v.get("serviceDate") + " " + v.get("name") + "，系統已關閉此行程"));
+            case "VISIT_AUTO_COMPLETED" -> r("行程已自動結束", p.get("serviceDate") + " " + p.get("name")
+                    + " 開始後超過 24 小時未結束，系統已自動結束。請於 " + p.get("careLogDeadlineAt") + " 前送出照護日誌");
+            case "CARE_LOG_SUBMITTED" -> r("照護日誌已回報", p.get("serviceDate") + " " + p.get("name")
+                    + " 的照護日誌已由保母回報，快來看看毛孩的近況吧！");
             default -> r("訂單通知", String.valueOf(p.getOrDefault("message", "訂單狀態已更新")));
         };
     }
@@ -71,6 +80,15 @@ public final class NotificationTemplates {
         }
         long v = amount instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(amount));
         return "$ " + NumberFormat.getIntegerInstance(Locale.US).format(v);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String visitLines(Map<String, Object> p, java.util.function.Function<Map<String, Object>, String> line) {
+        Object visits = p.get("visits");
+        if (!(visits instanceof java.util.List<?> list)) {
+            return "";
+        }
+        return list.stream().map(v -> line.apply((Map<String, Object>) v)).collect(java.util.stream.Collectors.joining("\n"));
     }
 
     private static String suffix(Map<String, Object> p, String key, String before, String after) {

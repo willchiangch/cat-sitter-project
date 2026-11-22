@@ -293,31 +293,56 @@ public abstract class OrderIntegrationTestBase {
         }
     }
 
-    // ------------------------------------------------------------------ 行程（SD-FULFILL 過渡端點）
+    // ------------------------------------------------------------------ 行程（SD-FULFILL F3 / F4 / F15）
 
     protected List<UUID> visitIds(UUID orderId, String status) {
         return jdbc.queryForList("SELECT id FROM visits WHERE order_id = ? AND status = ? ORDER BY service_date, sequence_in_day",
                 UUID.class, orderId, status);
     }
 
+    protected UUID visitOrder(UUID visitId) {
+        return jdbc.queryForObject("SELECT order_id FROM visits WHERE id = ?", UUID.class, visitId);
+    }
+
+    /**
+     * 行程日期尚未到（Asia/Taipei）時把該行程的 service_date 移到今天（同群組同序號已占用則往前 1–2 天，仍在
+     * VISIT_ZOMBIE_HOURS 內），使 F3「今天 ≥ 行程日期」成立（PRD-008 AC-1.3）；不動測試時鐘。
+     */
+    protected void makeStartable(UUID visitId) {
+        Map<String, Object> v = jdbc.queryForMap("SELECT order_item_id, service_date, sequence_in_day FROM visits WHERE id = ?", visitId);
+        LocalDate date = ((java.sql.Date) v.get("service_date")).toLocalDate();
+        if (!today().isBefore(date)) {
+            return;
+        }
+        for (int back = 0; back <= 2; back++) {
+            LocalDate target = today().minusDays(back);
+            Integer taken = jdbc.queryForObject("SELECT count(*) FROM visits WHERE order_item_id = ? AND service_date = ? AND sequence_in_day = ?",
+                    Integer.class, v.get("order_item_id"), java.sql.Date.valueOf(target), v.get("sequence_in_day"));
+            if (taken == 0) {
+                jdbc.update("UPDATE visits SET service_date = ? WHERE id = ?", java.sql.Date.valueOf(target), visitId);
+                return;
+            }
+        }
+        throw new IllegalStateException("no free date to start visit " + visitId);
+    }
+
     protected void startVisit(UUID visitId) throws Exception {
-        mvc.perform(post("/api/visits/{id}/start", visitId).header("Authorization", sitterToken()))
+        makeStartable(visitId);
+        mvc.perform(post("/api/orders/{o}/visits/{v}/start", visitOrder(visitId), visitId).header("Authorization", sitterToken())
+                        .header("Idempotency-Key", key()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
     }
 
     protected void endVisit(UUID visitId) throws Exception {
-        mvc.perform(post("/api/visits/{id}/end", visitId).header("Authorization", sitterToken()))
+        mvc.perform(post("/api/orders/{o}/visits/{v}/complete", visitOrder(visitId), visitId).header("Authorization", sitterToken())
+                        .header("Idempotency-Key", key()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
     }
 
     protected void submitCareLog(UUID visitId) throws Exception {
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/visits/{id}/report", visitId)
-                        .header("Authorization", sitterToken()).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"ok\",\"version\":0}"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
-        mvc.perform(post("/api/visits/{id}/report/submit", visitId).header("Authorization", sitterToken())
-                        .header("Idempotency-Key", key()))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        // TODO(C2) 改走 F15
+        jdbc.update("INSERT INTO visit_service_reports (id, visit_id, status, content, submitted_at, version) VALUES (?, ?, 'SUBMITTED', 'ok', ?, 0)",
+                UUID.randomUUID(), visitId, java.sql.Timestamp.from(clock.instant()));
     }
 
     /** 開始並結束（DONE）行程；{@code withLog} 時送出日誌。 */

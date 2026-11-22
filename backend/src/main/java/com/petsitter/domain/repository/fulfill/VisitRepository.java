@@ -7,22 +7,65 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-/** SD-FULFILL 擁有（B 階段過渡；C 階段依 SD-FULFILL 重寫並加 FulfillAggregateArchTest）。 */
+/** SD-FULFILL 擁有；只准 {@code application.service.fulfill} 依賴（FulfillAggregateArchTest）。 */
 public interface VisitRepository extends JpaRepository<Visit, UUID> {
+
+    /** {@code listVisits} 一次查詢（LEFT JOIN 日誌狀態）的列。 */
+    interface VisitWithLogRow {
+        UUID getVisitId();
+
+        UUID getOrderItemId();
+
+        UUID getPlanId();
+
+        LocalDate getServiceDate();
+
+        VisitStatus getStatus();
+
+        OffsetDateTime getCompletedAt();
+
+        OffsetDateTime getClosedAt();
+
+        String getCareLogStatus();
+    }
+
+    @Query("""
+            SELECT v.id AS visitId, v.orderItemId AS orderItemId, v.planId AS planId, v.serviceDate AS serviceDate,
+                   v.status AS status, v.completedAt AS completedAt, v.closedAt AS closedAt, r.status AS careLogStatus
+            FROM Visit v LEFT JOIN VisitServiceReport r ON r.visitId = v.id
+            WHERE v.orderId = :orderId
+            ORDER BY v.serviceDate, v.sequenceInDay, v.id
+            """)
+    List<VisitWithLogRow> findRowsWithLog(@Param("orderId") UUID orderId);
 
     List<Visit> findByOrderIdOrderByServiceDateAscSequenceInDayAsc(UUID orderId);
 
-    List<Visit> findByOrderIdInOrderByServiceDateAscSequenceInDayAsc(Collection<UUID> orderIds);
-
     List<Visit> findByOrderIdAndStatus(UUID orderId, VisitStatus status);
 
-    /** 鎖前投影：只取 orderId（不載入實體，SD-FULFILL §2.5 第 1 點）。 */
-    @Query("SELECT v.orderId FROM Visit v WHERE v.id = :visitId")
-    java.util.Optional<UUID> findOrderIdById(@Param("visitId") UUID visitId);
+    List<Visit> findByOrderItemId(UUID orderItemId);
+
+    /** 鎖前投影：行程歸屬（SD-FULFILL §2.5 第 1 點）。 */
+    @Query("SELECT new com.petsitter.domain.repository.fulfill.VisitRef(v.id, v.orderId, v.sitterId, v.ownerId) FROM Visit v WHERE v.id = :visitId")
+    Optional<VisitRef> findRef(@Param("visitId") UUID visitId);
+
+    /** F6 今日：status ≠ CANCELLED。 */
+    List<Visit> findBySitterIdAndServiceDateAndStatusNot(UUID sitterId, LocalDate serviceDate, VisitStatus status);
+
+    /** F6 待處理：service_date &lt; 今天、PENDING / IN_PROGRESS。 */
+    List<Visit> findBySitterIdAndServiceDateBeforeAndStatusIn(UUID sitterId, LocalDate serviceDate, Collection<VisitStatus> statuses);
+
+    /** F7 今日。 */
+    List<Visit> findByOwnerIdAndServiceDateAndStatusNot(UUID ownerId, LocalDate serviceDate, VisitStatus status);
+
+    /** FC1 鎖後重讀：該訂單仍逾時的 IN_PROGRESS 行程。 */
+    List<Visit> findByOrderIdAndStatusAndStartedAtLessThanEqualOrderByServiceDateAscSequenceInDayAsc(
+            UUID orderId, VisitStatus status, OffsetDateTime startedAtMax);
 
     /** C7 候選（SD-ORDER CQ-22：唯讀 JOIN orders / users 的排程候選例外）。 */
     @Query(value = """
@@ -35,4 +78,23 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
             """, nativeQuery = true)
     List<UUID> findZombieOrderIds(@Param("maxDate") LocalDate maxDate, @Param("statuses") Collection<String> statuses,
                                   @Param("orderId") UUID orderId, @Param("limit") int limit);
+
+    /** FC1 候選（排程候選例外：唯讀 JOIN orders / users；ix_visits_in_progress）。 */
+    @Query(value = """
+            SELECT DISTINCT v.order_id FROM visits v JOIN orders o ON o.id = v.order_id
+            WHERE v.status = 'IN_PROGRESS' AND v.started_at <= :startedAtMax AND o.status IN ('IN_PROGRESS', 'DISPUTED')
+              AND (CAST(:orderId AS uuid) IS NULL OR o.id = CAST(:orderId AS uuid))
+              AND (CAST(:orderId AS uuid) IS NOT NULL OR NOT EXISTS (SELECT 1 FROM users u
+                     WHERE u.id IN (o.owner_id, o.sitter_id) AND u.email LIKE '%@e2e-journey.test'))
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<UUID> findInProgressTimeoutOrderIds(@Param("startedAtMax") OffsetDateTime startedAtMax,
+                                             @Param("orderId") UUID orderId, @Param("limit") int limit);
+
+    /** FT1 / FT2：行程所屬訂單的 owner 或 sitter 是否為 {@code @e2e-journey.test} 帳號。 */
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM visits v JOIN users u ON u.id IN (v.owner_id, v.sitter_id)
+                           WHERE v.id = :visitId AND u.email LIKE '%@e2e-journey.test')
+            """, nativeQuery = true)
+    boolean isTestAccountVisit(@Param("visitId") UUID visitId);
 }

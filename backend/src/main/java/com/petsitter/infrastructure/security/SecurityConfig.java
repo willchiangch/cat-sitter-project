@@ -64,6 +64,10 @@ public class SecurityConfig {
                 if (!isProd) {
                     auth.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll();
                 }
+                if (environment.matchesProfiles("local")) {
+                    // SD-FULFILL §8.2：local 模擬 GCS 直傳（網址內 HMAC 驗證，不在 /api/internal/ 下）
+                    auth.requestMatchers(HttpMethod.PUT, "/local-storage/**").permitAll();
+                }
                 auth.requestMatchers(HttpMethod.GET, "/api/sitters/*/plans").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/sitters/*/questions").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/sitter/profile/*").permitAll()

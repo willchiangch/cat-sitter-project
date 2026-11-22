@@ -32,7 +32,7 @@ class MediaStorageObjectKeyTest {
     @Test
     @DisplayName("Local：本機舊網址剝前綴、Object Key 原樣回傳")
     void local_resolveObjectKey() {
-        LocalMediaStorageServiceImpl local = new LocalMediaStorageServiceImpl();
+        LocalMediaStorageServiceImpl local = new LocalMediaStorageServiceImpl(new LocalSignedUploads(""));
         ReflectionTestUtils.setField(local, "localBaseUrl", "http://localhost:8080/local-media");
 
         assertEquals("payment-proofs/2026-09-01/o_x.jpg",

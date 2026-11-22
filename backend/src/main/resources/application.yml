@@ -10,6 +10,13 @@ spring:
     default: local # 僅在未指定任何 profile 時套用，不會覆蓋環境變數 SPRING_PROFILES_ACTIVE
   jpa:
     open-in-view: false
+    properties:
+      hibernate:
+        # SD-FULFILL §8.2：createVisits 帶入檢核項最多 3,600 列，JDBC batch（實體 id 為應用端 UUID，batch 有效）
+        jdbc:
+          batch_size: 100
+        order_inserts: true
+        order_updates: true
   servlet:
     multipart:
       # SD-ORDER §6.1 / §8.3 D4：全域容器上限；E11 5 MB 由端點自行檢查（422 PROOF_FILE_TOO_LARGE）

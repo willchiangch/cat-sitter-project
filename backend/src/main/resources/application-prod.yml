@@ -2,7 +2,7 @@ spring:
   datasource:
     # Supabase Transaction Pooler (Supavisor, port 6543)：Cloud Run 多實例 serverless 用這條，
     # 但 pgbouncer transaction mode 不支援 server-side prepared statement，務必加 prepareThreshold=0
-    url: jdbc:postgresql://${SUPABASE_POOLER_HOST}:6543/postgres?prepareThreshold=0&sslmode=require
+    url: jdbc:postgresql://${SUPABASE_POOLER_HOST}:6543/postgres?prepareThreshold=0&sslmode=require&reWriteBatchedInserts=true
     username: ${SPRING_DATASOURCE_USERNAME}   # 格式為 postgres.<project-ref>
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:

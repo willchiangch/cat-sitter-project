@@ -25,6 +25,12 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
     @Value("${app.storage.local.base-url:http://localhost:8080/local-media}")
     private String localBaseUrl;
 
+    private final LocalSignedUploads signedUploads;
+
+    public LocalMediaStorageServiceImpl(LocalSignedUploads signedUploads) {
+        this.signedUploads = signedUploads;
+    }
+
     @Override
     public String uploadMedia(UUID sitterId, UUID ownerId, UUID mediaId, MultipartFile file) {
         try {
@@ -49,33 +55,6 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
         } catch (IOException e) {
             log.error("Failed to upload local media", e);
             throw new RuntimeException("Local media upload failed", e);
-        }
-    }
-
-    @Override
-    public String uploadReportMedia(String planTier, String date, java.util.UUID orderId, java.util.UUID mediaId, MultipartFile file) {
-        try {
-            String originalFilename = org.springframework.util.StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
-            String extension = org.springframework.util.StringUtils.getFilenameExtension(originalFilename);
-            String targetFilename = mediaId.toString() + (extension != null ? "." + extension : "");
-            
-            // 路徑格式: /tmp/cat_sitter_media/{planTier}/{date}/{orderId}/{uuid}.ext
-            String subPath = planTier.toLowerCase() + "/" + date + "/" + orderId.toString();
-            Path targetDirPath = Paths.get(localStorageDir, planTier.toLowerCase(), date, orderId.toString());
-            
-            if (!Files.exists(targetDirPath)) {
-                Files.createDirectories(targetDirPath);
-            }
-            
-            Path targetFilePath = targetDirPath.resolve(targetFilename);
-            file.transferTo(targetFilePath);
-            
-            String fileUrl = localBaseUrl + "/" + subPath + "/" + targetFilename;
-            log.info("Local report media uploaded: {}", fileUrl);
-            return fileUrl;
-        } catch (IOException e) {
-            log.error("Failed to upload local report media", e);
-            throw new RuntimeException("Local report media upload failed", e);
         }
     }
 
@@ -314,5 +293,69 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
         } catch (IOException e) {
             throw new IllegalStateException("local list failed", e);
         }
+    }
+
+    // ------------------------------------------------------------------ SD-FULFILL §8.2（local 模擬直傳）
+
+    /** 相對路徑，指向 local profile 的 {@code PUT /local-storage/**}（Vite 代理到後端，同源）。 */
+    @Override
+    public String createSignedUploadUrl(String objectKey, String contentType, long exactBytes, java.time.Duration ttl) {
+        return signedUploads.sign(objectKey, contentType, exactBytes, java.time.Instant.now().plus(ttl));
+    }
+
+    @Override
+    public java.util.Optional<PrivateObject> openPrivateObject(String objectKey) {
+        Path target = resolve(objectKey);
+        if (!Files.isRegularFile(target)) {
+            return java.util.Optional.empty();
+        }
+        try {
+            long generation = Files.getLastModifiedTime(target).toMillis();
+            java.io.InputStream in = Files.newInputStream(target);
+            return java.util.Optional.of(new PrivateObject() {
+                @Override
+                public long generation() {
+                    return generation;
+                }
+
+                @Override
+                public java.io.InputStream stream() {
+                    return in;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    in.close();
+                }
+            });
+        } catch (IOException e) {
+            throw new com.petsitter.application.exception.MediaInspectionException("local read failed", e);
+        }
+    }
+
+    @Override
+    public boolean deletePrivateObject(String objectKey, Long generation) {
+        Path target = resolve(objectKey);
+        try {
+            if (!Files.exists(target)) {
+                return true;
+            }
+            if (generation != null && Files.getLastModifiedTime(target).toMillis() != generation) {
+                return false;
+            }
+            Files.deleteIfExists(target);
+            return true;
+        } catch (IOException e) {
+            throw new IllegalStateException("local delete failed", e);
+        }
+    }
+
+    Path resolve(String objectKey) {
+        Path root = Paths.get(localStorageDir).normalize();
+        Path target = root.resolve(objectKey).normalize();
+        if (!target.startsWith(root)) {
+            throw new IllegalArgumentException("invalid object key");
+        }
+        return target;
     }
 }

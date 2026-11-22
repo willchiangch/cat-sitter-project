@@ -498,9 +498,10 @@ class ModificationIntegrationTest extends OrderIntegrationTestBase {
             UUID orderId = order3();
             UUID v1 = visitIds(orderId, "PENDING").get(0);
             UUID modId = sitterProposes(orderId, List.of(v1), List.of());
+            makeStartable(v1);
             int[] codes = race(() -> accept(orderId, modId),
-                    () -> mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/visits/{id}/start", v1)
-                            .header("Authorization", sitterToken())));
+                    () -> mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/orders/{o}/visits/{v}/start", orderId, v1)
+                            .header("Authorization", sitterToken()).header("Idempotency-Key", key())));
             assertThat(codes[0] == 200 ^ codes[1] == 200).isTrue();
             String visit = jdbc.queryForObject("SELECT status FROM visits WHERE id = ?", String.class, v1);
             assertThat(visit).isEqualTo(codes[0] == 200 ? "CANCELLED" : "IN_PROGRESS");

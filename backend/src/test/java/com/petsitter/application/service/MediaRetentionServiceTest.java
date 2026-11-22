@@ -94,7 +94,7 @@ class MediaRetentionServiceTest {
         int deletedCount = mediaRetentionService.cleanupExpiredMedia();
         assertThat(deletedCount).isEqualTo(1);
 
-        verify(mediaStorageService).deleteMedia("https://gcs/media1.jpg");
+        verify(mediaStorageService).deletePrivateObject("https://gcs/media1.jpg", 1L);
         assertThat(jdbcTemplate.queryForObject("SELECT is_purged FROM service_report_media WHERE id = ?", Boolean.class, ids[1])).isTrue();
         assertThat(jdbcTemplate.queryForObject("SELECT purged_at FROM service_report_media WHERE id = ?", OffsetDateTime.class, ids[1])).isNotNull();
     }

@@ -95,12 +95,6 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
     }
 
     @Override
-    public String uploadReportMedia(String planTier, String date, UUID orderId, UUID mediaId, MultipartFile file) {
-        String objectName = planTier.toLowerCase() + "/" + date + "/" + orderId + "/" + buildTargetFilename(mediaId, file);
-        return uploadPublic(objectName, file);
-    }
-
-    @Override
     public String uploadPetAvatar(UUID ownerId, UUID petId, MultipartFile file) {
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown.ext");
         String extension = StringUtils.getFilenameExtension(originalFilename);
@@ -232,5 +226,77 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
             out.add(new StoredObject(blob.getName(), blob.getCreateTimeOffsetDateTime()));
         }
         return out;
+    }
+
+    // ------------------------------------------------------------------ SD-FULFILL §8.2
+
+    @Override
+    public String createSignedUploadUrl(String objectKey, String contentType, long exactBytes, Duration ttl) {
+        try {
+            BlobInfo info = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).setContentType(contentType).build();
+            java.util.Map<String, String> headers = new java.util.LinkedHashMap<>();
+            headers.put("Content-Type", contentType);
+            headers.put("x-goog-content-length-range", exactBytes + "," + exactBytes);
+            headers.put("x-goog-if-generation-match", "0");
+            URL url = storage.signUrl(info, ttl.toSeconds(), TimeUnit.SECONDS,
+                    Storage.SignUrlOption.withV4Signature(),
+                    Storage.SignUrlOption.httpMethod(com.google.cloud.storage.HttpMethod.PUT),
+                    Storage.SignUrlOption.withExtHeaders(headers),
+                    Storage.SignUrlOption.signWith(urlSigner));
+            return url.toString();
+        } catch (RuntimeException e) {
+            throw new com.petsitter.application.exception.StorageUnavailableException("gcs sign upload url failed", e);
+        }
+    }
+
+    @Override
+    public java.util.Optional<PrivateObject> openPrivateObject(String objectKey) {
+        try {
+            Blob blob = storage.get(BlobId.of(bucketName, objectKey));
+            if (blob == null) {
+                return java.util.Optional.empty();
+            }
+            long generation = blob.getGeneration();
+            com.google.cloud.ReadChannel channel = storage.reader(BlobId.of(bucketName, objectKey, generation));
+            java.io.InputStream in = java.nio.channels.Channels.newInputStream(channel);
+            return java.util.Optional.of(new PrivateObject() {
+                @Override
+                public long generation() {
+                    return generation;
+                }
+
+                @Override
+                public java.io.InputStream stream() {
+                    return in;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    in.close();
+                }
+            });
+        } catch (RuntimeException e) {
+            throw new com.petsitter.application.exception.MediaInspectionException("gcs read failed", e);
+        }
+    }
+
+    @Override
+    public boolean deletePrivateObject(String objectKey, Long generation) {
+        try {
+            if (generation == null) {
+                storage.delete(BlobId.of(bucketName, objectKey));
+                return true;
+            }
+            storage.delete(BlobId.of(bucketName, objectKey, generation), Storage.BlobSourceOption.generationMatch());
+            return true;
+        } catch (com.google.cloud.storage.StorageException e) {
+            if (e.getCode() == 404) {
+                return true;
+            }
+            if (e.getCode() == 412) {
+                return false;
+            }
+            throw e;
+        }
     }
 }

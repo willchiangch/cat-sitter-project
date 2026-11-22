@@ -10,10 +10,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/** SD-FULFILL 擁有；只准 {@code application.service.fulfill} 依賴（FulfillAggregateArchTest）。 */
 public interface VisitServiceReportRepository extends JpaRepository<VisitServiceReport, UUID> {
 
     Optional<VisitServiceReport> findByVisitId(UUID visitId);
 
-    @Query("SELECT r.visitId FROM VisitServiceReport r WHERE r.visitId IN :visitIds AND r.status = 'SUBMITTED'")
-    List<UUID> findSubmittedVisitIds(@Param("visitIds") Collection<UUID> visitIds);
+    List<VisitServiceReport> findByVisitIdIn(Collection<UUID> visitIds);
+
+    /** 鎖前投影：日誌狀態（不載入實體）。 */
+    @Query("SELECT r.status FROM VisitServiceReport r WHERE r.visitId = :visitId")
+    Optional<String> findStatusByVisitId(@Param("visitId") UUID visitId);
 }

@@ -10,13 +10,24 @@ import java.time.ZoneOffset;
 public class MutableClock extends Clock {
 
     private volatile Duration offset = Duration.ZERO;
+    private volatile Instant frozen;
 
     public void advance(Duration d) {
-        offset = offset.plus(d);
+        if (frozen != null) {
+            frozen = frozen.plus(d);
+        } else {
+            offset = offset.plus(d);
+        }
+    }
+
+    /** 固定在指定時刻（邊界測試用；{@link #advance} 以此為基準推進，{@link #reset} 解除）。 */
+    public void freezeAt(Instant at) {
+        frozen = at;
     }
 
     public void reset() {
         offset = Duration.ZERO;
+        frozen = null;
     }
 
     @Override
@@ -31,6 +42,10 @@ public class MutableClock extends Clock {
 
     @Override
     public Instant instant() {
+        Instant f = frozen;
+        if (f != null) {
+            return f;
+        }
         return Instant.now().plus(offset);
     }
 }

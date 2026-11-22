@@ -18,7 +18,7 @@ import java.util.UUID;
 
 /**
  * 行程（SD-FULFILL §5.1 第 13 段）。只存 {@code orderId}，不與 {@code Order} 建 JPA 關聯（SD-FULFILL §2.5 第 2 點）。
- * <p>B 階段過渡實作：欄位對齊新 schema；狀態機與端點由 C 階段依 SD-FULFILL 全面重寫。
+ * 狀態欄只由 {@code application.service.fulfill} 在持有訂單鎖（或排程鎖）的交易內寫入（SD-FULFILL §3.1）。
  */
 @Entity
 @Table(name = "visits")
@@ -27,6 +27,9 @@ import java.util.UUID;
 @SuperBuilder
 @NoArgsConstructor
 public class Visit extends VersionedEntity {
+
+    public static final String SOURCE_SITTER = "SITTER";
+    public static final String SOURCE_SYSTEM = "SYSTEM";
 
     @Column(name = "order_id", nullable = false, updatable = false)
     private UUID orderId;

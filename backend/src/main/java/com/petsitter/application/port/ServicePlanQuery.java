@@ -14,6 +14,12 @@ public interface ServicePlanQuery {
     /** 該保母所有未刪除方案（E31 方案清單；過渡補充方法，SD-SUPPLY 重建時接手）。 */
     List<PlanView> listForSitter(UUID sitterId);
 
+    /**
+     * 方案預設任務（SD-FULFILL §2.4、§4.8；PRD-028 BR-2）：一次查詢；方案已刪除或下架 → 空清單；JSONB 中的非字串 / null
+     * 元素略過、不拋例外。回傳 map 含每個傳入的 planId。
+     */
+    java.util.Map<UUID, List<String>> findDefaultTasks(Set<UUID> planIds);
+
     record PlanView(UUID planId, UUID sitterId, String title, int unitPrice, boolean active, boolean deleted,
                     LocalDate bookableFrom, LocalDate bookableTo, List<String> petTypes, int sortOrder) {
 
