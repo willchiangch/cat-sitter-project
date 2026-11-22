@@ -8,7 +8,7 @@
 | 歸屬 SD | SD-ORDER（見 `docs/sd/00-SD-PLAN.md` §0） |
 | 測試情境 | TS-024 |
 | 相依 PRD | PRD-016（變更發起與報價；錯誤判斷順序 BR-28；鎖定期間計價 BR-17、BR-18）；PRD-023（補款、退款、結清）；PRD-007（payment 上傳 / 確認）；PRD-008（行程執行）；PRD-009（確認結案 O11、自動結案 O12、回報問題 O13 的端點與排程；**待依 baseline 改寫**，本卡 §4.5 列出需要的行為）；PRD-012（訂閱鎖定、停權通知）；PRD-020（ADMIN 調解 O15 / O17、待辦處理；**待依 baseline 改寫**，本卡 §4.5 列出需要的行為） |
-| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.2（ADMIN 唯讀「`DISPUTED` 或有 OPEN 待辦」、收款帳號快照）；§2.2（訂閱逾期 / 停權只擋新生意，CQ-19）；§3.1（`DISPUTED`）；§3.2 O11、O12、O13、O14（含 72h 起算點 CQ-64 與錯誤碼）、O15、O16（作廢補款比照）、O17、DISPUTED 凍結（CQ-48、CQ-57）；§3.3（`SUBMITTED` 不逾期作廢、ADMIN 作廢已匯退款須登記 ADMIN_ADJUSTMENT）；§3.4（可發起時機 CQ-69、補款 `SUBMITTED` 72h 未核對可申報 O14、退款無逾時、協商期間、訂閱鎖定）；§3.6（鎖、稽核、通知、冪等、`admin_tasks`）；§3.7（錯誤碼、判斷順序 CQ-70）；§5（`MODIFICATION_TIMEOUT_HOURS`、`completion_basis_at` 只看 SETTLED 變更 CQ-69、`AUTO_COMPLETE_HOURS`、`DISPUTE_WINDOW_HOURS`） |
+| 引用基準 | `docs/sa/00-DOMAIN-BASELINE.md` §1.2（ADMIN 唯讀「`DISPUTED` 或曾有任何 ADMIN 待辦」CQ-84、收款帳號快照）；§2.2（訂閱逾期 / 停權只擋新生意，CQ-19）；§3.1（`DISPUTED`）；§3.2 O11、O12、O13、O14（含 72h 起算點 CQ-64 與錯誤碼）、O15、O16（作廢補款比照）、O17、DISPUTED 凍結（CQ-48、CQ-57）；§3.3（`SUBMITTED` 不逾期作廢、ADMIN 作廢已匯退款須登記 ADMIN_ADJUSTMENT）；§3.4（可發起時機 CQ-69、補款 `SUBMITTED` 72h 未核對可申報 O14、退款無逾時、協商期間、訂閱鎖定）；§3.6（鎖、稽核、通知、冪等、`admin_tasks`）；§3.7（錯誤碼、判斷順序 CQ-70）；§5（`MODIFICATION_TIMEOUT_HOURS`、`completion_basis_at` 只看 SETTLED 變更 CQ-69、`AUTO_COMPLETE_HOURS`、`DISPUTE_WINDOW_HOURS`） |
 
 > 一張 PRD = 一個可獨立驗收的功能。子模組 AC ≤ 8 條，子模組 > 3 個就拆卡。
 > 共用概念（角色、SaaS 額度、訂單狀態、時間起算點）只能**引用** DOMAIN-BASELINE，不得在這裡重新定義；要改就改 baseline。
@@ -32,7 +32,7 @@
 | 動作 | OWNER | SITTER | ADMIN | 匿名 | 方案限制 |
 |------|-------|--------|-------|------|---------|
 | 申報款項爭議（O14） | 本人訂單 | 本人訂單 | ✗（403 `ROLE_MISMATCH`） | ✗ | 無；訂閱鎖定不擋 |
-| 檢視爭議中訂單的變更、payment、憑證、收款帳號快照 | 本人訂單（快照限該 payment 付款方） | 本人訂單 | 唯讀，限 BASELINE §1.2 可讀訂單（`DISPUTED` 或有 OPEN 待辦的訂單） | ✗ | 無 |
+| 檢視爭議中訂單的變更、payment、憑證、收款帳號快照 | 本人訂單（快照限該 payment 付款方） | 本人訂單 | 唯讀，限 BASELINE §1.2 可讀訂單（`DISPUTED` 或曾有任何 ADMIN 待辦的訂單，不論狀態；CQ-84） | ✗ | 無 |
 | 爭議期間操作變更 / payment | ✗（409 `ORDER_STATE_CONFLICT`） | ✗（同左） | 只能經 O15 / O17 調解（調解操作見 PRD-020，待依 baseline 改寫） | ✗ | — |
 
 - 訂單存在但不屬於呼叫者 → 403 `FORBIDDEN`；不存在 → 404 `NOT_FOUND`；token 角色不符 → 403 `ROLE_MISMATCH`。
@@ -86,7 +86,7 @@
 | O13 回報問題 | PRD-009 | 訂單有未結束變更 → 409 `MODIFICATION_IN_PROGRESS`；視窗以 `completion_basis_at + DISPUTE_WINDOW_HOURS` 判斷 | AC-2.6、AC-2.7 |
 | `completion_basis_at` 維護 | PRD-009 / SD-ORDER | 變更進入 `SETTLED` 的同一交易內重算；其他終態不重算 | AC-2.7 |
 | O15 / O17 調解結案 | PRD-020 | 同交易：變更 `REJECTED` + 結束時間；`UNPAID` payment `VOID`；`SUBMITTED` 退款必填「已匯出 / 未匯出」（缺 → 400 `VALIDATION_FAILED`），已匯出自動建 `ADMIN_ADJUSTMENT`；`SUBMITTED` 補款 `VOID` 不登記金額並通知雙方；待辦 `RESOLVED`；不改 `total_amount` | AC-2.3、AC-2.4 |
-| ADMIN 讀取訂單 | PRD-020 | 限 `DISPUTED` 或有 OPEN 待辦，回應含變更歷史、payments、憑證、收款帳號快照；其他 → 403 `FORBIDDEN` | AC-2.5 |
+| ADMIN 讀取訂單 | PRD-020 | 限 `DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態），回應含變更歷史、payments、憑證、收款帳號快照；其他 → 403 `FORBIDDEN` | AC-2.5 |
 
 ## 5. 狀態轉移
 
@@ -112,7 +112,7 @@
 | BR-7 | 有未結束變更時：O11 → 409 `MODIFICATION_IN_PROGRESS`；O12 不觸發；O13 → 409 `MODIFICATION_IN_PROGRESS` | BASELINE O11、O12、O13、§3.4 協商期間、CQ-17 |
 | BR-8 | `completion_basis_at = max(各有效行程的結束時間, 最後一筆 SETTLED 變更請求的結束時間)`；`REJECTED` / `WITHDRAWN` / `EXPIRED` 不推遲；`DONE` 行程結束時間 = `completed_at + CARE_LOG_EDIT_HOURS`，`CLOSED_BY_SYSTEM` = 被關閉時間；`CANCELLED` 行程不計。搭配「發起變更需至少 1 個 `PENDING` 行程」（PRD-016 BR-2），反覆發起 / 撤回不能延後自動結案 | BASELINE §5、§3.4 可發起時機、CQ-17、CQ-40、CQ-69 |
 | BR-9 | 訂閱逾期 / 停權不擋變更的發起、報價與回應、補款核對、退款上傳與款項爭議（屬既有訂單）；鎖定期間計價見 PRD-016 BR-18 | BASELINE §2.2、§3.4、CQ-19 |
-| BR-10 | ADMIN 只能唯讀 `DISPUTED` 訂單與有 OPEN 待辦的訂單（含變更、payment、憑證、收款帳號快照）；其他訂單 → 403 `FORBIDDEN` | BASELINE §1.2、CQ-18、CQ-66 |
+| BR-10 | ADMIN 只能唯讀 `DISPUTED` 訂單與曾有任何 ADMIN 待辦的訂單（待辦 OPEN / RESOLVED 皆算，不論訂單狀態；含變更、payment、憑證、收款帳號快照）；其他訂單 → 403 `FORBIDDEN`。寫入不因此擴大：作廢（O16）仍限有 OPEN 首次付款待核對待辦，調解結案（O15 / O17）仍限訂單 `DISPUTED` | BASELINE §1.2、CQ-18、CQ-66、CQ-84；使用者決定 2026-11-22 |
 | BR-11 | O14 寫入端點帶 `Idempotency-Key`，同 key 回放；不同 key 重送 → 依當下狀態 409 | BASELINE §3.6 |
 | BR-12 | 時間 UTC 儲存、Asia/Taipei 顯示；72h 判斷以 `now ≥ 起算點 + 72h` | BASELINE §5 |
 | BR-13 | O14 爭議說明必填，1–500 字；不可附圖（API 不接受附件欄位）；說明寫入 `order_logs` payload 供 ADMIN 判斷 | 使用者決定 2026-11-21（本卡 CQ-1） |
@@ -162,7 +162,7 @@
 - [ ] **AC-2.2 (爭議期間行程照常)**：Given `DISPUTED` 訂單仍有 `PENDING` 行程 V3，When SITTER 開始 V3（PRD-008），Then V3 `IN_PROGRESS`，訂單仍 `DISPUTED`。對應：BR-5
 - [ ] **AC-2.3 (調解結果：UNPAID 退款)**：Given `DISPUTED` 訂單、變更 `AWAITING_REFUND`、退款 payment `UNPAID`、已收淨額 1500、`total_amount` 1000，When ADMIN 調解結案（O15 或 O17，PRD-020），Then 同一交易：變更 `REJECTED`、結束時間 = 調解時間、退款 payment `VOID`、`total_amount` 仍 1000、已收淨額仍 1500、無 `ADMIN_ADJUSTMENT` 因此建立、待辦 `RESOLVED`。對應：T2、T3、BR-6
 - [ ] **AC-2.4 (調解結果：SUBMITTED 退款與補款)**：Given `DISPUTED` 訂單、變更 `AWAITING_REFUND`、退款 payment `SUBMITTED` `amount=500`、已收淨額 1500。When ADMIN 調解標示該退款「已匯出」，Then 同一交易：退款 payment `VOID`、新增 payment `direction=REFUND`、`method=ADMIN_ADJUSTMENT`、`amount=500`、`VERIFIED`，已收淨額 = 1000，`order_logs` 記錄「已匯出」。When 改為標示「未匯出」，Then 退款 payment `VOID`、無 `ADMIN_ADJUSTMENT`、已收淨額仍 1500，`order_logs` 記錄「未匯出」。When 未標示即送出，Then 400 `VALIDATION_FAILED`、變更 / payment / 訂單 / 待辦皆不變。Given `DISPUTED` 訂單、變更 `AWAITING_SUPPLEMENT`、補款 payment `SUBMITTED` `amount=500`、已收淨額 1500，When ADMIN 調解結案，Then 補款 payment `VOID`、變更 `REJECTED`、無任何新 payment、已收淨額仍 1500，雙方收到「此筆補款由雙方自行處理」。對應：T2、T3、T4、BR-14、BR-15、EX-15
-- [ ] **AC-2.5 (ADMIN 唯讀範圍)**：Given `DISPUTED` 訂單，When ADMIN 讀取訂單詳情，Then 200，回應含變更歷史、payments、憑證檢視連結與補款收款帳號快照（唯讀、無編輯入口）。Given 非 `DISPUTED` 但有 OPEN 待辦的訂單，When ADMIN 讀取，Then 200。Given 非 `DISPUTED` 且無 OPEN 待辦的訂單，When ADMIN 讀取，Then 403 `FORBIDDEN`。對應：BR-10
+- [ ] **AC-2.5 (ADMIN 唯讀範圍)**：Given `DISPUTED` 訂單，When ADMIN 讀取訂單詳情，Then 200，回應含變更歷史、payments、憑證檢視連結與補款收款帳號快照（唯讀、無編輯入口）。Given 非 `DISPUTED` 但有 OPEN 待辦的訂單，When ADMIN 讀取，Then 200。Given 已調解結案（`COMPLETED`）、其待辦已 `RESOLVED` 的訂單，When ADMIN 讀取，Then 200（唯讀，無調解 / 作廢入口）。Given 非 `DISPUTED` 且從未有任何 ADMIN 待辦的訂單，When ADMIN 讀取，Then 403 `FORBIDDEN`。對應：BR-10
 - [ ] **AC-2.6 (協商期間不可結案、不自動結案)**：Given `IN_PROGRESS` 訂單 V1、V2 `DONE`（日誌已送出）、V3 因整筆取消 `CANCELLED`，且有一筆 `AWAITING_REFUND` 變更。When OWNER 確認結案（PRD-009），Then 409 `MODIFICATION_IN_PROGRESS`；When OWNER 回報問題（PRD-009），Then 409 `MODIFICATION_IN_PROGRESS`；訂單仍 `IN_PROGRESS`。Given 同上且 `completion_basis_at + AUTO_COMPLETE_HOURS` 已過，When 自動結案排程執行，Then 訂單仍 `IN_PROGRESS`。對應：BR-7
 - [ ] **AC-2.7 (結案基準只看 SETTLED 變更)**：Given V1 `DONE`（`completed_at` 2026-11-20 10:00 → 結束時間 2026-11-21 10:00）、V2 `CLOSED_BY_SYSTEM`（2026-11-19 00:05 關閉）、V3 因變更 `CANCELLED`，該變更於 2026-11-22 15:00 `SETTLED`，When 查詢訂單，Then `completion_basis_at` = 2026-11-22 15:00（`2026-11-22T07:00:00Z`）；OWNER 於 2026-11-24 14:59 回報問題，Then 200、訂單 `DISPUTED`；若無人操作，Then 自動結案於 2026-11-24 15:00 後第一次排程（≤ 15 分鐘）發生。Given V1、V2 同上、V3 `DONE`（`completed_at` 2026-11-21 08:00 → 結束時間 2026-11-22 08:00），另有一筆只含新增的變更於 2026-11-20 20:00 發起（當時 V3 仍 `PENDING`）、2026-11-22 15:00 被 OWNER 撤回，When 查詢訂單，Then 該變更結束時間 = 2026-11-22 15:00，但 `completion_basis_at` = 2026-11-22 08:00（`2026-11-22T00:00:00Z`，撤回不推遲）；若無人操作，Then 自動結案於 2026-11-24 08:00 後第一次排程發生。對應：BR-8
 - [ ] **AC-2.8 (訂閱鎖定 / 停權不擋)**：Given 保母 S 鎖定前為 PRO，訂閱已於 2026-11-20 到期（2026-11-21 00:00 起鎖定）或被停權。When S 對 `CONFIRMED`、有 `PENDING` 行程、無未結束變更的訂單發起 `CHANGE`（減少 1 個行程、不帶加減），Then 201、變更 `QUOTED`、新總額 = 系統計算值。When S 對 `REQUESTED` 報價（不帶加減），Then 200、`QUOTED`。When S 拒絕 `REQUESTED`（附原因），Then 200、`REJECTED`。When S 撤回自己發起的 `QUOTED`，Then 200、`WITHDRAWN`。When S 確認 `SUBMITTED` 補款，Then 200、payment `VERIFIED`、變更 `SETTLED`。When S 對 `UNPAID` 退款上傳憑證（PRD-007），Then 201、payment `SUBMITTED`。When S 對 `AWAITING_REFUND` 的訂單申報款項爭議，Then 200、訂單 `DISPUTED`。以上皆不回 403 `SUBSCRIPTION_LOCKED`。When 飼主在 S 的公開頁送出新預約，Then 403 `SUBSCRIPTION_LOCKED`（見 PRD-005）。鎖定期間帶加減的計價見 PRD-016 AC-2.8。對應：BR-9
@@ -200,6 +200,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。ADMIN 唯讀範圍擴為「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）：引用基準、§3、§4 ADMIN 讀取列、BR-10、AC-2.5（補「已結案且待辦 RESOLVED → 200」）；BR-10 註明寫入不擴大（O16 限 OPEN 首次付款待核對待辦、O15 / O17 限 `DISPUTED`）。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：§9 testid 表補 SD-ORDER §9.3 的退款頁爭議入口 `payment-refund-dispute-link`（元件屬 PRD-007，本卡只列導向關係）。本卡畫面與通知無金額數字（調解作廢補款「不登記任何金額」），金額格式（SD-FRONTEND-SPEC §6.4.1）無需改；本卡無「去前後空白」字樣。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：§9 畫面「爭議中訂單顯示『訂單爭議處理中』並隱藏變更 / 付款動作」改為引用 PRD-009 §4.4 `DISPUTED` 列（橫幅文字、testid、隱藏動作以 PRD-009 為準，與 PRD-009 §9 跨卡「PRD-024 引用本卡 §4.4」對齊）。不改 AC 與規則；狀態維持 Approved | SD-FULFILL 第 2 輪審查回寫（主流程交辦 2026-11-22） |
 | 2026-11-22 | §9 補 E2E testid（SD-ORDER CQ-10，屬畫面識別補充，不改規格） | 主流程 |

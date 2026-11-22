@@ -1,97 +1,171 @@
-# TS-JOURNEY-04: 訂單變更協商 (Order Modification Negotiation)
+# TS-JOURNEY-04: 訂單變更協商全流程（增加行程補款、減少行程退款、逾時、款項爭議）
 
 | 項目 | 內容 |
-| :--- | :--- |
-| **對應需求** | PRD-016/SD-016（訂單雙向變更與退款） |
-| **測試類型** | ✅ 跨模組整合測試（真後端、真資料庫，非 mock） |
-| **優先級** | P0（規劃時發現整個協商流程在真實 UI 上完全沒有入口，屬於「功能存在但使用者到不了」等級的落差） |
-| **自動化狀態** | ✅ 已自動化 |
-| **自動化路徑** | `frontend/e2e/journeys/order-modification-negotiation.spec.ts` |
+|------|------|
+| 狀態 | Draft |
+| 對應 PRD | PRD-016（發起、報價、逾時）、PRD-023（同意、補款、退款、結清）、PRD-024（款項爭議、`DISPUTED` 凍結、調解結果）——主線；PRD-007（補款 / 退款憑證上傳與確認）、PRD-008（行程狀態列）、PRD-028（變更新增行程的檢核項快照）——沿途觀察。全部 Approved 2026-11-22 |
+| 對應 SD | SD-ORDER（§3.2、§3.3、§4.3、§6.3 E2、E10–E14、E17–E24、E27–E29、C5、§6.5、§7.1、§7.2、§8.1、§9.1、§9.3、§10.4）——訂單、payment、變更、稽核、通知步驟；SD-FULFILL（§2.3.3、§6.3 F1、§10.2 `inspect.fulfill`；`createVisits` / `cancelVisits`）——行程步驟（SD-ORDER M33 分工）；SD-FRONTEND-SPEC §4、§6.4、§6.4.1 |
+| 類型 | 旅程（打真後端）：跨 PRD 端到端主線，不重複模組 TS 細項；每步標出 PRD AC 與對應模組 TS 步驟 |
+| 自動化路徑 | `frontend/e2e/journeys/order-modification-negotiation.spec.ts` |
+| 自動化狀態 | ⬜ 未自動化 |
+
+> TS 只依 PRD 與 SD 撰寫，**不得參考程式碼**——照程式寫出的 TS 只會把 bug 驗證成規格。
+> 本檔全文重寫。舊版（`MODIFYING` / `REFUND_VERIFY` 訂單狀態、`previous_status` 復原、`/sitter/orders/:id/quote` 與 `/owner/orders/:id/modification-confirm` 兩頁、`POST /api/orders/{id}/modify`）依 baseline §3.4（變更協商期間訂單主狀態不變，CQ-1）全部作廢；細項驗證分別移至 TS-016 / TS-023 / TS-024。
 
 ---
 
-## 一、測試邏輯定義 (Given / When / Then)
+## 1. 前置資料
 
-* **Given**：一筆 `CONFIRMED` 訂單（`bootstrapConfirmedOrder` 純 API 重跑 Journey A+B 驗證過的機械部分兜出；退款分支需要原始訂單天數 > 修改後天數才有負差額可測，`bootstrapConfirmedOrder` 因此新增了可選的 `datesOverride` 參數）。
-* **When**：兩條分支各自跑一次完整協商——**補款**：飼主申請增加天數 → 保母報價 → 飼主確認（差額為正，轉 `PENDING_PAYMENT`）→ 飼主補款上傳憑證 → 保母核對入帳。**退款**：飼主申請減少天數 → 保母報價 → 飼主確認（差額為負，轉 `REFUND_VERIFY`）→ 保母上傳退款憑證 → 飼主確認收到退款。
-* **Then**：訂單狀態依 SD-016 §4.1 狀態結轉表正確轉移，且雙方全程透過**本次新補上的三個真實按鈕**（申請訂單變更 / 處理訂單變更協商 / 查看並確認訂單變更）點入，不是繞過去直接打 URL。
+> 不寫死 UUID。每個 test 自己建資料、可獨立重跑。帳號一律 `@e2e-journey.test`，由 `POST /api/internal/test-data/provision-account` 建立；測試資料端點（`/api/internal/test-data/**`）與排程端點（`/api/internal/cron/**`）帶 `X-Internal-Secret`（值取自 CI 環境變數，不得寫入檔案、證據或 log）。
+> 日期記號：`D` = 執行當下 Asia/Taipei 日期，`D+n` 由 spec 執行時計算。
 
-**架構備註**：規劃本 journey 時發現三個結構性缺口，皆已一併修復，詳見下方「五、本測試發現並修復的真實 bug」。
+| 代號 | 角色 | 建立方式 | 狀態 |
+|------|------|---------|------|
+| `owner` | OWNER | `provision-account`（`roles=[OWNER]`）；`owner-setup`：`pets` = key M1、M2（CAT）、`emailPreferences.ORDER_AFFAIR=開`；回應以 key 取 `petId` | — |
+| `ownerB` | OWNER | `provision-account`（`roles=[OWNER]`）；`owner-setup` 一隻毛孩 | 與各訂單無關的第三人（越權用） |
+| `sitter` | SITTER | `provision-account`（`roles=[SITTER]`）；`sitter-setup`：`tier=PRO`、`subscriptionExpiresAt = now + 30 天`、`suspended=false`、`kycStatus=VERIFIED`、`profileVisible=true`、`payoutAccount` 四欄、`plans` = key P（單價 500、CAT、無可預約區間、`active=true`、`defaultTasks=[餵乾糧, 換貓砂]`）、`questions=[]`；回應以 key 取 `planId` | PRO 全程不降級（主線報價要加價） |
+| `admin` | ADMIN | `provision-account`（`roles=[ADMIN]`） | — |
+| `order` | — | `owner` E1 `POST /api/orders` 預約 P：`groups=[{planId: P, dates: [D+3, D+4, D+5], dailyCount: 1, petIds: [M1, M2]}]`、`expectedAmount=1500` → `sitter` E6 原價（`expectedAmount=1500`）→ `owner` E11 首次付款憑證（`disclaimerAgreed=true`、`lastFive=12345`、PNG）→ `sitter` E14 確認；F1 `GET /api/orders/{order}/visits` 依 `serviceDate` 取 V1（D+3）、V2（D+4）、V3（D+5） | `CONFIRMED`；E2 `quote.totalAmount=1500`、`netPaid=1500` |
 
----
+- 三個 test 各自建一組 `owner` / `sitter` / `order`：**T1 主線 + 退款分支**（J4-01–J4-21，同一張單接續，驗證連續兩筆變更）、**T2 逾時分支**（J4-22–J4-26）、**T3 爭議分支**（J4-27–J4-33）。`ownerB`、`admin` 可共用。
+- 建單 helper 建議沿用 TS-016 §1 的 `bootstrapConfirmedOrder`。
 
-## 二、測試步驟與多維度驗證
+前置動作縮寫（皆走真 API，每次新 `Idempotency-Key`，同 TS-023 §1）：
 
-### 補款分支
+| 縮寫 | 內容 |
+|------|------|
+| `REQ(x)` | owner E17 `POST /api/orders/{order}/modifications`：`type=CHANGE`、內容 x、`reason=測試` → `REQUESTED` |
+| `QUOTE()` | sitter E20 `POST /api/orders/{order}/modifications/{mod}/quote`：內容維持預填、不帶加減 → `QUOTED` |
+| `PROPOSE(x)` | sitter E17：`type=CHANGE`、內容 x、`reason=測試`、不帶加減 → `QUOTED`（`initiatedBy=SITTER`） |
+| `ACCEPT` | owner E23 `POST /api/orders/{order}/modifications/{mod}/accept` |
+| `INSPECT` | `GET /api/internal/test-data/orders/{order}/inspect` |
+| `SHIFT_MOD(m)` | `POST /api/internal/test-data/orders/{order}/shift-time`：`target=MODIFICATION_EXPIRES_AT`、`modificationId=mod`、`minutes=m` |
+| `C5` | `POST /api/internal/cron/modifications/expiry?orderId={order}` |
 
-| 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
-| :--- | :--- | :--- | :--- |
-| 1 | UI：飼主 `/owner/orders/{orderId}` 點「申請訂單變更」 | 導向 `/orders/{orderId}/modify` | 按鈕為本次新增，`OwnerOrderDetail.tsx` CONFIRMED 狀態下才顯示 |
-| 2 | UI：精靈顯示方案區間「常態開放（不限日期）」、預填原訂單日期（明天）；改填明天、後天（2 天）送出 | 顯示「變更申請已成功提交」與「變更請求已送出」 | `modify-plan-range` 全文比對、`modify-dates-input` 預填值比對（L1）；`POST /api/orders/{orderId}/modify` 200，`Order=MODIFYING` |
-| 3 | UI：保母 `/sitter/orders` 進行中分頁點「處理訂單變更協商」 | 導向 `/sitter/orders/{orderId}/quote`，表單已預填換算後總額 | 連結為本次新增；`GET /api/orders/{orderId}/modification` 200 |
-| 4 | UI：接受預填總額，送出報價 | 顯示「報價已送出」 | `POST .../modification/quote` 200，`ModificationRequest=QUOTED`，`diffAmount=+600` |
-| 5 | UI：飼主 `/owner/orders/{orderId}` 點「查看並確認訂單變更」 | 導向確認頁，差額欄位顯示 `$600`（正值，不可為 `-600`） | 按鈕為本次新增；差額斷言整段錨定 `^\$\s?600\s*\(負值為退款\)$`（舊版 `toContainText('600')` 遇到 `-$ 600` 也會通過，分不出補款/退款方向） |
-| 6 | UI：確認變更 | 顯示「變更已確認」；同意表單消失、只剩「前往補款」，**沒有退款區塊** | `POST .../modification/confirm` 200，`Order=PENDING_PAYMENT`；`confirm-submit-btn`、`refund-confirm-section`、`refund-confirm-btn` 數量為 0（C2） |
-| 6a | API：變更生效後查詢訂單詳情與行程（L1） | 方案區間為常態開放；行程是明天、後天兩筆待執行 | `planDateRanges = [{planId, planName, startDate: null, endDate: null}]`；`GET /api/orders/{id}/visits` 的 `scheduledAt` 日期 = `[day(1), day(2)]`、狀態皆 `PENDING`（L1 前行程是 2026-05 的過去日期，D1 14/16/21） |
-| 6b | UI：保母直接打網址重新進入報價頁 | 唯讀摘要「應補款 $ 600」，無報價、拒絕、退款憑證區塊 | `quote-submit-btn`、`reject-mod-btn`、`refund-proof-section` 數量為 0（C2） |
-| 6c | API：飼主在補款階段查詢訂單並直接打撤單 `POST /api/orders/{id}/cancel {version}`（驗收 A3，fix-batch12） | 補款階段不可撤單，需走 PRD-016 協商 | `GET /api/orders/{id}` 的 `cancellableByOwner=false`；撤單回 **409**，`message` 含「補款階段」與「PRD-016」；訂單仍 `PENDING_PAYMENT`（`OwnerCancellationService` 的 `SupplementPaymentResolver` 排除，過去只有 JUnit） |
-| 7 | UI：飼主上傳補款憑證（沿用 SD-007 既有表單） | 付款頁顯示「本次應補差額 $600」（`payment-amount-due`），總額列顯示「變更後訂單總額 $1,200」；**沒有「取消預約」鈕**（`owner-cancel-booking-btn` 數量 0）；憑證送出成功 | `GET /api/orders/{id}` 的 `amountDue=600`、`totalAmount=1200`；`POST .../payment-proof` 200，`Order=PAID` |
-| 8 | UI：保母核對入帳 | 核對面板顯示「本次應收補款差額 $600」（差額 `verify-amount-due-value` 完全比對 `$ 600`，整段 `verify-amount-due` 以 `/^本次應收補款差額：\s*\$ 600\s*（變更後總額 \$ 1,200）$/` 錨定；2026-10 前用 `toContainText('$ 600')`，`$ 6000` 也會過，驗收 S2）、**補款**憑證後五碼 `54321`（`verify-last-five`，不是首次付款的 `12345`）與補款憑證預覽（簽名網址，SD-007 §4.7）；訂單回到發起變更前的狀態 | `GET /api/orders/sitter` 的 `amountDue=600`；`payment-proof-preview` 的 `src` 帶 `X-Goog-Signature` 且 `naturalWidth>0`；`POST .../verify-payment` 200，`Order=CONFIRMED`（變更是在 CONFIRMED 時發起，SD-016 §4.3）；核帳後 `paymentProofLastFive` 回到首次付款 `12345`、`paidAt` 與前置步驟記下的首次核帳時間相同、`amountDue=1200`（這組值以 `apiStep`「核帳後首次付款資料未被補款覆寫」留 JSON，驗收 S2）；補款憑證預覽 `apiStep` 留遮簽名的網址 JSON，且不帶簽名 GET 該物件斷言 403（驗收 S1/S3） |
-| 9 | UI：結清後雙方直接打網址重新進入兩個協商頁 | 兩頁都以中性樣式顯示「目前沒有進行中的變更協商」，沒有任何可操作按鈕 | `GET .../modification` 204；`mod-quote-empty`/`mod-confirm-empty` 可見、`mod-*-error` 數量 0（2026-10-24 驗收 N8 前為紅字 error + 409）；`quote-submit-btn`、`reject-mod-btn`、`refund-proof-submit-btn`、`confirm-submit-btn`、`refund-confirm-btn` 數量為 0（C2） |
+**斷言來源**
 
-### 退款分支
+- 訂單：E2 `GET /api/orders/{order}`（`status`、`quote.totalAmount` = 目前生效總額、`netPaid`、`openModification`、`allowedActions`、`cancellation`）；目前總額另與 `INSPECT.totalAmount` 核對。
+- 變更：E19 `GET /api/orders/{order}/modifications/{mod}`（`status`、`newTotalAmount`、`netPaid`、`diff`、`expiresAt`、`endedAt`、`allowedActions`、`payment`）；列表 E18（`createdAt` 倒序）。
+- payment：E10 `GET /api/orders/{order}/payments`（`purpose`、`direction`、`amount`、`status`、`dueAt`、`accountSnapshot`、`verifiedAt`、`voidedAt`，`created_at` 由舊到新）；submission：E12。
+- 行程：F1（`serviceDate`、`planId`、`status`）；檢核項：`INSPECT.fulfill.checklistItems`（`visitId`、`title`、`sortOrder`、`isCompleted`、`createdSource`）。
+- 稽核與通知：`INSPECT.orderLogs`（`actionType`、`operatorRole`、`payload`）、`INSPECT.notifications`（`type`、`recipientRole`、`mandatory`、`emailStatus`）；同一步驟只斷言本步新增的列（以步驟前列數為基準）。通知文案以收件者 token 呼叫 `GET /api/notifications` 篩同一 `type`，只斷言關鍵字與金額數字（範本由 SD-NOTIFY 管理）。
+- 待辦：`INSPECT.adminTasks`；ADMIN 端 E28 `GET /api/admin/tasks`、E27 `GET /api/admin/orders/{order}`。
+- 時間：送出前 t0、回應後 t1 夾值（例 `t0+72h ≤ dueAt ≤ t1+72h`）；固定時鐘精確值交後端整合測試（§4）。
+- 金額顯示：SD-FRONTEND-SPEC §6.4.1 `$ 1,800`（`$` 後為 U+00A0）；狀態文字依 §6.4。
+- 多筆 payment 並存時以 `payment-block-{paymentId}`（SD-ORDER §9.3）定位，其內再找 PRD-007 的 `payment-amount` 等元件。
 
-| 步驟 | 操作 (When) | 業務預期結果 (Then - Functional) | 技術校驗 |
-| :--- | :--- | :--- | :--- |
-| 1-2 | 同上，改申請「減少天數」 | `Order=MODIFYING` | 原始訂單明天、後天 2 天（`datesOverride: [day(1), day(2)]`），精靈預填這兩天、區間「常態開放（不限日期）」，改為明天 1 天 |
-| 3-4 | 保母接受預填總額（換算後較低） | `ModificationRequest=QUOTED`，`diffAmount=-600`；報價表單消失，飼主同意前沒有退款憑證區塊 | `quote-submit-btn`、`refund-proof-section` 數量為 0（C2） |
-| 5-6 | 飼主確認，差額欄位顯示 `-$ 600 (負值為退款)`（`formatMoney` 負數格式，負號在幣別前；`$` 後為 U+00A0） | `Order=REFUND_VERIFY`；同意表單消失；保母尚未上傳退款憑證，顯示等待且沒有「確認已收到退款」 | `confirm-submit-btn`、`refund-confirm-btn` 數量為 0，`refund-awaiting-proof` 可見（C2） |
-| 7 | UI：保母**重新**點「處理訂單變更協商」進入同一頁 | 頁面正常顯示（不 404），報價表單與拒絕已不存在；選擇退款截圖上傳（不再有手填網址欄位），送出後表單消失並顯示簽名網址預覽（`apiStep` 留遮簽名網址 JSON、不帶簽名 GET 斷言 403，驗收 S1/S3） | **迴歸測試重點**：`getActiveModificationRequest` 過去只認 `PENDING_REVIEW`/`QUOTED`，飼主確認後 `ModificationRequest` 已轉終態 `M_DONE`，這裡若沒修好會顯示 `mod-quote-error` 進不去表單。`POST .../modification/refund-proof`（multipart）200；`refund-proof-preview` 的 `src` 為 `refund-proofs/` 簽名網址且 `naturalWidth>0`（C4） |
-| 8 | UI：飼主**重新**點「查看並確認訂單變更」→ 檢視退款憑證預覽 → 點「確認已收到退款」 | 退款憑證以圖片顯示（簽名網址、無外部連結；同步驟 7 留 JSON 並斷言不帶簽名 403）；顯示「已確認收到退款」，按鈕消失 | `POST .../modification/refund-confirm` 200，`Order=CONFIRMED`（本測試訂單非整筆取消，items 非空；變更在 CONFIRMED 發起，依 `previous_status` 復原，SD-016 §2.7） |
-| 9 | 同補款分支步驟 9 | 兩頁皆無任何可操作按鈕 | 同上 |
+清除：`cleanup-e2e-journeys`（SD-ORDER §10.4：訂單全套含 `payments` / `payment_submissions` / GCS 憑證物件、`modification_requests`、`admin_tasks`、`order_logs`、`visits` / `visit_checklist_items`、`idempotency_records`，再清通知、方案、毛孩、帳號）。本旅程沒有 cleanup 清不掉的新資料型態。
 
----
+## 2. 測試步驟
 
-## 三、邊界條件 / 例外場景
+> 步驟 ID 前綴 `J4-`；spec 的 `step()` / `apiStep()` 標籤必須以同一 ID 開頭。E11 / E14 / E17 / E20–E24 / E29 一律帶 `Idempotency-Key`（UUID），除非該步驟另寫。
+> AC 欄格式：`PRD-NNN AC-x.y（模組 TS 步驟）`；模組 TS 步驟 = 該模組 TS 中驗證同一行為的細項步驟，本旅程只驗跨 PRD 串接後的結果。
 
-* **方案可預訂區間取自真實方案（2026-10-26 L1 起）**：精靈的區間來自 `GET /api/orders/{id}` 的 `planDateRanges`（SD-016 §2.1）。Journey 的方案由 `bootstrapVerifiedSitter` 建立、未設區間，所以精靈顯示「常態開放（不限日期）」，變更日期一律用相對今天的未來日期（`day(1)`、`day(2)`，與 `bootstrapPendingOrder` 的 tomorrow 同一寫法，`bootstrapConfirmedOrder` 的 `datesOverride` 也改傳 `[day(1), day(2)]`）。區間外 422 由 JUnit / mock 覆蓋（TS-016 Scenario 2f）；Journey 用 FREE 保母、無法設區間，不在真後端重測。2026-10-26 前精靈寫死 `2026-05-01 ~ 05-31`，Journey 只能填 2026-05 的過去日期。
-* **Zero-Trust 對帳**：`confirmModification` 後端會重新核對 `agreedDiffAmount` 與 `ModificationRequest.diffAmount` 是否一致；`OwnerModificationConfirm.tsx` 的輸入框預設值就是後端算好的最新差額，本測試直接接受預填值送出，沒有特別測「篡改差額」這個防線——該防線已有 `ModificationServiceTest.should_RejectConfirm_When_AgreedAmountMismatchesQuote` 單元測試覆蓋。
-* **不驗證的點（刻意）**：`ModificationService` 全程沒有發送任何通知事件（非 Check-in/付款那類有 `eventPublisher` 的模組），本 journey 不斷言任何通知內容。
-* **既有技術債（非本次修復範圍）**：SD-016 文件本身已註記 `propose/quote/reject/confirm` 四支端點的 `Idempotency-Key` 只在 Controller 層強制必填，`ModificationService` 內部沒有真的做去重（見 SD-016 §5 WARNING）；另外 `OrderModificationWizard.tsx` 呼叫 `modifyOrder()` 時 `requestedBy` 參數寫死 `'OWNER'`，若保母透過同一個頁面發起變更會被後端拒絕（`callerIsOwner=false` 但 `requestedBy='OWNER'`），本 journey 只測飼主發起的路徑，這個保母發起路徑的斷路屬已知缺陷，留給後續處理。
+### 2.1 主線：飼主申請增加行程 → 保母加價報價 → 飼主同意 → 補款 → 保母確認 → SETTLED（T1）
 
----
+前置：建 `order`；記下 E10 `INITIAL` 那筆與 E12（`INITIAL`）為快照 S0。
 
-## 四、附註 / 復原步驟
+| 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
+|------|----|------|------|---------|---------------|------|
+| J4-01 | PRD-016 AC-1.1（TS-016 MI-01） | owner | 開啟 `/owner/orders/{order}`，點 `owner-order-detail-btn-modify` | 導向 `/orders/{order}/modify`；`order-modify-type-CHANGE`、`order-modify-type-CANCEL_ALL` 可見；`order-modify-visit-checkbox-{V1}`、`-{V2}`、`-{V3}` 皆可勾選 | E2 `status=CONFIRMED`、`allowedActions` 含 `REQUEST_MODIFICATION`、`openModification` 不輸出 | 截圖 + API JSON |
+| J4-02 | PRD-016 AC-1.1、BR-26（TS-016 MI-02） | owner | 選 `order-modify-type-CHANGE`；不勾任何減少行程；在新增行程列 `order-modify-add-item-0` 的 `-date` 填 D+7、`-plan` 選 P、`-daily-count` 填 1，毛孩維持預設；`order-modify-input-reason` 填「多請一天」；點 `order-modify-btn-submit` | 送出前 `order-modify-add-item-0-pet-checkbox-{M1}`、`-{M2}` 皆已勾選；送出後導向 `/orders/{order}/modifications/{mod}`，顯示 `modification-detail-expires-at`（`expiresAt` 換算 Asia/Taipei `YYYY-MM-DD HH:mm`）；飼主只看到 `modification-btn-withdraw` | 頁面發出的 E17 恰一次，201：`status=REQUESTED`、`initiatedBy=OWNER`、`systemAmount` / `newTotalAmount` / `diff` 不輸出、`expiresAt` 在 `[t0+72h, t1+72h]`；E19 `requestedContent` 無減少、`addItems[0]` = D+7 / P / 1 / `petIds={M1, M2}` | 截圖 + API JSON |
+| J4-03 | PRD-016 AC-1.1、BR-20（TS-016 MI-03、MI-04） | owner、sitter | 查訂單、行程、payment、`INSPECT`；sitter `GET /api/notifications` | — | E2 `status=CONFIRMED`、`openModification={modificationId: mod, status: REQUESTED, initiatedBy: OWNER}`、`quote.totalAmount=1500`；F1 只有 V1–V3（無 D+7）；E10 只有 `INITIAL`；`INSPECT.orderLogs` 新增恰 1 筆 `MODIFICATION_REQUESTED`（`operatorRole=OWNER`、`payload.modificationId=mod`、`payload.reason=多請一天`）；`INSPECT.notifications` 新增恰 1 筆 `MODIFICATION_REQUESTED` → SITTER（`mandatory=false`）；sitter 通知列表該則文案含「飼主提出訂單變更」、連結 `/orders/{order}/modifications/{mod}` | API JSON |
+| J4-04 | PRD-016 AC-2.3、AC-3.5（TS-016 MQ-01、MW-12） | sitter | 開啟 `/sitter/orders/{order}`，從訂單詳情進入進行中變更的協商頁（業務名稱「查看變更」入口；SD-ORDER §9.1 / §9.3 未定 testid，見 §5 第 1 項，由 e2e-author 對應；不得以直接輸入網址取代） | 導向 `/orders/{order}/modifications/{mod}`；顯示飼主期望內容（新增 D+7 / P / 1 次）、原因「多請一天」、`modification-detail-diff`「應補款 $ 500」（系統計算值 2000 − 已收淨額 1500）；`modification-btn-quote`、`modification-btn-reject` 可見；`modification-input-surcharge`、`modification-input-discount`、`modification-input-adjustment-reason` 可輸入（PRO 未鎖定） | E19（SITTER）`status=REQUESTED`、`allowedActions=[QUOTE, REJECT]` | 截圖 + API JSON |
+| J4-05 | PRD-016 AC-2.3、AC-2.1（通知）、BR-16（TS-016 MQ-07、MQ-02） | sitter | 記下 E19 `expiresAt` 為 e0；`modification-input-surcharge` 填 300、`modification-input-adjustment-reason` 填「節日加成」；點 `modification-btn-quote` | 報價後保母頁 `modification-btn-quote`、`modification-btn-reject`、`modification-btn-withdraw` 數量皆 0，只顯示唯讀報價、`modification-detail-diff`「應補款 $ 800」與 `modification-detail-expires-at` | 頁面發出的 E20 恰一次，200：`status=QUOTED`、`systemAmount=2000`、`newTotalAmount=2300`、`netPaid=1500`、`diff=800`、`expiresAt` 在 `[t0+72h, t1+72h]` 且 > e0；E19 `surchargeAmount=300`、`adjustmentReason=節日加成`、`allowedActions=[]`（SITTER）；`INSPECT.orderLogs` 新增 1 筆 `MODIFICATION_QUOTED`（`operatorRole=SITTER`、`payload.newTotalAmount=2300`、`payload.diff=800`）；`INSPECT.notifications` 新增 1 筆 `MODIFICATION_QUOTED` → OWNER，通知列表文案「保母已回覆變更報價」 | 截圖 + API JSON |
+| J4-06 | PRD-016 AC-3.5、PRD-023 §4.1-1（TS-016 MW-13） | owner | 從通知連結（J4-05 的 `MODIFICATION_QUOTED` 通知）開啟協商頁 | 顯示新內容（新增 D+7）、`modification-detail-diff`「應補款 $ 800」、`modification-detail-expires-at`；`modification-btn-accept`、`modification-btn-reject`、`modification-btn-withdraw` 可見 | E19（OWNER）`allowedActions=[ACCEPT, REJECT, WITHDRAW]`；接著執行 J4-E01、J4-E02、J4-E07 | 截圖 + API JSON |
+| J4-07 | PRD-023 AC-1.2（TS-023 SA-03） | owner | 點 `modification-btn-accept`（頁面送出的 key 記為 K_acc） | 同意 / 拒絕 / 撤回按鈕消失；協商頁出現補款區塊 `payment-block-{補款 id}` | 頁面發出的 E23 恰一次，200：`status=AWAITING_SUPPLEMENT`、`netPaid=1500`、`diff=800`、`payment={direction: CHARGE, purpose: SUPPLEMENT, amount: 800}`、`payment.dueAt` 在 `[t0+72h, t1+72h]`、`orderStatus=CONFIRMED`、`totalAmount=1500`；F1 仍只有 V1–V3；E2 `quote.totalAmount=1500`、`openModification.status=AWAITING_SUPPLEMENT`；E10 依序 `INITIAL`、`SUPPLEMENT`（`UNPAID`、`accountSnapshot` 四欄齊全）；`INSPECT.orderLogs` 新增 1 筆 `MODIFICATION_ACCEPTED`（`payload.branch=AWAITING_SUPPLEMENT`、`agreedNetPaid=1500`、`agreedDiff=800`、`cancelledVisitIds=[]`、`paymentId`=補款 id）；`INSPECT.notifications` 新增 `SUPPLEMENT_REQUIRED` → OWNER 1 筆、`MODIFICATION_ACCEPTED_SUPPLEMENT` → SITTER 1 筆；owner 通知列表 `SUPPLEMENT_REQUIRED` 文案含金額 800 與「請於 {dueAt 的 Asia/Taipei YYYY-MM-DD HH:mm} 前完成」 | 截圖 + API JSON |
+| J4-08 | PRD-023 AC-1.8（TS-023 SA-15） | owner | 以 API 用 K_acc 同 body 重送 E23；再換新 key 送 E23 | — | 回放：狀態碼 200 與 body 同 J4-07；E10 `SUPPLEMENT` 仍 1 筆；`MODIFICATION_ACCEPTED` 的 `order_logs` 與 `SUPPLEMENT_REQUIRED` 通知皆未增加。新 key → 409 `MODIFICATION_STATE_CONFLICT`；E10 `SUPPLEMENT` 仍 1 筆 | API JSON |
+| J4-09 | PRD-023 AC-1.2、BR-7、BR-17；PRD-016 AC-1.5（TS-023 SA-04、TS-016 MI-14） | owner | 檢視協商頁補款區塊；再開 `/owner/orders/{order}` | `payment-block-{補款 id}` 內 `payment-amount`「$ 800」、`payment-due-at`「請於 … 前完成」（與 J4-07 同一時間字串）、`payment-account-snapshot` 可見；頁面沒有以 `$ 2,300` 作為應付金額的元素、沒有 `order-total-amount`、沒有退款區塊（無 `payment-refund-dispute-link`）、飼主看不到 `btn-verify-payment`；訂單詳情沒有 `owner-order-detail-btn-modify` | E2 `allowedActions` 不含 `REQUEST_MODIFICATION`；接著執行 J4-E09 | 截圖 + API JSON |
+| J4-10 | PRD-023 §4.3-1；PRD-007 AC-1.4（TS-023 SS-01、TS-007 P-18） | owner | 在 `payment-block-{補款 id}` 勾 `proof-disclaimer-checkbox`、`proof-last5-input` 填 `54321`、`proof-file-input` 選 PNG、點 `proof-submit-btn` | `submission-history` 出現 `submission-history-item-{submissionId}`（後五碼 54321） | 頁面發出的 E11 恰一次，201：`paymentStatus=SUBMITTED`；E10 `SUPPLEMENT` `SUBMITTED`、`INITIAL` 不變；`INSPECT.orderLogs` 新增 1 筆 `PAYMENT_PROOF_SUBMITTED`（`operatorRole=OWNER`、`payload.purpose=SUPPLEMENT`、`payload.lastFive=54321`）；`INSPECT.notifications` 新增 1 筆 `PAYMENT_PROOF_SUBMITTED` → SITTER | 截圖 + API JSON |
+| J4-11 | PRD-023 AC-2.1、BR-7；PRD-007 AC-2.2（TS-023 SS-02、TS-007 PV-05） | sitter | 先以 `sitter-setup` upsert 只送 `plans=[{key: P, defaultTasks: [餵乾糧, 換貓砂, 梳毛]}]`（供 J4-13）；接著執行 J4-E03；保母開協商頁補款區塊，點 `btn-verify-payment` | 核對區 `payment-amount`「$ 800」（不是 `$ 2,300`）、`submission-history-image-{submissionId}` 已載入（`naturalWidth>0`）、後五碼 54321；確認後顯示唯讀「變更已生效」結果，無任何動作按鈕 | 頁面發出的 E14 恰一次，200：`paymentStatus=VERIFIED`、`modification={modificationId: mod, status: SETTLED}`、`orderStatus=CONFIRMED` | 截圖 + API JSON |
+| J4-12 | PRD-023 AC-2.1、BR-3、BR-15（TS-023 SS-02） | — | 查變更、訂單、行程、payment、`INSPECT` | — | E19 `status=SETTLED`、`endedAt` 在 J4-11 的 `[t0, t1]`；F1 共 4 筆：V1–V3 `PENDING` + 新行程 N1（`serviceDate=D+7`、`planId=P`、`status=PENDING`）；E2 `status=CONFIRMED`、`quote.totalAmount=2300`（= `INSPECT.totalAmount`）、`netPaid=2300`、`openModification` 不輸出、`allowedActions` 再度含 `REQUEST_MODIFICATION`；`INSPECT.completionBasisAt` 不輸出（仍有 `PENDING` 行程，SD-ORDER §3.1.3）；E10 補款 `VERIFIED`、`verifiedAt` 在 `[t0, t1]`；`INSPECT.orderLogs` 新增 1 筆 `PAYMENT_VERIFIED`（`operatorRole=SITTER`、`payload.purpose=SUPPLEMENT`、`payload.modificationId=mod`、`payload.newTotalAmount=2300`），且無 `ORDER_STARTED`；`INSPECT.notifications` 新增 `SUPPLEMENT_VERIFIED` 恰 2 筆（OWNER、SITTER），文案「補款已確認，變更已生效」；本單沒有新的 `ORDER_ACTIVATED` | API JSON |
+| J4-13 | PRD-023 AC-2.2；PRD-008 AC-3.3；PRD-028 AC-1.1 情境 2、3（TS-023 SS-03、TS-008 V-54、TS-028 §4 AC-1.1-3） | owner | 開 `/owner/orders/{order}`；比對 S0；查 `INSPECT.fulfill.checklistItems` | 行程清單 4 列 `owner-order-detail-visit-row-{V1、V2、V3、N1}`；`owner-order-detail-visit-status-{N1}`「待執行」；頁面不出現英文狀態碼 | 首次付款不被覆寫：E10 `INITIAL` 的 `status=VERIFIED`、`amount=1500`、`currentSubmissionId`、`verifiedAt` 與 S0 相同；E12（`INITIAL`）筆數、`lastFive=12345`、`submittedAt`、`reviewedAt`、`verifiedAt` 與 S0 相同；E12（`SUPPLEMENT`）自有 1 筆 `lastFive=54321`、`status=ACCEPTED`。檢核項：N1 恰 3 項，依 `sortOrder` 為「餵乾糧」「換貓砂」「梳毛」、皆 `isCompleted=false`、`createdSource=SYSTEM`；V1 仍為 2 項「餵乾糧」「換貓砂」（既有行程不受方案修改影響） | 截圖 + API JSON |
 
-* **資料清理**：本測試建立的帳號、訂單、變更請求皆落在 `@e2e-journey.test` 網域，由 CI 跑完後呼叫 `cleanup-e2e-journeys` 統一硬刪除。
-* **對話框斷言**：協商三頁的成功/失敗都用 `alert()` 呈現（例如「變更申請已成功提交！」「送出報價失敗，請檢查權限或參數。」），退款分支每個送出動作都以 `expectDialog` 斷言成功字樣，避免 `alert('…失敗')` 被默默 accept 仍判定通過。
-* **前置依賴**：`bootstrapConfirmedOrder` helper 重跑 Journey A+B 的機械部分；退款分支額外傳入 `datesOverride` 參數兜出 2 天的原始訂單。
-* **Cloud Run 冷啟動（環境因素，非產品 bug）**：正式站沒設 min-instances，縮到 0 後 Spring Boot 冷啟要 33~40 秒。本機多 worker 同時打第一發 `provision-account` 時，超出可用 instance 的 request 會被 Google Frontend 直接 abort 成 `429 Rate exceeded.`（2026-10-23 本機 5 workers 實測，退款分支因此在前置步驟失敗）。處理方式：`helpers.ts` 的 `provisionAndLogin`/`loginAsSeedAdmin` 只對 **body 不是 JSON** 的 429/503（GFE 的 `Rate exceeded.` 純文字/HTML，request 沒進 container，重送安全）指數退避重試；後端自己回的 JSON 429（`ACCOUNT_LOCKED`、`OTP_LOCKED` 等真實業務結果）一律原樣回傳不重試，避免多等 21 秒還把鎖定原因藏起來；本機 `playwright.config.ts` workers 上限 3；`e2e-runner` 本機模式先暖機 `/actuator/health` 再以 `--workers=2` 執行。
+### 2.2 退款分支：保母申請減少行程 → 飼主同意 → 待退款 → 保母上傳退款憑證 → 飼主確認 SETTLED（T1 接續）
 
----
+接續 J4-13（訂單 `CONFIRMED`、V1–V3 與 N1 皆 `PENDING`、`total_amount = 已收淨額 = 2300`）。
 
-## 五、本測試發現並修復的真實 bug
+| 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
+|------|----|------|------|---------|---------------|------|
+| J4-14 | PRD-016 AC-1.3、AC-1.5（前一筆 `SETTLED` 後可再發起）、BR-9、BR-12（TS-016 MI-07、MI-15） | sitter | 開 `/sitter/orders/{order}`，點 `sitter-order-detail-btn-modify` → 選 `order-modify-type-CHANGE`、勾 `order-modify-visit-checkbox-{N1}`、`order-modify-input-reason` 填「該日無法服務」、加減欄留空；點 `order-modify-btn-submit` | 精靈中 V1、V2、V3、N1 四個 checkbox 皆可勾選；送出後導向協商頁，`modification-detail-diff`「應退款 $ 800」；保母只看到 `modification-btn-withdraw` | 頁面發出的 E17 恰一次，201：`status=QUOTED`、`initiatedBy=SITTER`、`systemAmount=1500`（V1–V3 各 500，前一筆的加價 300 不延續）、`newTotalAmount=1500`、`netPaid=2300`、`diff=-800`、`expiresAt` 在 `[t0+72h, t1+72h]`；E18 共 2 列（新列在前）；`INSPECT.orderLogs` 新增 1 筆 `MODIFICATION_PROPOSED`（`operatorRole=SITTER`、`payload.diff=-800`）；`INSPECT.notifications` 新增 1 筆 `MODIFICATION_PROPOSED` → OWNER（範本由 SD-NOTIFY 擬定，只斷言 `type` 與收件者） | 截圖 + API JSON |
+| J4-15 | PRD-016 AC-1.3、AC-3.5（TS-016 MI-08、MW-14） | owner | 開協商頁 | `modification-detail-diff`「應退款 $ 800」；`modification-btn-accept`、`modification-btn-reject` 可見；`modification-btn-withdraw` 數量 0 | E19（OWNER）`allowedActions=[ACCEPT, REJECT]`；接著執行 J4-E06 | 截圖 + API JSON |
+| J4-16 | PRD-023 AC-1.3、BR-3、BR-4（TS-023 SA-06） | owner | 點 `modification-btn-accept` | 動作按鈕消失；出現退款區塊；飼主頁沒有 `btn-verify-payment`、沒有補款區塊 | 頁面發出的 E23 恰一次，200：`status=AWAITING_REFUND`、`netPaid=2300`、`diff=-800`、`payment={direction: REFUND, purpose: MODIFICATION_REFUND, amount: 800}`、`payment.dueAt` 不輸出、`orderStatus=CONFIRMED`、`totalAmount=2300`；F1 N1 `CANCELLED`（同意即取消），V1–V3 `PENDING`；E2 `status=CONFIRMED`（因變更取消不觸發 O9）；E10 新增 `MODIFICATION_REFUND` `UNPAID`、`accountSnapshot` 不輸出；`INSPECT.orderLogs` 新增 1 筆 `MODIFICATION_ACCEPTED`（`payload.branch=AWAITING_REFUND`、`cancelledVisitIds=[N1]`、`agreedDiff=-800`），無 `ORDER_STARTED`；`INSPECT.fulfill.visits` N1 `cancelledAt` 有值；`INSPECT.notifications` 新增 1 筆 `REFUND_REQUIRED` → SITTER，文案含「請退還」、金額 800、「上傳退款憑證」 | 截圖 + API JSON |
+| J4-17 | PRD-008 AC-3.3；PRD-023 AC-3.2（TS-008 V-54、TS-023 SR-03） | owner | 開 `/owner/orders/{order}`；接著執行 J4-E04、J4-E05 | `owner-order-detail-visit-row-{N1}` 仍在、`owner-order-detail-visit-status-{N1}`「已取消」、開始 / 結束時間「—」；退款 `payment-block-{退款 id}` 內沒有 `btn-verify-payment`，有 `payment-refund-dispute-link` | F1（OWNER）N1 `status=CANCELLED` | 截圖 + API JSON |
+| J4-18 | PRD-007 AC-1.2；PRD-023 BR-11（TS-007 P-05） | sitter | 開協商頁（或 `/sitter/orders/{order}`）定位退款 `payment-block-{退款 id}` | `payment-amount`「$ 800」；文案「退款帳號請與飼主自行聯繫」；容器內 `payment-account-snapshot`、`payment-due-at` 數量 0；`submission-history` 顯示「尚未上傳憑證」 | sitter E10 該筆 `allowedActions=["UPLOAD"]`、無 `dueAt`、無 `accountSnapshot` | 截圖 + API JSON |
+| J4-19 | PRD-023 §4.4-1；PRD-007 AC-1.4（TS-023 SR-01） | sitter | 勾 `proof-disclaimer-checkbox`、`proof-last5-input` 填 `22222`、`proof-file-input` 選 PNG、點 `proof-submit-btn` | `submission-history` 出現 `submission-history-item-{submissionId}`（後五碼 22222） | 頁面發出的 E11 恰一次，201：`paymentStatus=SUBMITTED`；`INSPECT.orderLogs` 新增 1 筆 `PAYMENT_PROOF_SUBMITTED`（`operatorRole=SITTER`、`payload.purpose=MODIFICATION_REFUND`）；`INSPECT.notifications` 新增 1 筆 `PAYMENT_PROOF_SUBMITTED` → OWNER | 截圖 + API JSON |
+| J4-20 | PRD-023 AC-3.1、BR-17；PRD-007 AC-2.2、AC-2.4（TS-023 SR-02、TS-007 PV-06、PV-15） | owner | 開協商頁退款區塊，點 `btn-verify-payment`（「確認收到退款」） | 上傳後才出現 `btn-verify-payment`；`submission-history-image-{submissionId}` 已載入、後五碼 22222；`btn-reject-payment` 數量 0；`payment-refund-dispute-link` 可見；確認後顯示唯讀「變更已完成」結果 | 頁面發出的 E14 恰一次，200：`paymentStatus=VERIFIED`、`modification.status=SETTLED`、`orderStatus=CONFIRMED` | 截圖 + API JSON |
+| J4-21 | PRD-023 AC-3.1、BR-13、BR-15；PRD-016 AC-3.5（歷史）（TS-023 SR-02、TS-016 MW-16） | owner | 查變更、訂單、行程、payment、`INSPECT`；開 `/owner/orders/{order}` 變更歷史 | `modification-history-item-{id}` 共 2 個，DOM 順序與 E18 一致（`createdAt` 倒序）；兩筆皆顯示已結束的唯讀結果 | E19 `SETTLED`、`endedAt` 在 J4-20 的 `[t0, t1]`；E2 `status=CONFIRMED`（V1–V3 仍為有效行程，不觸發 O10）、`quote.totalAmount=1500`（= `INSPECT.totalAmount`）、`netPaid=1500`；F1 V1–V3 `PENDING`、N1 `CANCELLED`；E10 依序 `INITIAL`（1500 `VERIFIED`）、`SUPPLEMENT`（800 `VERIFIED`）、`MODIFICATION_REFUND`（800 `VERIFIED`）；E18 2 列皆 `SETTLED`；`INSPECT.orderLogs` 新增 1 筆 `PAYMENT_VERIFIED`（`operatorRole=OWNER`、`payload.purpose=MODIFICATION_REFUND`、`payload.newTotalAmount=1500`），無 `ORDER_CANCELLED_BY_MODIFICATION`；`INSPECT.notifications` 新增 `REFUND_VERIFIED` 恰 2 筆（雙方），文案「退款已確認，變更已完成」 | 截圖 + API JSON |
 
-規劃本 journey、盤查三個協商頁面（`OrderModificationWizard`/`SitterModificationQuote`/`OwnerModificationConfirm`）時，發現這整個模組雖然功能本身可用（API 都通、單元測試都綠），但**真實使用者事實上完全到不了這些頁面**，額外還挖到一個安全性問題：
+### 2.3 逾時分支：已報價的變更過期（shift-time + C5 帶 orderId）（T2）
 
-1. **三個頁面完全沒有真實入口**：`SitterOrders.tsx`/`OwnerOrders.tsx`/`OwnerOrderDetail.tsx` 過去沒有任何按鈕連到 `/orders/:id/modify`、`/sitter/orders/:id/quote`、`/owner/orders/:id/modification-confirm`，只有 `DemoHome.tsx` 用寫死的假 orderId 展示連結。真實訂單一旦要走變更協商，飼主/保母完全無法從列表或詳情頁點進去——這跟 Journey C 抓到的行程入口缺口是同一類問題。已在 `OwnerOrderDetail.tsx`（CONFIRMED/IN_PROGRESS 顯示「申請訂單變更」、MODIFYING/REFUND_VERIFY 顯示「查看並確認訂單變更」）與 `SitterOrders.tsx`（CONFIRMED/IN_PROGRESS 顯示「申請訂單變更」、MODIFYING/REFUND_VERIFY 顯示「處理訂單變更協商」）補上對應按鈕。
+前置：建 `order`；`REQ(新增 D+7 一次)` → `QUOTE()`（2000、差額 +500，`QUOTED`）。
 
-2. **退款憑證上傳頁面在真正需要時會 404**：`getActiveModificationRequest()` 過去只認 `ModificationRequest.status ∈ {PENDING_REVIEW, QUOTED}`。但退款流程恰好是「飼主先確認、保母才需要上傳退款憑證」，飼主確認後 `ModificationRequest.status` 已轉終態 `M_DONE`，保母端頁面只要重新整理或重新導航就查無資料——實務上保母永遠上傳不了退款憑證。詳見 SD-016 §2.2、`docs/sd/SD-016-order-modification-cancellation.md`。已修法：訂單處於 `MODIFYING`/`PENDING_PAYMENT`/`REFUND_VERIFY` 這三個協商相關狀態時，改撈該訂單最新一筆變更請求，不限 `status`。
+| 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
+|------|----|------|------|---------|---------------|------|
+| J4-22 | PRD-016 AC-3.4、BR-15（TS-016 MW-11） | — | 讀 E19 `expiresAt` 為 e0；`SHIFT_MOD(-(72*60+1))`；再讀 E19 `expiresAt` 為 e1 | — | shift-time 200；e1 = e0 − 4321 分鐘；E19 仍 `QUOTED`、`allowedActions=[]`（雙方 token 皆然）；`INSPECT.orderLogs` 有 1 筆 `TEST_TIME_SHIFTED`（非業務 action，後續步驟比對列數時排除） | API JSON |
+| J4-23 | PRD-016 AC-3.4；PRD-023 AC-1.7（TS-016 MW-10、MW-11、TS-023 SA-14） | owner、sitter | 飼主、保母各開協商頁；owner 以 API 依序呼叫 E23、E21、E22 | 雙方頁面 `modification-btn-accept` / `-reject` / `-withdraw` / `-quote` 數量皆 0，顯示「此變更請求已逾期」 | 三次皆 409 `DEADLINE_PASSED`，`payload.deadline=MODIFICATION_EXPIRES_AT`、`payload.deadlineAt=e1`；E19 仍 `QUOTED`；E10 只有 `INITIAL`；F1 仍 V1–V3 | 截圖 + API JSON |
+| J4-24 | PRD-016 AC-3.3、BR-20（TS-016 MW-08） | — | 呼叫 `C5` | 協商頁（重新整理）顯示唯讀「已逾期」結果與結束時間 | C5 200：`processed=1`、`skipped=0`、`failed=0`；E19 `EXPIRED`、`endedAt ≥` C5 呼叫時間；E2 `status=CONFIRMED`、`quote.totalAmount=1500`、`openModification` 不輸出；F1 V1–V3 `PENDING`、無 D+7；E10 只有 `INITIAL`；`INSPECT.orderLogs` 新增 1 筆 `MODIFICATION_EXPIRED`（`operatorRole=SYSTEM`、`payload.fromStatus=QUOTED`、`payload.expiresAt=e1`）；`INSPECT.notifications` 新增 `MODIFICATION_EXPIRED` 恰 2 筆（OWNER、SITTER），通知列表文案「變更請求已逾期」 | 截圖 + API JSON |
+| J4-25 | PRD-016 AC-3.3（重跑）（TS-016 MW-09） | — | 再呼叫一次 `C5` | — | `processed=0`、`skipped=0`、`failed=0`；E19 `endedAt` 與 J4-24 相同；`MODIFICATION_EXPIRED` 的 `order_logs` 仍 1 筆、通知仍 2 筆 | API JSON |
+| J4-26 | PRD-016 AC-1.5（前一筆 `EXPIRED` 後可再發起）（TS-016 MI-15） | owner | 開 `/owner/orders/{order}`，點 `owner-order-detail-btn-modify` → `order-modify-type-CHANGE`、勾 `order-modify-visit-checkbox-{V3}`、原因「行程縮短」、送出 | 按鈕可見（E2 `allowedActions` 含 `REQUEST_MODIFICATION`）；導向新變更的協商頁 | E17 201：`status=REQUESTED`；E18 共 2 列，依序 `REQUESTED`、`EXPIRED` | 截圖 + API JSON |
 
-3. **BOLA（Broken Object Level Authorization）**：`POST .../modification/refund-proof`（保母上傳退款憑證）與 `POST .../modification/refund-confirm`（飼主確認收到退款）這兩支端點——SD-016 文件標注的「[新增]」端點——過去完全沒有 `@PreAuthorize`，身份也不是從 JWT（`TokenContext`）取得，而是直接信任前端傳來的 `sitterId`/`ownerId` query param，只驗證「這個 ID 是不是該訂單的當事人」，沒驗證「呼叫者是不是這個 ID 本人」。實際影響：該訂單的保母本來就合法看得到自己訂單的 `ownerId`，等於保母能自行呼叫 `refund-confirm` 冒充飼主完成退款確認，繞過飼主二次確認的把關意義。同檔案內其餘四支端點（propose/quote/reject/confirm）都正確用 `@PreAuthorize` + `TokenContext.getUserId()`，只有這兩支新增的端點是舊 pattern。已修復並補上 4 支迴歸測試（`OrderControllerTest` 內以「迴歸測試 (BOLA)」為前綴）。
+### 2.4 爭議分支：待退款時飼主申報款項爭議 → DISPUTED 凍結 → ADMIN 調解（T3）
 
-三項修復後，全量後端測試 `mvn test` 219 個測試綠燈。
+前置：建 `order`；`PROPOSE(減少 V3)`（1000、差額 −500）→ `ACCEPT` → 變更 `AWAITING_REFUND`、退款 payment R（500）`UNPAID`、V3 `CANCELLED`。保母不上傳退款憑證。
 
-4. **補款頁顯示新總額而不是應補差額（2026-10，驗收 P8）**：`confirmModification()` 會把 `Order.totalAmount` 直接改成變更後新總額（例：$600 → $1,200）再轉 `PENDING_PAYMENT`，而 `GET /api/orders/{id}` / `GET /api/orders/sitter` 過去只回 `totalAmount`，系統裡根本沒有「這次要付多少」的欄位。結果 `OwnerOrderDetail` 補款頁顯示「訂單金額 $1,200」，飼主照著匯就會多匯一倍；保母核對入帳時看到的也是 $1,200，收到 $600 反而會以為短付而駁回。PRD-016 主流程 C.3 寫明「應補款：等待飼主支付**差額**」，所以這是後端缺欄位 + 前端顯示錯欄位兩層問題。修法：兩個 DTO 新增 `amountDue`（`OrderQueryServiceImpl.resolveAmountDue`：訂單處於 `PENDING_PAYMENT`/`PAID` 且最新一筆變更請求為 `M_DONE`、`diffAmount > 0` 時回差額，其餘回 `totalAmount`）；飼主付款頁顯示「本次應補差額」區塊、總額列改標「變更後訂單總額」，保母核對面板顯示「本次應收補款差額」。迴歸測試：`OrderQueryServiceListTest` 三支（補款回差額、首次付款回總額、退款/已結清不誤判），以及本 journey 步驟 7、8 的 UI 斷言。
+| 步驟 | AC | 角色 | 操作 | 畫面預期 | API / 資料斷言 | 證據 |
+|------|----|------|------|---------|---------------|------|
+| J4-27 | PRD-024 AC-1.1、BR-1、BR-2；PRD-023 AC-3.2（TS-024 PD-01、TS-023 SR-03） | owner | 開 `/owner/orders/{order}`，在退款 `payment-block-{R}` 點 `payment-refund-dispute-link` | 退款區塊沒有 `btn-verify-payment`；導向 `/orders/{order}/modifications/{mod}`，`modification-btn-payment-dispute` 可見；點擊後出現 `payment-dispute-input-description`、`payment-dispute-btn-submit`，對話框內 `input[type=file]` 數量 0 | E19（OWNER）`status=AWAITING_REFUND`、`allowedActions` 含 `PAYMENT_DISPUTE`；E2 `allowedActions` 含 `PAYMENT_DISPUTE` | 截圖 + API JSON |
+| J4-28 | PRD-024 AC-1.1、BR-13（TS-024 PD-02） | owner | `payment-dispute-input-description` 填「保母遲未退款」，點 `payment-dispute-btn-submit`；再開 `/owner/orders/{order}` | 訂單詳情顯示 `owner-order-detail-disputed-banner`「訂單爭議處理中，請等候平台處理」；`owner-order-detail-btn-modify` 數量 0、退款區塊無確認按鈕（PRD-009 §4.4 `DISPUTED` 列） | 頁面發出的 E24 恰一次，200：`status=DISPUTED`、`adminTaskId` 有值；E2 `status=DISPUTED`；E19 仍 `AWAITING_REFUND`；E10 R 仍 `UNPAID` | 截圖 + API JSON |
+| J4-29 | PRD-024 AC-1.1、BR-4（TS-024 PD-03） | admin、sitter | `INSPECT`；admin 呼叫 E28 `GET /api/admin/tasks?type=MODIFICATION_PAYMENT_DISPUTE&status=OPEN` 並開 `/admin/tasks`；sitter `GET /api/notifications` | `/admin/tasks` 有 `admin-task-item-{adminTaskId}` | `INSPECT.adminTasks` 恰 1 筆 `type=MODIFICATION_PAYMENT_DISPUTE`、`status=OPEN`、`taskId=adminTaskId`；E28 含該筆、`orderId`=order、`paymentId`=R；`INSPECT.orderLogs` 新增 1 筆 `PAYMENT_DISPUTE_OPENED`（`operatorRole=OWNER`、`payload.description=保母遲未退款`、`payload.modificationId=mod`、`payload.paymentId`=R、`payload.adminTaskId`）；`INSPECT.notifications` 本步只新增 1 筆 `PAYMENT_DISPUTE_OPENED` → SITTER，沒有 `recipientRole=ADMIN` 的列；sitter 通知列表文案「訂單已進入爭議處理」 | 截圖 + API JSON |
+| J4-30 | PRD-024 AC-2.1、AC-1.4、BR-5、BR-16（TS-024 PF-01、PD-12） | sitter、owner | 記下 E19、E10、E12（R）為快照；保母開協商頁；以 API：sitter E11 上傳 R（有效欄位）、sitter E22 撤回本變更（保母為發起者）、owner E17（新增 D+8）、owner E24（新 key、有效說明） | 保母頁沒有 `proof-submit-btn`、`modification-btn-withdraw`、`modification-btn-payment-dispute`，顯示「訂單爭議處理中，請等候平台處理」；保母訂單詳情顯示 `sitter-order-detail-disputed-banner` | 四次皆 409 `ORDER_STATE_CONFLICT`、`payload.currentStatus=DISPUTED`（E17 不回 `MODIFICATION_IN_PROGRESS`）；E19、E10、E12 與快照相同；`INSPECT.adminTasks` 仍 1 筆 `OPEN` | 截圖 + API JSON |
+| J4-31 | PRD-024 AC-2.5、BR-10（TS-024 PF-09） | admin | admin 呼叫 E27 `GET /api/admin/orders/{order}`；開 `/admin/orders/{order}` | 頁面顯示變更與付款資訊，沒有可編輯變更或付款金額的輸入元件 | E27 200：`status=DISPUTED`、`modifications` 含 mod（`AWAITING_REFUND`）、`payments` 含 R（`UNPAID`）、`adminTasks` 含該待辦 `OPEN`、`logs` 含 `PAYMENT_DISPUTE_OPENED`；`allowedActions` 含 `MEDIATE` | 截圖 + API JSON |
+| J4-32 | PRD-024 AC-2.3、AC-2.5、BR-6、§4.5（TS-024 PF-04、PF-11） | admin | 記下 E27 `quote.totalAmount` 為 T0；admin 呼叫 E29 `POST /api/admin/orders/{order}/mediation`（body `{}`；R 為 `UNPAID`，不需 `refundDecisions`）；之後 admin 再呼叫 E27 | — | 200：`status=CANCELLED`（V1、V2 `PENDING`、無 `DONE` / `CLOSED_BY_SYSTEM` → O17）、`adjustmentPaymentIds=[]`；以 owner token 查：E19 `REJECTED`、`endedAt` 在 `[t0, t1]`；E10 R `VOID`、`voidedAt` 有值、`INITIAL` 仍 `VERIFIED`、無 `ADMIN_ADJUSTMENT`；F1 V1、V2、V3 皆 `CANCELLED`（剩餘 `PENDING` 隨取消附帶動作取消）；E2 `quote.totalAmount=T0`（= `INSPECT.totalAmount`，ADMIN 不改總額）、`netPaid=1500`、`cancellation.cancelledBy=ADMIN`；調解後訂單已非 `DISPUTED` 且待辦已 `RESOLVED`，admin E27 → 403 `FORBIDDEN`（可讀範圍結束，SD-ORDER §3.5 `AdminOrderAccessPolicy`）；`INSPECT.adminTasks` 該待辦 `status=RESOLVED`、`resolution=ADMIN_MEDIATED`、`resolvedAt` 在 `[t0, t1]`；E28 `OPEN` 不再含此單；`INSPECT.orderLogs` 新增 1 筆 `ORDER_MEDIATED`（`operatorRole=ADMIN`、`payload.outcome=CANCELLED`、`payload.rejectedModificationIds` 含 mod、`payload.resolvedAdminTaskIds` 含該待辦）；`INSPECT.notifications` 新增 `ORDER_MEDIATED` 2 筆（雙方，範本待 PRD-020，只斷言 `type`） | API JSON |
+| J4-33 | PRD-024 AC-2.3（調解後雙方畫面）；PRD-016 AC-1.4（終態不可發起）（TS-024 PF-04、TS-016 MI-10） | owner | 開 `/owner/orders/{order}`；owner 以 API 呼叫 E17（新增 D+8） | 狀態徽章 `order-status-badge`「已取消」；`owner-order-detail-btn-modify`、`owner-order-detail-disputed-banner` 數量 0 | E17 409 `ORDER_STATE_CONFLICT`、`currentStatus=CANCELLED`；E18 仍 1 列 | 截圖 + API JSON |
 
-5. **付款憑證公開可讀（2026-10，安全/個資）**：步驟 8 的補款憑證（與首次付款憑證同一機制）過去以 `allUsers READER` 上傳、DTO 直接回 `storage.googleapis.com` 永久公開網址。改為私有物件 + 10 分鐘簽名網址，只有訂單飼主/保母能取得（SD-007 §4.7）。迴歸：步驟 8 斷言預覽為簽名網址且真的載入；後端 `PaymentControllerTest`。退款分支的「退款憑證」當時是保母手填的外部網址字串（不經本系統上傳），已於第 8 點修正。
+## 3. 權限與例外
 
-6. **補款核帳後狀態寫死 `CONFIRMED`、補款覆寫首次付款紀錄（2026-10）**：`verifyPayment()` 不分首次或補款一律回 `CONFIRMED` 並覆寫 `paidAt`；補款上傳直接覆寫 `orders` 上首次付款的憑證/後五碼/冪等鍵/免責時間。改為補款紀錄存 `modification_requests.supplement_*`、核帳回 `previous_status`（SD-016 §4.3）。本 journey 步驟 8 斷言核對面板顯示補款後五碼、核帳後首次付款後五碼與 `paidAt` 未變；`IN_PROGRESS` 發起的分支因 journey 訂單日期在明天無法打卡，只由 `PaymentControllerTest` 覆蓋（見 TS-016 Scenario 1b）。
+> 越權一律用另一個真實帳號打 API；每列註明執行時機（插在哪一步之後）。完整的越權矩陣在模組 TS，本旅程只驗主線每個交接點上「錯的人、錯的方向」被擋。
 
-7. **協商頁沒有依狀態收斂按鈕（2026-10，驗收 P7 / Backlog 第 2 批 C2）**：前一輪驗收的退款分支截圖 13 看到「退款憑證已上傳」時報價表單仍可操作。兩個協商頁原本不看變更請求狀態，所有表單永遠同時渲染；補款分支也出現退款區塊；後端退款憑證端點沒有狀態防護。修法見 SD-016 §2.2（`orderStatus` + 階段表）、§2.5。本 journey 補款步驟 6/6b/9、退款步驟 3-4/5-6/7/8/9 都斷言「已完成的動作按鈕數量為 0」；後端由 `OrderControllerTest` 六支 C2 測試覆蓋。
+| 步驟 | EX / AC | 操作 | 預期 |
+|------|---------|------|------|
+| J4-E01 | PRD-023 EX-1、AC-1.7（TS-023 SE-01） | J4-06 時（`QUOTED`）：`ownerB` 呼叫 E23、E21 | 皆 403 `FORBIDDEN`；E19 仍 `QUOTED`；E10 無 `SUPPLEMENT` |
+| J4-E02 | PRD-023 EX-2、AC-1.7（TS-023 SE-02） | J4-06 時：`sitter`（SITTER token）呼叫 E23；`admin` 呼叫 E23 | 皆 403 `ROLE_MISMATCH`；E19 仍 `QUOTED` |
+| J4-E03 | PRD-007 AC-1.3、AC-2.5（TS-007 P-12、PV-20） | J4-11 確認前（補款 `SUBMITTED`）：`sitter` 對補款呼叫 E11（有效欄位）；`owner` 對補款呼叫 E14（`submissionId` = 目前那筆） | 皆 403 `FORBIDDEN`（付款 / 收款方向不符）；補款仍 `SUBMITTED`、submission 仍 1 筆 |
+| J4-E04 | PRD-007 AC-1.3、AC-2.4、AC-2.5（TS-007 P-14、PV-16、PV-24） | J4-17 時（退款 `UNPAID`）：`owner` 對退款呼叫 E11；J4-19 之後（退款 `SUBMITTED`）：`sitter` 對退款呼叫 E14、`owner` 對退款呼叫 E15（`reason=金額不對`） | 皆 403 `FORBIDDEN`；退款狀態不變 |
+| J4-E05 | PRD-023 EX-14、AC-3.2（TS-023 SR-03） | J4-17 時（退款 `UNPAID`）：`owner` 呼叫 E14（`submissionId` = 執行期 `crypto.randomUUID()`） | 409 `PAYMENT_STATE_CONFLICT`；E19 仍 `AWAITING_REFUND` |
+| J4-E06 | PRD-016 EX-4、AC-3.2（TS-016 MW-03） | J4-15 時（`initiatedBy=SITTER` 的 `QUOTED`）：`owner` 呼叫 E22 | 403 `FORBIDDEN`；仍 `QUOTED` |
+| J4-E07 | PRD-016 EX-8、AC-2.6、BR-8（TS-016 MQ-19） | J4-06 時（`initiatedBy=OWNER` 的 `QUOTED`）：`sitter` 呼叫 E21（`reason=不想做`）、再呼叫 E20（不帶加減） | 皆 409 `MODIFICATION_STATE_CONFLICT`；仍 `QUOTED`、`newTotalAmount=2300` 不變 |
+| J4-E08 | PRD-024 EX-1、EX-2、AC-1.5（TS-024 PE-01、PE-02） | J4-27 時（`AWAITING_REFUND`、尚未申報）：`ownerB` 呼叫 E24；`admin` 呼叫 E24 | `ownerB` 403 `FORBIDDEN`；`admin` 403 `ROLE_MISMATCH`；`INSPECT.adminTasks` 為空、E2 仍 `CONFIRMED` |
+| J4-E09 | PRD-016 EX-7、AC-1.5（TS-016 MI-14） | J4-09 時（`AWAITING_SUPPLEMENT`）：`owner` 呼叫 E17（`CHANGE` 新增 D+8）；`sitter` 呼叫 E17（減少 V3） | 皆 409 `MODIFICATION_IN_PROGRESS`；E18 仍 1 列 |
 
-8. **退款憑證是保母手填的任意外部網址（2026-10，Backlog 第 2 批 C4，安全）**：本 journey 退款步驟 7 過去填的是 `https://storage.googleapis.com/e2e-journey-test/refund-proof.jpg`——任何字串都會被接受、原樣回給飼主端。改為上傳圖片到私有物件 + 簽名網址（SD-016 §2.5/§2.5.1）；步驟 7 改用 `fixtures/report-photo.jpg` 上傳，步驟 7、8 以 `expectSignedRefundProof` 斷言雙方預覽都是 `refund-proofs/` 簽名網址且真的載入，飼主退款區塊內沒有 `<a>`。
+## 4. 不在 E2E 覆蓋的項目
 
-**退款差額的負數格式與 TS 不一致（2026-10-26，驗收 20261026-0007 退款 5-6 / fix-batch13）**：TS 寫 `-$600`，畫面 `formatMoney` 輸出 `$ -600`，舊斷言 `toContainText('-600')` 只比對子字串，沒有釘住格式（TS 與畫面不一致也看不出來）。統一為負號在幣別前 `-$ 600`（SD-FRONTEND-SPEC §6.4.1），前端 `formatMoney` 與本 TS 一起改；Journey D 5-6 與 mock `order-modification.spec.ts` 改為整段 `toHaveText('-$ 600 (負值為退款)')`（mock 另比對 code point）。
+| AC / EX | 原因 | 由誰覆蓋 |
+|---------|------|---------|
+| PRD-016 AC-1.1 / AC-2.1、PRD-023 AC-1.2（`expires_at` / `due_at` 精確值 `2026-11-24T02:00:00Z`） | 正式站無法固定時鐘；本旅程以 `[t0+72h, t1+72h]` 夾值 | `ModificationInitiateIntegrationTest`、`ModificationSettlementIntegrationTest`（注入 `Clock`） |
+| PRD-016 AC-3.3（正式排程於到期後 ≤ 15 分鐘內執行） | 頻率屬 Cloud Scheduler 設定，且自動排程跳過 `@e2e-journey.test` 訂單；本旅程以 `C5?orderId` 直接觸發 | 手動驗證 Cloud Scheduler job `modifications/expiry` 每 15 分鐘（SD-ORDER §8.3）；`ModificationCronIntegrationTest` |
+| PRD-023 AC-2.4–AC-2.8（補款逾時重算、系統退款變更） | 主線補款在期限內完成；補款逾時分支已由模組旅程走真後端 | TS-023 SS-04~SS-11（C6 `?orderId`）；`SupplementExpiryIntegrationTest` |
+| PRD-023 AC-1.5、PRD-016 AC-3.6、PRD-024 AC-1.6 / AC-1.7（跨角色併發的兩種先後） | 旅程不做 `Promise.all` 競爭；指定先後需控制交錯 | TS-016 MW-17、TS-023 SA-09 / SA-10、TS-024 PD-13 / PD-15（恰一方成功）；`ModificationConcurrencyIntegrationTest`、`PaymentDisputeIntegrationTest`（`CountDownLatch`） |
+| 鎖等待逾時 `ORDER_BUSY`（PRD-016 EX-14、PRD-023 EX-10、PRD-024 EX-9） | 正式站無法持鎖 3 秒 | `OrderLockServiceTest`、`ModificationConcurrencyIntegrationTest` |
+| GCS 上傳失敗（PRD-023 EX-16） | 正式站無法注入 GCS 故障 | `PaymentSubmissionConcurrencyIntegrationTest`、TS-007 |
+| Resend 寄信失敗與真實 Email 內容（PRD-016 EX-17、PRD-023 EX-17、PRD-024 EX-12） | Resend 帳號為測試模式，只能寄給專案擁有者信箱，無法注入失敗；本旅程只斷言站內通知與 `INSPECT.notifications.emailStatus` 欄位存在 | 後端整合測試（Resend mock）；真實寄信手動驗證：以專案擁有者信箱建立一組非 `@e2e-journey.test` 帳號走一次 J4-02 / J4-07，人工確認收信 |
+| PRD-024 AC-2.4（`SUBMITTED` 退款「已匯出 / 未匯出」與補款作廢） | 本旅程爭議發生在退款 `UNPAID`；調解畫面屬 PRD-020（待依 baseline 改寫） | TS-024 PF-05~PF-08；`MediationIntegrationTest` |
+| 各 PRD 的欄位格式、上限、方案區間、方案等級計價、冪等 422 / 處理中 | 屬單一端點規則，不是跨模組串接 | TS-016 MI-06、MI-18、MQ-03~MQ-28、MW-18~MW-20；TS-023 SA-15；TS-024 PD-16 |
 
-**變更精靈的方案區間寫死 2026-05、Journey 被迫填過去日期（2026-10-26，驗收 20261026-1517 L1）**：精靈以常數 `2026-05-01 ~ 05-31` 當方案區間，真實訂單（明天以後）填任何未來日期都被前端 `PLAN_NOT_IN_RANGE` 擋下；Journey D 因此把變更後日期填成 `2026-05-26, 2026-05-27`（退款分支原始訂單也寫死 `2026-05-20, 05-21`），行程變成過去日期卻顯示「待執行」（D1 14/16/21）。後端則完全不檢查日期。修法：後端檢查新增日期須在原訂單方案的可預訂區間（422），訂單詳情回 `planDateRanges`，精靈改用真實區間並預填原訂單日期（SD-016 §2.1、TS-016 Scenario 2f）。本 journey 步驟 2 斷言區間文字與預填值、步驟 6a 斷言 `planDateRanges` 與行程日期為明天 / 後天。
+## 5. 已知限制 / 待補
+
+1. **協商頁入口未定 testid**（未解決，J4-04 依賴）：SD-ORDER §9.1 / §9.3 只定義「申請變更 / 提出變更」精靈入口（`owner-order-detail-btn-modify` / `sitter-order-detail-btn-modify`），沒有定義從訂單詳情進入**進行中變更**協商頁的入口（E2 已回 `openModification`）；`modification-history-item-{modificationId}` 是否可點進協商頁也未定。舊版旅程發現過「三個協商頁沒有真實入口」的缺陷，本旅程 J4-04 刻意要求從訂單詳情點入、不得直接輸入網址。建議預設值：SD-ORDER §9.3 補 `owner-order-detail-btn-open-modification` / `sitter-order-detail-btn-open-modification`（E2 `openModification` 非 null 時顯示，連到 `/orders/{orderId}/modifications/{modificationId}`），歷史列點擊同樣導向該頁。補定前由 e2e-author 以業務名稱對應。
+2. **時間敏感**（未解決）：D+n 由執行當下 Asia/Taipei 日期計算，避免在 23:55–00:05 執行（spec 偵測到時 `test.skip` 並註記）。
+3. **依賴未重寫的 PRD-020**（未解決）：J4-32 的 E29 契約與副作用取自 SD-ORDER（Approved）與 PRD-024 §4.5；`ORDER_MEDIATED` 通知範本與調解畫面待 PRD-020 改寫，屆時同步修訂。
+4. **訂單總額的畫面呈現**（待釐清，本旅程不斷言畫面總額）：E2 `quote` 的 `surchargeAmount` / `discountAmount` 是 O2 報價值，`quote.totalAmount` 卻是變更後的目前總額；`owner-order-detail-quote-breakdown`（PRD-006）在變更 `SETTLED` 後若以 base + 加價 − 折扣呈現，會與目前總額不一致（本旅程 J4-12 後為 1500 + 0 − 0 ≠ 2300）。目前總額只以 E2 / `INSPECT` 斷言。
+
+## 6. 本測試發現並修復的真實 bug
+
+| 日期 | 步驟 | 現象 | 修正 commit |
+|------|------|------|------------|
+
+## 7. 變更紀錄
+
+| 日期 | 變更 | 原因 |
+|------|------|------|
+| 2026-11-22 | 依新範本全文重寫：主線改為「增加行程 + 加價 → 補款 → SETTLED」並接續「保母減少行程 → 退款 → SETTLED」，新增逾時分支（shift-time + C5 `orderId`）與款項爭議分支（E24 → `DISPUTED` 凍結 → E29 調解）；斷言改用 E2 / E10 / E19 / F1 與 `inspect`（`order_logs`、通知、`totalAmount`、待辦、檢核項）；每步標 PRD AC 與 TS-016 / 023 / 024 / 007 / 008 / 028 對應步驟。舊版 `MODIFYING` / `REFUND_VERIFY` / `previous_status` 流程、舊端點與舊頁面全部作廢 | PRD-016 / 023 / 024、SD-ORDER、SD-FULFILL Approved 2026-11-22；baseline §3.4（CQ-1） |

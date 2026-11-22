@@ -8,7 +8,7 @@
 | 依據 | `docs/requirements/business-requirements.md`（下稱 BR）、`docs/requirements/sass-level-program.md`（下稱 SAAS）、使用者決定（§7） |
 | 適用 | 所有 PRD / SD / TS。本文件定義的概念，其他文件只能引用、不得重新定義；要改就改這份並走核准 |
 
-> §7 CQ-1~83 已全部由使用者決定。第 2 版已核准；CQ-78~83 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
+> §7 CQ-1~84 已全部由使用者決定。第 2 版已核准；CQ-78~83 為 FULFILL PRD（008 / 009 / 022 / 028）重寫時發現的缺口，補充後待使用者再次核准。
 > 「現況」欄是 2026-11-21 程式碼的實際行為，只當證據，不代表正確。
 > 標「提案值」的參數（`URGENT_WINDOW_HOURS` 2h、排程頻率 15 分鐘、CLOSED_BY_SYSTEM 計價）已隨核准確認。
 
@@ -34,7 +34,7 @@
 
 | 資源 | 可讀 | 可寫 |
 |------|------|------|
-| 訂單 | 該訂單的 owner 與 sitter；ADMIN 唯讀 `DISPUTED` 訂單與有 OPEN 待辦的訂單（CQ-18） | 依 §3 轉移表的觸發者 |
+| 訂單 | 該訂單的 owner 與 sitter；ADMIN 唯讀 `DISPUTED` 訂單與曾有任何 ADMIN 待辦的訂單（`admin_tasks` 不論 OPEN / RESOLVED，不論訂單狀態）（CQ-18、CQ-84）。ADMIN 的寫入不因此擴大：作廢（O16）仍限有 OPEN 首次付款待核對待辦，調解結案（O15、O17）仍限訂單 `DISPUTED` | 依 §3 轉移表的觸發者 |
 | 毛孩 | owner；與該 owner 有過任何狀態訂單的 sitter | owner（照護備註依 PRD-021 協作規則） |
 | 保母方案、問卷、公開檔案 | 公開資訊匿名可讀 | 該 sitter |
 | 保母收款帳號 | 該 sitter；收款帳號在 payment 建立時快照，該 payment 的付款方可讀快照（CQ-23）；ADMIN 於可讀訂單範圍內唯讀快照（CQ-66） | 該 sitter |
@@ -384,7 +384,7 @@ stateDiagram-v2
 | CQ-15 | 變更無逾時 / 撤回 | 可撤回；`REQUESTED` / `QUOTED` / `AWAITING_SUPPLEMENT` 72h 逾時；`AWAITING_REFUND` 依 CQ-30 | §3.4 |
 | CQ-16 | 協商期間行程衝突 | 採 CQ-32 | §3.4 |
 | CQ-17 | 變更與爭議互斥、起算點 | 互斥（`AWAITING_REFUND` 例外）；結案基準時間 = max(最後行程結束, 最後變更結束) | O13、§5 |
-| CQ-18 | ADMIN 調解 | 不改 `total_amount`，登記調解退款；ADMIN 唯讀爭議訂單 | O15、§1.2 |
+| CQ-18 | ADMIN 調解 | 不改 `total_amount`，登記調解退款；ADMIN 唯讀爭議訂單（可讀範圍 2026-11-22 擴為「`DISPUTED` 或曾有任何 ADMIN 待辦」，見 CQ-84） | O15、§1.2 |
 | CQ-19 | 訂閱逾期範圍 | 只擋新生意，既有訂單照常 | §2.2 |
 | CQ-20 | 快照時點 | 報價時 | §2.2 |
 | CQ-21 | 月額度返還 | 不返還；上限取檢查當下等級 | §2.2 |
@@ -430,7 +430,7 @@ stateDiagram-v2
 | CQ-64 | 補款待核對 72h 起算點 | 目前這筆 submission 的上傳時間；駁回後重傳重新起算 | O14 |
 | CQ-65 | 取消時行程與 payment | 同交易轉 `CANCELLED` / `VOID` | §3.2 |
 | CQ-67 | 免填原因無從分辨（PRD-006 CQ-10） | 送單時寫入 `questionnaire_exempt_reason` | §3.5 |
-| CQ-66 | 鎖定期間變更計價；ADMIN 讀收款帳號快照；O14 / O16 / 方向不符錯誤碼 | 依 FREE 規則計價；ADMIN 可唯讀；錯誤碼見 O14、O16、§3.7 | §1.2、§3.2、§3.7 |
+| CQ-66 | 鎖定期間變更計價；ADMIN 讀收款帳號快照；O14 / O16 / 方向不符錯誤碼 | 依 FREE 規則計價；ADMIN 於可讀訂單範圍內可唯讀（範圍依 CQ-84）；錯誤碼見 O14、O16、§3.7 | §1.2、§3.2、§3.7 |
 | CQ-68 | 方案可預約區間是否看等級（PRD-016 與 PRD-005 / §2.1 相反） | 只在當下 PRO / ULTIMATE 且未鎖定時套用；預約與變更一致 | §2.1 |
 | CQ-69 | 反覆發起再撤回變更可無限延後結案 | 發起變更需至少 1 個 PENDING 行程；只有 SETTLED 變更推遲 `completion_basis_at` | §3.4、§5 |
 | CQ-70 | 多錯誤同時成立的判斷順序 | 見 §3.7 判斷順序 | §3.7 |
@@ -447,6 +447,7 @@ stateDiagram-v2
 | CQ-81 | 照護日誌的歸屬與鎖 | owner / ADMIN 只能讀已送出的；日誌寫入經訂單鎖 | §1.2、§3.6 |
 | CQ-83 | 模組狀態類 409 的判斷位置；`STORAGE_UNAVAILABLE` 歸屬（PRD-022 寫回回饋，技術細節） | 緊接第 9 步之後；`STORAGE_UNAVAILABLE` 提升為跨模組碼 | §3.7 |
 | CQ-82 | O11–O13 的通知與 O13 錯誤碼 | O11 通知保母、O12 通知雙方、O13 通知保母（可關閉類別）；O13 錯誤碼與 `SERVICE_DISPUTE` 待辦；`VISITS_NOT_FINISHED` 列入判斷順序第 9 步 | §3.2、§3.7 |
+| CQ-84 | ADMIN 唯讀範圍是否涵蓋待辦已關閉的訂單（journey TS 回饋） | 訂單 `DISPUTED`，或曾有任何 ADMIN 待辦（不論待辦與訂單狀態）即可唯讀；寫入不擴大：O16 仍限有 OPEN 首次付款待核對待辦，O15 / O17 仍限 `DISPUTED`（使用者決定 2026-11-22） | §1.2 |
 
 ---
 
@@ -454,6 +455,7 @@ stateDiagram-v2
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。§1.2 訂單列 ADMIN 唯讀範圍擴為「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」，寫入不擴大（O16 限 OPEN 首次付款待核對待辦、O15 / O17 限 `DISPUTED`）；CQ-18、CQ-66 加註；新增 CQ-84。使用者同意之核准後修訂 2026-11-22，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 使用者核准：狀態 In Review → Approved（第 3 版） | 使用者 2026-11-22 |
 | 2026-11-22 | 第 3 版修訂：CQ-78~82（行程逾時出口、開始時間限制、`VISIT_STATE_CONFLICT` 與新期限名稱、照護日誌歸屬與鎖、O11–O13 通知與錯誤碼、§6 行程定義定案）；狀態退回 In Review | FULFILL PRD 重寫回饋 + 使用者決定（全部採建議） |
 | 2026-11-22 | §3.7 新增期限名稱 `DISPUTE_WINDOW_ENDS_AT`（O13）；`@Version` 衝突回 `ORDER_BUSY`（核准後修訂，SD-ORDER CQ-2、CQ-5） | 使用者核准 2026-11-22 |

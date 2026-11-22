@@ -32,7 +32,7 @@ BR §5.2 要求訂單進行中時，保母可為每一次到府服務編輯「�
 |------|-------|--------|-------|------|---------|
 | 新增 / 刪除 / 排序檢核項 | ✗ 403 `ROLE_MISMATCH` | 本人訂單的行程 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 無（FREE / BASIC / PRO / ULTIMATE 皆同）；訂閱鎖定 / 停權不擋 |
 | 打勾 / 取消打勾 | ✗ 403 `ROLE_MISMATCH` | 本人訂單的行程 | ✗ 403 `ROLE_MISMATCH` | ✗ 401 | 同上 |
-| 檢視檢核項 | 本人訂單（唯讀） | 本人訂單 | 唯讀：`DISPUTED` 訂單或有 OPEN 待辦的訂單，其他 → 403 `FORBIDDEN` | ✗ 401 | 無 |
+| 檢視檢核項 | 本人訂單（唯讀） | 本人訂單 | 唯讀：`DISPUTED` 訂單或曾有任何 ADMIN 待辦的訂單（不論狀態；baseline CQ-84），其他 → 403 `FORBIDDEN` | ✗ 401 | 無 |
 | 初始帶入（行程建立時） | ✗ | ✗ | ✗ | ✗ | 系統於行程建立交易內執行，無對外端點 |
 
 - 行程存在但所屬訂單不屬於呼叫者 → 403 `FORBIDDEN`；行程或檢核項不存在 → 404 `NOT_FOUND`；檢核項不屬於路徑上的行程 → 404 `NOT_FOUND`（baseline §1.2）。
@@ -129,7 +129,7 @@ BR §5.2 要求訂單進行中時，保母可為每一次到府服務編輯「�
 - [ ] **AC-2.1 (打勾不強制)**：Given 訂單 `IN_PROGRESS`、V `IN_PROGRESS`，項目 I1、I2、I3。情境 1：When A 於 `2026-12-10T01:30:00Z` 勾選 `sitter-visit-panel-checklist-check-{I1}`，Then 200，I1 `is_completed=true`、`checked_at=2026-12-10T01:30:00Z`，`sitter-visit-panel-checklist-item-{I1}` 內的 `sitter-visit-panel-checklist-checked-at-{I1}` 顯示「2026-12-10 09:30」（Asia/Taipei），未打勾的 I2、I3 無此元素；When 再點一次，Then I1 `is_completed=false`、`checked_at` 清空、`sitter-visit-panel-checklist-checked-at-{I1}` 消失。情境 2：Given 只有 I2 已勾，When A 結束行程（PRD-008 AC-1.5），Then 200、V `DONE`，結束確認框顯示「尚有 2 項未打勾（不影響結束）」。情境 3：Given V `DONE`（`completed_at` 未滿 24h），Then 勾選框唯讀，保留 I2 已勾狀態；When 直接呼叫打勾 API（或以停留在 `IN_PROGRESS` 的舊畫面點擊），Then 409 `VISIT_STATE_CONFLICT`（`currentVisitStatus=DONE`），畫面顯示「此行程已結束，無法修改」。對應：BR-4、BR-5、BR-14、EX-8
 - [ ] **AC-2.2 (打勾時機與併發)**：情境 1：Given V `PENDING`（訂單 `CONFIRMED`），Then 勾選框停用並顯示「開始行程後才能打勾」；When 直接呼叫打勾 API，Then 409 `ORDER_STATE_CONFLICT`（`currentStatus=CONFIRMED`）。情境 2：Given 訂單 `IN_PROGRESS`、V `PENDING`，When 打勾，Then 409 `VISIT_STATE_CONFLICT`（`currentVisitStatus=PENDING`）。情境 3：Given V `IN_PROGRESS` 已達逾時，When 系統逾時結束（PRD-008 T4）先取得鎖、A 隨後打勾，Then 409 `VISIT_STATE_CONFLICT`（`currentVisitStatus=DONE`）；When A 先取得鎖，Then 打勾 200、之後 V 照常轉 `DONE`。情境 4：Given 訂單列被鎖超過 3 秒，When A 打勾，Then 409 `ORDER_BUSY`、`Retry-After: 1`。對應：BR-4、BR-9、EX-9、EX-10
 - [ ] **AC-2.3 (飼主唯讀檢視)**：Given 飼主 O 的訂單：V1（`IN_PROGRESS`，I1 已勾、I2 未勾）、V2（`PENDING`，I3）、V3（無項目）。When O 展開各行程的 `owner-order-detail-visit-checklist-{visitId}`，Then V1 顯示 I1 打勾圖示（`data-checked=true`）、I2 時鐘圖示（`data-checked=false`）；V2 顯示 I3 時鐘圖示；V3 顯示「保母未設定檢核項」；頁面無任何新增 / 刪除 / 拖曳 / 勾選元素，項目無備註欄位。對應：BR-13、BR-15
-- [ ] **AC-2.4 (讀取越權)**：情境 1：When 飼主 O2 讀取 O 訂單的檢核項，Then 403 `FORBIDDEN`。情境 2：When 飼主 O 呼叫打勾或新增 API，Then 403 `ROLE_MISMATCH`。情境 3：Given 訂單 `DISPUTED`，When ADMIN 讀取，Then 200（唯讀）；Given 訂單 `IN_PROGRESS` 且無 OPEN 待辦，When ADMIN 讀取，Then 403 `FORBIDDEN`。情境 4：When 讀取不存在的行程，Then 404 `NOT_FOUND`。對應：EX-2、EX-3、EX-4
+- [ ] **AC-2.4 (讀取越權)**：情境 1：When 飼主 O2 讀取 O 訂單的檢核項，Then 403 `FORBIDDEN`。情境 2：When 飼主 O 呼叫打勾或新增 API，Then 403 `ROLE_MISMATCH`。情境 3：Given 訂單 `DISPUTED`，When ADMIN 讀取，Then 200（唯讀）；Given 訂單 `IN_PROGRESS` 且從未有任何 ADMIN 待辦，When ADMIN 讀取，Then 403 `FORBIDDEN`。情境 4：When 讀取不存在的行程，Then 404 `NOT_FOUND`。對應：EX-2、EX-3、EX-4
 
 ## 9. 影響範圍
 
@@ -158,6 +158,7 @@ BR §5.2 要求訂單進行中時，保母可為每一次到府服務編輯「�
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。§3 與 AC-2.4 情境 3 的 ADMIN 唯讀範圍改「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）。AC 數不變，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：(1) 打勾時間顯示在保母服務面板：§4.3 步驟 1、BR-14、AC-2.1 情境 1、§9 補 `sitter-visit-panel-checklist-checked-at-{itemId}`（位於 `sitter-visit-panel-checklist-item-{itemId}` 內，Asia/Taipei `YYYY-MM-DD HH:mm`，未打勾不顯示；名稱依 SD-FULFILL）；(2) 打勾遇已結束行程（`DONE` / `CLOSED_BY_SYSTEM` / `CANCELLED`）文案定為「此行程已結束，無法修改」（§4.3 步驟 2、EX-8、AC-2.1 情境 3）；(3) BR-6「去前後空白」加註含全形空白（定義見 SD-GLOBAL-SPEC）。本卡無金額。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：§9 畫面 testid 補飼主檢核單項 `owner-order-detail-visit-checklist-item-{itemId}`（供 TS 定位 AC-2.3 單項，`data-checked` 不變）。僅補 testid，不改 AC 與規則；狀態維持 Approved | `docs/reviews/SD-FULFILL.api.review.md` 第 2 輪 S20；SD-FULFILL CQ-14 |
 | 2026-11-22 | 使用者核准：狀態 In Review → Approved | 使用者 2026-11-22 |

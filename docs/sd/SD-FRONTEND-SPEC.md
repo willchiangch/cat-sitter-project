@@ -194,12 +194,16 @@ CI 的 mock spec 是對**正式站**跑的（`BASE_URL` = Firebase Hosting，`/a
 
 | 類別 | 狀態碼 → 顯示文字 |
 | :--- | :--- |
-| 訂單 `orders.status` | `PENDING` 待評估、`PENDING_PAYMENT` 待付款、`PAID` 已付款、`CONFIRMED` 已確認、`IN_PROGRESS` 服務進行中、`MODIFYING` 變更協商中、`REFUND_VERIFY` 待確認退款、`COMPLETED` 已結案、`CANCELLED` 已取消、`DISPUTED` 爭議處理中 |
+| 訂單 `orders.status` | `PENDING` 待評估、`PENDING_PAYMENT` 待付款、`CONFIRMED` 已確認、`IN_PROGRESS` 服務進行中、`DISPUTED` 爭議處理中、`COMPLETED` 已結案、`CANCELLED` 已取消（baseline §3.1 七個主狀態；2026-11-22 刪除已廢止的 `PAID`、`MODIFYING`、`REFUND_VERIFY`，baseline CQ-1） |
+| 付款 `payments.status` | `UNPAID` 待付款、`SUBMITTED` 待核對、`VERIFIED` 已確認、`VOID` 已作廢（baseline §3.3） |
+| 憑證 `payment_submissions.status` | `SUBMITTED` 待核對、`ACCEPTED` 已確認、`REJECTED` 已駁回（baseline §3.3） |
+| 變更 `modification_requests.status` | `REQUESTED` 待保母報價、`QUOTED` 待飼主回應、`AWAITING_SUPPLEMENT` 待補款、`AWAITING_REFUND` 待退款、`SETTLED` 已生效、`REJECTED` 已拒絕、`WITHDRAWN` 已撤回、`EXPIRED` 已逾期（baseline §3.4） |
+| 照護日誌 `visit_service_reports.status` | `DRAFT` 草稿、`SUBMITTED` 已送出；逾期為衍生「已逾期，未送出」（PRD-022） |
 | 行程 `visits.status` | `PENDING` 待執行、`IN_PROGRESS` 執行中、`DONE` 已完工、`CLOSED_BY_SYSTEM` 系統結案、`CANCELLED` 已取消（2026-11-22 移除舊值 `CONFIRMED`，baseline §6）；`DONE` 且完成來源 `SYSTEM` 時另加註「系統自動結束」（PRD-008 BR-17、SD-FULFILL） |
 | 保母認證 `profiles.kyc_status` | `UNVERIFIED` 未認證、`PENDING_REVIEW` 審核中、`VERIFIED` 已認證、`REJECTED` 被駁回、`SUSPENDED` 已停權 |
 | KYC 申請 `kyc_records.status`（管理端） | `PENDING` 待審核、`APPROVED` 已通過、`REJECTED` 被駁回 |
 
-2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。迴歸：`e2e/order-status-labels.spec.ts`（10 種訂單狀態逐一比對、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
+2026-10 前 `StatusBadge` 只認 6 種訂單狀態，其餘（`IN_PROGRESS` 等）直接顯示英文碼；行程清單、評估頁「非待評估」提示直接印 `visit.status`/`order.status`；KYC 徽章是「待審核 (PENDING)」中英混雜（驗收 P6 / Backlog 第 3 批 U5）。子流程狀態的顯示文字為本表建議值，PRD 畫面另有字面時以 PRD 為準並回寫本表。迴歸：`e2e/order-status-labels.spec.ts`（原 10 種訂單狀態逐一比對，2026-11-22 起改為 7 種主狀態、行程清單不得出現 `（[A-Z_]+）`）、Journey C 步驟 8。
 
 ### 6.4.1 金額顯示（2026-10-24，驗收 N15）
 PRD 文字中的「NT$ 2,900」等寫法一律以本節 `formatMoney` 格式（`$ 2,900`）呈現，不另加 `NT` 前綴（使用者 2026-11-22 決定，PRD-009 帳務 / 歷史畫面適用；SD-FULFILL §9.2）。

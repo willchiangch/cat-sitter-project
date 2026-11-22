@@ -38,7 +38,7 @@
 | 上傳退款憑證 | ✗ | 本人訂單（見 PRD-007） | ✗ | ✗ | 無；訂閱鎖定不擋 |
 | 確認收到退款 | 本人訂單（只能確認，見 PRD-007） | ✗ | ✗ | ✗ | 無 |
 | 讀取補款收款帳號快照 | 該補款 payment 的付款方 | 本人 | 唯讀，限 BASELINE §1.2 可讀訂單（CQ-66） | ✗ | 無 |
-| 檢視變更、補款、退款 | 本人訂單 | 本人訂單 | 唯讀，限 BASELINE §1.2 可讀訂單（`DISPUTED` 或有 OPEN 待辦的訂單） | ✗ | 無 |
+| 檢視變更、補款、退款 | 本人訂單 | 本人訂單 | 唯讀，限 BASELINE §1.2 可讀訂單（`DISPUTED` 或曾有任何 ADMIN 待辦的訂單，不論狀態；CQ-84） | ✗ | 無 |
 
 - 訂單存在但不屬於呼叫者 → 403 `FORBIDDEN`；不存在 → 404 `NOT_FOUND`；token 角色不符 → 403 `ROLE_MISMATCH`（BASELINE §1.1、§1.2）。
 - 多個錯誤同時成立時依 PRD-016 BR-28（BASELINE §3.7 判斷順序）回第一個（BR-21）。
@@ -206,7 +206,7 @@
 | 面向 | 內容 |
 |------|------|
 | 資料 | `modification_requests`：狀態、結束時間（所有終態）、同意時的已收淨額與差額（回寫）、`initiatedBy=SYSTEM` 列（欄位見 BR-9）、關聯的 payment；`payments`：`SUPPLEMENT` / `MODIFICATION_REFUND` 列（欄位定義見 BASELINE §3.3、PRD-007）；`visits`：減少目標 `CANCELLED`、新增行程 `PENDING`（SD-FULFILL 擁有，經 SD-ORDER 鎖入口，BASELINE §3.6）；`orders.total_amount`（`SETTLED` 或補款逾時重算時更新）、`orders.status`（O10）；`order_logs` |
-| 畫面 | 協商頁（同意 / 拒絕、差額說明）；補款頁（本次應補差額、收款帳號快照、期限）；退款區塊（保母上傳、飼主確認）；ADMIN 唯讀頁可看收款帳號快照；保母帳務總覽（收入 = 已收淨額，見 PRD-009） |
+| 畫面 | 協商頁（同意 / 拒絕、差額說明）；補款頁（本次應補差額、收款帳號快照、期限）；退款區塊（保母上傳、飼主確認）；變更 `SETTLED` 後（含補款逾時重算總額）訂單詳情報價明細分三段：「原報價」（基本價、加價、折扣、原總額）、差額列（每筆 `SETTLED` 變更一列：日期、增減內容、差額 = 變更後總額 − 變更前總額；補款逾時重算 `total_amount`（BASELINE §3.4 CQ-53）也列一列；系統建立的退款變更 `SETTLED` 時總額不變，不列入）、「目前總額」（訂單目前 `total_amount`），定義見 PRD-006 BR-16（使用者決定 2026-11-22）；ADMIN 唯讀頁可看收款帳號快照；保母帳務總覽（收入 = 已收淨額，見 PRD-009） |
 | 通知 | 同意（三分支）→ SITTER，補款分支另通知 OWNER 金額與期限（`due_at` 前不另發提醒，BR-20）；拒絕 → SITTER；補款確認 → 雙方「補款已確認，變更已生效」；補款逾時 → 雙方，系統退款 → SITTER；退款確認 → 雙方；O10 → 雙方。管道：站內 + Email（outbox，BASELINE §3.6；範本見 PRD-014） |
 | 排程 | 有：補款逾時（每 15 分鐘，`payments.due_at`、`purpose=SUPPLEMENT`、`UNPAID`，`now ≥ due_at`，鎖住後重驗） |
 
@@ -218,6 +218,7 @@
 | 飼主同意 / 拒絕 | `modification-btn-accept`、`modification-btn-reject` |
 | 協商頁差額 | `modification-detail-diff` |
 | 補款 / 退款憑證區塊 | 沿用 PRD-007 §9 的付款區塊 testid |
+| 變更結算後訂單詳情報價明細（PRD-006 BR-16；使用者決定 2026-11-22） | `order-detail-quote-original-total`、`order-detail-quote-modification-{modificationId}`、`order-detail-quote-current-total` |
 
 ## 10. 待釐清事項
 
@@ -232,6 +233,7 @@
 
 | 日期 | 變更 | 原因 / 審查輪次 |
 |------|------|----------------|
+| 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：journey TS 回饋。(1) §9 畫面與 testid 表補變更結算後報價明細三段（原報價、`SETTLED` 變更差額列（含補款逾時重算一列，系統退款變更不列）、目前總額；定義見 PRD-006 BR-16）與 `order-detail-quote-original-total` / `-modification-{modificationId}` / `-current-total`；(2) §3 ADMIN 可讀範圍改「`DISPUTED` 或曾有任何 ADMIN 待辦（不論狀態）」（baseline CQ-84）。AC 不變，狀態維持 Approved | 使用者決定 2026-11-22 |
 | 2026-11-22 | 核准後回寫，使用者已同意 2026-11-22：TS 撰寫回饋：畫面與通知金額改為 SD-FRONTEND-SPEC §6.4.1 格式（§4.1 步驟 1 差額、§4.3 補款頁、§4.3 步驟 5 系統退款通知、AC-1.2、AC-1.3、AC-2.4，例「本次應補差額 $ 500」「請退還 $ 500」）。SD-ORDER §9.3 補定的 testid 無屬於本卡者；本卡無「去前後空白」規則。AC 數不變，狀態維持 Approved | 使用者 2026-11-22 同意 |
 | 2026-11-22 | §3 / EX-2 註明 `ROLE_MISMATCH` 只適用飼主同意 / 拒絕端點；保母拒絕 `QUOTED` 依 PRD-016 回 409（核准後修訂，SD-ORDER CQ-41） | 使用者核准 2026-11-22 |
 | 2026-11-22 | §9 補 E2E testid（SD-ORDER CQ-10，屬畫面識別補充，不改規格） | 主流程 |
