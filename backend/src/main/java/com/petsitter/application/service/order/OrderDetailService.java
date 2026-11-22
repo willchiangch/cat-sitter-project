@@ -13,6 +13,7 @@ import com.petsitter.application.port.ServicePlanQuery;
 import com.petsitter.application.port.ServicePlanQuery.PlanView;
 import com.petsitter.application.port.SubscriptionQuery.SubscriptionStatus;
 import com.petsitter.application.port.UserDisplayQuery;
+import com.petsitter.application.service.fulfill.ServiceDateRange;
 import com.petsitter.application.service.fulfill.VisitQueryService;
 import com.petsitter.application.service.fulfill.VisitView;
 import com.petsitter.domain.model.order.ActorRole;
@@ -416,6 +417,7 @@ public class OrderDetailService {
                 .stream().map(ModificationRequest::getOrderId).collect(Collectors.toSet());
         Map<UUID, List<OrderItem>> items = orderItemRepository.findByOrderIdIn(ids).stream()
                 .collect(Collectors.groupingBy(OrderItem::getOrderId));
+        Map<UUID, ServiceDateRange> ranges = visitQueryService.effectiveServiceDateRanges(ids);
         List<OrderCard> out = new ArrayList<>();
         for (Order o : orders) {
             List<Payment> ps = payments.getOrDefault(o.getId(), List.of());
@@ -424,7 +426,7 @@ public class OrderDetailService {
             int net = ps.stream().filter(p -> p.getStatus() == PaymentStatus.VERIFIED)
                     .mapToInt(p -> p.getDirection() == com.petsitter.domain.model.order.PaymentDirection.CHARGE ? p.getAmount() : -p.getAmount())
                     .sum();
-            LocalDate last = lastServiceDate(o, items.getOrDefault(o.getId(), List.of()));
+            LocalDate last = lastServiceDate(o, ranges.get(o.getId()), items.getOrDefault(o.getId(), List.of()));
             out.add(new OrderCard(o.getId(), o.getStatus().name(), names.get(asOwner ? o.getSitterId() : o.getOwnerId()),
                     o.getFirstServiceDate(), last, o.getBaseAmount(), o.getTotalAmount(), withOpenMod.contains(o.getId()),
                     initialStatus, o.getCreatedAt(), history ? terminalAt(o) : null, history ? net : null));
@@ -432,12 +434,13 @@ public class OrderDetailService {
         return out;
     }
 
-    /** 最後一個有效行程日；查行程（列表頁每批 ≤ 50 筆）。 */
-    LocalDate lastServiceDate(Order o, List<OrderItem> items) {
-        return visitQueryService.listVisits(o.getId()).stream().filter(VisitView::effective).map(VisitView::serviceDate)
-                .max(LocalDate::compareTo)
-                .orElseGet(() -> items.stream().flatMap(i -> Arrays.stream(i.getServiceDates())).max(LocalDate::compareTo)
-                        .orElse(o.getFirstServiceDate()));
+    /** 最後一個有效行程日（{@code range} 由整頁一次批次查詢取得）；無有效行程時退回群組日期、再退回首日。 */
+    static LocalDate lastServiceDate(Order o, ServiceDateRange range, List<OrderItem> items) {
+        if (range != null) {
+            return range.last();
+        }
+        return items.stream().flatMap(i -> Arrays.stream(i.getServiceDates())).max(LocalDate::compareTo)
+                .orElse(o.getFirstServiceDate());
     }
 
     static OffsetDateTime terminalAt(Order o) {

@@ -2,8 +2,8 @@ package com.petsitter.application.service.order;
 
 import com.petsitter.application.dto.order.ModificationResponses;
 import com.petsitter.application.port.UserDisplayQuery;
+import com.petsitter.application.service.fulfill.ServiceDateRange;
 import com.petsitter.application.service.fulfill.VisitQueryService;
-import com.petsitter.application.service.fulfill.VisitView;
 import com.petsitter.domain.model.order.Order;
 import com.petsitter.domain.model.order.OrderStatus;
 import com.petsitter.domain.model.order.Payment;
@@ -14,7 +14,6 @@ import com.petsitter.domain.repository.order.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +50,7 @@ public class SitterLedgerService {
                             p -> p.getDirection() == PaymentDirection.CHARGE ? p.getAmount() : -p.getAmount())));
             Map<UUID, String> names = orders.isEmpty() ? Map.of()
                     : userDisplayQuery.ownerDisplayNames(orders.stream().map(Order::getOwnerId).collect(Collectors.toSet()));
+            Map<UUID, ServiceDateRange> ranges = visitQueryService.effectiveServiceDateRanges(ids);
             int total = 0;
             List<ModificationResponses.LedgerOrder> rows = new ArrayList<>();
             for (Order o : orders) {
@@ -59,11 +59,10 @@ public class SitterLedgerService {
                 if (o.getStatus() == OrderStatus.CANCELLED && n == 0) {
                     continue;
                 }
-                List<LocalDate> dates = visitQueryService.listVisits(o.getId()).stream().filter(VisitView::effective)
-                        .map(VisitView::serviceDate).sorted().toList();
+                ServiceDateRange range = ranges.get(o.getId());
                 rows.add(new ModificationResponses.LedgerOrder(o.getId(), o.getStatus().name(), names.get(o.getOwnerId()),
-                        dates.isEmpty() ? o.getFirstServiceDate() : dates.get(0),
-                        dates.isEmpty() ? o.getFirstServiceDate() : dates.get(dates.size() - 1),
+                        range == null ? o.getFirstServiceDate() : range.first(),
+                        range == null ? o.getFirstServiceDate() : range.last(),
                         OrderDetailService.terminalAt(o), n));
             }
             return new ModificationResponses.Ledger(ym.toString(), clock.monthTaipei().toString(), total, rows);

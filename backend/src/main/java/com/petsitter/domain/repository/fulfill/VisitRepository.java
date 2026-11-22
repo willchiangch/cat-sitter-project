@@ -44,6 +44,25 @@ public interface VisitRepository extends JpaRepository<Visit, UUID> {
             """)
     List<VisitWithLogRow> findRowsWithLog(@Param("orderId") UUID orderId);
 
+    /** {@code effectiveServiceDateRanges} 的列。 */
+    interface ServiceDateRangeRow {
+        UUID getOrderId();
+
+        LocalDate getFirstDate();
+
+        LocalDate getLastDate();
+    }
+
+    /** 批次：各訂單排除 {@code excluded} 狀態後的首末行程日（E3 / E4 / E30 列表不 N+1）。 */
+    @Query("""
+            SELECT v.orderId AS orderId, MIN(v.serviceDate) AS firstDate, MAX(v.serviceDate) AS lastDate
+            FROM Visit v
+            WHERE v.orderId IN :orderIds AND v.status <> :excluded
+            GROUP BY v.orderId
+            """)
+    List<ServiceDateRangeRow> findServiceDateRanges(@Param("orderIds") Collection<UUID> orderIds,
+                                                    @Param("excluded") VisitStatus excluded);
+
     List<Visit> findByOrderIdOrderByServiceDateAscSequenceInDayAsc(UUID orderId);
 
     List<Visit> findByOrderIdAndStatus(UUID orderId, VisitStatus status);

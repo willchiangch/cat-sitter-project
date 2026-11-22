@@ -457,6 +457,11 @@ class DisputeAndAdminIntegrationTest extends OrderIntegrationTestBase {
             assertThat(r.get("totalIncome").asInt()).isEqualTo(1000);
             assertThat(r.get("orders").size()).isEqualTo(1);
             assertThat(r.get("orders").get(0).get("netPaid").asInt()).isEqualTo(1000);
+            // 服務期間 = 首末有效行程日（VisitQueryService.effectiveServiceDateRanges 批次查詢）
+            Map<String, Object> range = jdbc.queryForMap("SELECT min(service_date)::text AS f, max(service_date)::text AS l "
+                    + "FROM visits WHERE order_id = ? AND status <> 'CANCELLED'", completed);
+            assertThat(r.get("orders").get(0).get("firstServiceDate").asString()).isEqualTo(range.get("f"));
+            assertThat(r.get("orders").get(0).get("lastServiceDate").asString()).isEqualTo(range.get("l"));
             assertThat(r.get("serverMonth").asString()).isEqualTo(month);
             JsonNode empty = body(mvc.perform(getAs("/api/orders/sitter/ledger?month=2001-01", sitterToken())));
             assertThat(empty.get("totalIncome").asInt()).isZero();

@@ -2,6 +2,7 @@ package com.petsitter.application.service.fulfill;
 
 import com.petsitter.domain.model.fulfill.VisitServiceReport;
 import com.petsitter.domain.model.order.OrderStatus;
+import com.petsitter.domain.model.order.VisitStatus;
 import com.petsitter.domain.repository.fulfill.VisitRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -9,7 +10,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,6 +31,19 @@ public class VisitQueryServiceImpl implements VisitQueryService {
                 .map(r -> new VisitView(r.getVisitId(), r.getOrderItemId(), r.getPlanId(), r.getServiceDate(), r.getStatus(),
                         r.getCompletedAt(), r.getClosedAt(), VisitServiceReport.SUBMITTED.equals(r.getCareLogStatus())))
                 .toList();
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
+    public Map<UUID, ServiceDateRange> effectiveServiceDateRanges(Collection<UUID> orderIds) {
+        if (orderIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, ServiceDateRange> out = new java.util.HashMap<>();
+        for (VisitRepository.ServiceDateRangeRow r : visitRepository.findServiceDateRanges(orderIds, VisitStatus.CANCELLED)) {
+            out.put(r.getOrderId(), new ServiceDateRange(r.getFirstDate(), r.getLastDate()));
+        }
+        return out;
     }
 
     @Override

@@ -1,9 +1,14 @@
 package com.petsitter.order;
 
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -85,5 +90,48 @@ class OrderHistoryIntegrationTest extends OrderIntegrationTestBase {
         assertThat(list("/api/orders/owner", ownerToken(), "tab=HISTORY&month=2001-01").get("content").size()).isZero();
         mvc.perform(getAs("/api/orders/owner?tab=HISTORY&month=2026-13", ownerToken())).andExpect(status().isBadRequest());
         mvc.perform(getAs("/api/orders/owner?tab=HISTORY&status=PENDING", ownerToken())).andExpect(status().isBadRequest());
+    }
+
+    @Autowired
+    private EntityManagerFactory emf;
+
+    private long statementsFor(String path, String token, String query) throws Exception {
+        Statistics stats = emf.unwrap(SessionFactory.class).getStatistics();
+        stats.setStatisticsEnabled(true);
+        stats.clear();
+        try {
+            list(path, token, query);
+            return stats.getPrepareStatementCount();
+        } finally {
+            stats.setStatisticsEnabled(false);
+        }
+    }
+
+    @Test
+    @DisplayName("SD-ORDER E3 / E4 lastServiceDate：多筆訂單各自取最後有效行程日（排除 CANCELLED、無行程退回首日），行程日期整頁一次批次查詢，SQL 數不隨頁大小成長")
+    void lastServiceDateBatched() throws Exception {
+        LocalDate d = today();
+        UUID a = book(d.plusDays(3), d.plusDays(5));
+        UUID b = book(d.plusDays(4), d.plusDays(9));
+        jdbc.update("UPDATE visits SET status = 'CANCELLED', cancelled_at = now() WHERE order_id = ? AND service_date = ?", b, d.plusDays(9));
+        UUID c = fx.order(owner, sitter, "PENDING");
+        LocalDate cFirst = jdbc.queryForObject("SELECT first_service_date FROM orders WHERE id = ?", LocalDate.class, c);
+        assertThat(count("SELECT count(*) FROM visits WHERE order_id IN (?, ?)", a, b)).as("E1 已建立行程").isEqualTo(4);
+
+        for (String[] call : new String[][]{{"/api/orders/owner", ownerToken()}, {"/api/orders/sitter", sitterToken()}}) {
+            JsonNode content = list(call[0], call[1], "tab=EVALUATING").get("content");
+            java.util.Map<String, String> last = new java.util.HashMap<>();
+            content.forEach(n -> last.put(n.get("orderId").asString(), n.get("lastServiceDate").asString()));
+            assertThat(last).as(call[0]).containsEntry(a.toString(), d.plusDays(5).toString())
+                    .containsEntry(b.toString(), d.plusDays(4).toString())
+                    .containsEntry(c.toString(), cFirst.toString());
+        }
+
+        // size=1 / size=2 都需另查 count；size=20 整頁塞得下時 Spring Data 省略 count，故只要求不多於 size=1
+        long one = statementsFor("/api/orders/owner", ownerToken(), "tab=EVALUATING&size=1");
+        long two = statementsFor("/api/orders/owner", ownerToken(), "tab=EVALUATING&size=2");
+        long full = statementsFor("/api/orders/owner", ownerToken(), "tab=EVALUATING&size=20");
+        assertThat(two).as("size=1 → %d 條、size=2 → %d 條".formatted(one, two)).isEqualTo(one);
+        assertThat(full).as("size=20（3 筆）→ %d 條".formatted(full)).isLessThanOrEqualTo(one);
     }
 }

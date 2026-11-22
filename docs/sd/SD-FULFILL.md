@@ -159,6 +159,7 @@
 | `VisitCommandService.cancelVisits(LockedOrder, Set<UUID>, OffsetDateTime now)` | 全部為 `PENDING` 才整批取消；任一不是 → 拋 `VisitNotPendingException(visitIds)`，不改任何列 | 同上 |
 | `VisitCommandService.closeZombieVisits(LockedOrder, OffsetDateTime now, Duration zombieAfter)` | 防線：`order.status` 不在 `CONFIRMED` / `IN_PROGRESS` / `DISPUTED` → 回空。否則把 `PENDING` 且 `service_date 00:00（Asia/Taipei）+ zombieAfter ≤ now` 的行程 → `CLOSED_BY_SYSTEM`、`closed_at = now`；本批非空時同交易 `enqueue` 保母與飼主各 1 則（§7.2，列出本批所有日期與行程名稱）；本批為空 → 不通知、回空（SD-ORDER 據此略過，PRD-008 EX-23）。SD-ORDER §8.1 C7 的呼叫寫成 `closeZombieVisits(orderId, now)`，與本簽名不一致，由原作者修正（§12 CQ-3） | 同上 |
 | `VisitQueryService.listVisits(UUID orderId)` | `VisitView`：`visitId`、`orderItemId`、`planId`、`serviceDate`、`status`、`completedAt`、`closedAt`、`careLogSubmitted`（`visit_service_reports.status = SUBMITTED`）；一次查詢（LEFT JOIN 日誌），不 N+1 | `SUPPORTS` |
+| `VisitQueryService.effectiveServiceDateRanges(Collection<UUID> orderIds)` | `Map<UUID, ServiceDateRange>`：各訂單 `status ≠ CANCELLED` 行程的 `MIN` / `MAX(service_date)`，一次 `GROUP BY order_id` 查詢（`ix_visits_order_status`）；空集合不查 DB；無有效行程的訂單不在 Map 內 | `SUPPORTS` |
 | `VisitQueryService.findOrderIdsWithZombieVisits(LocalDate maxServiceDate, Set<OrderStatus>, int limit, CronScope scope)` | `visits.status='PENDING' AND service_date <= :max`，唯讀 JOIN `orders.status IN (:statuses)`（SD-ORDER CQ-22 排程候選例外），`DISTINCT order_id`，`LIMIT`。`CronScope`（使用者 2026-11-22 TS 回饋）：`orderId` 有值時只取該訂單；無值（Cloud Scheduler 自動觸發）時唯讀 JOIN `users` 排除 owner 或 sitter 為 `@e2e-journey.test` 帳號的訂單。`closeZombieVisits` 本身不變（範圍由候選決定） | `SUPPORTS` |
 
 - 寫入方法丟出的例外只有 `VisitNotPendingException`（業務）；其餘 DB 例外使呼叫端交易回滾。
@@ -1257,6 +1258,7 @@ Request：無 body。Response 201：`{ "mediaId", "mediaType", "caption", "sizeB
 
 | 日期 | 變更 | 原因 |
 |------|------|------|
+| 2026-11-22 | 實作審查回饋（狀態維持 Approved）：§2.3.1 新增 `VisitQueryService.effectiveServiceDateRanges` 批次查詢（SD-ORDER E3 / E4 / E30 列表不 N+1） | code review（E3 / E4 N+1） |
 | 2026-11-22 | 實作審查回饋（狀態維持 Approved）：§9.3 日誌照片壓縮補「瀏覽器無法編碼 WebP 時改以 JPEG 同品質階梯壓縮」，F16 宣告 `contentType` 取實際輸出格式 | Safari canvas 不支援 WebP 編碼會靜默回 PNG 並忽略品質，導致照片一律「照片需小於 1MB」 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§6.3 F13 非當事人與不在可讀範圍的 ADMIN 改為不論日誌是否送出一律 404 `NOT_FOUND`（取代 403 `FORBIDDEN`），移除以 403 / 404 推知日誌是否送出的存在性預言；判斷順序改為歸屬（404）→ G4a → OWNER / ADMIN 讀非 `SUBMITTED`（404），原「保母以 OWNER token 讀自己草稿得 404」已知邊界消失、改回 `ROLE_MISMATCH`；§6.1 混合角色 GET、§9.1 飼主日誌頁、§10.3 `VisitCareLogAuthorizationIntegrationTest` 同步。PRD-022 AC-3.3 情境 2（讀取部分）/ 情境 3、AC-3.4 情境 2 與 TS-022 待同步 | `docs/reviews/IMPL-ORDER-FULFILL.review.md` #13；使用者 2026-11-22 決定 |
 | 2026-11-22 | 使用者同意之核准後修訂（狀態維持 Approved）：§9.1 舊路由 `/visit-reports/manage/:visitId`、`/visit-reports/view/:visitId` 由「以 F2 / F13 查出 `orderId` 後轉址」改為顯示提示頁 `LegacyVisitLinkPage`（`legacy-visit-link`、`legacy-visit-link-btn-back`，依角色導向行程列表 / 我的訂單）；§8 F-M15 同步；§7.2 補註通知列表 `type` 欄位見 SD-GLOBAL-SPEC §4.4。理由：後端無 `visitId` → `orderId` 反查、系統未上線不存在舊連結 | 使用者 2026-11-22 決定 |
