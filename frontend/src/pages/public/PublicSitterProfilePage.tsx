@@ -5,9 +5,6 @@ import { getActivePlansForOwner } from '../../api/servicePlanApi';
 import type { ServicePlan } from '../../types/servicePlan';
 import { formatMoney } from '../../utils/money';
 
-const isLoggedInAsClient = (): boolean =>
-  Boolean(localStorage.getItem('accessToken')) && localStorage.getItem('userRole') === 'client';
-
 const PublicSitterProfilePage: React.FC = () => {
   const { sitterId } = useParams<{ sitterId: string }>();
   const [profile, setProfile] = useState<PublicProfileResponse | null>(null);
@@ -41,11 +38,9 @@ const PublicSitterProfilePage: React.FC = () => {
     };
   }, [sitterId]);
 
+  // 使用者決定 2026-11-22：匿名與登入者一律直接進預約頁；匿名可先選方案，送出時才導向登入（PRD-005 EX-1）
   const handleBookNow = () => {
-    const bookingPath = `/booking/${sitterId}`;
-    window.location.href = isLoggedInAsClient()
-      ? bookingPath
-      : `/register?redirect=${encodeURIComponent(bookingPath)}`;
+    window.location.href = `/booking/${sitterId}`;
   };
 
   if (loading) {
