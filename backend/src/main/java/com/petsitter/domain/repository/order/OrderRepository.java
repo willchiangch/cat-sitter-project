@@ -49,21 +49,21 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     Page<Order> findBySitterIdAndStatusIn(UUID sitterId, Collection<OrderStatus> statuses, Pageable pageable);
 
-    /** 歷史分頁（終態時間新到舊；可依終態時間區間篩選）。 */
+    /** 歷史分頁（終態時間新到舊；終態時間區間 [from, to)，不篩月份時由呼叫端給極大範圍）。 */
     @Query(value = """
             SELECT o FROM Order o
             WHERE ((:asOwner = true AND o.ownerId = :userId) OR (:asOwner = false AND o.sitterId = :userId))
               AND o.status IN :statuses
-              AND (:from IS NULL OR COALESCE(o.completedAt, o.cancelledAt) >= :from)
-              AND (:to IS NULL OR COALESCE(o.completedAt, o.cancelledAt) < :to)
+              AND COALESCE(o.completedAt, o.cancelledAt) >= :from
+              AND COALESCE(o.completedAt, o.cancelledAt) < :to
             ORDER BY COALESCE(o.completedAt, o.cancelledAt) DESC, o.id DESC
             """,
             countQuery = """
             SELECT COUNT(o) FROM Order o
             WHERE ((:asOwner = true AND o.ownerId = :userId) OR (:asOwner = false AND o.sitterId = :userId))
               AND o.status IN :statuses
-              AND (:from IS NULL OR COALESCE(o.completedAt, o.cancelledAt) >= :from)
-              AND (:to IS NULL OR COALESCE(o.completedAt, o.cancelledAt) < :to)
+              AND COALESCE(o.completedAt, o.cancelledAt) >= :from
+              AND COALESCE(o.completedAt, o.cancelledAt) < :to
             """)
     Page<Order> findHistory(@Param("userId") UUID userId, @Param("asOwner") boolean asOwner,
                             @Param("statuses") Collection<OrderStatus> statuses,

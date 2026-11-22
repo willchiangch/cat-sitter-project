@@ -204,4 +204,33 @@ public class GcsMediaStorageServiceImpl implements MediaStorageService {
         );
         return url.toString();
     }
+
+    @Override
+    public void uploadPrivateIfAbsent(String objectKey, byte[] content, String contentType) {
+        try {
+            BlobInfo info = BlobInfo.newBuilder(BlobId.of(bucketName, objectKey)).setContentType(contentType).build();
+            storage.create(info, content, Storage.BlobTargetOption.doesNotExist());
+        } catch (com.google.cloud.storage.StorageException e) {
+            if (e.getCode() == 412) {
+                return; // 已存在：接手的重試，內容由相同 request hash 保證一致（SD-ORDER §3.6.2 段 2）
+            }
+            throw new com.petsitter.application.exception.StorageUnavailableException("gcs upload failed", e);
+        } catch (RuntimeException e) {
+            throw new com.petsitter.application.exception.StorageUnavailableException("gcs upload failed", e);
+        }
+    }
+
+    @Override
+    public boolean deleteObject(String objectKey) {
+        return storage.delete(BlobId.of(bucketName, objectKey));
+    }
+
+    @Override
+    public List<StoredObject> listObjects(String prefix) {
+        List<StoredObject> out = new java.util.ArrayList<>();
+        for (Blob blob : storage.list(bucketName, Storage.BlobListOption.prefix(prefix)).iterateAll()) {
+            out.add(new StoredObject(blob.getName(), blob.getCreateTimeOffsetDateTime()));
+        }
+        return out;
+    }
 }

@@ -50,6 +50,14 @@ public class RowLockSupport {
             return !rows.isEmpty();
         } catch (PessimisticLockingFailureException e) {
             throw new OrderBusyException(e);
+        } catch (org.springframework.dao.DataAccessException e) {
+            // 部分 driver / locale 下 55P03 不會被翻成 CannotAcquireLockException（UncategorizedSQLException），依 SQLSTATE 判斷
+            com.petsitter.application.exception.PersistenceErrorClassifier.Classification c =
+                    com.petsitter.application.exception.PersistenceErrorClassifier.classify(e);
+            if (c.kind() == com.petsitter.application.exception.PersistenceErrorClassifier.Kind.LOCK_UNAVAILABLE) {
+                throw new OrderBusyException(e);
+            }
+            throw e;
         }
     }
 

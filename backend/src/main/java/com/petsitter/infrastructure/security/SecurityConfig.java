@@ -67,6 +67,8 @@ public class SecurityConfig {
                 auth.requestMatchers(HttpMethod.GET, "/api/sitters/*/plans").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/sitters/*/questions").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/sitter/profile/*").permitAll()
+                    // SD-ORDER §8.3 D7 (1)：E31 匿名可（帶 token 時仍由 JwtAuthenticationFilter 解析身分）
+                    .requestMatchers(HttpMethod.GET, "/api/sitters/*/booking-context").permitAll()
                     .requestMatchers("/api/internal/**").hasRole("INTERNAL")
                     .requestMatchers("/error").permitAll()
                     .anyRequest().authenticated();

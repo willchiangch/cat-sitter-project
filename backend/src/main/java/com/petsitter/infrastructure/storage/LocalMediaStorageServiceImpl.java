@@ -265,4 +265,54 @@ public class LocalMediaStorageServiceImpl implements MediaStorageService {
         // 本地環境下直接返回對應的可存取 URL，模擬 Signed URL 行為
         return localBaseUrl + "/" + objectKey;
     }
+
+    @Override
+    public void uploadPrivateIfAbsent(String objectKey, byte[] content, String contentType) {
+        try {
+            Path target = Paths.get(localStorageDir).resolve(objectKey).normalize();
+            if (!target.startsWith(Paths.get(localStorageDir).normalize())) {
+                throw new IllegalArgumentException("invalid object key");
+            }
+            if (Files.exists(target)) {
+                return;
+            }
+            Files.createDirectories(target.getParent());
+            Files.write(target, content, java.nio.file.StandardOpenOption.CREATE_NEW);
+        } catch (java.nio.file.FileAlreadyExistsException e) {
+            // 接手的重試：物件已存在視為已上傳
+        } catch (IOException e) {
+            throw new com.petsitter.application.exception.StorageUnavailableException("local upload failed", e);
+        }
+    }
+
+    @Override
+    public boolean deleteObject(String objectKey) {
+        try {
+            return Files.deleteIfExists(Paths.get(localStorageDir).resolve(objectKey).normalize());
+        } catch (IOException e) {
+            throw new IllegalStateException("local delete failed", e);
+        }
+    }
+
+    @Override
+    public java.util.List<StoredObject> listObjects(String prefix) {
+        Path root = Paths.get(localStorageDir).normalize();
+        Path dir = root.resolve(prefix).normalize();
+        if (!Files.isDirectory(dir)) {
+            return java.util.List.of();
+        }
+        try (java.util.stream.Stream<Path> walk = Files.walk(dir)) {
+            return walk.filter(Files::isRegularFile).map(p -> {
+                try {
+                    java.nio.file.attribute.BasicFileAttributes a = Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class);
+                    return new StoredObject(root.relativize(p).toString().replace('\\', '/'),
+                            java.time.OffsetDateTime.ofInstant(a.creationTime().toInstant(), java.time.ZoneOffset.UTC));
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }).toList();
+        } catch (IOException e) {
+            throw new IllegalStateException("local list failed", e);
+        }
+    }
 }

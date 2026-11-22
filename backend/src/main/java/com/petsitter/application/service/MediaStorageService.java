@@ -89,4 +89,22 @@ public interface MediaStorageService {
      * @return 是否真的有移除（原本就不是公開的回 false）
      */
     boolean revokePublicRead(String objectKey);
+
+    // ------------------------------------------------------------------ SD-ORDER §3.6.6 付款憑證（私有物件）
+
+    /** 物件清單項目（C10 孤兒檔掃描用）。 */
+    record StoredObject(String key, java.time.OffsetDateTime createdAt) {
+    }
+
+    /**
+     * 上傳私有物件，{@code doesNotExist} 前置條件：物件已存在（接手的重試）視為已上傳，不覆寫。
+     * 失敗拋 {@link com.petsitter.application.exception.StorageUnavailableException}。
+     */
+    void uploadPrivateIfAbsent(String objectKey, byte[] content, String contentType);
+
+    /** best-effort 刪除私有物件；回傳是否刪除（不存在 → false）。失敗拋例外由呼叫端記 log。 */
+    boolean deleteObject(String objectKey);
+
+    /** 列出前綴下物件與建立時間。 */
+    java.util.List<StoredObject> listObjects(String prefix);
 }
